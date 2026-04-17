@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyBook Booking Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260417-phase23">
+</head>
+<body class="booking-body">
+  <section class="admin-auth-shell" id="adminAuthGate">
+    <article class="booking-panel auth-panel">
+      <h1>SkyBook</h1>
+      <p class="muted-copy">Sign in with your Supabase admin account to manage shared bookings, brands, services, customers, operators, payments, templates, exports, and booking settings.</p>
+      <form id="loginForm" class="booking-form-grid">
+        <label class="booking-field-full">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="booking-field-full">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <div class="booking-field-full">
+          <button class="booking-button" type="submit">Sign In</button>
+        </div>
+      </form>
+      <div class="status-banner" id="authStatus">Sign in with your Supabase admin account to continue.</div>
+    </article>
+  </section>
+
+  <div class="admin-grid" id="adminAppShell" hidden>
+    <aside class="admin-sidebar-booking">
+      <h1>SkyBook</h1>
+      <p>Shared operations console for True Travel and Iventure with live CRUD, reporting, invoicing, commissions, and brand-aware booking management.</p>
+      <div class="admin-session">
+        <strong id="sessionLabel">Not signed in</strong>
+        <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
+      </div>
+      <div class="admin-nav-group">
+        <span>Operations</span>
+        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button">Dashboard</button>
+        <button class="admin-tab" data-admin-tab="reports" type="button">Reports</button>
+        <button class="admin-tab" data-admin-tab="bookings" type="button">Bookings</button>
+        <button class="admin-tab" data-admin-tab="payments" type="button">Payments</button>
+        <button class="admin-tab" data-admin-tab="customers" type="button">Customers</button>
+      </div>
+      <div class="admin-nav-group">
+        <span>Catalog</span>
+        <button class="admin-tab" data-admin-tab="services" type="button">Services</button>
+        <button class="admin-tab" data-admin-tab="engine" type="button">Booking Engine</button>
+      </div>
+      <div class="admin-nav-group">
+        <span>Finance</span>
+        <button class="admin-tab" data-admin-tab="platform" type="button">Finance & Platform</button>
+      </div>
+      <div class="admin-nav-group">
+        <span>Configuration</span>
+        <button class="admin-tab" data-admin-tab="settings" type="button">Settings</button>
+        <button class="admin-tab" data-admin-tab="emails" type="button">Email Templates</button>
+      </div>
+      <div class="admin-nav-group">
+        <span>Switch</span>
+        <a class="admin-tab admin-tab-link" href="design-admin.html">Open Design Studio</a>
+        <a class="admin-tab admin-tab-link" href="admin.html">Admin Gateway</a>
+      </div>
+    </aside>
+
+    <main class="admin-content">
+      <section class="admin-toolbar">
+        <div>
+          <h2>Ops Console</h2>
+          <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
+        </div>
+        <div class="toolbar-actions">
+          <button type="button" id="exportBookingsCsv">Export CSV</button>
+          <a class="booking-button ghost" href="design-admin.html">Design Studio</a>
+          <a class="booking-button ghost" href="admin.html">Admin Gateway</a>
+        </div>
+      </section>
+
+      <section class="admin-view is-active" data-admin-view="dashboard">
+        <div class="admin-panel-grid" id="dashboardCards"></div>
+      </section>
+
+      <section class="admin-view" data-admin-view="reports">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Reports Overview</h3>
+            <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
+          </article>
+          <article class="booking-panel">
+            <h3>Status Breakdown</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Status</th><th>Count</th></tr></thead>
+                <tbody id="reportsStatusTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
+            <h3>Guest Invoices</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Invoice</th><th>Status</th><th>Total</th><th>Balance</th></tr></thead>
+                <tbody id="reportsGuestInvoicesTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Office Invoices & Settlements</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Invoice</th><th>Type</th><th>Status</th><th>Total</th></tr></thead>
+                <tbody id="reportsOfficeInvoicesTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="bookings">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Booking list</h3>
+                <p class="muted-copy">Search, filter, inspect, and export live bookings.</p>
+              </div>
+              <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
+            </div>
+            <div class="booking-form-grid">
+              <div class="booking-field">
+                <label for="bookingFilterBrand">Brand</label>
+                <select id="bookingFilterBrand">
+                  <option value="">All brands</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterSearch">Search</label>
+                <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, service">
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterStatus">Status</label>
+                <select id="bookingFilterStatus">
+                  <option value="">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="awaiting_payment">Awaiting payment</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Service</th><th>Status</th><th>Date</th><th>Total</th></tr></thead>
+                <tbody id="adminBookingsTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="booking-panel">
+            <h3>Booking detail</h3>
+            <div id="adminBookingDetail"></div>
+          </article>
+        </div>
+
+        <article class="booking-panel admin-spacer">
+          <h3>Create or edit booking</h3>
+          <form id="adminBookingForm" class="booking-form-grid">
+            <label class="booking-field">
+              <span>Reference</span>
+              <input id="adminBookingReference" type="text" placeholder="Leave blank to auto-generate">
+            </label>
+            <label class="booking-field">
+              <span>Service</span>
+              <select id="adminBookingService" required></select>
+            </label>
+            <label class="booking-field">
+              <span>Status</span>
+              <select id="adminBookingStatusField">
+                <option value="pending">Pending</option>
+                <option value="awaiting_payment">Awaiting Payment</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Payment Status</span>
+              <select id="adminBookingPaymentStatusField">
+                <option value="pending">Pending</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+                <option value="refunded">Refunded</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Preferred Date</span>
+              <input id="adminBookingDate" type="date">
+            </label>
+            <label class="booking-field">
+              <span>Quantity</span>
+              <input id="adminBookingQuantity" type="number" min="1" value="2" required>
+            </label>
+            <label class="booking-field-full">
+              <span>Customer Name</span>
+              <input id="adminBookingCustomerName" type="text" required>
+            </label>
+            <label class="booking-field">
+              <span>Customer Email</span>
+              <input id="adminBookingCustomerEmail" type="email" required>
+            </label>
+            <label class="booking-field">
+              <span>Customer Phone</span>
+              <input id="adminBookingCustomerPhone" type="tel" required>
+            </label>
+            <label class="booking-field-full">
+              <span>Notes</span>
+              <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
+            </label>
+            <div class="booking-field-full">
+              <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="services">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Service catalog</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Date rule</th><th>Visibility</th></tr></thead>
+                <tbody id="adminServicesTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Create or edit service</h3>
+            <form id="adminServiceForm" class="booking-form-grid">
+              <input id="adminServiceId" type="hidden">
+              <label class="booking-field">
+                <span>Name</span>
+                <input id="adminServiceName" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Slug</span>
+                <input id="adminServiceSlug" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Category</span>
+                <select id="adminServiceCategory">
+                  <option value="coastal-tours">Coastal Tours</option>
+                  <option value="combo-tours">Combo Tours</option>
+                  <option value="private-experiences">Private Experiences</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Base Price</span>
+                <input id="adminServicePrice" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field">
+                <span>Date Rule</span>
+                <select id="adminServiceDateRule">
+                  <option value="optional">Optional</option>
+                  <option value="required">Required</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Duration Label</span>
+                <input id="adminServiceDuration" type="text" placeholder="Half Day · 3 Hours">
+              </label>
+              <label class="booking-field-full">
+                <span>Summary</span>
+                <textarea id="adminServiceSummary" rows="4"></textarea>
+              </label>
+              <label class="booking-field-full">
+                <span>Highlights</span>
+                <input id="adminServiceHighlights" type="text" placeholder="Comma separated highlights">
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="adminServiceActive" type="checkbox" checked>
+                <span>Service is active and visible to booking/admin workflows.</span>
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Service</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="customers">
+        <article class="booking-panel">
+          <h3>Customers</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Bookings</th><th>Latest Reference</th></tr></thead>
+              <tbody id="adminCustomersTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="payments">
+        <article class="booking-panel">
+          <h3>Payments</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reference</th><th>Provider</th><th>Status</th><th>Amount</th><th>Created</th></tr></thead>
+              <tbody id="adminPaymentsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="settings">
+        <article class="booking-panel">
+          <h3>Booking settings</h3>
+          <form id="bookingSettingsForm" class="booking-form-grid">
+            <label class="booking-field">
+              <span>Currency</span>
+              <input id="settingCurrency" name="currency" type="text" value="NAD">
+            </label>
+            <label class="booking-field">
+              <span>Support Email</span>
+              <input id="settingSupportEmail" name="supportEmail" type="email">
+            </label>
+            <label class="booking-field">
+              <span>Support Phone</span>
+              <input id="settingSupportPhone" name="supportPhone" type="tel">
+            </label>
+            <label class="booking-field">
+              <span>Default Deposit %</span>
+              <input id="settingDeposit" name="defaultDepositValue" type="number" min="0" max="100">
+            </label>
+            <label class="booking-field">
+              <span>Tax Rate %</span>
+              <input id="settingTax" name="taxRate" type="number" min="0" step="0.01">
+            </label>
+            <label class="booking-field">
+              <span>Service Fee</span>
+              <input id="settingServiceFee" name="serviceFee" type="number" min="0" step="0.01">
+            </label>
+            <div class="booking-field-full">
+              <button class="booking-button" type="submit">Save Settings</button>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="emails">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Email templates</h3>
+              <p class="muted-copy">Manage operational email templates used for booking communication.</p>
+            </div>
+          </div>
+          <form id="emailTemplatesForm" class="admin-panel-grid"></form>
+          <div class="admin-spacer">
+            <button class="booking-button" type="submit" form="emailTemplatesForm">Save Templates</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="engine">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Schedules & Date Rules</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Service</th><th>Window / Rule</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody id="adminEngineSchedulesTable"></tbody>
+              </table>
+            </div>
+            <form id="adminScheduleForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Service</span>
+                <select id="adminScheduleService" required></select>
+              </label>
+              <label class="booking-field">
+                <span>Weekday</span>
+                <select id="adminScheduleDay">
+                  <option value="0">Sunday</option>
+                  <option value="1">Monday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Start</span>
+                <input id="adminScheduleStart" type="time" required>
+              </label>
+              <label class="booking-field">
+                <span>End</span>
+                <input id="adminScheduleEnd" type="time" required>
+              </label>
+              <label class="booking-field">
+                <span>Min Notice Hours</span>
+                <input id="adminScheduleCutoff" type="number" min="0" value="0">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Operating Window</button>
+              </div>
+            </form>
+            <form id="adminBlackoutForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Blackout Service</span>
+                <select id="adminBlackoutService"></select>
+              </label>
+              <label class="booking-field">
+                <span>Start Date</span>
+                <input id="adminBlackoutStart" type="date" required>
+              </label>
+              <label class="booking-field">
+                <span>End Date</span>
+                <input id="adminBlackoutEnd" type="date" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Reason</span>
+                <input id="adminBlackoutReason" type="text" placeholder="Maintenance, weather hold, seasonal closure">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Add Blackout Range</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="booking-panel">
+            <h3>Commercial Tools</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Type</th><th>Code</th><th>Value</th><th>Status</th></tr></thead>
+                <tbody id="adminCommercialToolsTable"></tbody>
+              </table>
+            </div>
+            <form id="adminCouponForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Coupon Code</span>
+                <input id="adminCouponCode" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Discount Type</span>
+                <select id="adminCouponType">
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Discount Value</span>
+                <input id="adminCouponValue" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Description</span>
+                <input id="adminCouponDescription" type="text">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Coupon</button>
+              </div>
+            </form>
+            <form id="adminVoucherForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Voucher Code</span>
+                <input id="adminVoucherCode" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Initial Value</span>
+                <input id="adminVoucherValue" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field">
+                <span>Expires At</span>
+                <input id="adminVoucherExpiry" type="datetime-local">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Save Voucher</button>
+              </div>
+            </form>
+            <form id="adminAgentForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Agent Code</span>
+                <input id="adminAgentCode" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Company</span>
+                <input id="adminAgentCompany" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Commission Type</span>
+                <select id="adminAgentCommissionType">
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Commission Value</span>
+                <input id="adminAgentCommissionValue" type="number" min="0" step="0.01" required>
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Save Agent / Reseller</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="platform">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Resources, Guest Invoices & Refunds</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Resource / Invoice</th><th>Type</th><th>Status</th><th>Amount / Capacity</th></tr></thead>
+                <tbody id="adminPlatformOperationsTable"></tbody>
+              </table>
+            </div>
+            <form id="adminResourceForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Resource Name</span>
+                <input id="adminResourceName" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Slug</span>
+                <input id="adminResourceSlug" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Type</span>
+                <input id="adminResourceType" type="text" value="vehicle">
+              </label>
+              <label class="booking-field">
+                <span>Capacity</span>
+                <input id="adminResourceCapacity" type="number" min="1" step="1">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Resource</button>
+              </div>
+            </form>
+            <form id="adminRefundForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Booking ID</span>
+                <input id="adminRefundBookingId" type="text" placeholder="Paste booking UUID" required>
+              </label>
+              <label class="booking-field">
+                <span>Refund Amount</span>
+                <input id="adminRefundAmount" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Reason</span>
+                <input id="adminRefundReason" type="text" placeholder="Customer cancellation, schedule change">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Process Refund</button>
+              </div>
+            </form>
+          </article>
+
+          <article class="booking-panel">
+            <h3>Operators, Office Invoices & Integrations</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Category</th><th>Name</th><th>Status</th><th>Value</th></tr></thead>
+                <tbody id="adminPlatformConfigTable"></tbody>
+              </table>
+            </div>
+            <form id="adminOperatorForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Operator Code</span>
+                <input id="adminOperatorCode" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Company</span>
+                <input id="adminOperatorCompany" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Commission Type</span>
+                <select id="adminOperatorCommissionType">
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Commission Value</span>
+                <input id="adminOperatorCommissionValue" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Payout Terms</span>
+                <input id="adminOperatorTerms" type="text" placeholder="e.g. Net 7 after trip completion">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Operator</button>
+              </div>
+            </form>
+            <form id="adminOfficeInvoiceForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Booking ID</span>
+                <input id="adminOfficeInvoiceBookingId" type="text" placeholder="Optional booking UUID">
+              </label>
+              <label class="booking-field">
+                <span>Invoice Type</span>
+                <select id="adminOfficeInvoiceType">
+                  <option value="operator_commission">Operator Commission</option>
+                  <option value="agent_commission">Agent Commission</option>
+                  <option value="supplier_payable">Supplier Payable</option>
+                  <option value="internal_settlement">Internal Settlement</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Payee Type</span>
+                <select id="adminOfficePayeeType">
+                  <option value="operator">Operator</option>
+                  <option value="agent">Agent</option>
+                  <option value="office">Office</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Operator</span>
+                <select id="adminOfficeOperatorId"></select>
+              </label>
+              <label class="booking-field">
+                <span>Agent</span>
+                <select id="adminOfficeAgentId"></select>
+              </label>
+              <label class="booking-field">
+                <span>Commission Base</span>
+                <input id="adminOfficeCommissionBase" type="number" min="0" step="0.01">
+              </label>
+              <label class="booking-field">
+                <span>Commission Amount</span>
+                <input id="adminOfficeCommissionAmount" type="number" min="0" step="0.01">
+              </label>
+              <label class="booking-field-full">
+                <span>Notes</span>
+                <input id="adminOfficeInvoiceNotes" type="text" placeholder="Settlement for completed booking">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Generate Office Invoice</button>
+              </div>
+            </form>
+            <form id="automationRulesForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field-full inline-check">
+                <input id="automationAutoConfirmPaid" type="checkbox">
+                <span>Auto confirm bookings when payment is marked paid.</span>
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="automationAutoCompletePast" type="checkbox">
+                <span>Auto complete confirmed bookings after their service date.</span>
+              </label>
+              <label class="booking-field">
+                <span>Awaiting Payment Expiry Hours</span>
+                <input id="automationExpiryHours" type="number" min="1" value="48">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Automation Rules</button>
+              </div>
+            </form>
+            <form id="portalSettingsForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field-full inline-check">
+                <input id="portalEnabled" type="checkbox" checked>
+                <span>Enable customer portal foundation.</span>
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="portalLookupEnabled" type="checkbox" checked>
+                <span>Allow booking lookup without full account creation.</span>
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Save Portal Settings</button>
+              </div>
+            </form>
+            <form id="adminWebhookForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Webhook Name</span>
+                <input id="adminWebhookName" type="text" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Target URL</span>
+                <input id="adminWebhookUrl" type="url" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Subscribed Events</span>
+                <input id="adminWebhookEvents" type="text" placeholder="booking.created, booking.updated, payment.received">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Save Webhook Endpoint</button>
+              </div>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/shared.js?v=20260408tourtypes"></script>
+  <script src="assets/js/booking-shared.js?v=20260417-phase23"></script>
+  <script src="assets/js/booking-admin.js?v=20260417-phase23"></script>
+</body>
+</html>

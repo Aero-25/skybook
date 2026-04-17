@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyBook Design Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/admin.css?v=20260417-designsplit">
+</head>
+<body>
+  <script>
+  window.SkyBookConfig={trueTravelSiteBase:'https://www.truetravelnam.net'}
+  </script>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <div class="admin-brand">SkyBook<span>Design Studio</span></div>
+      <p class="admin-note">This workspace is for public-site content and visual editing. Operational booking management, reports, and finance stay in the separate SkyBook booking admin.</p>
+      <div class="panel-nav">
+        <a class="panel-link" href="admin.html">Gateway</a>
+        <button class="panel-link is-active" type="button" data-page="index">Index</button>
+        <button class="panel-link" type="button" data-page="tours">Tours</button>
+        <a class="panel-link" href="booking-admin.html">Booking Admin</a>
+      </div>
+    </aside>
+    <main class="admin-main">
+      <section class="panel-view is-active" data-panel-view="index">
+        <div class="workspace-shell">
+          <div class="workspace-top">
+            <div>
+              <h1>Index</h1>
+              <p>This preview is a duplicate of the index page in admin mode. Highlighted holders can be clicked or used as drag-and-drop targets to replace the current images.</p>
+            </div>
+            <div class="workspace-links">
+              <a class="primary" id="openTrueTravelEditor" href="../sites/true-travel/index.html?admin=1" target="_blank" rel="noopener">Open True Travel Editor</a>
+              <a id="viewTrueTravelSite" href="../sites/true-travel/index.html" target="_blank" rel="noopener">View True Travel Site</a>
+            </div>
+          </div>
+          <iframe id="previewFrame" class="preview-frame" src="../sites/true-travel/index.html?admin=1" title="Index editor preview"></iframe>
+        </div>
+      </section>
+      <section class="panel-view" data-panel-view="tours">
+        <div class="tours-shell">
+          <div class="workspace-top">
+            <div>
+              <h1>Tours</h1>
+              <p>Browse your standard tours and combo tours in separate admin sections, then open a dedicated editor page for one tour at a time.</p>
+            </div>
+            <div class="workspace-top-actions">
+              <button type="button" id="reloadToursFromRemote">Reload Live Tours</button>
+              <a id="openTrueTravelTours" href="../sites/true-travel/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
+            </div>
+          </div>
+          <div class="workspace-status" id="adminStatus">Select a tour to edit, or open the new-tour flow from the grid.</div>
+          <div class="tours-editor">
+            <div class="tour-grid-library" id="tourGrid"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
+<script src="assets/js/admin.js?v=20260408tourtypes" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded',()=>{
+  const base=(window.SkyBookConfig?.trueTravelSiteBase||'https://www.truetravelnam.net').replace(/\/+$/,'')
+  const editorLink=document.getElementById('openTrueTravelEditor')
+  const siteLink=document.getElementById('viewTrueTravelSite')
+  const toursLink=document.getElementById('openTrueTravelTours')
+  const previewFrame=document.getElementById('previewFrame')
+  if(editorLink)editorLink.href=`${base}/index.html?admin=1`
+  if(siteLink)siteLink.href=`${base}/index.html`
+  if(toursLink)toursLink.href=`${base}/tours.html`
+  if(previewFrame)previewFrame.src=`${base}/index.html?admin=1`
+})
+</script>
+</body>
+</html>

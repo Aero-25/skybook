@@ -1,0 +1,14 @@
+Thumbs.db
+Desktop.ini
+
+# Local debugging artifacts
+edge-dom.txt
+edge-shot.png
+mobile-*.png
+*.tmp
+*.temp
+*.bak
+*.old
+*.log
+node_modules/
+supabase/.temp/

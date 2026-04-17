@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyBook Tour Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/admin.css?v=20260408mobilepass">
+</head>
+<body>
+  <script>
+  window.SkyBookConfig={trueTravelSiteBase:'https://www.truetravelnam.net'}
+  </script>
+  <main class="editor-shell">
+    <section class="editor-topbar">
+      <div>
+        <a class="editor-back" href="design-admin.html#tours">&larr; Back to Tours</a>
+        <div class="editor-kicker" id="editorModeLabel">Tour Editor</div>
+        <h1 id="editorTitle">Edit Tour</h1>
+        <p id="editorIntro">Update one tour at a time. Save changes here, then return to the tours grid when you are done.</p>
+      </div>
+      <div class="editor-actions">
+        <a class="ghost" href="design-admin.html#tours">Back to Grid</a>
+        <a class="ghost" id="openToursPageLink" href="../sites/true-travel/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
+        <button type="button" id="saveTourButton">Save Tour</button>
+        <button type="button" id="saveAndReturnButton">Save & Return</button>
+      </div>
+    </section>
+
+    <div class="workspace-status" id="editorStatus">Changes here update the shared tours dataset used by the site.</div>
+
+    <section class="editor-panel">
+      <div class="editor-panel-head">
+        <div>
+          <div class="editor-panel-kicker">General Details</div>
+          <h2>Tour Information</h2>
+          <p>Set the tour name, slug, type, homepage visibility, text, timing, and optional image URL.</p>
+        </div>
+        <div class="editor-summary-card" id="editorSummaryCard"></div>
+      </div>
+
+      <form id="tourEditorForm">
+        <div class="tour-form-grid">
+          <label class="tour-field">
+            <span>Tour Name</span>
+            <input id="tourName" type="text" placeholder="Pelican Point Kayaking">
+          </label>
+          <label class="tour-field">
+            <span>Tour ID / Slug</span>
+            <input id="tourId" type="text" placeholder="pelican-point-kayaking">
+          </label>
+          <label class="tour-field">
+            <span>Duration / Card Label</span>
+            <input id="tourDurationLabel" type="text" placeholder="Half Day &middot; 3 Hours">
+          </label>
+          <label class="tour-field">
+            <span>Tour Type</span>
+            <select id="tourType">
+              <option value="tour">Tour</option>
+              <option value="combo">Combo Tour</option>
+            </select>
+          </label>
+          <label class="tour-field">
+            <span>Tour Image URL</span>
+            <input id="tourImageUrl" type="url" placeholder="https://...">
+          </label>
+          <label class="tour-field wide">
+            <span>Departure Times</span>
+            <input id="tourDepartureTimes" type="text" placeholder="8:00 AM, 12:00 PM">
+          </label>
+          <label class="tour-field wide">
+            <span>Time Slots</span>
+            <input id="tourTimeSlots" type="text" placeholder="Morning, Afternoon">
+          </label>
+          <label class="tour-field wide">
+            <span>Tour Summary</span>
+            <textarea id="tourSummary" rows="5" placeholder="Short tours page description..."></textarea>
+          </label>
+          <div class="tour-field wide">
+            <span>Index Visibility</span>
+            <label class="tour-toggle">
+              <input id="tourFeaturedOnIndex" type="checkbox">
+              Show this tour on the main index slider
+            </label>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="editor-panel">
+      <div class="editor-panel-head">
+        <div>
+          <div class="editor-panel-kicker">Pricing Seasons</div>
+          <h2>Season Setup</h2>
+          <p>Add or adjust season labels, date ranges, adult pricing, and optional child pricing for this tour.</p>
+        </div>
+        <div class="editor-inline-actions">
+          <button class="primary" type="button" id="addSeasonButton">Add Season</button>
+        </div>
+      </div>
+      <div class="season-stack" id="seasonStack"></div>
+    </section>
+  </main>
+
+<script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
+<script src="assets/js/tour-editor.js?v=20260408tourtypes" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded',()=>{
+  const base=(window.SkyBookConfig?.trueTravelSiteBase||'https://www.truetravelnam.net').replace(/\/+$/,'')
+  const link=document.getElementById('openToursPageLink')
+  if(link)link.href=`${base}/tours.html`
+})
+</script>
+</body>
+</html>
