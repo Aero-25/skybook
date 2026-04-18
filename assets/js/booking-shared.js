@@ -1,9 +1,9 @@
 window.TrueTravelBooking=(()=>{
   const shared=window.TrueTravelShared||{}
   const STORAGE_KEYS={
-    BOOKING_CONFIG_KEY:'true-travel-booking-config-v1',
-    BOOKING_UI_STATE_KEY:'true-travel-booking-ui-state-v1',
-    BOOKING_DEMO_DB_KEY:'true-travel-booking-demo-db-v1'
+    BOOKING_CONFIG_KEY:'skybook-booking-config-v2',
+    BOOKING_UI_STATE_KEY:'skybook-booking-ui-state-v2',
+    BOOKING_DEMO_DB_KEY:'skybook-booking-demo-db-v2'
   }
 
   const DEFAULT_CONFIG={
@@ -76,6 +76,31 @@ window.TrueTravelBooking=(()=>{
   const BOOKING_STATUSES=['draft','pending','awaiting_payment','confirmed','cancelled','completed','refunded','failed']
   const PAYMENT_STATUSES=['unpaid','pending','authorized','paid','partially_paid','failed','refunded','cancelled']
   const PAYMENT_PROVIDERS=['manual_eft','stripe','paypal','custom']
+  const SKYBOOK_PERMISSION_CATALOG=[
+    { key:'dashboard', label:'Dashboard', description:'Access the command center and operational snapshots.' },
+    { key:'calendar', label:'Calendar', description:'Use the day, week, and month operations calendar.' },
+    { key:'reports', label:'Reports', description:'View commercial, finance, and performance reporting.' },
+    { key:'bookings', label:'Bookings', description:'Create, edit, confirm, cancel, and resend bookings.' },
+    { key:'customers', label:'Customers', description:'View customer history and guest records.' },
+    { key:'payments', label:'Payments', description:'Track guest payments and payment reconciliation.' },
+    { key:'services', label:'Services', description:'Manage services, packages, and catalog setup.' },
+    { key:'engine', label:'Booking Engine', description:'Manage schedules, blackout dates, vouchers, resources, and operators.' },
+    { key:'finance', label:'Finance', description:'Manage office invoices, refunds, commissions, and settlements.' },
+    { key:'settings', label:'Settings', description:'Change booking configuration and platform settings.' },
+    { key:'emails', label:'Email Templates', description:'Manage operational email templates and communication tooling.' },
+    { key:'admin_users', label:'Admin Users', description:'Grant staff access, roles, and section permissions.' }
+  ]
+  const SKYBOOK_PERMISSION_KEYS=SKYBOOK_PERMISSION_CATALOG.map(item=>item.key)
+  const SKYBOOK_ROLE_DEFAULTS={
+    super_admin:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
+    manager:{dashboard:true,calendar:true,reports:true,bookings:true,customers:true,payments:true,services:true,engine:true,finance:true,settings:true,emails:true,admin_users:false},
+    booking_agent:{dashboard:true,calendar:true,reports:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:false,admin_users:false},
+    finance:{dashboard:true,calendar:false,reports:true,bookings:true,customers:true,payments:true,services:false,engine:false,finance:true,settings:false,emails:false,admin_users:false}
+  }
+  const sanitizePermissions=input=>{
+    const source=typeof input==='object' && input ? input : {}
+    return Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,Boolean(source[key])]))
+  }
 
   const clone=value=>JSON.parse(JSON.stringify(value))
   const toSlug=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
@@ -362,6 +387,14 @@ window.TrueTravelBooking=(()=>{
       customers:[customer],
       bookings:[booking],
       payments:[payment],
+      app_users:[{
+        id:'auth-demo-1',
+        email:'demo@local.test',
+        full_name:'Local Demo Admin',
+        role:'super_admin',
+        is_active:true,
+        permissions:sanitizePermissions({})
+      }],
       notes:[],
       email_logs:[{
         id:'email-demo-1',
@@ -529,15 +562,55 @@ window.TrueTravelBooking=(()=>{
       const snapshot=buildAdminSnapshot(db)
       return {
         user:{email:'demo@local.test'},
-        profile:{full_name:'Local Demo Admin',role:'super_admin',is_active:true},
+        profile:{full_name:'Local Demo Admin',role:'super_admin',is_active:true,permissions:sanitizePermissions({}),effective_permissions:SKYBOOK_ROLE_DEFAULTS.super_admin},
         brands:Object.values(BRAND_CATALOG),
         bookings:snapshot.bookings,
         customers:snapshot.customers,
         payments:snapshot.payments,
         services:db.services,
         settings:readConfig(),
-        email_templates:DEFAULT_EMAIL_TEMPLATES
+        email_templates:DEFAULT_EMAIL_TEMPLATES,
+        invoices:[],
+        office_invoices:[],
+        refunds:[],
+        payment_transactions:[],
+        resources:[],
+        resource_allocations:[],
+        operators:[],
+        booking_operators:[],
+        agents:[],
+        email_logs:db.email_logs,
+        status_history:db.status_history,
+        admin_notes:db.notes,
+        admin_users:db.app_users,
+        permission_catalog:SKYBOOK_PERMISSION_CATALOG,
+        role_defaults:SKYBOOK_ROLE_DEFAULTS
       }
+    }
+    if(method==='GET'&&normalizedPath==='admin/users'){
+      return {admin_users:db.app_users,permission_catalog:SKYBOOK_PERMISSION_CATALOG,role_defaults:SKYBOOK_ROLE_DEFAULTS}
+    }
+    if(method==='POST'&&normalizedPath==='admin/users'){
+      const email=safeText(body?.email).toLowerCase()
+      const existing=db.app_users.find(item=>item.id===safeText(body?.id) || item.email===email)
+      const nextUser={
+        id:safeText(body?.id)||existing?.id||uid('auth'),
+        email:email||existing?.email||'',
+        full_name:safeText(body?.full_name)||existing?.full_name||email,
+        role:safeText(body?.role)||existing?.role||'booking_agent',
+        is_active:body?.is_active!==false,
+        permissions:sanitizePermissions(body?.permissions||existing?.permissions||{})
+      }
+      if(existing){
+        Object.assign(existing,nextUser)
+      }else{
+        db.app_users.unshift(nextUser)
+      }
+      writeDemoDb(db)
+      return {success:true,admin_user:nextUser}
+    }
+    if(method==='PATCH'&&parts[0]==='admin'&&parts[1]==='users'&&parts[2]){
+      return localApiRequest('admin/users',{method:'POST',body:{...body,id:parts[2]}})
     }
     if(method==='POST'&&normalizedPath==='admin/bookings'){
       return localApiRequest('bookings',{method:'POST',body:{...body,accept_terms:true}})
@@ -696,6 +769,8 @@ window.TrueTravelBooking=(()=>{
     BRAND_CATALOG:clone(BRAND_CATALOG),
     DEFAULT_CATEGORIES:clone(DEFAULT_CATEGORIES),
     DEFAULT_EMAIL_TEMPLATES:clone(DEFAULT_EMAIL_TEMPLATES),
+    SKYBOOK_PERMISSION_CATALOG:clone(SKYBOOK_PERMISSION_CATALOG),
+    SKYBOOK_ROLE_DEFAULTS:clone(SKYBOOK_ROLE_DEFAULTS),
     ADDON_TYPES:[...ADDON_TYPES],
     DATE_REQUIREMENT_TYPES:[...DATE_REQUIREMENT_TYPES],
     BOOKING_STATUSES:[...BOOKING_STATUSES],

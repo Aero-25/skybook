@@ -2,7 +2,7 @@ window.TrueTravelShared=(()=>{
   const STORAGE_KEYS={
     ASSET_STORAGE_KEY:'true-travel-index-assets-v1',
     ASSET_SIGNAL_KEY:'true-travel-index-assets-sync-v1',
-    SUPABASE_CONFIG_KEY:'true-travel-supabase-config-v1',
+    SUPABASE_CONFIG_KEY:'skybook-supabase-config-v2',
     TOURS_DATA_STORAGE_KEY:'true-travel-tours-data-v1',
     TOURS_DATA_SIGNAL_KEY:'true-travel-tours-data-sync-v1'
   }

@@ -2,12 +2,10 @@
 
 ## Public brands
 
-- `true-travel-site`
-  - Separate public repository
+- `sites/true-travel/`
   - Deploy to the True Travel domain
   - Ocean-led public brand
-- `iventure-site`
-  - Separate public repository
+- `sites/iventure/`
   - Deploy to the Iventure domain
   - Sand-and-dune-led public brand
 
@@ -41,11 +39,11 @@ Default local value:
 
 ```html
 <script>
-window.SkyBookConfig={trueTravelSiteBase:'https://www.truetravelnam.net'}
+window.SkyBookConfig={trueTravelSiteBase:'../sites/true-travel'}
 </script>
 ```
 
-For a live split deployment, point that base to the deployed True Travel URL, for example:
+For a live split deployment, change that base to the deployed True Travel URL, for example:
 
 ```html
 <script>

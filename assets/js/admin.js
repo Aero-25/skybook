@@ -13,13 +13,59 @@ const {
   writeToursData
 }=window.TrueTravelShared
 
+const DESIGNER_CONFIG=window.SkyBookConfig||{}
+const DESIGNER_BRAND_STORAGE_KEY=DESIGNER_CONFIG.brandStorageKey||'skybook_designer_brand'
+const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
+  'true-travel':{
+    label:'True Travel',
+    vibe:'Ocean-led public site',
+    siteBase:'../sites/true-travel',
+    homePath:'index.html',
+    toursPath:'tours.html',
+    toursLabel:'Tours'
+  },
+  'iventure':{
+    label:'Iventure',
+    vibe:'Sand-and-dune public site',
+    siteBase:'../sites/iventure',
+    homePath:'index.html',
+    toursPath:'services.html',
+    toursLabel:'Services'
+  }
+}
+
+const pageUrl=new URL(window.location.href)
+const requestedBrandCode=pageUrl.searchParams.get('brand')?.trim().toLowerCase()||''
+const storedBrandCode=(window.localStorage.getItem(DESIGNER_BRAND_STORAGE_KEY)||'').trim().toLowerCase()
+
+const isValidBrandCode=brandCode=>Boolean(brandCode)&&Object.prototype.hasOwnProperty.call(DESIGNER_BRANDS,brandCode)
+const getBrandConfig=brandCode=>DESIGNER_BRANDS[brandCode]||DESIGNER_BRANDS['true-travel']
+let activeBrandCode=isValidBrandCode(requestedBrandCode)
+  ? requestedBrandCode
+  : (isValidBrandCode(storedBrandCode) ? storedBrandCode : 'true-travel')
+
+const shouldPromptForBrand=!isValidBrandCode(requestedBrandCode)
+
 const frame=document.getElementById('previewFrame')
 const statusNode=document.getElementById('adminStatus')
 const tourGrid=document.getElementById('tourGrid')
 const reloadToursButton=document.getElementById('reloadToursFromRemote')
+const sitePicker=document.getElementById('sitePicker')
+const brandSelectButtons=[...document.querySelectorAll('[data-brand-select]')]
+const brandSwitchButtons=[...document.querySelectorAll('[data-brand-switch]')]
+const openSiteEditorLink=document.getElementById('openSiteEditor')
+const viewSiteLink=document.getElementById('viewSiteLink')
+const openToursPageLink=document.getElementById('openToursPage')
+const activeBrandNameNode=document.getElementById('activeBrandName')
+const activeBrandVibeNode=document.getElementById('activeBrandVibe')
+const workspaceBrandKickerNode=document.getElementById('workspaceBrandKicker')
+const workspaceTitleNode=document.getElementById('workspaceTitle')
+const workspaceDescriptionNode=document.getElementById('workspaceDescription')
+const libraryBrandKickerNode=document.getElementById('libraryBrandKicker')
+const libraryTitleNode=document.getElementById('libraryTitle')
+const libraryDescriptionNode=document.getElementById('libraryDescription')
 
 let toursData=normalizeToursData(readToursData())
-const trueTravelSiteBase=(window.SkyBookConfig?.trueTravelSiteBase||'https://www.truetravelnam.net').replace(/\/+$/,'')
 
 const setStatus=(message,isError=false)=>{
   if(!statusNode){
@@ -31,12 +77,80 @@ const setStatus=(message,isError=false)=>{
   statusNode.classList.toggle('is-error',isError)
 }
 
+const getActiveBrand=()=>getBrandConfig(activeBrandCode)
+
+const buildSiteUrl=(brand,path,search='')=>{
+  const base=String(brand.siteBase||'').replace(/\/+$/,'')
+  const suffix=search ? `${path}${search}` : path
+  return `${base}/${suffix}`
+}
+
+const buildDesignStudioUrl=hash=>{
+  const nextHash=hash||window.location.hash||''
+  return `design-admin.html?brand=${encodeURIComponent(activeBrandCode)}${nextHash}`
+}
+
+const buildTourEditorUrl=({tourId='',isNew=false}={})=>{
+  const nextUrl=new URL('tour-editor.html',window.location.href)
+  nextUrl.searchParams.set('brand',activeBrandCode)
+  if(isNew)nextUrl.searchParams.set('new','1')
+  else if(tourId)nextUrl.searchParams.set('tour',tourId)
+  return `${nextUrl.pathname}${nextUrl.search}`
+}
+
+const setPickerVisibility=isVisible=>{
+  if(!sitePicker)return
+  sitePicker.hidden=!isVisible
+  sitePicker.classList.toggle('is-visible',isVisible)
+  document.body.classList.toggle('has-site-picker',isVisible)
+}
+
+const syncBrandUrl=()=>{
+  const currentUrl=new URL(window.location.href)
+  currentUrl.searchParams.set('brand',activeBrandCode)
+  history.replaceState(null,'',`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+}
+
 const reloadPreview=()=>{
   if(!frame)return
-  frame.src=`${trueTravelSiteBase}/index.html?admin=1&v=${Date.now()}`
+  const brand=getActiveBrand()
+  frame.src=buildSiteUrl(brand,brand.homePath,`?admin=1&v=${Date.now()}`)
+  frame.title=`${brand.label} editor preview`
 }
 
 const getRequestedPage=()=>window.location.hash.replace(/^#/,'').trim()==='tours' ? 'tours' : 'index'
+
+const updateBrandChrome=()=>{
+  const brand=getActiveBrand()
+  const brandToursLabel=brand.toursLabel||'Tours'
+
+  document.title=`SkyBook Design Studio · ${brand.label}`
+
+  if(activeBrandNameNode)activeBrandNameNode.textContent=brand.label
+  if(activeBrandVibeNode)activeBrandVibeNode.textContent=brand.vibe
+  if(workspaceBrandKickerNode)workspaceBrandKickerNode.textContent=`${brand.label} Workspace`
+  if(workspaceTitleNode)workspaceTitleNode.textContent=`${brand.label} Homepage`
+  if(workspaceDescriptionNode)workspaceDescriptionNode.textContent=`Preview and visually inspect the ${brand.label} homepage in admin mode. Use the brand switcher if you want to jump to the other public site.`
+  if(libraryBrandKickerNode)libraryBrandKickerNode.textContent=`${brand.label} Library`
+  if(libraryTitleNode)libraryTitleNode.textContent=`${brand.label} ${brandToursLabel}`
+  if(libraryDescriptionNode)libraryDescriptionNode.textContent=`Browse the shared tour library, then open a dedicated editor page while keeping the ${brand.label} preview context active.`
+
+  if(openSiteEditorLink){
+    openSiteEditorLink.href=buildSiteUrl(brand,brand.homePath,'?admin=1')
+    openSiteEditorLink.textContent=`Open ${brand.label} Editor`
+  }
+  if(viewSiteLink){
+    viewSiteLink.href=buildSiteUrl(brand,brand.homePath)
+    viewSiteLink.textContent=`View ${brand.label} Site`
+  }
+  if(openToursPageLink){
+    openToursPageLink.href=buildSiteUrl(brand,brand.toursPath)
+    openToursPageLink.textContent=`Open ${brandToursLabel} Page`
+  }
+
+  brandSelectButtons.forEach(button=>button.classList.toggle('is-active',button.dataset.brandSelect===activeBrandCode))
+  brandSwitchButtons.forEach(button=>button.classList.toggle('is-current',button.dataset.brandSwitch===activeBrandCode))
+}
 
 const updateActivePanel=(page,{updateHash=true}={})=>{
   document.querySelectorAll('[data-page]').forEach(node=>node.classList.toggle('is-active',node.dataset.page===page))
@@ -44,7 +158,7 @@ const updateActivePanel=(page,{updateHash=true}={})=>{
 
   if(updateHash){
     const nextHash=page==='tours' ? '#tours' : ''
-    history.replaceState(null,'',`${window.location.pathname}${nextHash}`)
+    history.replaceState(null,'',buildDesignStudioUrl(nextHash))
   }
 
   if(page==='index')reloadPreview()
@@ -62,7 +176,7 @@ const buildTourCardMarkup=(tour,index)=>{
   const activeSeason=getTourSeasonForDate(tour)
   const childSummary=activeSeason.childPrice!==''&&Number(activeSeason.childPrice)>0 ? ` + Child ${formatTourPrice(activeSeason.childPrice)}` : ''
   return `
-    <a class="tour-grid-card" href="tour-editor.html?tour=${encodeURIComponent(tour.id)}">
+    <a class="tour-grid-card" href="${escapeHtml(buildTourEditorUrl({tourId:tour.id}))}">
       <div class="tour-grid-card-top">
         <div>
           <div class="tour-grid-kicker">${escapeHtml(getTourTypeLabel(tour))} · Tour ${(index+1).toString().padStart(2,'0')}</div>
@@ -124,7 +238,7 @@ const renderToursGrid=()=>{
   if(!tourGrid)return
 
   const addCard=`
-    <a class="tour-grid-card tour-grid-card-add" href="tour-editor.html?new=1">
+    <a class="tour-grid-card tour-grid-card-add" href="${escapeHtml(buildTourEditorUrl({isNew:true}))}">
       <div class="tour-grid-add-mark">+</div>
       <h3>Add New Tour</h3>
       <p class="tour-grid-copy">Create a fresh tour, then choose whether it belongs under Tours or Combo Tours inside the editor.</p>
@@ -157,6 +271,18 @@ const renderToursGrid=()=>{
   `
 }
 
+const setActiveBrand=brandCode=>{
+  if(!isValidBrandCode(brandCode))return
+  activeBrandCode=brandCode
+  window.localStorage.setItem(DESIGNER_BRAND_STORAGE_KEY,brandCode)
+  syncBrandUrl()
+  updateBrandChrome()
+  renderToursGrid()
+  updateActivePanel(getRequestedPage(),{updateHash:false})
+  setPickerVisibility(false)
+  setStatus(`${getActiveBrand().label} design workspace loaded.`)
+}
+
 reloadToursButton?.addEventListener('click',async()=>{
   try{
     const remoteTours=await loadRemoteToursData(readSupabaseConfig())
@@ -167,7 +293,7 @@ reloadToursButton?.addEventListener('click',async()=>{
     toursData=remoteTours
     writeToursData(toursData)
     renderToursGrid()
-    setStatus('Live tours were loaded from Supabase.')
+    setStatus(`Live tours were loaded from Supabase for the ${getActiveBrand().label} workspace.`)
     reloadPreview()
   }catch(error){
     setStatus(error?.message||'The live tours could not be loaded.',true)
@@ -175,9 +301,15 @@ reloadToursButton?.addEventListener('click',async()=>{
 })
 
 document.querySelectorAll('[data-page]').forEach(button=>{
-  button.addEventListener('click',()=>{
-    updateActivePanel(button.dataset.page)
-  })
+  button.addEventListener('click',()=>{updateActivePanel(button.dataset.page)})
+})
+
+brandSelectButtons.forEach(button=>{
+  button.addEventListener('click',()=>{setActiveBrand(button.dataset.brandSelect)})
+})
+
+brandSwitchButtons.forEach(button=>{
+  button.addEventListener('click',()=>{setActiveBrand(button.dataset.brandSwitch)})
 })
 
 window.addEventListener('hashchange',()=>{
@@ -206,6 +338,15 @@ window.addEventListener('message',event=>{
     }
   }catch{}
 
+  updateBrandChrome()
   renderToursGrid()
   updateActivePanel(getRequestedPage(),{updateHash:false})
+
+  if(shouldPromptForBrand){
+    setPickerVisibility(true)
+    setStatus('Choose which brand you want to edit before opening the design workspace.')
+  }else{
+    setPickerVisibility(false)
+    setStatus(`${getActiveBrand().label} design workspace loaded.`)
+  }
 })()

@@ -8,6 +8,69 @@ const adminClient=createClient(supabaseUrl,supabaseServiceRoleKey,{auth:{persist
 
 type Json=Record<string,unknown>
 
+const SKYBOOK_PERMISSION_CATALOG=[
+  { key:'dashboard', label:'Dashboard', description:'Access the command center and operational snapshots.' },
+  { key:'calendar', label:'Calendar', description:'Use the day, week, and month operations calendar.' },
+  { key:'reports', label:'Reports', description:'View commercial, finance, and performance reporting.' },
+  { key:'bookings', label:'Bookings', description:'Create, edit, confirm, cancel, and resend bookings.' },
+  { key:'customers', label:'Customers', description:'View customer history and guest records.' },
+  { key:'payments', label:'Payments', description:'Track guest payments and payment reconciliation.' },
+  { key:'services', label:'Services', description:'Manage services, packages, and catalog setup.' },
+  { key:'engine', label:'Booking Engine', description:'Manage schedules, blackout dates, vouchers, resources, and operators.' },
+  { key:'finance', label:'Finance', description:'Manage office invoices, refunds, commissions, and settlements.' },
+  { key:'settings', label:'Settings', description:'Change booking configuration and platform settings.' },
+  { key:'emails', label:'Email Templates', description:'Manage operational email templates and communication tooling.' },
+  { key:'admin_users', label:'Admin Users', description:'Grant staff access, roles, and section permissions.' }
+] as const
+
+const SKYBOOK_PERMISSION_KEYS=SKYBOOK_PERMISSION_CATALOG.map(item=>item.key)
+
+const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
+  super_admin:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
+  manager:{
+    dashboard:true,
+    calendar:true,
+    reports:true,
+    bookings:true,
+    customers:true,
+    payments:true,
+    services:true,
+    engine:true,
+    finance:true,
+    settings:true,
+    emails:true,
+    admin_users:false
+  },
+  booking_agent:{
+    dashboard:true,
+    calendar:true,
+    reports:false,
+    bookings:true,
+    customers:true,
+    payments:false,
+    services:false,
+    engine:false,
+    finance:false,
+    settings:false,
+    emails:false,
+    admin_users:false
+  },
+  finance:{
+    dashboard:true,
+    calendar:false,
+    reports:true,
+    bookings:true,
+    customers:true,
+    payments:true,
+    services:false,
+    engine:false,
+    finance:true,
+    settings:false,
+    emails:false,
+    admin_users:false
+  }
+}
+
 const json=(status:number,payload:Json)=>new Response(JSON.stringify(payload),{
   status,
   headers:{...corsHeaders,'content-type':'application/json'}
@@ -19,6 +82,25 @@ const readBody=async(request:Request)=>{
 
 const normalizeText=(value:unknown)=>String(value ?? '').trim()
 const nowIso=()=>new Date().toISOString()
+const sanitizePermissionMap=(input:unknown)=>{
+  const source=typeof input==='object' && input ? input as Record<string,unknown> : {}
+  return Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,Boolean(source[key])]))
+}
+const resolveProfilePermissions=(profile:Json={})=>{
+  const role=normalizeText(profile.role).toLowerCase() || 'booking_agent'
+  const defaults=SKYBOOK_ROLE_DEFAULTS[role] || SKYBOOK_ROLE_DEFAULTS.booking_agent
+  const overrides=sanitizePermissionMap(profile.permissions)
+  return {...defaults,...overrides}
+}
+const hasSkybookPermission=(profile:Json,key:string)=>Boolean(resolveProfilePermissions(profile)[key])
+const requireSkybookPermission=(profile:Json,key:string)=>{
+  if(!hasSkybookPermission(profile,key))throw new Error(`You do not have access to ${key.replace(/_/g,' ')}.`)
+}
+const requireSuperAdmin=(profile:Json)=>{
+  if(normalizeText(profile.role)!=='super_admin'){
+    throw new Error('Super admin access is required for admin user management.')
+  }
+}
 const routeParts=(request:Request)=>{
   const parts=new URL(request.url).pathname.split('/').filter(Boolean)
   while(parts.length&&['functions','v1','booking-api'].includes(parts[0]))parts.shift()
@@ -81,11 +163,11 @@ const getAuthenticatedAdmin=async(request:Request)=>{
   if(userError||!user)throw new Error('Authenticated admin user is required.')
   const { data:profile,error:profileError }=await adminClient
     .from('app_users')
-    .select('id,full_name,role,is_active')
+    .select('id,full_name,role,is_active,permissions')
     .eq('id',user.id)
     .maybeSingle()
   if(profileError||!profile?.is_active)throw new Error('Admin access is not configured for this user.')
-  return { user, profile }
+  return { user, profile:{...profile,effective_permissions:resolveProfilePermissions(profile as unknown as Json)} }
 }
 
 const getSettingValue=async<T>(settingKey:string,fallback:T)=>{
@@ -126,6 +208,68 @@ const safeMaybeSingle=async<T>(query:Promise<any>,fallback:T | null=null)=>{
     throw new Error(String(error.message || 'Database query failed.'))
   }
   return data ?? fallback
+}
+
+const listAllAuthUsers=async()=>{
+  const users:any[]=[]
+  let page=1
+  while(true){
+    const { data,error }=await adminClient.auth.admin.listUsers({ page, perPage:200 })
+    if(error)throw new Error(String(error.message || 'Failed to list auth users.'))
+    const batch=data?.users || []
+    users.push(...batch)
+    if(batch.length<200)break
+    page+=1
+  }
+  return users
+}
+
+const listSkybookAdminUsers=async()=>{
+  const [authUsers,appUsers]=await Promise.all([
+    listAllAuthUsers(),
+    safeTableSelect<Json>(adminClient.from('app_users').select('id,full_name,role,is_active,permissions').order('created_at',{ascending:true}),[])
+  ])
+  const appById=new Map(appUsers.map(user=>[String(user.id),user]))
+  return authUsers.map(user=>{
+    const appUser=appById.get(String(user.id)) || {}
+    const role=normalizeText(appUser.role) || 'booking_agent'
+    return {
+      id:user.id,
+      email:user.email || '',
+      full_name:normalizeText(appUser.full_name) || normalizeText(user.user_metadata?.full_name) || normalizeText(user.email),
+      role,
+      is_active:appUser.is_active===undefined ? false : Boolean(appUser.is_active),
+      permissions:sanitizePermissionMap(appUser.permissions),
+      effective_permissions:{...resolveProfilePermissions({ role }),...sanitizePermissionMap(appUser.permissions)},
+      last_sign_in_at:user.last_sign_in_at || null,
+      created_at:user.created_at || null,
+      has_access:appUser.is_active===true
+    }
+  }).sort((left,right)=>{
+    if(left.has_access!==right.has_access)return left.has_access ? -1 : 1
+    return String(left.email).localeCompare(String(right.email))
+  })
+}
+
+const upsertSkybookAdminUser=async(payload:Json)=>{
+  const requestedRole=normalizeText(payload.role).toLowerCase() || 'booking_agent'
+  if(!(requestedRole in SKYBOOK_ROLE_DEFAULTS))throw new Error('Invalid admin role.')
+  const requestedId=normalizeText(payload.id)
+  const requestedEmail=normalizeText(payload.email).toLowerCase()
+  const authUsers=await listAllAuthUsers()
+  const authUser=authUsers.find(user=>requestedId ? user.id===requestedId : normalizeText(user.email).toLowerCase()===requestedEmail)
+  if(!authUser)throw new Error('Auth user not found. Create or invite the user in Supabase Auth first.')
+  const fullName=normalizeText(payload.full_name) || normalizeText(authUser.user_metadata?.full_name) || normalizeText(authUser.email)
+  const row={
+    id:authUser.id,
+    full_name:fullName,
+    role:requestedRole,
+    is_active:payload.is_active!==false,
+    permissions:sanitizePermissionMap(payload.permissions)
+  }
+  const { error }=await adminClient.from('app_users').upsert(row,{onConflict:'id'})
+  if(error)throw new Error(String(error.message || 'Unable to save admin user.'))
+  return { success:true, admin_user:row }
 }
 
 const normalizeDiscountAmount=(total:number,discountType:string,discountValue:number)=>{
@@ -829,6 +973,7 @@ const upsertEngineRow=async(table:string,payload:Json,allowedFields:string[])=>{
 }
 
 const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
+  const permissions=resolveProfilePermissions(profile)
   const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,brands]=await Promise.all([
     adminClient
       .from('bookings')
@@ -926,16 +1071,21 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     vouchers,
     agents,
     operators,
+    bookingOperators,
     resources,
     resourceAllocations,
     invoices,
     officeInvoices,
     refunds,
+    paymentTransactions,
     webhookEndpoints,
     supportedLanguages,
     supportedCurrencies,
     customerAccounts,
-    calendarConnections
+    calendarConnections,
+    emailLogs,
+    statusHistory,
+    adminNotes
   ]=await Promise.all([
     safeTableSelect<Json>(adminClient.from('service_operating_windows').select('*').order('day_of_week',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('service_date_rules').select('*').order('created_at',{ascending:false})),
@@ -944,55 +1094,77 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     safeTableSelect<Json>(adminClient.from('vouchers').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('agents').select('*').order('company_name',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('operators').select('*').order('company_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('booking_operators').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('resources').select('*').order('name',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('resource_allocations').select('*').order('allocation_date',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('invoices').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('office_invoices').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('refunds').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('payment_transactions').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('webhook_endpoints').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('supported_languages').select('*').order('code',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('supported_currencies').select('*').order('code',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('customer_accounts').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('calendar_sync_connections').select('*').order('created_at',{ascending:false}))
+    safeTableSelect<Json>(adminClient.from('calendar_sync_connections').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('email_logs').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('booking_status_history').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('admin_notes').select('*').order('created_at',{ascending:false}))
   ])
+  const adminUsers=permissions.admin_users ? await listSkybookAdminUsers() : []
+  const canSeeBookings=permissions.bookings || permissions.dashboard || permissions.calendar || permissions.reports
+  const canSeeCustomers=permissions.customers || permissions.bookings
+  const canSeePayments=permissions.payments || permissions.dashboard || permissions.reports || permissions.finance
+  const canSeeServices=permissions.services || permissions.bookings || permissions.engine
+  const canSeeEngine=permissions.engine || permissions.calendar
+  const canSeeFinance=permissions.finance || permissions.dashboard || permissions.reports
+  const canSeeEmails=permissions.emails || permissions.bookings
+  const safeReports=permissions.reports ? buildReports({
+    bookings,
+    payments,
+    invoices,
+    officeInvoices,
+    refunds
+  }) : { overview:{}, status_breakdown:[], recent_guest_invoices:[], recent_office_invoices:[], recent_refunds:[] }
   return {
     user,
-    profile,
+    profile:{...profile,effective_permissions:permissions},
     brands,
-    bookings,
-    customers,
-    payments,
-    services,
-    settings,
-    email_templates:emailTemplates,
+    bookings:canSeeBookings ? bookings : [],
+    customers:canSeeCustomers ? customers : [],
+    payments:canSeePayments ? payments : [],
+    services:canSeeServices ? services : [],
+    settings:permissions.settings ? settings : {},
+    email_templates:permissions.emails ? emailTemplates : {},
     automation_rules:automationRules,
     portal_settings:portalSettings,
     integration_settings:integrationSettings,
     reporting_settings:reportingSettings,
-    schedules,
-    date_rules:dateRules,
-    blackout_dates:blackoutDates,
-    coupons,
-    vouchers,
-    agents,
-    operators,
-    resources,
-    resource_allocations:resourceAllocations,
-    invoices,
-    office_invoices:officeInvoices,
-    refunds,
-    webhook_endpoints:webhookEndpoints,
+    schedules:canSeeEngine ? schedules : [],
+    date_rules:canSeeEngine ? dateRules : [],
+    blackout_dates:canSeeEngine ? blackoutDates : [],
+    coupons:canSeeEngine ? coupons : [],
+    vouchers:canSeeEngine ? vouchers : [],
+    agents:(canSeeEngine || canSeeFinance) ? agents : [],
+    operators:canSeeFinance ? operators : [],
+    booking_operators:canSeeFinance ? bookingOperators : [],
+    resources:canSeeEngine ? resources : [],
+    resource_allocations:canSeeEngine ? resourceAllocations : [],
+    invoices:canSeePayments ? invoices : [],
+    office_invoices:canSeeFinance ? officeInvoices : [],
+    refunds:canSeeFinance ? refunds : [],
+    payment_transactions:canSeePayments ? paymentTransactions : [],
+    webhook_endpoints:permissions.settings ? webhookEndpoints : [],
     supported_languages:supportedLanguages,
     supported_currencies:supportedCurrencies,
     customer_accounts:customerAccounts,
-    calendar_connections:calendarConnections,
-    reports:buildReports({
-      bookings,
-      payments,
-      invoices,
-      officeInvoices,
-      refunds
-    })
+    calendar_connections:permissions.settings ? calendarConnections : [],
+    email_logs:canSeeEmails ? emailLogs : [],
+    status_history:canSeeBookings ? statusHistory : [],
+    admin_notes:canSeeBookings ? adminNotes : [],
+    admin_users:adminUsers,
+    permission_catalog:SKYBOOK_PERMISSION_CATALOG,
+    role_defaults:SKYBOOK_ROLE_DEFAULTS,
+    reports:safeReports
   }
 }
 
@@ -1051,175 +1223,222 @@ Deno.serve(async request=>{
 
     if(resource==='admin'){
       const { user, profile }=await getAuthenticatedAdmin(request)
+      const adminProfile=profile as unknown as Json
 
       if(request.method==='GET'&&id==='bootstrap'){
         return json(200,await fetchAdminBootstrap(user as unknown as Json,profile as unknown as Json))
       }
 
       if(request.method==='POST'&&id==='bookings'&&!subresource){
+        requireSkybookPermission(adminProfile,'bookings')
         return json(201,{booking:await createBooking(requestBody,{isAdmin:true,userId:user.id,brandCode})})
       }
 
       if(request.method==='PATCH'&&id==='bookings'&&subresource){
+        requireSkybookPermission(adminProfile,'bookings')
         return json(200,await updateBooking(subresource,requestBody,user.id))
       }
 
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='resend'){
+        requireSkybookPermission(adminProfile,'bookings')
         return json(200,await resendBookingEmail(subresource,user.id))
       }
 
       if(request.method==='POST'&&id==='services'){
+        requireSkybookPermission(adminProfile,'services')
         return json(201,await upsertService(requestBody))
       }
 
       if(request.method==='PATCH'&&id==='services'&&subresource){
+        requireSkybookPermission(adminProfile,'services')
         return json(200,await upsertService({...requestBody,id:subresource}))
       }
 
       if(request.method==='POST'&&id==='service-schedules'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('service_operating_windows',requestBody,[
           'service_id','day_of_week','start_time','end_time','slot_label','cutoff_hours','max_party_size','is_active'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='service-schedules'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('service_operating_windows',{...requestBody,id:subresource},[
           'id','service_id','day_of_week','start_time','end_time','slot_label','cutoff_hours','max_party_size','is_active'
         ]))
       }
 
       if(request.method==='POST'&&id==='date-rules'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('service_date_rules',requestBody,[
           'service_id','rule_type','rule_value','is_active'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='date-rules'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('service_date_rules',{...requestBody,id:subresource},[
           'id','service_id','rule_type','rule_value','is_active'
         ]))
       }
 
       if(request.method==='POST'&&id==='blackout-dates'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('service_blackout_dates',requestBody,[
           'service_id','starts_on','ends_on','reason','applies_to_all'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='blackout-dates'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('service_blackout_dates',{...requestBody,id:subresource},[
           'id','service_id','starts_on','ends_on','reason','applies_to_all'
         ]))
       }
 
       if(request.method==='POST'&&id==='coupons'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('coupons',requestBody,[
           'code','description','discount_type','discount_value','starts_at','ends_at','usage_limit','usage_count','is_active','metadata'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='coupons'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('coupons',{...requestBody,id:subresource},[
           'id','code','description','discount_type','discount_value','starts_at','ends_at','usage_limit','usage_count','is_active','metadata'
         ]))
       }
 
       if(request.method==='POST'&&id==='vouchers'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('vouchers',requestBody,[
           'code','description','initial_value','remaining_value','currency_code','expires_at','is_active','metadata'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='vouchers'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('vouchers',{...requestBody,id:subresource},[
           'id','code','description','initial_value','remaining_value','currency_code','expires_at','is_active','metadata'
         ]))
       }
 
       if(request.method==='POST'&&id==='agents'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('agents',requestBody,[
           'code','company_name','contact_name','email','phone','commission_type','commission_value','is_active','metadata'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='agents'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('agents',{...requestBody,id:subresource},[
           'id','code','company_name','contact_name','email','phone','commission_type','commission_value','is_active','metadata'
         ]))
       }
 
       if(request.method==='POST'&&id==='operators'){
+        requireSkybookPermission(adminProfile,'finance')
         return json(201,await upsertEngineRow('operators',requestBody,[
           'code','company_name','contact_name','email','phone','commission_type','commission_value','payout_terms','is_active','metadata'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='operators'&&subresource){
+        requireSkybookPermission(adminProfile,'finance')
         return json(200,await upsertEngineRow('operators',{...requestBody,id:subresource},[
           'id','code','company_name','contact_name','email','phone','commission_type','commission_value','payout_terms','is_active','metadata'
         ]))
       }
 
       if(request.method==='POST'&&id==='resources'){
+        requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('resources',requestBody,[
           'slug','name','resource_type','capacity','is_active','metadata'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='resources'&&subresource){
+        requireSkybookPermission(adminProfile,'engine')
         return json(200,await upsertEngineRow('resources',{...requestBody,id:subresource},[
           'id','slug','name','resource_type','capacity','is_active','metadata'
         ]))
       }
 
       if(request.method==='POST'&&id==='webhook-endpoints'){
+        requireSkybookPermission(adminProfile,'settings')
         return json(201,await upsertEngineRow('webhook_endpoints',requestBody,[
           'name','target_url','secret_key','subscribed_events','is_active'
         ]))
       }
 
       if(request.method==='PATCH'&&id==='webhook-endpoints'&&subresource){
+        requireSkybookPermission(adminProfile,'settings')
         return json(200,await upsertEngineRow('webhook_endpoints',{...requestBody,id:subresource},[
           'id','name','target_url','secret_key','subscribed_events','is_active'
         ]))
       }
 
       if(request.method==='POST'&&id==='refunds'&&subresource){
+        requireSkybookPermission(adminProfile,'finance')
         return json(200,await createRefund(subresource,requestBody,user.id))
       }
 
       if(request.method==='POST'&&id==='office-invoices'){
+        requireSkybookPermission(adminProfile,'finance')
         return json(201,await createOfficeInvoice(requestBody,user.id))
       }
 
       if(request.method==='PATCH'&&id==='settings'){
+        requireSkybookPermission(adminProfile,'settings')
         await upsertBookingSetting('config',requestBody,true)
         return json(200,{success:true})
       }
 
       if(request.method==='PATCH'&&id==='email-templates'){
+        requireSkybookPermission(adminProfile,'emails')
         await upsertBookingSetting('email_templates',requestBody,false)
         return json(200,{success:true})
       }
 
       if(request.method==='PATCH'&&id==='automation-rules'){
+        requireSkybookPermission(adminProfile,'settings')
         await upsertBookingSetting('automation_rules',requestBody,false)
         return json(200,{success:true})
       }
 
       if(request.method==='PATCH'&&id==='portal-settings'){
+        requireSkybookPermission(adminProfile,'settings')
         await upsertBookingSetting('portal',requestBody,true)
         return json(200,{success:true})
       }
 
       if(request.method==='PATCH'&&id==='integrations'){
+        requireSkybookPermission(adminProfile,'settings')
         await upsertBookingSetting('integrations',requestBody,false)
         return json(200,{success:true})
       }
 
       if(request.method==='PATCH'&&id==='reporting-settings'){
+        requireSkybookPermission(adminProfile,'reports')
         await upsertBookingSetting('reporting',requestBody,false)
         return json(200,{success:true})
+      }
+
+      if(request.method==='GET'&&id==='users'){
+        requireSuperAdmin(adminProfile)
+        return json(200,{admin_users:await listSkybookAdminUsers(),permission_catalog:SKYBOOK_PERMISSION_CATALOG,role_defaults:SKYBOOK_ROLE_DEFAULTS})
+      }
+
+      if(request.method==='POST'&&id==='users'){
+        requireSuperAdmin(adminProfile)
+        return json(200,await upsertSkybookAdminUser(requestBody))
+      }
+
+      if(request.method==='PATCH'&&id==='users'&&subresource){
+        requireSuperAdmin(adminProfile)
+        return json(200,await upsertSkybookAdminUser({...requestBody,id:subresource}))
       }
     }
 

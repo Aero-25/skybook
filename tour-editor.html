@@ -7,22 +7,43 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/admin.css?v=20260408mobilepass">
+<link rel="stylesheet" href="assets/css/admin.css?v=20260417-brandchooser">
 </head>
 <body>
   <script>
-  window.SkyBookConfig={trueTravelSiteBase:'https://www.truetravelnam.net'}
+  window.SkyBookConfig={
+    brandStorageKey:'skybook_designer_brand',
+    brands:{
+      'true-travel':{
+        label:'True Travel',
+        vibe:'Ocean-led public site',
+        siteBase:'../sites/true-travel',
+        homePath:'index.html',
+        toursPath:'tours.html',
+        toursLabel:'Tours'
+      },
+      'iventure':{
+        label:'Iventure',
+        vibe:'Sand-and-dune public site',
+        siteBase:'../sites/iventure',
+        homePath:'index.html',
+        toursPath:'services.html',
+        toursLabel:'Services'
+      }
+    }
+  }
   </script>
+
   <main class="editor-shell">
     <section class="editor-topbar">
       <div>
-        <a class="editor-back" href="design-admin.html#tours">&larr; Back to Tours</a>
+        <a class="editor-back" id="backToDesignStudioLink" href="design-admin.html#tours">&larr; Back to Design Studio</a>
         <div class="editor-kicker" id="editorModeLabel">Tour Editor</div>
         <h1 id="editorTitle">Edit Tour</h1>
         <p id="editorIntro">Update one tour at a time. Save changes here, then return to the tours grid when you are done.</p>
       </div>
       <div class="editor-actions">
-        <a class="ghost" href="design-admin.html#tours">Back to Grid</a>
+        <a class="ghost" id="backToGridLink" href="design-admin.html#tours">Back to Grid</a>
         <a class="ghost" id="openToursPageLink" href="../sites/true-travel/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
         <button type="button" id="saveTourButton">Save Tour</button>
         <button type="button" id="saveAndReturnButton">Save & Return</button>
@@ -104,14 +125,7 @@
     </section>
   </main>
 
-<script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
-<script src="assets/js/tour-editor.js?v=20260408tourtypes" defer></script>
-<script>
-window.addEventListener('DOMContentLoaded',()=>{
-  const base=(window.SkyBookConfig?.trueTravelSiteBase||'https://www.truetravelnam.net').replace(/\/+$/,'')
-  const link=document.getElementById('openToursPageLink')
-  if(link)link.href=`${base}/tours.html`
-})
-</script>
+  <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
+  <script src="assets/js/tour-editor.js?v=20260417-brandchooser" defer></script>
 </body>
 </html>

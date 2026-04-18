@@ -41,25 +41,27 @@
       </div>
       <div class="admin-nav-group">
         <span>Operations</span>
-        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button">Dashboard</button>
-        <button class="admin-tab" data-admin-tab="reports" type="button">Reports</button>
-        <button class="admin-tab" data-admin-tab="bookings" type="button">Bookings</button>
-        <button class="admin-tab" data-admin-tab="payments" type="button">Payments</button>
-        <button class="admin-tab" data-admin-tab="customers" type="button">Customers</button>
+        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">CC</span><span>Command Center</span></button>
+        <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
+        <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports</span></button>
+        <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
+        <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
+        <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers</span></button>
       </div>
       <div class="admin-nav-group">
         <span>Catalog</span>
-        <button class="admin-tab" data-admin-tab="services" type="button">Services</button>
-        <button class="admin-tab" data-admin-tab="engine" type="button">Booking Engine</button>
+        <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services</span></button>
+        <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">EN</span><span>Booking Engine</span></button>
       </div>
       <div class="admin-nav-group">
         <span>Finance</span>
-        <button class="admin-tab" data-admin-tab="platform" type="button">Finance & Platform</button>
+        <button class="admin-tab" data-admin-tab="platform" type="button"><span class="admin-tab-icon">FN</span><span>Finance & Platform</span></button>
       </div>
       <div class="admin-nav-group">
         <span>Configuration</span>
-        <button class="admin-tab" data-admin-tab="settings" type="button">Settings</button>
-        <button class="admin-tab" data-admin-tab="emails" type="button">Email Templates</button>
+        <button class="admin-tab" data-admin-tab="settings" type="button"><span class="admin-tab-icon">ST</span><span>Settings</span></button>
+        <button class="admin-tab" data-admin-tab="emails" type="button"><span class="admin-tab-icon">EM</span><span>Email Templates</span></button>
+        <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">AU</span><span>Admin Users</span></button>
       </div>
       <div class="admin-nav-group">
         <span>Switch</span>
@@ -82,7 +84,106 @@
       </section>
 
       <section class="admin-view is-active" data-admin-view="dashboard">
-        <div class="admin-panel-grid" id="dashboardCards"></div>
+        <div class="admin-command-grid">
+          <article class="booking-panel admin-command-lead">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Command center</h3>
+                <p class="muted-copy">Today’s arrivals, confirmation queue, unpaid balances, refunds, and supplier exposure on one screen.</p>
+              </div>
+              <div class="booking-chip">Live Operations</div>
+            </div>
+            <div class="admin-panel-grid admin-panel-grid-single" id="dashboardCards"></div>
+          </article>
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Action queue</h3>
+                <p class="muted-copy">The items most likely to need attention next.</p>
+              </div>
+            </div>
+            <div id="dashboardActionQueue" class="admin-mini-stack"></div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
+            <h3>Today's arrivals</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Guests</th><th>Status</th></tr></thead>
+                <tbody id="dashboardArrivalsTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Pending confirmations</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Preferred Date</th><th>Status</th></tr></thead>
+                <tbody id="dashboardPendingTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
+            <h3>Unpaid balances</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Guest</th><th>Due Now</th><th>Due Later</th><th>Payment</th></tr></thead>
+                <tbody id="dashboardUnpaidTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Refund watch</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Booking</th><th>Status</th><th>Amount</th><th>Reason</th></tr></thead>
+                <tbody id="dashboardRefundsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
+            <h3>Operator payouts due</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Invoice</th><th>Operator / Payee</th><th>Status</th><th>Total</th></tr></thead>
+                <tbody id="dashboardPayoutsTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Recent bookings</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Created</th><th>Total</th></tr></thead>
+                <tbody id="dashboardRecentBookingsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="calendar">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Operations calendar</h3>
+              <p class="muted-copy">Day, week, and month views for bookings, pickups, and assigned resources.</p>
+            </div>
+            <div class="toolbar-actions admin-calendar-actions">
+              <button type="button" class="calendar-view-button is-active" data-calendar-view="day">Day</button>
+              <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
+              <button type="button" class="calendar-view-button" data-calendar-view="month">Month</button>
+              <input id="calendarFocusDate" type="date">
+            </div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="calendarSummaryCards"></div>
+          <div id="calendarCanvas" class="calendar-canvas"></div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="reports">
@@ -141,11 +242,7 @@
                 </select>
               </div>
               <div class="booking-field">
-                <label for="bookingFilterSearch">Search</label>
-                <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, service">
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterStatus">Status</label>
+                <label for="bookingFilterStatus">Booking Status</label>
                 <select id="bookingFilterStatus">
                   <option value="">All statuses</option>
                   <option value="pending">Pending</option>
@@ -154,6 +251,48 @@
                   <option value="completed">Completed</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterPaymentStatus">Payment Status</label>
+                <select id="bookingFilterPaymentStatus">
+                  <option value="">All payment states</option>
+                  <option value="pending">Pending</option>
+                  <option value="unpaid">Unpaid</option>
+                  <option value="paid">Paid</option>
+                  <option value="partially_paid">Partially Paid</option>
+                  <option value="refunded">Refunded</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterService">Service</label>
+                <select id="bookingFilterService">
+                  <option value="">All services</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterOperator">Operator</label>
+                <select id="bookingFilterOperator">
+                  <option value="">All operators</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterAgent">Agent</label>
+                <select id="bookingFilterAgent">
+                  <option value="">All agents</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterDateFrom">Date From</label>
+                <input id="bookingFilterDateFrom" type="date">
+              </div>
+              <div class="booking-field">
+                <label for="bookingFilterDateTo">Date To</label>
+                <input id="bookingFilterDateTo" type="date">
+              </div>
+              <div class="booking-field-full">
+                <label for="bookingFilterSearch">Fast Search / Reference</label>
+                <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, email, service">
               </div>
             </div>
             <div class="table-wrap">
@@ -316,7 +455,7 @@
           <h3>Payments</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Reference</th><th>Provider</th><th>Status</th><th>Amount</th><th>Created</th></tr></thead>
+              <thead><tr><th>Booking / Provider</th><th>Status</th><th>Amount</th><th>When</th><th>Reference</th></tr></thead>
               <tbody id="adminPaymentsTable"></tbody>
             </table>
           </div>
@@ -371,6 +510,58 @@
             <button class="booking-button" type="submit" form="emailTemplatesForm">Save Templates</button>
           </div>
         </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="admin-users">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Admin users</h3>
+                <p class="muted-copy">Super admin can grant section access, roles, and activation state for SkyBook staff.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Access</th></tr></thead>
+                <tbody id="adminUsersTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Create or update admin access</h3>
+            <form id="adminUserForm" class="booking-form-grid">
+              <input id="adminUserId" type="hidden">
+              <label class="booking-field">
+                <span>Email</span>
+                <input id="adminUserEmail" type="email" required>
+              </label>
+              <label class="booking-field">
+                <span>Full Name</span>
+                <input id="adminUserFullName" type="text">
+              </label>
+              <label class="booking-field">
+                <span>Role</span>
+                <select id="adminUserRole">
+                  <option value="super_admin">Super Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="booking_agent">Booking Agent</option>
+                  <option value="finance">Finance</option>
+                </select>
+              </label>
+              <label class="booking-field admin-toggle">
+                <span>Active access</span>
+                <input id="adminUserActive" type="checkbox" checked>
+              </label>
+              <div class="booking-field-full">
+                <div id="adminUserPermissions" class="permission-grid"></div>
+              </div>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit" id="adminUserSaveButton">Save Admin Access</button>
+              </div>
+            </form>
+          </article>
+        </div>
       </section>
 
       <section class="admin-view" data-admin-view="engine">
