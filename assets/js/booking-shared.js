@@ -16,8 +16,8 @@ window.TrueTravelBooking=(()=>{
     supportPhone:'+264813224270',
     supportWhatsApp:'+264813224270',
     lookupWindowDays:365,
-    apiBase:'/functions/v1/booking-api',
-    paymentProviders:['manual_eft','stripe','paypal'],
+    apiBase:'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api',
+    paymentProviders:['dpo','apple_pay','google_pay','manual_eft','stripe'],
     paymentMode:'deposit',
     defaultDepositType:'percentage',
     defaultDepositValue:30,
@@ -75,7 +75,7 @@ window.TrueTravelBooking=(()=>{
   const DATE_REQUIREMENT_TYPES=['optional','required','hidden']
   const BOOKING_STATUSES=['draft','pending','awaiting_payment','confirmed','cancelled','completed','refunded','failed']
   const PAYMENT_STATUSES=['unpaid','pending','authorized','paid','partially_paid','failed','refunded','cancelled']
-  const PAYMENT_PROVIDERS=['manual_eft','stripe','paypal','custom']
+  const PAYMENT_PROVIDERS=['manual_eft','stripe','apple_pay','google_pay','dpo','custom']
   const SKYBOOK_PERMISSION_CATALOG=[
     { key:'dashboard', label:'Dashboard', description:'Access the command center and operational snapshots.' },
     { key:'calendar', label:'Calendar', description:'Use the day, week, and month operations calendar.' },
@@ -119,19 +119,25 @@ window.TrueTravelBooking=(()=>{
     }
   }
   const writeJson=(key,value)=>localStorage.setItem(key,JSON.stringify(value))
-  const detectBrandCode=()=>{
+  const getPageBrandCode=()=>{
     const queryBrand=new URLSearchParams(window.location.search).get('brand')
     if(queryBrand&&BRAND_CATALOG[toSlug(queryBrand)])return toSlug(queryBrand)
     const bodyBrand=document.body?.dataset?.brand||document.documentElement?.dataset?.brand||''
     if(bodyBrand&&BRAND_CATALOG[toSlug(bodyBrand)])return toSlug(bodyBrand)
     const host=String(window.location.hostname||'').toLowerCase()
     if(host.includes('iventure'))return 'iventure'
+    return ''
+  }
+  const detectBrandCode=()=>{
+    const pageBrand=getPageBrandCode()
+    if(pageBrand)return pageBrand
     return 'true-travel'
   }
   const getBrandConfig=brandCode=>BRAND_CATALOG[toSlug(brandCode)]||BRAND_CATALOG['true-travel']
   const readConfig=()=>{
-    const stored={...DEFAULT_CONFIG,...readJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,{})}
-    const brandCode=toSlug(stored.brandCode||detectBrandCode())||'true-travel'
+    const savedConfig=readJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,{})
+    const stored={...DEFAULT_CONFIG,...savedConfig}
+    const brandCode=toSlug(getPageBrandCode()||savedConfig.brandCode||DEFAULT_CONFIG.brandCode)||'true-travel'
     return {...stored,...getBrandConfig(brandCode),brandCode}
   }
   const writeConfig=config=>writeJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,{...readConfig(),...config})
@@ -555,6 +561,39 @@ window.TrueTravelBooking=(()=>{
       writeDemoDb(db)
       return {booking}
     }
+    if(method==='POST'&&normalizedPath==='payment-initiate'){
+      const provider=safeText(body?.provider||'manual_eft')||'manual_eft'
+      const booking=db.bookings.find(item=>item.id===body?.booking_id)
+      if(!booking)throw new Error('Booking not found.')
+      let payment=db.payments.find(item=>item.booking_id===booking.id)
+      if(!payment){
+        payment={
+          id:uid('pay'),
+          booking_id:booking.id,
+          reference:booking.reference,
+          provider,
+          status:'pending',
+          amount:Number(body?.amount||booking.amount_due_now||0),
+          currency:booking.currency,
+          created_at:nowIso()
+        }
+        db.payments.unshift(payment)
+      }
+      payment.provider=provider
+      payment.status='pending'
+      payment.updated_at=nowIso()
+      payment.external_checkout_url=provider==='manual_eft' ? null : (safeText(body?.success_url) ? `${safeText(body.success_url)}${safeText(body.success_url).includes('?') ? '&' : '?'}reference=${encodeURIComponent(booking.reference)}&provider=${encodeURIComponent(provider)}&payment=demo` : null)
+      writeDemoDb(db)
+      return {
+        payment:{
+          provider,
+          status:'pending',
+          instructions:provider==='manual_eft' ? 'Demo EFT instructions. Replace with your live banking details.' : null,
+          redirect_url:payment.external_checkout_url||null,
+          note:provider==='manual_eft' ? null : 'Demo mode: hosted checkout simulated locally.'
+        }
+      }
+    }
     if(method==='POST'&&normalizedPath==='bookings/lookup'){
       const booking=db.bookings.find(item=>item.reference===safeText(body?.reference) && item.customer_email.toLowerCase()===safeText(body?.email).toLowerCase())
       if(!booking)throw new Error('Booking not found.')
@@ -717,12 +756,30 @@ window.TrueTravelBooking=(()=>{
     throw new Error('Demo route not implemented.')
   }
 
-  const getApiUrl=path=>{
+  const getFunctionBase=()=>{
     const config=readConfig()
-    const base=safeText(config.apiBase).replace(/\/+$/,'')
+    const explicitBase=safeText(config.apiBase)
+    if(/^https?:\/\//i.test(explicitBase)){
+      return explicitBase.replace(/\/booking-api$/,'').replace(/\/+$/,'')
+    }
+    const supabaseBase=safeText(config.supabaseUrl).replace(/\/+$/,'')
+    if(supabaseBase && explicitBase.startsWith('/functions/')){
+      return `${supabaseBase}/functions/v1`
+    }
+    return explicitBase.replace(/\/booking-api$/,'').replace(/\/+$/,'')
+  }
+
+  const getApiUrl=path=>{
+    const base=safeText(readConfig().apiBase).replace(/\/+$/,'')
     const nextPath=String(path||'').replace(/^\/+/,'')
+    if(/^https?:\/\//i.test(base))return `${base}/${nextPath}`
+    if(base.startsWith('/functions/') && safeText(readConfig().supabaseUrl)){
+      return `${safeText(readConfig().supabaseUrl).replace(/\/+$/,'')}${base}/${nextPath}`
+    }
     return `${base}/${nextPath}`
   }
+
+  const getFunctionUrl=name=>`${getFunctionBase()}/${String(name||'').replace(/^\/+/,'')}`
 
   const apiRequest=async(path,{method='GET',body,headers={}}={})=>{
     const config=readConfig()
@@ -752,6 +809,34 @@ window.TrueTravelBooking=(()=>{
       const shouldFallback=error instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(message)
       if(!shouldFallback)throw error
       return localApiRequest(path,{method,body,headers})
+    }
+  }
+
+  const initiatePayment=async(payload,{headers={}}={})=>{
+    const config=readConfig()
+    try{
+      const response=await fetch(getFunctionUrl('payment-initiate'),{
+        method:'POST',
+        headers:{
+          'content-type':'application/json',
+          'x-project-name':config.projectName,
+          'x-brand-code':config.brandCode,
+          ...(config.supabaseAnonKey ? {
+            apikey:config.supabaseAnonKey,
+            Authorization:`Bearer ${config.supabaseAnonKey}`
+          } : {}),
+          ...headers
+        },
+        body:JSON.stringify(payload||{})
+      })
+      const result=await response.json().catch(()=>null)
+      if(!response.ok)throw new Error(result?.error||'Payment initiation failed.')
+      return result
+    }catch(error){
+      const message=String(error?.message||'')
+      const shouldFallback=error instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(message)
+      if(!shouldFallback)throw error
+      return localApiRequest('payment-initiate',{method:'POST',body:payload,headers})
     }
   }
 
@@ -806,6 +891,8 @@ window.TrueTravelBooking=(()=>{
     writeDemoDb,
     buildAdminSnapshot,
     localApiRequest,
+    getFunctionBase,
+    getFunctionUrl,
     normalizeAddon,
     normalizeService,
     normalizeCustomer,
@@ -814,6 +901,7 @@ window.TrueTravelBooking=(()=>{
     validators,
     getApiUrl,
     apiRequest,
+    initiatePayment,
     renderTemplate,
     toCsv
   }

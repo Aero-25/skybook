@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260417-phase23">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260419-checkfront">
 </head>
 <body class="booking-body">
   <section class="admin-auth-shell" id="adminAuthGate">
@@ -86,15 +86,35 @@
     </aside>
 
     <main class="admin-content">
+      <header class="skybook-topbar">
+        <div class="skybook-topbar-left">
+          <div class="skybook-topbar-mark">SB</div>
+          <nav class="skybook-topnav">
+            <button class="skybook-topnav-link" data-admin-tab="calendar" type="button">Calendar</button>
+            <button class="skybook-topnav-link" data-admin-tab="bookings" type="button">Booking</button>
+            <button class="skybook-topnav-link" data-admin-tab="customers" type="button">Customers</button>
+            <button class="skybook-topnav-link" data-admin-tab="reports" type="button">Reports</button>
+            <button class="skybook-topnav-link" data-admin-tab="engine" type="button">Inventory</button>
+            <button class="skybook-topnav-link" data-admin-tab="settings" type="button">Manage</button>
+          </nav>
+        </div>
+        <div class="skybook-topbar-right">
+          <span class="skybook-topbar-pill">Updates</span>
+          <span class="skybook-topbar-user" id="topSessionLabel">SkyBook Demo</span>
+          <button class="skybook-topbar-search" type="button" id="openCommandPalette">Search</button>
+        </div>
+      </header>
+
       <section class="admin-toolbar">
         <div>
-          <h2>Ops Console</h2>
+          <div class="toolbar-eyebrow">Operations Dashboard</div>
+          <h2>Command Center</h2>
           <p class="toolbar-subtitle">Enterprise operations for reservations, finance, supplier management, and multibrand guest service.</p>
           <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
         </div>
         <div class="toolbar-actions">
           <span class="booking-chip">SkyBook Enterprise</span>
-          <button type="button" id="openCommandPalette">Command Bar</button>
+          <button type="button" id="toolbarCommandPalette">Command Bar</button>
           <button type="button" id="exportBookingsCsv">Export CSV</button>
           <a class="booking-button ghost" href="design-admin.html">Design Studio</a>
           <a class="booking-button ghost" href="admin.html">Admin Gateway</a>
@@ -104,9 +124,9 @@
       <section class="admin-view is-active" data-admin-view="dashboard">
         <div class="admin-command-grid">
           <article class="booking-panel admin-command-lead">
-            <div class="panel-header-inline">
+            <div class="widget-header">
               <div>
-                <h3>Command center</h3>
+                <h3>Command Center</h3>
                 <p class="muted-copy">Today’s arrivals, confirmation queue, unpaid balances, refunds, and supplier exposure on one screen.</p>
               </div>
               <div class="booking-chip">Live Operations</div>
@@ -116,7 +136,7 @@
           <article class="booking-panel">
             <div class="panel-header-inline">
               <div>
-                <h3>Action queue</h3>
+                <h3>Action Queue</h3>
                 <p class="muted-copy">The items most likely to need attention next.</p>
               </div>
             </div>
@@ -367,12 +387,12 @@
       </section>
 
       <section class="admin-view" data-admin-view="bookings">
-        <div class="admin-panel-grid">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
+        <div class="booking-workspace">
+          <article class="booking-panel booking-list-panel">
+            <div class="widget-header">
               <div>
-                <h3>Booking list</h3>
-                <p class="muted-copy">Search, filter, inspect, and export live bookings.</p>
+                <h3>Reservation Command</h3>
+                <p class="muted-copy">Search, filter, inspect, and jump into live bookings at speed.</p>
               </div>
               <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
             </div>
@@ -445,14 +465,26 @@
             </div>
           </article>
 
-          <article class="booking-panel">
-            <h3>Booking detail</h3>
+          <article class="booking-panel booking-detail-panel">
+            <div class="widget-header">
+              <div>
+                <h3>Booking Detail</h3>
+                <p class="muted-copy">Guest, finance, operator, and timeline context in one record.</p>
+              </div>
+              <div class="booking-chip">Live Record</div>
+            </div>
             <div id="adminBookingDetail"></div>
           </article>
         </div>
 
-        <article class="booking-panel admin-spacer">
-          <h3>Create or edit booking</h3>
+        <article class="booking-panel booking-editor-panel admin-spacer">
+          <div class="widget-header">
+            <div>
+              <h3>Create or Edit Booking</h3>
+              <p class="muted-copy">Reservation desk form for new bookings, edits, and controlled reschedules.</p>
+            </div>
+            <div class="booking-chip">Booking Form</div>
+          </div>
           <form id="adminBookingForm" class="booking-form-grid">
             <label class="booking-field">
               <span>Reference</span>
@@ -1112,7 +1144,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260417-phase23"></script>
-  <script src="assets/js/booking-admin.js?v=20260417-phase23"></script>
+  <script src="assets/js/booking-shared.js?v=20260419payments"></script>
+  <script src="assets/js/booking-admin.js?v=20260419payments"></script>
 </body>
 </html>

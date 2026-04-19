@@ -1241,10 +1241,11 @@ const insertStatusHistory=async(bookingId:string,fromStatus:string|null,toStatus
   if(error)throw error
 }
 
-const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:number,currencyCode:string)=>{
+const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:number,currencyCode:string,provider='manual_eft')=>{
   const { data:existing }=await adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle()
   if(existing){
     const { error }=await adminClient.from('payments').update({
+      provider,
       status:paymentStatus,
       amount,
       amount_received:paymentStatus==='paid' ? amount : Number(existing.amount_received||0),
@@ -1255,7 +1256,7 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
   }
   const { error }=await adminClient.from('payments').insert({
     booking_id:bookingId,
-    provider:'manual_eft',
+    provider,
     status:paymentStatus,
     currency_code:currencyCode,
     amount,
@@ -1950,6 +1951,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const reference=normalizeText(payload.reference)||formatReference(String(brand.booking_prefix || 'TT'))
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
+  const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
   const bookingStatus=desiredStatus || (service.requires_manual_confirmation && !isAdmin ? 'pending' : (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
   const paymentStatus=desiredPaymentStatus || (pricing.amountDueNow>0 ? 'pending' : 'unpaid')
   const outstandingAmounts=resolveOutstandingAmounts(pricing,paymentStatus)
@@ -1979,7 +1981,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   if(error)throw error
 
   await syncBookingItems(booking.id,service,pricing)
-  await createOrUpdatePayment(booking.id,paymentStatus,paymentStatus==='paid' ? pricing.totalAmount : outstandingAmounts.amountDueNow,service.currency)
+  await createOrUpdatePayment(
+    booking.id,
+    paymentStatus,
+    paymentStatus==='paid' ? pricing.totalAmount : outstandingAmounts.amountDueNow,
+    service.currency,
+    selectedPaymentProvider
+  )
   await maybeCreateBookingDiscounts(booking.id,promotionState.discounts)
   const voucherDiscount=promotionState.discounts.find(item=>item.source_type==='voucher')?.amount || 0
   const agentDiscount=promotionState.discounts.find(item=>item.source_type==='agent')?.amount || 0
@@ -2031,6 +2039,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
 const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const { data:existing,error:existingError }=await adminClient.from('bookings').select('*').eq('id',id).single()
   if(existingError||!existing)throw new Error('Booking not found.')
+  const { data:existingPayment }=await adminClient.from('payments').select('provider').eq('booking_id',id).maybeSingle()
   const settings=await getSettingValue('config',{
     currency:'NAD',
     paymentMode:'deposit',
@@ -2063,6 +2072,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   if(!service)throw new Error('Service not found.')
   const nextStatus=normalizeText(payload.status)||existing.status
   const nextPaymentStatus=normalizeText(payload.payment_status)||existing.payment_status
+  const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'
   validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
   const nextPreferredDate=Object.prototype.hasOwnProperty.call(payload,'preferred_date')
     ? (normalizeText(payload.preferred_date)||null)
@@ -2097,7 +2107,8 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     id,
     String(updatePayload.payment_status),
     String(updatePayload.payment_status)==='paid' ? Number(pricing.totalAmount || 0) : Number(outstandingAmounts.amountDueNow || 0),
-    String(updatePayload.currency_code || existing.currency_code || 'NAD')
+    String(updatePayload.currency_code || existing.currency_code || 'NAD'),
+    selectedPaymentProvider
   )
   await syncBookingItems(id,service,pricing)
   if(updatePayload.status!==existing.status){
@@ -2232,7 +2243,10 @@ const lookupBooking=async(payload:Json)=>{
     .eq('reference',reference)
     .maybeSingle()
   if(error||!booking)throw new Error('Booking not found.')
-  const { data:raw }=await adminClient.from('bookings').select('lookup_email,payment_status,preferred_date,total_amount,currency_code').eq('reference',reference).maybeSingle()
+  const [{ data:raw },{ data:payment }] = await Promise.all([
+    adminClient.from('bookings').select('lookup_email,payment_status,preferred_date,total_amount,currency_code').eq('reference',reference).maybeSingle(),
+    adminClient.from('payments').select('provider,external_checkout_url').eq('booking_id',booking.id).order('created_at',{ascending:false}).limit(1).maybeSingle()
+  ])
   if(!raw||String(raw.lookup_email).toLowerCase()!==email)throw new Error('Booking not found.')
   return {
     booking:{
@@ -2242,7 +2256,9 @@ const lookupBooking=async(payload:Json)=>{
       preferred_date:raw.preferred_date,
       total_amount:Number(raw.total_amount||0),
       currency:raw.currency_code,
-      service_name:booking.service_name
+      service_name:booking.service_name,
+      payment_provider:payment?.provider || null,
+      payment_url:payment?.external_checkout_url || null
     }
   }
 }

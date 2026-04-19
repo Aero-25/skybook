@@ -12,6 +12,17 @@ const json=(status:number,payload:Record<string,unknown>)=>new Response(JSON.str
   headers:{...corsHeaders,'content-type':'application/json'}
 })
 
+const safeText=(value:unknown)=>String(value ?? '').trim()
+const normalizeProvider=(value:unknown)=>safeText(value).toLowerCase().replace(/[\s-]+/g,'_')
+const asNumber=(value:unknown,fallback=0)=>{
+  const numeric=Number(value)
+  return Number.isFinite(numeric) ? numeric : fallback
+}
+const readXmlTag=(xml:string,tag:string)=>{
+  const match=xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`,'i'))
+  return safeText(match?.[1] ?? '')
+}
+
 const recordHealthEvent=async(payload:{
   event_type:string
   severity:string
@@ -34,75 +45,180 @@ const recordHealthEvent=async(payload:{
   }catch{}
 }
 
+const parsePayload=async(request:Request,url:URL)=>{
+  if(request.method==='GET')return Object.fromEntries(url.searchParams.entries())
+  const contentType=request.headers.get('content-type') || ''
+  if(contentType.includes('application/json')){
+    return await request.json().catch(()=>({}))
+  }
+  if(contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')){
+    const formData=await request.formData()
+    return Object.fromEntries([...formData.entries()].map(([key,value])=>[key,String(value)]))
+  }
+  const text=await request.text()
+  if(contentType.includes('xml') || text.trim().startsWith('<')){
+    return {
+      Result:readXmlTag(text,'Result'),
+      ResultExplanation:readXmlTag(text,'ResultExplanation'),
+      TransToken:readXmlTag(text,'TransToken'),
+      TransRef:readXmlTag(text,'TransRef')
+    }
+  }
+  return Object.fromEntries(new URLSearchParams(text).entries())
+}
+
+const resolvePaymentId=(provider:string,payload:Record<string,unknown>,url:URL)=>{
+  const nestedObject=((payload.data as Record<string,unknown> | undefined)?.object ?? {}) as Record<string,unknown>
+  const nestedMetadata=(nestedObject.metadata ?? {}) as Record<string,unknown>
+  const payloadMetadata=(payload.metadata ?? {}) as Record<string,unknown>
+  return safeText(
+    url.searchParams.get('payment_id')
+      || payload.payment_id
+      || nestedMetadata.payment_id
+      || payloadMetadata.payment_id
+      || ''
+  )
+}
+
+const resolveWebhookProvider=(payload:Record<string,unknown>,url:URL)=>{
+  const explicit=normalizeProvider(url.searchParams.get('provider') || payload.provider)
+  if(explicit)return explicit
+  const nestedObject=((payload.data as Record<string,unknown> | undefined)?.object ?? {}) as Record<string,unknown>
+  const eventType=safeText(payload.type)
+  const objectType=safeText(nestedObject.object || payload.object)
+  if(eventType.startsWith('checkout.') || eventType.startsWith('payment_') || objectType.includes('checkout'))return 'stripe'
+  if(payload.Result || payload.TransToken || payload.TransRef || payload.TransactionToken || payload.TransactionRef)return 'dpo'
+  return 'custom'
+}
+
+const resolveNextStatus=(provider:string,payload:Record<string,unknown>)=>{
+  if(provider==='dpo'){
+    const result=safeText(payload.Result || payload.result || payload.status)
+    if(result==='000')return 'paid'
+    if(result)return 'failed'
+    return 'pending'
+  }
+  const eventType=safeText(payload.type)
+  const nestedObject=((payload.data as Record<string,unknown> | undefined)?.object ?? {}) as Record<string,unknown>
+  const checkoutPaymentStatus=safeText(nestedObject.payment_status)
+  if(eventType==='checkout.session.completed' || checkoutPaymentStatus==='paid')return 'paid'
+  if(eventType.includes('payment_failed') || safeText(payload.status).toLowerCase()==='failed')return 'failed'
+  if(['paid','pending','failed','cancelled','refunded'].includes(safeText(payload.status).toLowerCase()))return safeText(payload.status).toLowerCase()
+  return 'pending'
+}
+
+const resolveAmount=(provider:string,payload:Record<string,unknown>,payment:Record<string,unknown>)=>{
+  if(provider==='dpo'){
+    return asNumber(payload.Amount || payload.amount,payment.amount ? asNumber(payment.amount) : 0)
+  }
+  const nestedObject=((payload.data as Record<string,unknown> | undefined)?.object ?? {}) as Record<string,unknown>
+  const stripeAmount=asNumber(nestedObject.amount_total,0)
+  if(stripeAmount>0)return stripeAmount/100
+  const payloadAmount=asNumber(payload.amount,0)
+  if(payloadAmount>0 && payloadAmount > 999)return payloadAmount/100
+  return payloadAmount || asNumber(payment.amount_received,asNumber(payment.amount,0))
+}
+
+const resolveProviderReference=(provider:string,payload:Record<string,unknown>)=>{
+  if(provider==='dpo'){
+    return safeText(payload.TransRef || payload.TransactionRef || payload.TransToken || payload.TransactionToken || payload.id)
+  }
+  const nestedObject=((payload.data as Record<string,unknown> | undefined)?.object ?? {}) as Record<string,unknown>
+  return safeText(payload.transaction_reference || payload.id || nestedObject.payment_intent || nestedObject.id)
+}
+
 Deno.serve(async request=>{
+  const url=new URL(request.url)
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
-  if(request.method!=='POST')return json(405,{error:'Method not allowed.'})
+  if(!['POST','GET'].includes(request.method))return json(405,{error:'Method not allowed.'})
   try{
-    const provider=(new URL(request.url)).searchParams.get('provider') || 'custom'
-    const payload=await request.json()
-    const paymentId=String(payload.payment_id||payload.data?.object?.metadata?.payment_id||'')
+    const payload=(await parsePayload(request,url)) as Record<string,unknown>
+    const gatewayProvider=resolveWebhookProvider(payload,url)
+    const paymentId=resolvePaymentId(gatewayProvider,payload,url)
     if(!paymentId){
       await recordHealthEvent({
         event_type:'payment_callback',
         severity:'error',
         summary:'Payment webhook received without payment_id',
         detail:'The webhook payload did not include a resolvable payment_id.',
-        metadata:{ provider, payload }
+        metadata:{ provider:gatewayProvider, payload }
       })
       return json(400,{error:'payment_id is required.'})
     }
 
-    const nextStatus=String(payload.status||'paid')
-    const amount=Number(payload.amount||payload.data?.object?.amount_total||0)/100 || 0
     const { data:payment,error:paymentError }=await supabase.from('payments').select('*').eq('id',paymentId).single()
     if(paymentError || !payment){
       await recordHealthEvent({
         event_type:'payment_callback',
         severity:'critical',
         summary:'Payment webhook could not match payment record',
-        detail:String(paymentError?.message||'Payment not found.'),
-        metadata:{ provider, payment_id:paymentId, payload }
+        detail:String(paymentError?.message || 'Payment not found.'),
+        metadata:{ provider:gatewayProvider, payment_id:paymentId, payload }
       })
       return json(404,{error:'Payment not found.'})
     }
 
+    const paymentProvider=safeText(payment.provider || gatewayProvider || 'custom')
+    const nextStatus=resolveNextStatus(gatewayProvider,payload)
+    const amount=resolveAmount(gatewayProvider,payload,payment)
+    const providerReference=resolveProviderReference(gatewayProvider,payload)
+
     const transactionInsert=await supabase.from('payment_transactions').insert({
       payment_id:payment.id,
-      provider,
-      transaction_reference:String(payload.transaction_reference||payload.id||''),
+      provider:gatewayProvider,
+      transaction_reference:providerReference,
       transaction_type:'webhook',
       status:nextStatus,
       amount,
-      currency_code:String(payment.currency_code||'NAD'),
+      currency_code:String(payment.currency_code || 'NAD'),
       raw_payload:payload,
       reconciled_at:new Date().toISOString()
     })
     if(transactionInsert.error)throw transactionInsert.error
 
     const paymentUpdate=await supabase.from('payments').update({
+      provider:paymentProvider,
+      provider_reference:providerReference || payment.provider_reference || null,
       status:nextStatus,
-      amount_received:amount || payment.amount_received,
-      paid_at:nextStatus==='paid' ? new Date().toISOString() : null
+      amount_received:nextStatus==='paid' ? amount || payment.amount : payment.amount_received,
+      paid_at:nextStatus==='paid' ? new Date().toISOString() : null,
+      metadata:{
+        ...(typeof payment.metadata === 'object' && payment.metadata ? payment.metadata : {}),
+        webhook_provider:gatewayProvider
+      }
     }).eq('id',payment.id)
     if(paymentUpdate.error)throw paymentUpdate.error
 
     if(nextStatus==='paid'){
+      const { data:booking }=await supabase.from('bookings').select('id,status').eq('id',payment.booking_id).maybeSingle()
+      const priorStatus=safeText(booking?.status || 'awaiting_payment')
       const bookingUpdate=await supabase.from('bookings').update({
         payment_status:'paid',
-        status:'confirmed'
+        status:['completed','cancelled','refunded'].includes(priorStatus) ? priorStatus : 'confirmed'
       }).eq('id',payment.booking_id)
       if(bookingUpdate.error)throw bookingUpdate.error
-      const historyInsert=await supabase.from('booking_status_history').insert({
-        booking_id:payment.booking_id,
-        from_status:'awaiting_payment',
-        to_status:'confirmed',
-        reason:'Payment received via webhook',
-        actor_label:`webhook:${provider}`
+      if(priorStatus !== 'confirmed'){
+        const historyInsert=await supabase.from('booking_status_history').insert({
+          booking_id:payment.booking_id,
+          from_status:priorStatus,
+          to_status:'confirmed',
+          reason:'Payment received via webhook',
+          actor_label:`webhook:${gatewayProvider}`
+        })
+        if(historyInsert.error)throw historyInsert.error
+      }
+    }else if(nextStatus==='failed'){
+      await recordHealthEvent({
+        event_type:'payment_callback',
+        severity:'warning',
+        summary:'Payment callback reported a failed payment',
+        detail:safeText(payload.ResultExplanation || payload.message || 'Gateway returned a failed payment status.'),
+        related_booking_id:safeText(payment.booking_id),
+        metadata:{ provider:gatewayProvider, payment_id:paymentId, provider_reference:providerReference }
       })
-      if(historyInsert.error)throw historyInsert.error
     }
 
-    return json(200,{ok:true})
+    return json(200,{ok:true,status:nextStatus})
   }catch(error){
     await recordHealthEvent({
       event_type:'payment_callback',
