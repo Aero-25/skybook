@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyBook Guest Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link href="assets/css/booking.css?v=20260419-portal" rel="stylesheet">
+  <link href="assets/css/portal.css?v=20260419-portal" rel="stylesheet">
+</head>
+<body class="booking-body portal-body">
+  <main class="booking-shell-page portal-shell">
+    <section class="booking-hero portal-hero">
+      <div>
+        <div class="booking-summary">SkyBook Guest Portal</div>
+        <h1>Your Booking, Documents, and Travel Requests</h1>
+        <p>Use your secure portal link to review your booking, download guest documents, request changes, upload travel information, and confirm pickup details.</p>
+      </div>
+      <div class="portal-security-card">
+        <span class="booking-chip">Secure Access</span>
+        <strong id="portalSessionState">Waiting for secure link</strong>
+        <p>Each portal link is time-limited and tied to a specific booking.</p>
+      </div>
+    </section>
+
+    <section class="status-banner" id="portalStatusBanner">Loading your portal access…</section>
+
+    <section class="booking-two-col portal-layout" id="portalApp" hidden>
+      <article class="booking-panel">
+        <div class="panel-header-inline">
+          <div>
+            <h3>Booking Snapshot</h3>
+            <p class="muted-copy">Your booking summary and current travel status.</p>
+          </div>
+        </div>
+        <div class="detail-overview-grid" id="portalBookingSummary"></div>
+
+        <div class="table-wrap portal-documents-table">
+          <table>
+            <thead><tr><th>Document</th><th>Status</th><th>When</th><th>Access</th></tr></thead>
+            <tbody id="portalDocumentsTable"></tbody>
+          </table>
+        </div>
+
+        <div class="table-wrap portal-requests-table">
+          <table>
+            <thead><tr><th>Request</th><th>Status</th><th>When</th></tr></thead>
+            <tbody id="portalRequestsTable"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="booking-panel portal-actions-panel">
+        <div class="panel-header-inline">
+          <div>
+            <h3>Guest Actions</h3>
+            <p class="muted-copy">Send SkyBook secure updates without emailing back and forth.</p>
+          </div>
+        </div>
+
+        <form id="portalChangeRequestForm" class="booking-inline-form booking-inline-form-wide">
+          <label class="booking-field-full">
+            <span>Request Changes</span>
+            <textarea name="message" rows="4" placeholder="Tell us what you would like to change about your booking." required></textarea>
+          </label>
+          <div class="detail-inline-actions">
+            <button class="booking-button" type="submit">Send Change Request</button>
+          </div>
+        </form>
+
+        <form id="portalUploadInfoForm" class="booking-inline-form booking-inline-form-wide">
+          <label class="booking-field-full">
+            <span>Upload Passport / Travel Info</span>
+            <textarea name="message" rows="3" placeholder="Add context about the document or information you are sending." required></textarea>
+          </label>
+          <label class="booking-field-full">
+            <span>Attachment</span>
+            <input name="attachment" type="file">
+          </label>
+          <div class="detail-inline-actions">
+            <button class="booking-button" type="submit">Upload Information</button>
+          </div>
+        </form>
+
+        <form id="portalPickupForm" class="booking-inline-form booking-inline-form-wide">
+          <label class="booking-field-full">
+            <span>Confirm Pickup Details</span>
+            <textarea name="message" rows="3" placeholder="Confirm your hotel, meeting point, or pickup notes." required></textarea>
+          </label>
+          <div class="detail-inline-actions">
+            <button class="booking-button" type="submit">Confirm Pickup</button>
+          </div>
+        </form>
+      </aside>
+    </section>
+  </main>
+
+  <script src="assets/js/shared.js?v=20260408tourtypes"></script>
+  <script src="assets/js/booking-shared.js?v=20260419-portal"></script>
+  <script src="assets/js/portal.js?v=20260419-portal"></script>
+</body>
+</html>

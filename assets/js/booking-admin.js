@@ -4,6 +4,8 @@ const state={
   session:null,
   user:null,
   profile:null,
+  lastSyncedAt:'',
+  staffDirectory:[],
   adminUsers:[],
   permissionCatalog:bookingAdminShared.clone(bookingAdminShared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:bookingAdminShared.clone(bookingAdminShared.SKYBOOK_ROLE_DEFAULTS||{}),
@@ -34,6 +36,20 @@ const state={
   emailLogs:[],
   statusHistory:[],
   adminNotes:[],
+  bookingTasks:[],
+  bookingDocuments:[],
+  bookingDocumentVersions:[],
+  portalRequests:[],
+  portalSessions:[],
+  systemJobs:[],
+  healthEvents:[],
+  reconciliationRecords:[],
+  opsTemplates:{
+    internalNoteTemplates:[],
+    cancellationReasonTemplates:[],
+    refundReasonTemplates:[]
+  },
+  lifecycleRules:{},
   settings:bookingAdminShared.readConfig(),
   emailTemplates:bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),
   automationRules:{
@@ -45,7 +61,16 @@ const state={
   portalSettings:{
     enabled:true,
     allowBookingLookup:true,
-    allowSelfServiceRequests:false
+    allowSelfServiceRequests:false,
+    allowDocumentDownloads:true,
+    sessionDurationHours:72,
+    portalBaseUrl:'/portal.html'
+  },
+  queueSettings:{
+    enabled:true,
+    autoProcessOnBootstrap:true,
+    reminderDelayHours:12,
+    maxJobsPerSweep:25
   },
   integrationSettings:{
     whatsapp:{enabled:false},
@@ -74,6 +99,8 @@ const nodes={
   authGate:document.getElementById('adminAuthGate'),
   appShell:document.getElementById('adminAppShell'),
   authStatus:document.getElementById('authStatus'),
+  resetAuthCacheButton:document.getElementById('resetAuthCacheButton'),
+  authEnvironmentMeta:document.getElementById('authEnvironmentMeta'),
   loginForm:document.getElementById('loginForm'),
   logoutButton:document.getElementById('logoutButton'),
   sessionLabel:document.getElementById('sessionLabel'),
@@ -83,11 +110,15 @@ const nodes={
   dashboardCards:document.getElementById('dashboardCards'),
   dashboardActionQueue:document.getElementById('dashboardActionQueue'),
   dashboardArrivalsTable:document.getElementById('dashboardArrivalsTable'),
+  dashboardTomorrowPrepTable:document.getElementById('dashboardTomorrowPrepTable'),
   dashboardPendingTable:document.getElementById('dashboardPendingTable'),
+  dashboardAlertsTable:document.getElementById('dashboardAlertsTable'),
   dashboardUnpaidTable:document.getElementById('dashboardUnpaidTable'),
   dashboardRefundsTable:document.getElementById('dashboardRefundsTable'),
   dashboardPayoutsTable:document.getElementById('dashboardPayoutsTable'),
   dashboardRecentBookingsTable:document.getElementById('dashboardRecentBookingsTable'),
+  notificationCards:document.getElementById('notificationCards'),
+  notificationsTable:document.getElementById('notificationsTable'),
   calendarViewButtons:[...document.querySelectorAll('[data-calendar-view]')],
   calendarFocusDate:document.getElementById('calendarFocusDate'),
   calendarSummaryCards:document.getElementById('calendarSummaryCards'),
@@ -96,6 +127,13 @@ const nodes={
   reportsStatusTable:document.getElementById('reportsStatusTable'),
   reportsGuestInvoicesTable:document.getElementById('reportsGuestInvoicesTable'),
   reportsOfficeInvoicesTable:document.getElementById('reportsOfficeInvoicesTable'),
+  reconciliationCards:document.getElementById('reconciliationCards'),
+  reconciliationTable:document.getElementById('reconciliationTable'),
+  auditTable:document.getElementById('auditTable'),
+  lifecycleMatrix:document.getElementById('lifecycleMatrix'),
+  healthCards:document.getElementById('healthCards'),
+  systemJobsTable:document.getElementById('systemJobsTable'),
+  healthEventsTable:document.getElementById('healthEventsTable'),
   bookingFilterSearch:document.getElementById('bookingFilterSearch'),
   bookingFilterBrand:document.getElementById('bookingFilterBrand'),
   bookingFilterStatus:document.getElementById('bookingFilterStatus'),
@@ -109,6 +147,7 @@ const nodes={
   bookingDetail:document.getElementById('adminBookingDetail'),
   bookingForm:document.getElementById('adminBookingForm'),
   bookingReference:document.getElementById('adminBookingReference'),
+  bookingBrand:document.getElementById('adminBookingBrand'),
   bookingService:document.getElementById('adminBookingService'),
   bookingStatus:document.getElementById('adminBookingStatusField'),
   bookingPaymentStatus:document.getElementById('adminBookingPaymentStatusField'),
@@ -191,6 +230,8 @@ const nodes={
   portalSettingsForm:document.getElementById('portalSettingsForm'),
   portalEnabled:document.getElementById('portalEnabled'),
   portalLookupEnabled:document.getElementById('portalLookupEnabled'),
+  portalBaseUrl:document.getElementById('portalBaseUrl'),
+  portalSessionDurationHours:document.getElementById('portalSessionDurationHours'),
   webhookForm:document.getElementById('adminWebhookForm'),
   webhookName:document.getElementById('adminWebhookName'),
   webhookUrl:document.getElementById('adminWebhookUrl'),
@@ -198,9 +239,16 @@ const nodes={
   operatorForm:document.getElementById('adminOperatorForm'),
   operatorCode:document.getElementById('adminOperatorCode'),
   operatorCompany:document.getElementById('adminOperatorCompany'),
+  operatorContactName:document.getElementById('adminOperatorContactName'),
+  operatorEmail:document.getElementById('adminOperatorEmail'),
+  operatorPhone:document.getElementById('adminOperatorPhone'),
+  operatorPreferredContact:document.getElementById('adminOperatorPreferredContact'),
   operatorCommissionType:document.getElementById('adminOperatorCommissionType'),
   operatorCommissionValue:document.getElementById('adminOperatorCommissionValue'),
   operatorTerms:document.getElementById('adminOperatorTerms'),
+  operatorServicesHandled:document.getElementById('adminOperatorServicesHandled'),
+  operatorBankingDetails:document.getElementById('adminOperatorBankingDetails'),
+  operatorSettlementMetadata:document.getElementById('adminOperatorSettlementMetadata'),
   officeInvoiceForm:document.getElementById('adminOfficeInvoiceForm'),
   officeInvoiceBookingId:document.getElementById('adminOfficeInvoiceBookingId'),
   officeInvoiceType:document.getElementById('adminOfficeInvoiceType'),
@@ -209,17 +257,55 @@ const nodes={
   officeAgentId:document.getElementById('adminOfficeAgentId'),
   officeCommissionBase:document.getElementById('adminOfficeCommissionBase'),
   officeCommissionAmount:document.getElementById('adminOfficeCommissionAmount'),
-  officeInvoiceNotes:document.getElementById('adminOfficeInvoiceNotes')
+  officeInvoiceNotes:document.getElementById('adminOfficeInvoiceNotes'),
+  openCommandPalette:document.getElementById('openCommandPalette'),
+  commandPalette:document.getElementById('commandPalette'),
+  commandPaletteInput:document.getElementById('commandPaletteInput'),
+  commandPaletteResults:document.getElementById('commandPaletteResults'),
+  runJobsNowButton:document.getElementById('runJobsNowButton')
 }
 
 const setAdminStatus=(message,isError=false)=>{
-  nodes.adminStatus.textContent=message
+  const timeLabel=new Date().toLocaleString('en-NA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+  nodes.adminStatus.textContent=isError ? message : `${message} Last sync ${timeLabel}.`
   nodes.adminStatus.classList.toggle('is-error',isError)
 }
 
 const setAuthStatus=(message,isError=false)=>{
   nodes.authStatus.textContent=message
   nodes.authStatus.classList.toggle('is-error',isError)
+}
+
+const fixLegacyText=value=>{
+  const source=window.TrueTravelShared?.fixLegacyText
+  return source ? source(String(value ?? '')) : String(value ?? '')
+}
+
+const formatDisplayLabel=value=>fixLegacyText(value).replace(/_/g,' ').trim()
+
+const rawEscapeHtml=bookingAdminShared.escapeHtml.bind(bookingAdminShared)
+bookingAdminShared.escapeHtml=value=>rawEscapeHtml(fixLegacyText(value))
+
+const clearSkybookCache=()=>{
+  [
+    'skybook-booking-config-v2',
+    'skybook-booking-ui-state-v2',
+    'skybook-booking-demo-db-v2',
+    'skybook-supabase-config-v2',
+    'true-travel-booking-config-v1',
+    'true-travel-supabase-config-v1'
+  ].forEach(key=>localStorage.removeItem(key))
+}
+
+const renderAuthEnvironmentMeta=()=>{
+  if(!nodes.authEnvironmentMeta)return
+  const config=bookingAdminShared.readConfig()
+  nodes.authEnvironmentMeta.textContent=`Connected to ${config.supabaseUrl} using ${config.brandCode} defaults`
+}
+
+const syncSessionLabel=()=>{
+  if(!state.session?.access_token)return
+  nodes.sessionLabel.textContent=`${state.profile?.full_name||state.user?.email||'Admin'} - ${formatDisplayLabel(state.profile?.role||'admin')}`
 }
 
 const parseDateValue=value=>{
@@ -248,8 +334,8 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
   if(['confirmed','completed','paid','active','default'].includes(normalized))return 'is-good'
-  if(['pending','awaiting_payment','partially_paid','queued','issued'].includes(normalized))return 'is-warn'
-  if(['cancelled','failed','refunded','inactive'].includes(normalized))return 'is-bad'
+  if(['pending','awaiting_payment','partially_paid','queued','issued','investigating','processing','normal','high','needs_review'].includes(normalized))return 'is-warn'
+  if(['cancelled','failed','refunded','inactive','critical','error'].includes(normalized))return 'is-bad'
   return 'is-neutral'
 }
 
@@ -274,6 +360,14 @@ const getBookingHistory=bookingId=>state.statusHistory.filter(history=>history.b
 const getBookingNotes=bookingId=>state.adminNotes.filter(note=>note.booking_id===bookingId)
 const getBookingAllocations=bookingId=>state.resourceAllocations.filter(allocation=>allocation.booking_id===bookingId)
 const getBookingOperatorAssignment=bookingId=>state.bookingOperators.find(item=>item.booking_id===bookingId)
+const getBookingTasks=bookingId=>state.bookingTasks.filter(task=>task.booking_id===bookingId)
+const getBookingDocuments=bookingId=>state.bookingDocuments.filter(document=>document.booking_id===bookingId)
+const getBookingDocumentVersions=bookingId=>state.bookingDocumentVersions.filter(version=>version.booking_id===bookingId)
+const getBookingPortalRequests=bookingId=>state.portalRequests.filter(request=>request.booking_id===bookingId)
+const getBookingPortalSessions=bookingId=>state.portalSessions.filter(session=>session.booking_id===bookingId)
+const getBookingReconciliationRecord=bookingId=>state.reconciliationRecords.find(record=>record.booking_id===bookingId)
+const getResourceName=resourceId=>state.resources.find(item=>item.id===resourceId)?.name||resourceId
+const getStaffName=userId=>state.staffDirectory.find(item=>item.id===userId)?.full_name||state.adminUsers.find(item=>item.id===userId)?.full_name||''
 
 const getOfficeInvoicePartnerName=invoice=>{
   if(invoice.operator_id){
@@ -310,6 +404,375 @@ const getBookingOperatorCommission=booking=>{
   return sumAmounts(getBookingOfficeInvoices(booking.id).filter(invoice=>invoice.operator_id),'commission_amount')
 }
 
+const getBookingChecklist=booking=>{
+  const tasks=getBookingTasks(booking.id)
+  const invoice=getBookingInvoices(booking.id)[0]
+  const hasOperator=getBookingOperatorName(booking)!=='Unassigned'
+  const hasResources=getBookingAllocations(booking.id).length>0
+  const hasOutstandingPayment=Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)>0
+  const checklist=[
+    {label:'Guest details verified',done:Boolean(booking.customer_email&&booking.customer_phone),team:'reservations'},
+    {label:'Guest invoice generated',done:Boolean(invoice?.invoice_number),team:'finance'},
+    {label:'Payment requirements reviewed',done:!hasOutstandingPayment || ['paid','partially_paid'].includes(String(booking.payment_status||'')),team:'finance'},
+    {label:'Operator assigned',done:hasOperator,team:'supplier management'},
+    {label:'Pickup resources linked',done:hasResources || !booking.preferred_date,team:'operations'},
+    {label:'Follow-up tasks closed',done:tasks.filter(task=>String(task.status||'')==='open').length===0,team:'operations'}
+  ]
+  return checklist
+}
+
+const buildOperationalAlerts=()=>{
+  const alerts=[]
+  const now=new Date()
+  const tomorrow=new Date(now)
+  tomorrow.setDate(tomorrow.getDate()+1)
+  const paymentByBooking=new Map(state.payments.map(payment=>[payment.booking_id,payment]))
+  const officeInvoiceByBooking=new Map(state.officeInvoices.map(invoice=>[invoice.booking_id,invoice]))
+
+  state.payments.forEach(payment=>{
+    if(String(payment.status||'').toLowerCase()!=='failed')return
+    alerts.push({
+      category:'Failed payment',
+      reference:payment.reference||'Unlinked payment',
+      priority:'critical',
+      message:`${payment.provider||'Payment provider'} failed to collect ${bookingAdminShared.formatMoney(payment.amount||0,payment.currency_code||state.settings.currency)}.`,
+      when:payment.created_at||payment.paid_at||'',
+      booking_id:payment.booking_id||''
+    })
+  })
+
+  state.bookings.forEach(booking=>{
+    const outstanding=Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)
+    const preferredDate=parseDateValue(booking.preferred_date)
+    const openTasks=getBookingTasks(booking.id).filter(task=>String(task.status||'')==='open').length
+    if(outstanding>0 && ['pending','awaiting_payment','confirmed'].includes(String(booking.status||''))){
+      alerts.push({
+        category:'Overdue balance',
+        reference:booking.reference,
+        priority:preferredDate && preferredDate < now ? 'critical' : 'high',
+        message:`Outstanding balance ${bookingAdminShared.formatMoney(outstanding,booking.currency||state.settings.currency)} still open.`,
+        when:booking.preferred_date||booking.created_at||'',
+        booking_id:booking.id
+      })
+    }
+    if(['confirmed','completed'].includes(String(booking.status||'')) && getBookingOperatorName(booking)==='Unassigned'){
+      alerts.push({
+        category:'Unassigned operator',
+        reference:booking.reference,
+        priority:'critical',
+        message:'Booking is live but no operator has been assigned yet.',
+        when:booking.preferred_date||booking.updated_at||'',
+        booking_id:booking.id
+      })
+    }
+    if(openTasks>0){
+      alerts.push({
+        category:'Incomplete workflow',
+        reference:booking.reference,
+        priority:openTasks>2 ? 'high' : 'normal',
+        message:`${openTasks} open operational task${openTasks===1 ? '' : 's'} remain on this booking.`,
+        when:booking.updated_at||booking.created_at||'',
+        booking_id:booking.id
+      })
+    }
+    if(preferredDate && normalizeDateKey(preferredDate)===normalizeDateKey(tomorrow) && officeInvoiceByBooking.has(booking.id)===false && getBookingOperatorName(booking)!=='Unassigned'){
+      alerts.push({
+        category:'Settlement follow-up',
+        reference:booking.reference,
+        priority:'normal',
+        message:'Tomorrow departure has an operator but no office settlement attached yet.',
+        when:booking.preferred_date,
+        booking_id:booking.id
+      })
+    }
+  })
+
+  state.refunds.forEach(refund=>{
+    if(!['processed','approved'].includes(String(refund.status||'').toLowerCase()))return
+    alerts.push({
+      category:'Refund review',
+      reference:state.bookings.find(item=>item.id===refund.booking_id)?.reference||refund.booking_id||'',
+      priority:'normal',
+      message:refund.reason||'Refund logged and ready for reconciliation review.',
+      when:refund.processed_at||refund.created_at||'',
+      booking_id:refund.booking_id||''
+    })
+  })
+
+  state.systemJobs.forEach(job=>{
+    const status=String(job.status||'').toLowerCase()
+    if(!['failed','queued'].includes(status))return
+    alerts.push({
+      category:status==='failed' ? 'Failed job' : 'Queued job',
+      reference:job.job_type||'system job',
+      priority:status==='failed' ? 'critical' : 'normal',
+      message:job.last_error||`${formatDisplayLabel(job.job_type||'job')} is waiting to run.`,
+      when:job.run_at||job.created_at||'',
+      booking_id:job.booking_id||''
+    })
+  })
+
+  state.emailLogs.forEach(log=>{
+    if(String(log.status||'').toLowerCase()!=='failed')return
+    alerts.push({
+      category:'Failed email',
+      reference:state.bookings.find(item=>item.id===log.booking_id)?.reference||log.recipient_email||'Email',
+      priority:'high',
+      message:log.error_message||log.subject||'Email delivery failed.',
+      when:log.created_at||log.sent_at||'',
+      booking_id:log.booking_id||''
+    })
+  })
+
+  state.healthEvents.forEach(event=>{
+    if(String(event.status||'').toLowerCase()==='resolved')return
+    alerts.push({
+      category:'System health',
+      reference:event.source||'system',
+      priority:String(event.severity||'normal').toLowerCase(),
+      message:event.summary||event.detail||'A health event requires review.',
+      when:event.created_at||'',
+      booking_id:event.related_booking_id||''
+    })
+  })
+
+  return sortByDateDesc(alerts,'when')
+}
+
+const buildAuditFeed=()=>{
+  const auditEntries=[
+    ...state.statusHistory.map(item=>({
+      when:item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Status',
+      actor:getStaffName(item.actor_user_id)||item.actor_label||'System',
+      summary:item.reason||`${formatDisplayLabel(item.from_status)} -> ${formatDisplayLabel(item.to_status)}`
+    })),
+    ...state.paymentTransactions.map(item=>({
+      when:item.created_at,
+      booking_id:state.payments.find(payment=>payment.id===item.payment_id)?.booking_id||'',
+      reference:state.payments.find(payment=>payment.id===item.payment_id)?.reference||'',
+      type:'Payment',
+      actor:'Finance',
+      summary:`${formatDisplayLabel(item.transaction_type||'transaction')} ${bookingAdminShared.formatMoney(item.amount||0,item.currency_code||state.settings.currency)}`
+    })),
+    ...state.bookingDocuments.map(item=>({
+      when:item.generated_at||item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Document',
+      actor:getStaffName(item.created_by),
+      summary:`${formatDisplayLabel(item.document_type)} generated`
+    })),
+    ...state.portalRequests.map(item=>({
+      when:item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Portal',
+      actor:getStaffName(item.created_by),
+      summary:`${formatDisplayLabel(item.request_type)} - ${formatDisplayLabel(item.status)}`
+    })),
+    ...state.bookingTasks.map(item=>({
+      when:item.updated_at||item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Task',
+      actor:getStaffName(item.updated_by||item.created_by),
+      summary:`${item.title} - ${formatDisplayLabel(item.status)}`
+    })),
+    ...state.adminNotes.map(item=>({
+      when:item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Note',
+      actor:getStaffName(item.admin_user_id),
+      summary:item.note||'Internal note'
+    })),
+    ...state.systemJobs.map(item=>({
+      when:item.completed_at||item.started_at||item.created_at,
+      booking_id:item.booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.booking_id)?.reference||'',
+      type:'Job',
+      actor:getStaffName(item.created_by)||'SkyBook Queue',
+      summary:`${formatDisplayLabel(item.job_type)} - ${formatDisplayLabel(item.status)}`
+    })),
+    ...state.healthEvents.map(item=>({
+      when:item.created_at,
+      booking_id:item.related_booking_id,
+      reference:state.bookings.find(booking=>booking.id===item.related_booking_id)?.reference||'',
+      type:'Health',
+      actor:'SkyBook Monitor',
+      summary:item.summary||item.detail||'System health event'
+    }))
+  ].filter(item=>item.when)
+
+  return sortByDateDesc(auditEntries,'when')
+}
+
+const buildCommandPaletteResults=query=>{
+  const needle=String(query||'').trim().toLowerCase()
+  if(!needle)return []
+  const pushMatch=(rows,mapper)=>rows.slice(0,8).map(mapper)
+  return [
+    ...pushMatch(state.bookings.filter(item=>[
+      item.reference,item.customer_name,item.customer_email,item.service_name,item.customer_phone
+    ].join(' ').toLowerCase().includes(needle)),item=>({
+      kind:'Booking',
+      label:item.reference,
+      meta:`${item.customer_name} · ${item.service_name}`,
+      action:'bookings',
+      bookingId:item.id
+    })),
+    ...pushMatch(state.customers.filter(item=>[
+      item.full_name,item.email,item.phone
+    ].join(' ').toLowerCase().includes(needle)),item=>({
+      kind:'Customer',
+      label:item.full_name||item.email,
+      meta:item.email||item.phone||'',
+      action:'customers'
+    })),
+    ...pushMatch(state.invoices.filter(item=>[
+      item.invoice_number,item.status
+    ].join(' ').toLowerCase().includes(needle)),item=>({
+      kind:'Guest Invoice',
+      label:item.invoice_number,
+      meta:`${item.status} · ${bookingAdminShared.formatMoney(item.total_amount||0,item.currency_code||state.settings.currency)}`,
+      action:'reports',
+      bookingId:item.booking_id
+    })),
+    ...pushMatch(state.officeInvoices.filter(item=>[
+      item.invoice_number,item.invoice_type,item.status
+    ].join(' ').toLowerCase().includes(needle)),item=>({
+      kind:'Office Invoice',
+      label:item.invoice_number,
+      meta:`${item.invoice_type} · ${bookingAdminShared.formatMoney(item.total_amount||0,item.currency_code||state.settings.currency)}`,
+      action:'reconciliation',
+      bookingId:item.booking_id
+    })),
+    ...pushMatch(state.operators.filter(item=>[
+      item.company_name,item.code,item.contact_name,item.email
+    ].join(' ').toLowerCase().includes(needle)),item=>({
+      kind:'Operator',
+      label:item.company_name,
+      meta:[item.code,item.contact_name,item.email].filter(Boolean).join(' · '),
+      action:'platform'
+    })),
+    ...[
+      { kind:'Shortcut', label:'Open Command Center', meta:'Daily operations dashboard', action:'dashboard' },
+      { kind:'Shortcut', label:'Open Reconciliation Center', meta:'Finance matching and discrepancies', action:'reconciliation' },
+      { kind:'Shortcut', label:'Open System Health', meta:'Jobs, failures, and callbacks', action:'health' }
+    ].filter(item=>`${item.label} ${item.meta}`.toLowerCase().includes(needle))
+  ].slice(0,20)
+}
+
+const buildHealthRows=()=>{
+  const queuedJobs=state.systemJobs.filter(job=>String(job.status||'')==='queued')
+  const failedJobs=state.systemJobs.filter(job=>String(job.status||'')==='failed')
+  const failedEmails=state.emailLogs.filter(log=>String(log.status||'')==='failed')
+  const callbackEvents=state.healthEvents.filter(event=>String(event.event_type||'').includes('payment'))
+  const openEvents=state.healthEvents.filter(event=>String(event.status||'')==='open')
+  return {
+    cards:[
+      {label:'Queued jobs',value:String(queuedJobs.length)},
+      {label:'Failed jobs',value:String(failedJobs.length)},
+      {label:'Failed emails',value:String(failedEmails.length)},
+      {label:'Open health events',value:String(openEvents.length)},
+      {label:'Payment callback alerts',value:String(callbackEvents.length)},
+      {label:'Portal sessions',value:String(state.portalSessions.length)}
+    ],
+    jobs:[...state.systemJobs].sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0)),
+    events:[...state.healthEvents].sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0))
+  }
+}
+
+const renderReconciliationWorkbench=()=>{
+  const cards=[
+    {label:'Records',value:String(state.reconciliationRecords.length)},
+    {label:'Open mismatches',value:String(state.reconciliationRecords.filter(item=>['open','discrepancy','needs_review'].includes(String(item.status||''))).length)},
+    {label:'Guest outstanding',value:bookingAdminShared.formatMoney(sumAmounts(state.reconciliationRecords.map(item=>({amount:item.metadata?.guest_outstanding||0})),'amount'),state.settings.currency)},
+    {label:'Operator payables',value:bookingAdminShared.formatMoney(sumAmounts(state.reconciliationRecords.map(item=>({amount:item.metadata?.office_payables||0})),'amount'),state.settings.currency)}
+  ]
+  nodes.reconciliationCards.innerHTML=cards.map(card=>`
+    <article class="metric-card">
+      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+    </article>
+  `).join('')
+  nodes.reconciliationTable.innerHTML=state.reconciliationRecords.map(record=>{
+    const booking=state.bookings.find(item=>item.id===record.booking_id)
+    return `
+      <tr data-reconciliation-id="${bookingAdminShared.escapeHtml(record.id)}">
+        <td>
+          <div class="badge-stack">
+            ${renderStatusBadge(record.status)}
+            <button class="booking-button ghost compact-button" type="button" data-reconciliation-action="open-booking" data-booking-id="${bookingAdminShared.escapeHtml(record.booking_id||'')}">Open</button>
+          </div>
+        </td>
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(booking?.reference||record.booking_id||'')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(booking?.customer_name||record.assigned_team||'')}</div>
+        </td>
+        <td>${bookingAdminShared.formatMoney(record.mismatch_amount||0,booking?.currency||state.settings.currency)}</td>
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(record.summary||'Reconciliation record')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(record.notes||'')}</div>
+          <div class="table-subline inline-action-row">
+            <button class="booking-button ghost compact-button" type="button" data-reconciliation-action="mark-review" data-reconciliation-id="${bookingAdminShared.escapeHtml(record.id)}">Needs Review</button>
+            <button class="booking-button ghost compact-button" type="button" data-reconciliation-action="mark-clear" data-reconciliation-id="${bookingAdminShared.escapeHtml(record.id)}">Mark Clear</button>
+          </div>
+        </td>
+        <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(record.last_checked_at||record.updated_at||record.created_at))}</td>
+      </tr>
+    `
+  }).join('') || renderEmptyRow(5,'No reconciliation records yet.')
+}
+
+const renderHealthWorkbench=()=>{
+  const health=buildHealthRows()
+  nodes.healthCards.innerHTML=health.cards.map(card=>`
+    <article class="metric-card">
+      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+    </article>
+  `).join('')
+  nodes.systemJobsTable.innerHTML=health.jobs.slice(0,60).map(job=>`
+    <tr data-job-id="${bookingAdminShared.escapeHtml(job.id)}">
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(formatDisplayLabel(job.job_type||'job'))}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(job.job_group||'operations')}</div>
+      </td>
+      <td>${renderStatusBadge(job.status)}</td>
+      <td>${renderStatusBadge(job.priority,job.priority)}</td>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(job.run_at||job.created_at))}</td>
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(job.last_error||JSON.stringify(job.result||{}).slice(0,90)||'Healthy')}</strong>
+        <div class="table-subline inline-action-row">
+          <button class="booking-button ghost compact-button" type="button" data-job-action="retry" data-job-id="${bookingAdminShared.escapeHtml(job.id)}">Retry</button>
+          <button class="booking-button ghost compact-button" type="button" data-job-action="cancel" data-job-id="${bookingAdminShared.escapeHtml(job.id)}">Cancel</button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || renderEmptyRow(5,'No system jobs yet.')
+  nodes.healthEventsTable.innerHTML=health.events.slice(0,60).map(event=>`
+    <tr data-health-event-id="${bookingAdminShared.escapeHtml(event.id)}">
+      <td>${renderStatusBadge(event.severity,event.severity)}</td>
+      <td>${bookingAdminShared.escapeHtml(event.source||'system')}</td>
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(event.summary||'')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(event.detail||'')}</div>
+      </td>
+      <td>
+        <div class="badge-stack">
+          ${renderStatusBadge(event.status)}
+          <button class="booking-button ghost compact-button" type="button" data-health-action="resolve" data-health-event-id="${bookingAdminShared.escapeHtml(event.id)}">Resolve</button>
+        </div>
+      </td>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(event.created_at))}</td>
+    </tr>
+  `).join('') || renderEmptyRow(5,'No health events recorded.')
+}
+
 const sumAmounts=(rows,key)=>rows.reduce((sum,row)=>sum+Number(row?.[key]||0),0)
 
 const renderEmptyRow=(colspan,message)=>`<tr><td colspan="${colspan}">${bookingAdminShared.escapeHtml(message)}</td></tr>`
@@ -336,8 +799,12 @@ const createDateRange=(focusDate,span)=>{
 
 const TAB_PERMISSION_MAP={
   dashboard:'dashboard',
+  notifications:'dashboard',
   calendar:'calendar',
   reports:'reports',
+  reconciliation:'reconciliation',
+  audit:'bookings',
+  health:'health',
   bookings:'bookings',
   payments:'payments',
   customers:'customers',
@@ -426,7 +893,12 @@ const getFilteredBookings=()=>{
     if(status&&booking.status!==status)return false
     if(paymentStatus&&booking.payment_status!==paymentStatus)return false
     if(serviceSlug&&booking.service_slug!==serviceSlug)return false
-    if(operatorId&&!getBookingOfficeInvoices(booking.id).some(invoice=>String(invoice.operator_id||'')===operatorId))return false
+    if(operatorId){
+      const operatorAssignment=getBookingOperatorAssignment(booking.id)
+      const hasOperatorMatch=String(operatorAssignment?.operator_id||'')===operatorId
+        || getBookingOfficeInvoices(booking.id).some(invoice=>String(invoice.operator_id||'')===operatorId)
+      if(!hasOperatorMatch)return false
+    }
     if(agentId&&!getBookingOfficeInvoices(booking.id).some(invoice=>String(invoice.agent_id||'')===agentId))return false
     const bookingDate=parseDateValue(booking.preferred_date)
     if(dateFrom&&(!bookingDate||bookingDate<dateFrom))return false
@@ -441,30 +913,61 @@ const getFilteredBookings=()=>{
 
 const renderDashboard=()=>{
   const todayKey=getTodayKey()
+  const tomorrowDate=new Date(`${todayKey}T00:00:00`)
+  tomorrowDate.setDate(tomorrowDate.getDate()+1)
+  const tomorrowKey=tomorrowDate.toISOString().slice(0,10)
+  const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
   const totalRevenue=state.bookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
   const todayArrivals=state.bookings.filter(booking=>sameDate(booking.preferred_date,todayKey))
+  const tomorrowPrep=state.bookings.filter(booking=>sameDate(booking.preferred_date,tomorrowKey))
   const pendingConfirmations=state.bookings.filter(item=>item.status==='pending')
   const unpaidBookings=state.bookings.filter(item=>['pending','unpaid','partially_paid','authorized'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
   const unpaidExposure=unpaidBookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
   const refundExposure=sumAmounts(state.refunds,'amount')
   const operatorPayoutsDue=state.officeInvoices.filter(invoice=>!['paid','settled','cancelled'].includes(String(invoice.status||'').toLowerCase()))
   const payoutExposure=sumAmounts(operatorPayoutsDue,'total_amount')
+  const openTasks=state.bookingTasks.filter(task=>String(task.status||'')==='open')
+  const alerts=buildOperationalAlerts()
+  const cancellationAlerts=[
+    ...state.bookings.filter(booking=>String(booking.status||'').toLowerCase()==='cancelled').slice(0,6).map(booking=>({
+      booking:booking.reference,
+      type:'Cancelled booking',
+      reason:booking.cancellation_reason||booking.customer_notes||'Cancelled without a captured reason.',
+      amount:booking.total_amount||0,
+      status:booking.status
+    })),
+    ...state.refunds.slice(0,6).map(refund=>({
+      booking:state.bookings.find(item=>item.id===refund.booking_id)?.reference||refund.booking_id||'',
+      type:'Refund',
+      reason:refund.reason||'Refund recorded',
+      amount:refund.amount||0,
+      status:refund.status
+    }))
+  ].slice(0,8)
+  const brandMetrics=state.brands.map(brand=>({
+    label:`${brand.name} volume`,
+    value:String(state.bookings.filter(item=>item.brand_code===brand.code).length)
+  }))
   const actionQueue=[
     {label:'Pending confirmations',value:pendingConfirmations.length,meta:'Bookings waiting for ops review'},
     {label:'Today arrivals',value:todayArrivals.length,meta:'Tours or pickups scheduled for today'},
+    {label:'Tomorrow prep',value:tomorrowPrep.length,meta:'Bookings that need operator and pickup checks'},
     {label:'Unpaid balances',value:unpaidBookings.length,meta:'Bookings with money still outstanding'},
-    {label:'Refund items',value:state.refunds.length,meta:'Refund records to verify or reconcile'},
+    {label:'Open tasks',value:openTasks.length,meta:'Operational tasks still waiting on action'},
+    {label:'Live alerts',value:alerts.length,meta:'Failed payments, missing operators, and overdue workflows'},
     {label:'Operator payouts',value:operatorPayoutsDue.length,meta:'Office invoices not yet settled'}
   ]
   const metrics=[
     {label:'Today arrivals',value:String(todayArrivals.length)},
+    {label:'Tomorrow prep',value:String(tomorrowPrep.length)},
     {label:'Pending confirmations',value:String(pendingConfirmations.length)},
     {label:'Unpaid exposure',value:bookingAdminShared.formatMoney(unpaidExposure,state.settings.currency||'NAD')},
     {label:'Refund exposure',value:bookingAdminShared.formatMoney(refundExposure,state.settings.currency||'NAD')},
     {label:'Operator payouts due',value:bookingAdminShared.formatMoney(payoutExposure,state.settings.currency||'NAD')},
     {label:'Gross revenue',value:bookingAdminShared.formatMoney(totalRevenue,state.settings.currency||'NAD')},
-    {label:'True Travel volume',value:String(state.bookings.filter(item=>item.brand_code==='true-travel').length)},
-    {label:'Iventure volume',value:String(state.bookings.filter(item=>item.brand_code==='iventure').length)},
+    {label:'Open tasks',value:String(openTasks.length)},
+    {label:'Documents generated',value:String(state.bookingDocuments.length)},
+    ...brandMetrics,
     {label:'Resources loaded',value:String(state.resources.length)}
   ]
   nodes.dashboardCards.innerHTML=metrics.map(metric=>`
@@ -485,12 +988,24 @@ const renderDashboard=()=>{
   nodes.dashboardArrivalsTable.innerHTML=todayArrivals.length ? todayArrivals.map(booking=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
-      <td>${bookingAdminShared.escapeHtml(booking.brand_code||'')}</td>
+      <td>${bookingAdminShared.escapeHtml(brandMap.get(booking.brand_code)||booking.brand_code||'')}</td>
       <td>${bookingAdminShared.escapeHtml(booking.service_name)}</td>
       <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td>
       <td>${renderStatusBadge(booking.status)}</td>
     </tr>
   `).join('') : renderEmptyRow(5,'No arrivals are scheduled for today.')
+  nodes.dashboardTomorrowPrepTable.innerHTML=tomorrowPrep.length ? tomorrowPrep.slice(0,8).map(booking=>{
+    const allocations=getBookingAllocations(booking.id)
+    return `
+      <tr>
+        <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
+        <td>${bookingAdminShared.escapeHtml(booking.service_name)}</td>
+        <td>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</td>
+        <td>${bookingAdminShared.escapeHtml(allocations.map(item=>getResourceName(item.resource_id)).join(', ')||'Unassigned')}</td>
+        <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+      </tr>
+    `
+  }).join('') : renderEmptyRow(5,'Nothing is scheduled for tomorrow yet.')
   nodes.dashboardPendingTable.innerHTML=pendingConfirmations.length ? pendingConfirmations.slice(0,8).map(booking=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
@@ -500,6 +1015,15 @@ const renderDashboard=()=>{
       <td>${renderStatusBadge(booking.status)}</td>
     </tr>
   `).join('') : renderEmptyRow(5,'No bookings are waiting for confirmation.')
+  nodes.dashboardAlertsTable.innerHTML=cancellationAlerts.length ? cancellationAlerts.map(item=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(item.booking)}</td>
+      <td>${bookingAdminShared.escapeHtml(item.type)}</td>
+      <td>${bookingAdminShared.escapeHtml(item.reason)}</td>
+      <td>${bookingAdminShared.formatMoney(item.amount||0,state.settings.currency||'NAD')}</td>
+      <td>${renderStatusBadge(item.status)}</td>
+    </tr>
+  `).join('') : renderEmptyRow(5,'No cancellation or refund alerts are active.')
   nodes.dashboardUnpaidTable.innerHTML=unpaidBookings.length ? unpaidBookings.slice(0,8).map(booking=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
@@ -528,7 +1052,7 @@ const renderDashboard=()=>{
   nodes.dashboardRecentBookingsTable.innerHTML=sortByDateDesc(state.bookings,'created_at').slice(0,8).map(booking=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
-      <td>${bookingAdminShared.escapeHtml(booking.brand_code||'')}</td>
+      <td>${bookingAdminShared.escapeHtml(brandMap.get(booking.brand_code)||booking.brand_code||'')}</td>
       <td>${bookingAdminShared.escapeHtml(booking.service_name)}</td>
       <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.created_at))}</td>
       <td>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</td>
@@ -774,11 +1298,23 @@ const renderBookingDetail=()=>{
   const emails=getBookingEmails(booking.id)
   const history=getBookingHistory(booking.id)
   const notes=getBookingNotes(booking.id)
+  const tasks=getBookingTasks(booking.id)
+  const documents=getBookingDocuments(booking.id)
+  const documentVersions=getBookingDocumentVersions(booking.id)
+  const portalRequests=getBookingPortalRequests(booking.id)
+  const portalSessions=getBookingPortalSessions(booking.id)
   const allocations=getBookingAllocations(booking.id)
+  const operatorAssignment=getBookingOperatorAssignment(booking.id)
+  const reconciliationRecord=getBookingReconciliationRecord(booking.id)
   const operatorCommission=getBookingOperatorCommission(booking)
   const agentCommission=sumAmounts(officeInvoices.filter(item=>item.agent_id),'commission_amount')
-  const guestBalance=Number(invoice?.balance_amount ?? booking.amount_due_later ?? 0)
+  const guestBalance=Number(invoice?.balance_amount ?? (Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)))
   const officeExposure=sumAmounts(officeInvoices,'total_amount')
+  const operatorOptions=state.operators.map(operator=>`<option value="${bookingAdminShared.escapeHtml(operator.id)}" ${operatorAssignment?.operator_id===operator.id ? 'selected' : ''}>${bookingAdminShared.escapeHtml(operator.company_name)}</option>`).join('')
+  const openTasks=tasks.filter(task=>String(task.status||'')==='open')
+  const checklist=getBookingChecklist(booking)
+  const lastChangedBy=(booking.updated_by ? getStaffName(booking.updated_by) : '') || 'System'
+  const noteTemplates=(state.opsTemplates?.internalNoteTemplates||[]).slice(0,3)
   nodes.bookingDetail.innerHTML=`
     <div class="booking-detail-shell">
       <div class="booking-detail-main">
@@ -795,10 +1331,15 @@ const renderBookingDetail=()=>{
             <span>Preferred date</span>
             <strong>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</strong>
           </article>
-          <article class="detail-card">
-            <span>Total tracked</span>
-            <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
-          </article>
+            <article class="detail-card">
+              <span>Total tracked</span>
+              <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
+            </article>
+            <article class="detail-card">
+              <span>Last changed</span>
+              <strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.updated_at||booking.created_at))}</strong>
+              <p>${bookingAdminShared.escapeHtml(lastChangedBy)}</p>
+            </article>
         </section>
 
         <section class="detail-section">
@@ -818,8 +1359,98 @@ const renderBookingDetail=()=>{
             <div><span>Email</span><strong>${bookingAdminShared.escapeHtml(booking.customer_email)}</strong></div>
             <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</strong></div>
             <div><span>Guests</span><strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong></div>
-            <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(booking.brand_code||'direct')}</strong></div>
+            <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(formatDisplayLabel(booking.source||booking.brand_code||'direct'))}</strong></div>
           </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Lifecycle checklist & tasking</h4>
+              <p class="muted-copy">SkyBook keeps every team aligned on the next required action for this booking.</p>
+            </div>
+            <div class="badge-stack">
+              ${renderStatusBadge(openTasks.length ? 'pending' : 'completed',openTasks.length ? `${openTasks.length} open task${openTasks.length===1 ? '' : 's'}` : 'All tasks cleared')}
+            </div>
+          </div>
+          <div class="detail-subgrid">
+            ${checklist.map(item=>`
+              <article class="detail-card checklist-card ${item.done ? 'is-complete' : 'is-open'}">
+                <span>${bookingAdminShared.escapeHtml(item.team)}</span>
+                <strong>${bookingAdminShared.escapeHtml(item.label)}</strong>
+                <p>${item.done ? 'Completed or already satisfied.' : 'Still needs staff action.'}</p>
+              </article>
+            `).join('')}
+          </div>
+          <div class="table-wrap detail-table">
+            <table>
+              <thead><tr><th>Task</th><th>Team</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
+              <tbody>
+                ${tasks.length ? tasks.map(task=>`
+                  <tr>
+                    <td>
+                      <strong>${bookingAdminShared.escapeHtml(task.title)}</strong>
+                      <div class="table-subline">${bookingAdminShared.escapeHtml(task.description||'No extra detail')}</div>
+                    </td>
+                    <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(task.team||'operations'))}</td>
+                    <td>${renderStatusBadge(task.priority||'normal',task.priority||'normal')}</td>
+                    <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(task.due_at||task.created_at))}</td>
+                    <td>
+                      <div class="badge-stack">
+                        ${renderStatusBadge(task.status)}
+                        ${String(task.status||'')==='open' ? `<button class="booking-button ghost compact-button" type="button" data-booking-inline-action="complete-task" data-task-id="${bookingAdminShared.escapeHtml(task.id)}">Done</button>` : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `).join('') : renderEmptyRow(5,'No tasks have been logged yet.')}
+              </tbody>
+            </table>
+          </div>
+          <form class="booking-inline-form booking-inline-form-wide" data-inline-form="task">
+            <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+            <label class="booking-field">
+              <span>Task Title</span>
+              <input name="title" type="text" placeholder="Follow up with guest, confirm supplier, reconcile payment" required>
+            </label>
+            <label class="booking-field">
+              <span>Task Type</span>
+              <select name="task_type">
+                <option value="follow_up">Follow Up</option>
+                <option value="payment_chase">Payment Chase</option>
+                <option value="supplier_confirm">Supplier Confirm</option>
+                <option value="pickup_reconfirm">Pickup Reconfirm</option>
+                <option value="refund_review">Refund Review</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Team</span>
+              <select name="team">
+                <option value="reservations">Reservations</option>
+                <option value="finance">Finance</option>
+                <option value="operations">Operations</option>
+                <option value="supplier_management">Supplier Management</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Priority</span>
+              <select name="priority">
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Due</span>
+              <input name="due_at" type="datetime-local">
+            </label>
+            <label class="booking-field-full">
+              <span>Description</span>
+              <textarea name="description" rows="3" placeholder="What exactly needs to happen next?"></textarea>
+            </label>
+            <div class="detail-inline-actions">
+              <button class="booking-button" type="submit">Add Task</button>
+            </div>
+          </form>
         </section>
 
         <section class="detail-section">
@@ -855,7 +1486,7 @@ const renderBookingDetail=()=>{
           <div class="section-heading">
             <div>
               <h4>Documents and communications</h4>
-              <p class="muted-copy">Guest invoice, office invoices, queued emails, and linked allocations.</p>
+              <p class="muted-copy">Guest invoice, receipts, manifests, vouchers, office settlements, and customer portal requests.</p>
             </div>
           </div>
           <div class="detail-subgrid">
@@ -872,13 +1503,56 @@ const renderBookingDetail=()=>{
             <article class="detail-card">
               <span>Resources / pickups</span>
               <strong>${bookingAdminShared.escapeHtml(String(allocations.length))}</strong>
-              <p>${allocations.length ? allocations.map(item=>item.resource_name||item.resource_id).join(', ') : 'No resource assignments yet.'}</p>
+              <p>${allocations.length ? allocations.map(item=>getResourceName(item.resource_id)).join(', ') : 'No resource assignments yet.'}</p>
             </article>
             <article class="detail-card">
               <span>Documents</span>
-              <strong>Portal-ready</strong>
-              <p>PDF invoices, receipts, manifests, and uploaded files can be attached from the next document layer.</p>
+              <strong>${bookingAdminShared.escapeHtml(String(documentVersions.length||documents.length))}</strong>
+              <p>${documentVersions.length ? documentVersions.map(item=>`${formatDisplayLabel(item.document_type)} v${item.version_number||1}`).slice(0,3).join(' / ') : 'Generate invoice, receipt, manifest, voucher, or settlement documents directly from this record.'}</p>
             </article>
+            <article class="detail-card">
+              <span>Portal links</span>
+              <strong>${bookingAdminShared.escapeHtml(String(portalSessions.length))}</strong>
+              <p>${portalSessions.length ? `${portalSessions.length} secure access link${portalSessions.length===1 ? '' : 's'} issued.` : 'Create secure guest portal access with document downloads and self-service requests.'}</p>
+            </article>
+          </div>
+          <div class="table-wrap detail-table">
+            <table>
+              <thead><tr><th>Document / Request</th><th>Type</th><th>Status</th><th>When</th><th>Actions</th></tr></thead>
+              <tbody>
+                ${[
+                  ...documentVersions.map(item=>({
+                    label:item.file_name||item.document_number||formatDisplayLabel(item.document_type),
+                    type:`${formatDisplayLabel(item.document_type)} v${item.version_number||1}`,
+                    status:item.status||'generated',
+                    when:item.created_at,
+                    actions:item.signed_url ? `<a class="booking-button ghost compact-button" href="${bookingAdminShared.escapeHtml(item.signed_url)}" target="_blank" rel="noopener noreferrer">Download</a>` : ''
+                  })),
+                  ...portalRequests.map(item=>({
+                    label:item.message||formatDisplayLabel(item.request_type),
+                    type:`Portal ${formatDisplayLabel(item.request_type)}`,
+                    status:item.status||'open',
+                    when:item.created_at,
+                    actions:item.attachment_url ? `<span class="status-badge is-neutral">Attachment Logged</span>` : ''
+                  })),
+                  ...portalSessions.map(item=>({
+                    label:`Portal session ${formatDateTimeLabel(item.created_at)}`,
+                    type:'Secure Portal Link',
+                    status:item.status||'active',
+                    when:item.expires_at||item.created_at,
+                    actions:''
+                  }))
+                ].map(item=>`
+                  <tr>
+                    <td>${bookingAdminShared.escapeHtml(item.label)}</td>
+                    <td>${bookingAdminShared.escapeHtml(item.type)}</td>
+                    <td>${renderStatusBadge(item.status)}</td>
+                    <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(item.when))}</td>
+                    <td>${item.actions||''}</td>
+                  </tr>
+                `).join('') || renderEmptyRow(5,'No documents or portal requests have been logged yet.')}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
@@ -891,6 +1565,9 @@ const renderBookingDetail=()=>{
           <button type="button" data-booking-action="completed">Complete</button>
           <button type="button" data-booking-action="cancelled">Cancel</button>
           <button type="button" data-booking-action="resend">Resend Email</button>
+          <button type="button" data-booking-inline-action="duplicate">Duplicate</button>
+          <button type="button" data-booking-inline-action="reschedule">Reschedule</button>
+          <button type="button" data-booking-inline-action="portal-access">Create Portal Link</button>
         </div>
         <section class="detail-section">
           <h4>Finance</h4>
@@ -920,6 +1597,11 @@ const renderBookingDetail=()=>{
               <strong>${bookingAdminShared.formatMoney(sumAmounts(refunds,'amount'),booking.currency||state.settings.currency)}</strong>
               <p>${bookingAdminShared.escapeHtml(`${refunds.length} refund record${refunds.length===1 ? '' : 's'}`)}</p>
             </article>
+            <article class="detail-card">
+              <span>Reconciliation</span>
+              <strong>${renderStatusBadge(reconciliationRecord?.status||'open',reconciliationRecord?.status||'open')}</strong>
+              <p>${bookingAdminShared.escapeHtml(reconciliationRecord?.summary||'Waiting for finance review.')}</p>
+            </article>
           </div>
         </section>
         <section class="detail-section">
@@ -940,7 +1622,85 @@ const renderBookingDetail=()=>{
               <strong>${bookingAdminShared.escapeHtml(String(emails.length))}</strong>
               <p>${emails.length ? bookingAdminShared.escapeHtml(emails[0].subject||'Latest email queued') : 'No email has been logged yet.'}</p>
             </article>
+            <article class="detail-card">
+              <span>Last changed</span>
+              <strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.updated_at||booking.created_at))}</strong>
+              <p>${bookingAdminShared.escapeHtml(lastChangedBy)}</p>
+            </article>
           </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Documents & portal actions</h4>
+              <p class="muted-copy">Generate stored PDFs, create secure guest access links, and log customer self-service actions.</p>
+            </div>
+          </div>
+          <div class="detail-actions vertical-actions">
+            <button type="button" data-booking-inline-action="document:guest_invoice">Guest Invoice PDF</button>
+            <button type="button" data-booking-inline-action="document:receipt">Receipt PDF</button>
+            <button type="button" data-booking-inline-action="document:manifest">Manifest PDF</button>
+            <button type="button" data-booking-inline-action="document:voucher">Voucher PDF</button>
+            <button type="button" data-booking-inline-action="document:settlement">Office Settlement PDF</button>
+            <button type="button" data-booking-inline-action="portal:request_change">Portal: Request Change</button>
+            <button type="button" data-booking-inline-action="portal:upload_info">Portal: Upload Passport / Info</button>
+            <button type="button" data-booking-inline-action="portal:confirm_pickup">Portal: Confirm Pickup</button>
+          </div>
+        </section>
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Assignment control</h4>
+              <p class="muted-copy">Attach the operating company directly to the booking record so filters, payouts, and reporting stay in sync.</p>
+            </div>
+          </div>
+          <form class="booking-inline-form" data-inline-form="operator-assignment">
+            <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+            <label class="booking-field-full">
+              <span>Operator</span>
+              <select name="operator_id">
+                <option value="">Unassigned</option>
+                ${operatorOptions}
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Commission Amount</span>
+              <input type="number" name="commission_amount" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(operatorAssignment?.commission_amount||''))}" placeholder="0.00">
+            </label>
+            <div class="detail-callout">
+              <strong>Current assignment</strong>
+              <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</p>
+            </div>
+            <div class="detail-inline-actions">
+              <button class="booking-button" type="submit">Save Assignment</button>
+              <button class="booking-button ghost" type="button" data-booking-inline-action="clear-operator">Clear Assignment</button>
+            </div>
+          </form>
+        </section>
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Internal notes</h4>
+              <p class="muted-copy">Capture office handover notes, payment exceptions, or guest service context without leaving the booking.</p>
+            </div>
+          </div>
+          <div class="template-chip-row">
+            ${noteTemplates.map(template=>`<button class="booking-button ghost compact-button" type="button" data-booking-inline-action="note-template" data-template-value="${bookingAdminShared.escapeHtml(template)}">${bookingAdminShared.escapeHtml(template)}</button>`).join('')}
+          </div>
+          <form class="booking-inline-form" data-inline-form="note">
+            <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+            <label class="booking-field-full">
+              <span>New note</span>
+              <textarea name="note" rows="4" placeholder="Add an internal note for operations, finance, or guest care." required></textarea>
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" name="is_private" checked>
+              <span>Keep this note private to internal staff.</span>
+            </label>
+            <div class="detail-inline-actions">
+              <button class="booking-button" type="submit">Add Internal Note</button>
+            </div>
+          </form>
         </section>
       </aside>
     </div>
@@ -978,12 +1738,18 @@ const renderServiceOptions=()=>{
 const renderBrandOptions=()=>{
   if(!nodes.bookingFilterBrand)return
   const currentBrandFilter=nodes.bookingFilterBrand.value||''
+  const currentBookingBrand=nodes.bookingBrand?.value||''
   nodes.bookingFilterBrand.innerHTML=`<option value="">All brands</option>${state.brands.map(brand=>`<option value="${bookingAdminShared.escapeHtml(brand.code)}">${bookingAdminShared.escapeHtml(brand.name)}</option>`).join('')}`
   nodes.bookingFilterBrand.value=currentBrandFilter
+  if(nodes.bookingBrand){
+    nodes.bookingBrand.innerHTML=`<option value="">Choose brand</option>${state.brands.map(brand=>`<option value="${bookingAdminShared.escapeHtml(brand.code)}">${bookingAdminShared.escapeHtml(brand.name)}</option>`).join('')}`
+    nodes.bookingBrand.value=currentBookingBrand || bookingAdminShared.readConfig().brandCode || state.brands[0]?.code || ''
+  }
 }
 
 const fillBookingForm=(booking=null)=>{
   nodes.bookingReference.value=booking?.reference||''
+  if(nodes.bookingBrand)nodes.bookingBrand.value=booking?.brand_code||bookingAdminShared.readConfig().brandCode||state.brands[0]?.code||''
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'pending'
   nodes.bookingPaymentStatus.value=booking?.payment_status||'pending'
@@ -1052,6 +1818,8 @@ const renderSettings=()=>{
   nodes.settingsForm.defaultDepositValue.value=state.settings.defaultDepositValue||30
   nodes.settingsForm.taxRate.value=state.settings.taxRate||0
   nodes.settingsForm.serviceFee.value=state.settings.serviceFee||0
+  if(nodes.portalBaseUrl)nodes.portalBaseUrl.value=state.portalSettings.portalBaseUrl||'/portal.html'
+  if(nodes.portalSessionDurationHours)nodes.portalSessionDurationHours.value=state.portalSettings.sessionDurationHours||72
 }
 
 const renderEmailTemplates=()=>{
@@ -1125,7 +1893,16 @@ const renderPlatform=()=>{
   `).join('') || '<tr><td colspan="4">No resources, invoices, or refunds loaded yet.</td></tr>'
 
   const configRows=[
-    ...state.operators.map(operator=>({category:'Operator',name:operator.company_name,status:operator.is_active===false ? 'Inactive' : 'Active',value:`${operator.commission_type} ${operator.commission_value}`})),
+    ...state.operators.map(operator=>({
+      category:'Operator',
+      name:operator.company_name,
+      status:operator.is_active===false ? 'Inactive' : 'Active',
+      value:[
+        `${operator.commission_type} ${operator.commission_value}`,
+        operator.preferred_contact_method || 'contact not set',
+        operator.payout_terms || 'payout terms missing'
+      ].filter(Boolean).join(' - ')
+    })),
     ...state.officeInvoices.map(invoice=>({category:'Office Invoice',name:invoice.invoice_number,status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
     ...state.supportedLanguages.map(language=>({category:'Language',name:language.name,status:language.is_active===false ? 'Inactive' : (language.is_default ? 'Default' : 'Active'),value:language.code})),
     ...state.supportedCurrencies.map(currency=>({category:'Currency',name:currency.name,status:currency.is_active===false ? 'Inactive' : (currency.is_default ? 'Default' : 'Active'),value:`${currency.code} · ${currency.symbol||''}`})),
@@ -1150,6 +1927,7 @@ const renderPlatform=()=>{
 
 const renderReportsWorkbench=()=>{
   const overview=state.reports?.overview||{}
+  const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
   const byBrand=state.bookings.reduce((accumulator,booking)=>{
     const key=booking.brand_code||'unassigned'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
@@ -1198,7 +1976,7 @@ const renderReportsWorkbench=()=>{
         <div class="report-stat-list">
           ${Object.entries(byBrand).map(([brand,metrics])=>`
             <div>
-              <strong>${bookingAdminShared.escapeHtml(brand)}</strong>
+              <strong>${bookingAdminShared.escapeHtml(brandMap.get(brand)||brand)}</strong>
               <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings - ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
             </div>
           `).join('') || '<p class="muted-copy">No brand data yet.</p>'}
@@ -1275,6 +2053,61 @@ const renderReportsWorkbench=()=>{
   `).join('') || renderEmptyRow(4,'No office invoices yet.')
   const reportHeading=nodes.reportsStatusTable.parentElement?.parentElement?.querySelector('h3')
   if(reportHeading)reportHeading.textContent='Status Breakdown'
+}
+
+const renderNotifications=()=>{
+  const alerts=buildOperationalAlerts()
+  const byCategory=alerts.reduce((accumulator,alert)=>{
+    accumulator[alert.category]=accumulator[alert.category]||0
+    accumulator[alert.category]+=1
+    return accumulator
+  },{})
+  const cards=[
+    {label:'Total alerts',value:String(alerts.length)},
+    {label:'Critical',value:String(alerts.filter(item=>item.priority==='critical').length)},
+    {label:'High priority',value:String(alerts.filter(item=>item.priority==='high').length)},
+    {label:'Open tasks',value:String(state.bookingTasks.filter(item=>String(item.status||'')==='open').length)}
+  ]
+  nodes.notificationCards.innerHTML=cards.map(card=>`
+    <article class="metric-card">
+      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+    </article>
+  `).join('') + Object.entries(byCategory).slice(0,4).map(([category,count])=>`
+    <article class="metric-card compact">
+      <span>${bookingAdminShared.escapeHtml(category)}</span>
+      <strong>${bookingAdminShared.escapeHtml(String(count))}</strong>
+    </article>
+  `).join('')
+  nodes.notificationsTable.innerHTML=alerts.slice(0,40).map(alert=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(alert.category)}</td>
+      <td>${bookingAdminShared.escapeHtml(alert.reference||'')}</td>
+      <td>${renderStatusBadge(alert.priority,alert.priority)}</td>
+      <td>${bookingAdminShared.escapeHtml(alert.message)}</td>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(alert.when))}</td>
+    </tr>
+  `).join('') || renderEmptyRow(5,'No active alerts right now.')
+}
+
+const renderAuditWorkbench=()=>{
+  const auditFeed=buildAuditFeed()
+  nodes.auditTable.innerHTML=auditFeed.slice(0,60).map(entry=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(entry.when))}</td>
+      <td>${bookingAdminShared.escapeHtml(entry.reference||'')}</td>
+      <td>${bookingAdminShared.escapeHtml(entry.type)}</td>
+      <td>${bookingAdminShared.escapeHtml(entry.actor||'System')}</td>
+      <td>${bookingAdminShared.escapeHtml(entry.summary)}</td>
+    </tr>
+  `).join('') || renderEmptyRow(5,'No audit entries are available yet.')
+  nodes.lifecycleMatrix.innerHTML=Object.entries(state.lifecycleRules||{}).map(([fromState,toStates])=>`
+    <article class="detail-card">
+      <span>${bookingAdminShared.escapeHtml(formatDisplayLabel(fromState))}</span>
+      <strong>${bookingAdminShared.escapeHtml((toStates||[]).map(formatDisplayLabel).join(', ')||'Final state')}</strong>
+      <p>${bookingAdminShared.escapeHtml((toStates||[]).length ? 'Allowed next states from this stage.' : 'No further transitions are allowed from this state.')}</p>
+    </article>
+  `).join('') || '<p class="muted-copy">Lifecycle rules are not available yet.</p>'
 }
 
 const renderPaymentsWorkbench=()=>{
@@ -1420,13 +2253,19 @@ const renderPlatformWorkbench=()=>{
 
 const renderAll=()=>{
   renderSession()
+  renderAuthEnvironmentMeta()
+  syncSessionLabel()
   applyAccessControl()
+  renderServiceOptions()
+  renderBrandOptions()
+  fillBookingForm(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
+  fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
+  fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
   renderDashboard()
+  renderNotifications()
   renderCalendar()
   renderBookings()
   renderBookingDetail()
-  renderServiceOptions()
-  renderBrandOptions()
   renderServices()
   renderCustomers()
   renderPaymentsWorkbench()
@@ -1434,6 +2273,9 @@ const renderAll=()=>{
   renderSettings()
   renderEmailTemplates()
   renderReportsWorkbench()
+  renderReconciliationWorkbench()
+  renderAuditWorkbench()
+  renderHealthWorkbench()
   renderEngineWorkbench()
   renderPlatformWorkbench()
 }
@@ -1447,6 +2289,7 @@ const loadAdminData=async()=>{
   }
   state.user=payload.user||null
   state.profile=payload.profile||null
+  state.staffDirectory=payload.staff_directory||[]
   state.adminUsers=payload.admin_users||[]
   state.permissionCatalog=payload.permission_catalog||state.permissionCatalog
   state.roleDefaults=payload.role_defaults||state.roleDefaults
@@ -1477,10 +2320,21 @@ const loadAdminData=async()=>{
   state.emailLogs=payload.email_logs||[]
   state.statusHistory=payload.status_history||[]
   state.adminNotes=payload.admin_notes||[]
+  state.bookingTasks=payload.booking_tasks||[]
+  state.bookingDocuments=payload.booking_documents||[]
+  state.bookingDocumentVersions=payload.booking_document_versions||[]
+  state.portalRequests=payload.portal_requests||[]
+  state.portalSessions=payload.portal_sessions||[]
+  state.systemJobs=payload.system_jobs||[]
+  state.healthEvents=payload.health_events||[]
+  state.reconciliationRecords=payload.reconciliation_records||[]
+  state.opsTemplates={...state.opsTemplates,...(payload.ops_templates||{})}
+  state.lifecycleRules=payload.lifecycle_rules||{}
   state.settings={...bookingAdminShared.readConfig(),...(payload.settings||{})}
   state.emailTemplates=payload.email_templates||bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES)
   state.automationRules={...state.automationRules,...(payload.automation_rules||{})}
   state.portalSettings={...state.portalSettings,...(payload.portal_settings||{})}
+  state.queueSettings={...state.queueSettings,...(payload.queue_settings||{})}
   state.integrationSettings={...state.integrationSettings,...(payload.integration_settings||{})}
   state.reportingSettings={...state.reportingSettings,...(payload.reporting_settings||{})}
   state.reports={...state.reports,...(payload.reports||{})}
@@ -1492,7 +2346,348 @@ const loadAdminData=async()=>{
 
 const refreshAdmin=async(message='Booking operations console synced.')=>{
   await loadAdminData()
+  state.lastSyncedAt=new Date().toISOString()
   setAdminStatus(message)
+}
+
+const handleBookingOperatorAssignmentSave=async form=>{
+  const data=new FormData(form)
+  const bookingId=String(data.get('booking_id')||'').trim()
+  if(!bookingId)return
+  await bookingAdminShared.apiRequest('admin/booking-operators',{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      booking_id:bookingId,
+      operator_id:String(data.get('operator_id')||'').trim(),
+      commission_amount:Number(data.get('commission_amount')||0)
+    }
+  })
+  await refreshAdmin('Booking assignment updated.')
+}
+
+const handleBookingNoteSave=async form=>{
+  const data=new FormData(form)
+  const bookingId=String(data.get('booking_id')||'').trim()
+  const note=String(data.get('note')||'').trim()
+  if(!bookingId||!note)throw new Error('A note is required.')
+  await bookingAdminShared.apiRequest('admin/notes',{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      booking_id:bookingId,
+      note,
+      is_private:data.get('is_private')==='on'
+    }
+  })
+  form.reset()
+  const privacyToggle=form.querySelector('input[name="is_private"]')
+  if(privacyToggle)privacyToggle.checked=true
+  await refreshAdmin('Internal note added.')
+}
+
+const handleBookingTaskSave=async form=>{
+  const data=new FormData(form)
+  await bookingAdminShared.apiRequest('admin/booking-tasks',{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      booking_id:String(data.get('booking_id')||'').trim(),
+      task_type:String(data.get('task_type')||'').trim(),
+      title:String(data.get('title')||'').trim(),
+      description:String(data.get('description')||'').trim(),
+      team:String(data.get('team')||'').trim(),
+      priority:String(data.get('priority')||'').trim(),
+      due_at:String(data.get('due_at')||'').trim() || null
+    }
+  })
+  form.reset()
+  await refreshAdmin('Booking task added.')
+}
+
+const openDocumentPrintWindow=(title,markup)=>{
+  const nextWindow=window.open('','_blank','noopener,noreferrer,width=960,height=720')
+  if(!nextWindow)throw new Error('Allow popups to generate documents from SkyBook.')
+  nextWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}</style></head><body>${markup}</body></html>`)
+  nextWindow.document.close()
+  nextWindow.focus()
+  nextWindow.print()
+}
+
+const buildDocumentMarkup=(documentType,booking)=>{
+  const invoice=getBookingInvoices(booking.id)[0]
+  const officeInvoices=getBookingOfficeInvoices(booking.id)
+  const payments=getBookingPayments(booking.id)
+  const allocations=getBookingAllocations(booking.id)
+  const guestBalance=Number(invoice?.balance_amount ?? (Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)))
+  const documentTitles={
+    guest_invoice:'Guest Invoice',
+    receipt:'Payment Receipt',
+    manifest:'Departure Manifest',
+    voucher:'Service Voucher',
+    settlement:'Office Settlement Statement'
+  }
+  const title=documentTitles[documentType]||'SkyBook Document'
+  const officeInvoice=officeInvoices[0]
+  const paymentTotal=sumAmounts(payments,'amount_received')||sumAmounts(payments,'amount')
+  const numberMap={
+    guest_invoice:invoice?.invoice_number||`INV-${booking.reference}`,
+    receipt:`RCT-${booking.reference}`,
+    manifest:`MAN-${booking.reference}`,
+    voucher:`VCH-${booking.reference}`,
+    settlement:officeInvoice?.invoice_number||`OFF-${booking.reference}`
+  }
+  const body=`
+    <header>
+      <div class="pill">SkyBook Enterprise</div>
+      <h1>${bookingAdminShared.escapeHtml(title)}</h1>
+      <small>${bookingAdminShared.escapeHtml(numberMap[documentType]||booking.reference)}</small>
+    </header>
+    <section>
+      <div class="meta">
+        <div class="card"><strong>Booking</strong><div>${bookingAdminShared.escapeHtml(booking.reference)}</div></div>
+        <div class="card"><strong>Brand</strong><div>${bookingAdminShared.escapeHtml(state.brands.find(item=>item.code===booking.brand_code)?.name||booking.brand_code||'')}</div></div>
+        <div class="card"><strong>Guest</strong><div>${bookingAdminShared.escapeHtml(booking.customer_name)}</div></div>
+        <div class="card"><strong>Service</strong><div>${bookingAdminShared.escapeHtml(booking.service_name)}</div></div>
+        <div class="card"><strong>Date</strong><div>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</div></div>
+        <div class="card"><strong>Operator</strong><div>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>Financial Summary</h2>
+      <table>
+        <thead><tr><th>Label</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Booking total</td><td>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</td></tr>
+          <tr><td>Guest invoice</td><td>${bookingAdminShared.escapeHtml(invoice?.invoice_number||'Pending')}</td></tr>
+          <tr><td>Guest balance</td><td>${bookingAdminShared.formatMoney(guestBalance,booking.currency||state.settings.currency)}</td></tr>
+          <tr><td>Payments received</td><td>${bookingAdminShared.formatMoney(paymentTotal,booking.currency||state.settings.currency)}</td></tr>
+          <tr><td>Office settlement</td><td>${bookingAdminShared.formatMoney(sumAmounts(officeInvoices,'total_amount'),booking.currency||state.settings.currency)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>${bookingAdminShared.escapeHtml(documentType==='manifest' ? 'Manifest' : documentType==='voucher' ? 'Guest entitlement' : 'Operational notes')}</h2>
+      <table>
+        <thead><tr><th>Item</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Guests</td><td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td></tr>
+          <tr><td>Pickup resources</td><td>${bookingAdminShared.escapeHtml(allocations.map(item=>getResourceName(item.resource_id)).join(', ')||'Not assigned')}</td></tr>
+          <tr><td>Notes</td><td>${bookingAdminShared.escapeHtml(booking.customer_notes||booking.cancellation_reason||'No additional notes')}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  `
+  return { title, documentNumber:numberMap[documentType]||booking.reference, markup:body }
+}
+
+const handleDocumentGeneration=async documentType=>{
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+  if(!booking)return
+  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/documents`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      document_type:documentType,
+      title:`SkyBook ${formatDisplayLabel(documentType)}`,
+      document_number:`${String(documentType||'doc').slice(0,3).toUpperCase()}-${booking.reference}`,
+      metadata:{
+        booking_reference:booking.reference,
+        generated_in:'skybook-storage'
+      }
+    }
+  })
+  if(response?.version?.signed_url){
+    window.open(response.version.signed_url,'_blank','noopener,noreferrer')
+  }
+  await refreshAdmin(`${formatDisplayLabel(documentType)} generated and stored.`)
+}
+
+const handlePortalAction=async requestType=>{
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+  if(!booking)return
+  const messages={
+    request_change:'Customer can request service/date changes through the portal.',
+    upload_info:'Customer can upload passport details, waivers, or travel documents.',
+    confirm_pickup:'Customer can confirm pickup details and meeting instructions.'
+  }
+  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/portal-requests`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      request_type:requestType,
+      message:messages[requestType]||'Portal action logged from SkyBook.',
+      metadata:{ generated_by:'skybook-admin' }
+    }
+  })
+  await refreshAdmin('Portal action logged.')
+}
+
+const handlePortalAccessLink=async()=>{
+  if(!state.selectedBookingId)return
+  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/portal-access`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  })
+  const portalUrl=String(response?.portal_url||'').trim()
+  if(portalUrl){
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(portalUrl).catch(()=>{})
+    }
+    window.open(portalUrl,'_blank','noopener,noreferrer')
+  }
+  await refreshAdmin('Secure portal link generated.')
+}
+
+const handleRunDueJobs=async()=>{
+  await bookingAdminShared.apiRequest('admin/jobs/run',{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  })
+  await refreshAdmin('Queued jobs processed.')
+}
+
+const handleSystemJobAction=async(jobId,action)=>{
+  if(!jobId||!action)return
+  await bookingAdminShared.apiRequest(`admin/jobs/${encodeURIComponent(jobId)}/${encodeURIComponent(action)}`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  })
+  await refreshAdmin(action==='retry' ? 'Job re-queued.' : 'Job cancelled.')
+}
+
+const handleHealthEventResolve=async(eventId)=>{
+  if(!eventId)return
+  await bookingAdminShared.apiRequest(`admin/health-events/${encodeURIComponent(eventId)}`,{
+    method:'PATCH',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{ status:'resolved' }
+  })
+  await refreshAdmin('Health event resolved.')
+}
+
+const handleReconciliationAction=async(recordId,status)=>{
+  if(!recordId||!status)return
+  await bookingAdminShared.apiRequest(`admin/reconciliation/${encodeURIComponent(recordId)}`,{
+    method:'PATCH',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      status,
+      notes:status==='cleared' ? 'Cleared in SkyBook reconciliation center.' : 'Flagged for review in SkyBook reconciliation center.'
+    }
+  })
+  await refreshAdmin(status==='cleared' ? 'Reconciliation record cleared.' : 'Reconciliation record flagged for review.')
+}
+
+let commandPaletteTimer=null
+
+const normalizeCommandResult=result=>({
+  kind:result.kind||'Result',
+  label:result.label||result.meta||'Untitled',
+  meta:result.meta||'',
+  action:result.action||'dashboard',
+  bookingId:result.bookingId||result.booking_id||'',
+  id:result.id||''
+})
+
+const renderCommandPalette=results=>{
+  const rows=(results||[]).map(normalizeCommandResult)
+  nodes.commandPaletteResults.innerHTML=rows.map(result=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(result.kind)}</td>
+      <td><strong>${bookingAdminShared.escapeHtml(result.label)}</strong></td>
+      <td>${bookingAdminShared.escapeHtml(result.meta||'')}</td>
+      <td><button class="booking-button ghost compact-button" type="button" data-command-action="${bookingAdminShared.escapeHtml(result.action)}" data-command-booking-id="${bookingAdminShared.escapeHtml(result.bookingId||'')}">Open</button></td>
+    </tr>
+  `).join('') || renderEmptyRow(4,'No results yet. Try a booking reference, guest, invoice, or operator.')
+}
+
+const closeCommandPalette=()=>{
+  nodes.commandPalette.hidden=true
+}
+
+const handleCommandNavigation=(action,bookingId='')=>{
+  switchTab(action||'dashboard')
+  if(bookingId){
+    const booking=state.bookings.find(item=>item.id===bookingId)
+    if(booking){
+      state.selectedBookingId=booking.id
+      fillBookingForm(booking)
+      renderBookingDetail()
+    }
+  }
+  closeCommandPalette()
+}
+
+const performCommandPaletteSearch=async query=>{
+  const trimmed=String(query||'').trim()
+  if(!trimmed){
+    renderCommandPalette([])
+    return
+  }
+  let results=buildCommandPaletteResults(trimmed)
+  try{
+    const response=await bookingAdminShared.apiRequest(`admin/search?q=${encodeURIComponent(trimmed)}`,{
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+    })
+    const seen=new Set()
+    results=[...results,...(response?.results||[])].map(normalizeCommandResult).filter(result=>{
+      const key=`${result.action}|${result.bookingId||result.id}|${result.label}`
+      if(seen.has(key))return false
+      seen.add(key)
+      return true
+    }).slice(0,20)
+  }catch{}
+  renderCommandPalette(results)
+}
+
+const openCommandPalette=()=>{
+  nodes.commandPalette.hidden=false
+  nodes.commandPaletteInput.focus()
+  void performCommandPaletteSearch(nodes.commandPaletteInput.value||'')
+}
+
+const handleBookingDuplicate=async()=>{
+  if(!state.selectedBookingId)return
+  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/duplicate`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  })
+  if(response?.booking?.id)state.selectedBookingId=response.booking.id
+  await refreshAdmin('Booking duplicated.')
+}
+
+const handleBookingReschedule=async()=>{
+  if(!state.selectedBookingId)return
+  const nextDate=window.prompt('Enter the new preferred date in YYYY-MM-DD format.')
+  if(!nextDate)return
+  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/reschedule`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{
+      preferred_date:nextDate,
+      reason:'Booking rescheduled in SkyBook'
+    }
+  })
+  await refreshAdmin('Booking rescheduled.')
+}
+
+const handleAuthCacheReset=async()=>{
+  try{
+    const client=await requireClient()
+    await client.auth.signOut()
+  }catch{}
+  clearSkybookCache()
+  state.session=null
+  state.user=null
+  state.profile=null
+  renderAuthEnvironmentMeta()
+  renderSession()
+  setAuthStatus('Local SkyBook cache cleared. Sign in again to load fresh live settings.')
 }
 
 const handleLogin=async event=>{
@@ -1531,6 +2726,7 @@ const handleLogout=async()=>{
   state.user=null
   state.profile=null
   renderSession()
+  renderAuthEnvironmentMeta()
   setAdminStatus('Signed out.')
 }
 
@@ -1538,6 +2734,7 @@ const handleBookingSave=async event=>{
   event.preventDefault()
   const payload={
     reference:nodes.bookingReference.value.trim(),
+    brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
     service_slug:nodes.bookingService.value,
     status:nodes.bookingStatus.value,
     payment_status:nodes.bookingPaymentStatus.value,
@@ -1793,7 +2990,10 @@ const handlePortalSave=async event=>{
     body:{
       enabled:nodes.portalEnabled.checked,
       allowBookingLookup:nodes.portalLookupEnabled.checked,
-      allowSelfServiceRequests:false
+      allowSelfServiceRequests:state.portalSettings.allowSelfServiceRequests!==false,
+      allowDocumentDownloads:state.portalSettings.allowDocumentDownloads!==false,
+      portalBaseUrl:nodes.portalBaseUrl?.value?.trim()||'/portal.html',
+      sessionDurationHours:Number(nodes.portalSessionDurationHours?.value||72)
     }
   })
   await refreshAdmin('Portal settings saved.')
@@ -1823,9 +3023,16 @@ const handleOperatorSave=async event=>{
     body:{
       code:nodes.operatorCode.value.trim().toUpperCase(),
       company_name:nodes.operatorCompany.value.trim(),
+      contact_name:nodes.operatorContactName.value.trim(),
+      email:nodes.operatorEmail.value.trim(),
+      phone:nodes.operatorPhone.value.trim(),
+      preferred_contact_method:nodes.operatorPreferredContact.value,
       commission_type:nodes.operatorCommissionType.value,
       commission_value:Number(nodes.operatorCommissionValue.value||0),
       payout_terms:nodes.operatorTerms.value.trim(),
+      services_handled:nodes.operatorServicesHandled.value.split(',').map(value=>value.trim()).filter(Boolean),
+      banking_details:{ summary:nodes.operatorBankingDetails.value.trim() },
+      settlement_metadata:{ summary:nodes.operatorSettlementMetadata.value.trim() },
       is_active:true,
       metadata:{source:'admin-ui'}
     }
@@ -1855,22 +3062,33 @@ const handleOfficeInvoiceSave=async event=>{
 }
 
 const exportBookingsCsv=()=>{
-  const csv=bookingAdminShared.toCsv(getFilteredBookings(),[
+  const filtered=getFilteredBookings().map(booking=>({
+    ...booking,
+    operator_name:getBookingOperatorName(booking),
+    agent_name:getBookingAgentName(booking),
+    amount_due_now:Number(booking.amount_due_now||0),
+    amount_due_later:Number(booking.amount_due_later||0)
+  }))
+  const csv=bookingAdminShared.toCsv(filtered,[
     {key:'reference',label:'Reference'},
     {key:'brand_code',label:'Brand'},
     {key:'customer_name',label:'Customer'},
     {key:'customer_email',label:'Email'},
     {key:'service_name',label:'Service'},
+    {key:'operator_name',label:'Operator'},
+    {key:'agent_name',label:'Agent'},
     {key:'status',label:'Status'},
     {key:'payment_status',label:'Payment Status'},
     {key:'preferred_date',label:'Preferred Date'},
+    {key:'amount_due_now',label:'Due Now'},
+    {key:'amount_due_later',label:'Due Later'},
     {key:'total_amount',label:'Total Amount'}
   ])
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'})
   const url=URL.createObjectURL(blob)
   const anchor=document.createElement('a')
   anchor.href=url
-  anchor.download=`true-travel-bookings-${new Date().toISOString().slice(0,10)}.csv`
+  anchor.download=`skybook-bookings-${new Date().toISOString().slice(0,10)}.csv`
   anchor.click()
   URL.revokeObjectURL(url)
 }
@@ -1878,6 +3096,7 @@ const exportBookingsCsv=()=>{
 nodes.tabs.forEach(node=>node.addEventListener('click',()=>switchTab(node.dataset.adminTab)))
 nodes.loginForm.addEventListener('submit',handleLogin)
 nodes.logoutButton.addEventListener('click',()=>{void handleLogout()})
+nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
 nodes.bookingFilterBrand.addEventListener('change',renderBookings)
@@ -1935,7 +3154,54 @@ nodes.bookingsTable.addEventListener('click',event=>{
 
 nodes.bookingDetail.addEventListener('click',event=>{
   const action=event.target.dataset.bookingAction
+  const inlineAction=event.target.dataset.bookingInlineAction
+  if(inlineAction==='clear-operator'&&state.selectedBookingId){
+    void bookingAdminShared.apiRequest('admin/booking-operators',{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{
+        booking_id:state.selectedBookingId,
+        operator_id:'',
+        commission_amount:0
+      }
+    }).then(()=>refreshAdmin('Booking assignment cleared.')).catch(error=>setAdminStatus(error.message||'Assignment update failed.',true))
+    return
+  }
+  if(inlineAction==='duplicate'){
+    void handleBookingDuplicate().catch(error=>setAdminStatus(error.message||'Booking duplication failed.',true))
+    return
+  }
+  if(inlineAction==='reschedule'){
+    void handleBookingReschedule().catch(error=>setAdminStatus(error.message||'Booking reschedule failed.',true))
+    return
+  }
+  if(inlineAction==='portal-access'){
+    void handlePortalAccessLink().catch(error=>setAdminStatus(error.message||'Portal link generation failed.',true))
+    return
+  }
+  if(inlineAction==='complete-task'&&event.target.dataset.taskId){
+    void bookingAdminShared.apiRequest(`admin/booking-tasks/${encodeURIComponent(event.target.dataset.taskId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ status:'done' }
+    }).then(()=>refreshAdmin('Task completed.')).catch(error=>setAdminStatus(error.message||'Task update failed.',true))
+    return
+  }
+  if(inlineAction==='note-template'){
+    const noteInput=nodes.bookingDetail.querySelector('form[data-inline-form="note"] textarea[name="note"]')
+    if(noteInput)noteInput.value=event.target.dataset.templateValue||''
+    return
+  }
+  if(inlineAction?.startsWith('document:')){
+    void handleDocumentGeneration(inlineAction.split(':')[1]).catch(error=>setAdminStatus(error.message||'Document generation failed.',true))
+    return
+  }
+  if(inlineAction?.startsWith('portal:')){
+    void handlePortalAction(inlineAction.split(':')[1]).catch(error=>setAdminStatus(error.message||'Portal action failed.',true))
+    return
+  }
   if(!action||!state.selectedBookingId)return
+  const activeBooking=state.bookings.find(item=>item.id===state.selectedBookingId)
   if(action==='resend'){
     void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/resend`,{
       method:'POST',
@@ -1943,14 +3209,44 @@ nodes.bookingDetail.addEventListener('click',event=>{
     }).then(()=>refreshAdmin('Confirmation email re-queued.')).catch(error=>setAdminStatus(error.message||'Email resend failed.',true))
     return
   }
+  if(action==='cancelled'){
+    const reason=window.prompt('Enter a cancellation reason.',state.opsTemplates?.cancellationReasonTemplates?.[0]||'Guest changed travel dates.')
+    if(reason===null)return
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ status:'cancelled', reason, notes:reason }
+    }).then(()=>refreshAdmin('Booking cancelled.')).catch(error=>setAdminStatus(error.message||'Booking update failed.',true))
+    return
+  }
   const payload=action==='paid'
-    ? {status:'confirmed',payment_status:'paid'}
-    : {status:action}
+    ? {status:activeBooking?.status==='completed' ? 'completed' : 'confirmed',payment_status:'paid'}
+    : action==='awaiting_payment'
+      ? {status:'awaiting_payment',payment_status:'pending'}
+      : {status:action}
   void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
     method:'PATCH',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   }).then(()=>refreshAdmin(`Booking updated to ${action}.`)).catch(error=>setAdminStatus(error.message||'Booking update failed.',true))
+})
+
+nodes.bookingDetail.addEventListener('submit',event=>{
+  const form=event.target.closest('[data-inline-form]')
+  if(!form)return
+  event.preventDefault()
+  const formType=form.dataset.inlineForm
+  if(formType==='operator-assignment'){
+    void handleBookingOperatorAssignmentSave(form).catch(error=>setAdminStatus(error.message||'Assignment update failed.',true))
+    return
+  }
+  if(formType==='note'){
+    void handleBookingNoteSave(form).catch(error=>setAdminStatus(error.message||'Note could not be saved.',true))
+    return
+  }
+  if(formType==='task'){
+    void handleBookingTaskSave(form).catch(error=>setAdminStatus(error.message||'Task could not be saved.',true))
+  }
 })
 
 nodes.servicesTable.addEventListener('click',event=>{
@@ -1971,9 +3267,86 @@ nodes.adminUsersTable?.addEventListener('click',event=>{
   switchTab('admin-users')
 })
 
+nodes.reconciliationTable?.addEventListener('click',event=>{
+  const action=event.target.dataset.reconciliationAction
+  if(!action)return
+  if(action==='open-booking'&&event.target.dataset.bookingId){
+    handleCommandNavigation('bookings',event.target.dataset.bookingId)
+    return
+  }
+  const recordId=event.target.dataset.reconciliationId
+  if(action==='mark-review'){
+    void handleReconciliationAction(recordId,'needs_review').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
+    return
+  }
+  if(action==='mark-clear'){
+    void handleReconciliationAction(recordId,'cleared').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
+  }
+})
+
+nodes.systemJobsTable?.addEventListener('click',event=>{
+  const action=event.target.dataset.jobAction
+  const jobId=event.target.dataset.jobId
+  if(!action||!jobId)return
+  void handleSystemJobAction(jobId,action).catch(error=>setAdminStatus(error.message||'Job action failed.',true))
+})
+
+nodes.healthEventsTable?.addEventListener('click',event=>{
+  const action=event.target.dataset.healthAction
+  const eventId=event.target.dataset.healthEventId
+  if(action!=='resolve'||!eventId)return
+  void handleHealthEventResolve(eventId).catch(error=>setAdminStatus(error.message||'Health event update failed.',true))
+})
+
+nodes.runJobsNowButton?.addEventListener('click',()=>{
+  void handleRunDueJobs().catch(error=>setAdminStatus(error.message||'Job run failed.',true))
+})
+
+nodes.openCommandPalette?.addEventListener('click',openCommandPalette)
+nodes.commandPalette?.addEventListener('click',event=>{
+  if(event.target.dataset.commandDismiss==='true')closeCommandPalette()
+})
+nodes.commandPaletteInput?.addEventListener('input',()=>{
+  window.clearTimeout(commandPaletteTimer)
+  commandPaletteTimer=window.setTimeout(()=>{
+    void performCommandPaletteSearch(nodes.commandPaletteInput.value||'')
+  },180)
+})
+nodes.commandPaletteResults?.addEventListener('click',event=>{
+  const action=event.target.dataset.commandAction
+  if(!action)return
+  handleCommandNavigation(action,event.target.dataset.commandBookingId||'')
+})
+
+document.addEventListener('keydown',event=>{
+  const isModifier=(event.ctrlKey||event.metaKey)&&String(event.key||'').toLowerCase()==='k'
+  if(isModifier){
+    event.preventDefault()
+    openCommandPalette()
+    return
+  }
+  if(event.key==='Escape'&&!nodes.commandPalette.hidden){
+    closeCommandPalette()
+  }
+})
+
 ;(async()=>{
   try{
+    renderAuthEnvironmentMeta()
     const client=await requireClient()
+    client.auth.onAuthStateChange((event,session)=>{
+      const previousToken=state.session?.access_token||''
+      state.session=session
+      if(!session){
+        state.user=null
+        state.profile=null
+        renderSession()
+        return
+      }
+      if(session.access_token!==previousToken && ['SIGNED_IN','TOKEN_REFRESHED'].includes(event)){
+        void refreshAdmin('Admin session refreshed.').catch(error=>setAuthStatus(error.message||'Admin session refresh failed.',true))
+      }
+    })
     const { data:{ session } }=await client.auth.getSession()
     state.session=session
     renderSession()

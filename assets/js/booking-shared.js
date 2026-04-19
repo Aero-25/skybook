@@ -80,7 +80,9 @@ window.TrueTravelBooking=(()=>{
     { key:'dashboard', label:'Dashboard', description:'Access the command center and operational snapshots.' },
     { key:'calendar', label:'Calendar', description:'Use the day, week, and month operations calendar.' },
     { key:'reports', label:'Reports', description:'View commercial, finance, and performance reporting.' },
-    { key:'bookings', label:'Bookings', description:'Create, edit, confirm, cancel, and resend bookings.' },
+    { key:'reconciliation', label:'Reconciliation', description:'Match guest invoices, refunds, commissions, and operator payables.' },
+    { key:'health', label:'System Health', description:'Monitor queues, failed jobs, email errors, webhooks, and callbacks.' },
+    { key:'bookings', label:'Bookings', description:'Create, edit, confirm, cancel, resend, and action bookings.' },
     { key:'customers', label:'Customers', description:'View customer history and guest records.' },
     { key:'payments', label:'Payments', description:'Track guest payments and payment reconciliation.' },
     { key:'services', label:'Services', description:'Manage services, packages, and catalog setup.' },
@@ -93,9 +95,12 @@ window.TrueTravelBooking=(()=>{
   const SKYBOOK_PERMISSION_KEYS=SKYBOOK_PERMISSION_CATALOG.map(item=>item.key)
   const SKYBOOK_ROLE_DEFAULTS={
     super_admin:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
-    manager:{dashboard:true,calendar:true,reports:true,bookings:true,customers:true,payments:true,services:true,engine:true,finance:true,settings:true,emails:true,admin_users:false},
-    booking_agent:{dashboard:true,calendar:true,reports:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:false,admin_users:false},
-    finance:{dashboard:true,calendar:false,reports:true,bookings:true,customers:true,payments:true,services:false,engine:false,finance:true,settings:false,emails:false,admin_users:false}
+    manager:{dashboard:true,calendar:true,reports:true,reconciliation:true,health:true,bookings:true,customers:true,payments:true,services:true,engine:true,finance:true,settings:true,emails:true,admin_users:false},
+    booking_agent:{dashboard:true,calendar:true,reports:false,reconciliation:false,health:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:false,admin_users:false},
+    reservations:{dashboard:true,calendar:true,reports:false,reconciliation:false,health:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:true,admin_users:false},
+    operations:{dashboard:true,calendar:true,reports:true,reconciliation:false,health:true,bookings:true,customers:true,payments:false,services:false,engine:true,finance:false,settings:false,emails:false,admin_users:false},
+    supplier_management:{dashboard:true,calendar:true,reports:true,reconciliation:true,health:false,bookings:true,customers:false,payments:false,services:false,engine:true,finance:true,settings:false,emails:false,admin_users:false},
+    finance:{dashboard:true,calendar:false,reports:true,reconciliation:true,health:true,bookings:true,customers:true,payments:true,services:false,engine:false,finance:true,settings:false,emails:false,admin_users:false}
   }
   const sanitizePermissions=input=>{
     const source=typeof input==='object' && input ? input : {}

@@ -27,23 +27,38 @@
           <button class="booking-button" type="submit">Sign In</button>
         </div>
       </form>
+      <div class="auth-utility-row">
+        <button class="booking-button ghost" type="button" id="resetAuthCacheButton">Reset Local Cache</button>
+      </div>
       <div class="status-banner" id="authStatus">Sign in with your Supabase admin account to continue.</div>
+      <p class="auth-environment-meta" id="authEnvironmentMeta">Live operations mode</p>
     </article>
   </section>
 
   <div class="admin-grid" id="adminAppShell" hidden>
     <aside class="admin-sidebar-booking">
-      <h1>SkyBook</h1>
-      <p>Shared operations console for True Travel and Iventure with live CRUD, reporting, invoicing, commissions, and brand-aware booking management.</p>
+      <div class="admin-brand-lockup">
+        <div class="admin-brand-mark">SB</div>
+        <div>
+          <h1>SkyBook</h1>
+          <p class="admin-product-subtitle">Enterprise booking and operations platform</p>
+        </div>
+      </div>
+      <p>Shared operations console for True Travel and Iventure with live CRUD, reporting, documents, commissions, audit trails, and brand-aware booking management.</p>
+      <div class="admin-environment-chip">Production Workspace</div>
       <div class="admin-session">
         <strong id="sessionLabel">Not signed in</strong>
         <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
       </div>
       <div class="admin-nav-group">
         <span>Operations</span>
-        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">CC</span><span>Command Center</span></button>
+        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">DB</span><span>Command Center</span></button>
+        <button class="admin-tab" data-admin-tab="notifications" type="button"><span class="admin-tab-icon">AL</span><span>Notifications</span></button>
         <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
         <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports</span></button>
+        <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
+        <button class="admin-tab" data-admin-tab="audit" type="button"><span class="admin-tab-icon">AD</span><span>Audit Viewer</span></button>
+        <button class="admin-tab" data-admin-tab="health" type="button"><span class="admin-tab-icon">HL</span><span>System Health</span></button>
         <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
         <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
         <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers</span></button>
@@ -61,7 +76,7 @@
         <span>Configuration</span>
         <button class="admin-tab" data-admin-tab="settings" type="button"><span class="admin-tab-icon">ST</span><span>Settings</span></button>
         <button class="admin-tab" data-admin-tab="emails" type="button"><span class="admin-tab-icon">EM</span><span>Email Templates</span></button>
-        <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">AU</span><span>Admin Users</span></button>
+        <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">UR</span><span>Admin Users</span></button>
       </div>
       <div class="admin-nav-group">
         <span>Switch</span>
@@ -74,9 +89,12 @@
       <section class="admin-toolbar">
         <div>
           <h2>Ops Console</h2>
+          <p class="toolbar-subtitle">Enterprise operations for reservations, finance, supplier management, and multibrand guest service.</p>
           <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
         </div>
         <div class="toolbar-actions">
+          <span class="booking-chip">SkyBook Enterprise</span>
+          <button type="button" id="openCommandPalette">Command Bar</button>
           <button type="button" id="exportBookingsCsv">Export CSV</button>
           <a class="booking-button ghost" href="design-admin.html">Design Studio</a>
           <a class="booking-button ghost" href="admin.html">Admin Gateway</a>
@@ -116,11 +134,31 @@
             </div>
           </article>
           <article class="booking-panel">
+            <h3>Tomorrow prep</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Service</th><th>Operator</th><th>Resources</th><th>Date</th></tr></thead>
+                <tbody id="dashboardTomorrowPrepTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
             <h3>Pending confirmations</h3>
             <div class="table-wrap">
               <table>
                 <thead><tr><th>Reference</th><th>Customer</th><th>Service</th><th>Preferred Date</th><th>Status</th></tr></thead>
                 <tbody id="dashboardPendingTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Cancellation & refund alerts</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Booking</th><th>Type</th><th>Reason</th><th>Amount</th><th>Status</th></tr></thead>
+                <tbody id="dashboardAlertsTable"></tbody>
               </table>
             </div>
           </article>
@@ -161,6 +199,30 @@
               <table>
                 <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Created</th><th>Total</th></tr></thead>
                 <tbody id="dashboardRecentBookingsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="notifications">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Notification center</h3>
+                <p class="muted-copy">Failed payments, overdue balances, unassigned operators, incomplete workflows, and near-term departures.</p>
+              </div>
+              <div class="booking-chip">Live alerts</div>
+            </div>
+            <div class="admin-panel-grid admin-panel-grid-single" id="notificationCards"></div>
+          </article>
+          <article class="booking-panel">
+            <h3>Alert queue</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Category</th><th>Reference</th><th>Priority</th><th>Message</th><th>When</th></tr></thead>
+                <tbody id="notificationsTable"></tbody>
               </table>
             </div>
           </article>
@@ -222,6 +284,86 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="reconciliation">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Reconciliation center</h3>
+                <p class="muted-copy">Match guest payments, invoices, refunds, commissions, and supplier payouts in one finance workflow.</p>
+              </div>
+              <div class="booking-chip">Finance Control</div>
+            </div>
+            <div class="admin-panel-grid admin-panel-grid-single" id="reconciliationCards"></div>
+          </article>
+          <article class="booking-panel">
+            <h3>Reconciliation queue</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Status</th><th>Booking</th><th>Mismatch</th><th>Summary</th><th>Last Checked</th></tr></thead>
+                <tbody id="reconciliationTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="audit">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Audit viewer</h3>
+                <p class="muted-copy">Cross-system history from booking status changes, payments, documents, notes, portal requests, and tasks.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>When</th><th>Booking</th><th>Type</th><th>Actor</th><th>Summary</th></tr></thead>
+                <tbody id="auditTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Lifecycle playbook</h3>
+            <div id="lifecycleMatrix" class="detail-subgrid"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="admin-view" data-admin-view="health">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>System health</h3>
+                <p class="muted-copy">Jobs, failed emails, webhook issues, queue pressure, and payment callback visibility.</p>
+              </div>
+              <button class="booking-button ghost" type="button" id="runJobsNowButton">Run Due Jobs</button>
+            </div>
+            <div class="admin-panel-grid admin-panel-grid-single" id="healthCards"></div>
+          </article>
+          <article class="booking-panel">
+            <h3>Queued and failed jobs</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Job</th><th>Status</th><th>Priority</th><th>Run At</th><th>Error / Result</th></tr></thead>
+                <tbody id="systemJobsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <article class="booking-panel admin-spacer">
+          <h3>Health events</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Severity</th><th>Source</th><th>Summary</th><th>Status</th><th>When</th></tr></thead>
+              <tbody id="healthEventsTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="bookings">
@@ -315,6 +457,12 @@
             <label class="booking-field">
               <span>Reference</span>
               <input id="adminBookingReference" type="text" placeholder="Leave blank to auto-generate">
+            </label>
+            <label class="booking-field">
+              <span>Brand</span>
+              <select id="adminBookingBrand" required>
+                <option value="">Choose brand</option>
+              </select>
             </label>
             <label class="booking-field">
               <span>Service</span>
@@ -546,6 +694,9 @@
                   <option value="super_admin">Super Admin</option>
                   <option value="manager">Manager</option>
                   <option value="booking_agent">Booking Agent</option>
+                  <option value="reservations">Reservations</option>
+                  <option value="operations">Operations</option>
+                  <option value="supplier_management">Supplier Management</option>
                   <option value="finance">Finance</option>
                 </select>
               </label>
@@ -749,12 +900,17 @@
               </label>
               <label class="booking-field-full">
                 <span>Reason</span>
-                <input id="adminRefundReason" type="text" placeholder="Customer cancellation, schedule change">
+                <input id="adminRefundReason" list="refundReasonSuggestions" type="text" placeholder="Customer cancellation, schedule change">
               </label>
               <div class="booking-field-full">
                 <button class="booking-button ghost" type="submit">Process Refund</button>
               </div>
             </form>
+            <datalist id="refundReasonSuggestions">
+              <option value="Service cancelled before departure."></option>
+              <option value="Duplicate payment received."></option>
+              <option value="Partial refund approved by finance."></option>
+            </datalist>
           </article>
 
           <article class="booking-panel">
@@ -775,6 +931,26 @@
                 <input id="adminOperatorCompany" type="text" required>
               </label>
               <label class="booking-field">
+                <span>Contact Name</span>
+                <input id="adminOperatorContactName" type="text" placeholder="Primary operating contact">
+              </label>
+              <label class="booking-field">
+                <span>Email</span>
+                <input id="adminOperatorEmail" type="email" placeholder="ops@company.com">
+              </label>
+              <label class="booking-field">
+                <span>Phone</span>
+                <input id="adminOperatorPhone" type="tel" placeholder="+264 ...">
+              </label>
+              <label class="booking-field">
+                <span>Preferred Contact</span>
+                <select id="adminOperatorPreferredContact">
+                  <option value="phone">Phone</option>
+                  <option value="email">Email</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </select>
+              </label>
+              <label class="booking-field">
                 <span>Commission Type</span>
                 <select id="adminOperatorCommissionType">
                   <option value="percentage">Percentage</option>
@@ -788,6 +964,18 @@
               <label class="booking-field-full">
                 <span>Payout Terms</span>
                 <input id="adminOperatorTerms" type="text" placeholder="e.g. Net 7 after trip completion">
+              </label>
+              <label class="booking-field-full">
+                <span>Services Handled</span>
+                <input id="adminOperatorServicesHandled" type="text" placeholder="Comma separated services or tour classes">
+              </label>
+              <label class="booking-field-full">
+                <span>Banking / Settlement Details</span>
+                <textarea id="adminOperatorBankingDetails" rows="3" placeholder="Bank name, account name, account number, branch code, or payout instructions"></textarea>
+              </label>
+              <label class="booking-field-full">
+                <span>Settlement Metadata</span>
+                <textarea id="adminOperatorSettlementMetadata" rows="3" placeholder="Notes about manifests, preferred invoice cadence, banking references, VAT, or contract terms"></textarea>
               </label>
               <div class="booking-field-full">
                 <button class="booking-button" type="submit">Save Operator</button>
@@ -865,6 +1053,14 @@
                 <input id="portalLookupEnabled" type="checkbox" checked>
                 <span>Allow booking lookup without full account creation.</span>
               </label>
+              <label class="booking-field">
+                <span>Portal Base URL</span>
+                <input id="portalBaseUrl" type="text" placeholder="/portal.html">
+              </label>
+              <label class="booking-field">
+                <span>Session Duration Hours</span>
+                <input id="portalSessionDurationHours" type="number" min="1" value="72">
+              </label>
               <div class="booking-field-full">
                 <button class="booking-button ghost" type="submit">Save Portal Settings</button>
               </div>
@@ -890,6 +1086,29 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="command-palette-shell" id="commandPalette" hidden>
+    <div class="command-palette-backdrop" data-command-dismiss="true"></div>
+    <section class="command-palette-panel">
+      <div class="command-palette-header">
+        <div>
+          <strong>SkyBook Command Bar</strong>
+          <span>Jump to bookings, customers, operators, invoices, reports, and workflows.</span>
+        </div>
+        <button class="booking-button ghost compact-button" type="button" data-command-dismiss="true">Close</button>
+      </div>
+      <label class="booking-field-full">
+        <span>Search</span>
+        <input id="commandPaletteInput" type="text" placeholder="Booking reference, customer, operator, invoice, report..." autocomplete="off">
+      </label>
+      <div class="table-wrap command-results-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>Label</th><th>Meta</th><th>Action</th></tr></thead>
+          <tbody id="commandPaletteResults"></tbody>
+        </table>
+      </div>
+    </section>
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
