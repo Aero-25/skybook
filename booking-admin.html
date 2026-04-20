@@ -6,8 +6,8 @@
 <title>SkyBook Operations Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260420-enterprise-auth">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260420-enterprise-workbench">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -35,6 +35,11 @@
       <div class="admin-session">
         <strong id="sessionLabel">Not signed in</strong>
         <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
+      </div>
+      <div class="admin-side-health">
+        <div><span>Environment</span><strong>Production</strong></div>
+        <div><span>Mode</span><strong>Live Supabase</strong></div>
+        <div><span>Brands</span><strong>True Travel + Iventure</strong></div>
       </div>
       <div class="admin-nav-group">
         <span>Operations</span>
@@ -75,6 +80,10 @@
       <header class="skybook-topbar">
         <div class="skybook-topbar-left">
           <div class="skybook-topbar-mark">SB</div>
+          <div class="skybook-topbar-title">
+            <strong>SkyBook Operations</strong>
+            <span>Reservations, finance, suppliers, reporting</span>
+          </div>
           <nav class="skybook-topnav">
             <button class="skybook-topnav-link" data-admin-tab="calendar" type="button">Calendar</button>
             <button class="skybook-topnav-link" data-admin-tab="bookings" type="button">Booking</button>
@@ -85,17 +94,17 @@
           </nav>
         </div>
         <div class="skybook-topbar-right">
-          <span class="skybook-topbar-pill">Updates</span>
+          <span class="skybook-topbar-pill">Production</span>
           <span class="skybook-topbar-user" id="topSessionLabel">SkyBook Demo</span>
-          <button class="skybook-topbar-search" type="button" id="openCommandPalette">Search</button>
+          <button class="skybook-topbar-search" type="button" id="openCommandPalette">Search / Ctrl K</button>
         </div>
       </header>
 
       <section class="admin-toolbar">
         <div>
-          <div class="toolbar-eyebrow">Operations Dashboard</div>
+          <div class="toolbar-eyebrow">Live Operations Dashboard</div>
           <h2>Command Center</h2>
-          <p class="toolbar-subtitle">Enterprise operations for reservations, finance, supplier management, and multibrand guest service.</p>
+          <p class="toolbar-subtitle">Enterprise control for reservations, finance, supplier management, documents, audit trails, and multibrand guest service.</p>
           <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
         </div>
         <div class="toolbar-actions">
@@ -107,13 +116,32 @@
         </div>
       </section>
 
+      <section class="ops-switchboard" aria-label="SkyBook operations switchboard">
+        <button type="button" data-admin-tab="bookings">
+          <span>Reservations Desk</span>
+          <strong>Bookings, guests, tasks, documents</strong>
+        </button>
+        <button type="button" data-admin-tab="calendar">
+          <span>Operations Board</span>
+          <strong>Calendar, resources, guides, vehicles</strong>
+        </button>
+        <button type="button" data-admin-tab="reconciliation">
+          <span>Finance Control</span>
+          <strong>Payments, refunds, invoices, payouts</strong>
+        </button>
+        <button type="button" data-admin-tab="health">
+          <span>System Monitor</span>
+          <strong>Jobs, emails, webhooks, alerts</strong>
+        </button>
+      </section>
+
       <section class="admin-view is-active" data-admin-view="dashboard">
         <div class="admin-command-grid">
           <article class="booking-panel admin-command-lead">
             <div class="widget-header">
               <div>
                 <h3>Command Center</h3>
-                <p class="muted-copy">Today’s arrivals, confirmation queue, unpaid balances, refunds, and supplier exposure on one screen.</p>
+                <p class="muted-copy">Today's arrivals, confirmation queue, unpaid balances, refunds, and supplier exposure on one screen.</p>
               </div>
               <div class="booking-chip">Live Operations</div>
             </div>
@@ -1130,7 +1158,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260420-enterprise-auth"></script>
-  <script src="assets/js/booking-admin.js?v=20260420-enterprise-auth"></script>
+  <script src="assets/js/booking-shared.js?v=20260420-enterprise-workbench"></script>
+  <script src="assets/js/booking-admin.js?v=20260420-enterprise-workbench"></script>
 </body>
 </html>

@@ -981,38 +981,41 @@ const renderDashboard=()=>{
   ].slice(0,8)
   const brandMetrics=state.brands.map(brand=>({
     label:`${brand.name} volume`,
-    value:String(state.bookings.filter(item=>item.brand_code===brand.code).length)
+    value:String(state.bookings.filter(item=>item.brand_code===brand.code).length),
+    meta:'Brand-specific booking volume',
+    tone:'neutral'
   }))
   const actionQueue=[
-    {label:'Pending confirmations',value:pendingConfirmations.length,meta:'Bookings waiting for ops review'},
-    {label:'Today arrivals',value:todayArrivals.length,meta:'Tours or pickups scheduled for today'},
-    {label:'Tomorrow prep',value:tomorrowPrep.length,meta:'Bookings that need operator and pickup checks'},
-    {label:'Unpaid balances',value:unpaidBookings.length,meta:'Bookings with money still outstanding'},
-    {label:'Open tasks',value:openTasks.length,meta:'Operational tasks still waiting on action'},
-    {label:'Live alerts',value:alerts.length,meta:'Failed payments, missing operators, and overdue workflows'},
-    {label:'Operator payouts',value:operatorPayoutsDue.length,meta:'Office invoices not yet settled'}
+    {label:'Pending confirmations',value:pendingConfirmations.length,meta:'Bookings waiting for ops review',tone:pendingConfirmations.length?'warn':'good'},
+    {label:'Today arrivals',value:todayArrivals.length,meta:'Tours or pickups scheduled for today',tone:'blue'},
+    {label:'Tomorrow prep',value:tomorrowPrep.length,meta:'Bookings that need operator and pickup checks',tone:'neutral'},
+    {label:'Unpaid balances',value:unpaidBookings.length,meta:'Bookings with money still outstanding',tone:unpaidBookings.length?'risk':'good'},
+    {label:'Open tasks',value:openTasks.length,meta:'Operational tasks still waiting on action',tone:openTasks.length?'warn':'good'},
+    {label:'Live alerts',value:alerts.length,meta:'Failed payments, missing operators, and overdue workflows',tone:alerts.length?'risk':'good'},
+    {label:'Operator payouts',value:operatorPayoutsDue.length,meta:'Office invoices not yet settled',tone:operatorPayoutsDue.length?'warn':'good'}
   ]
   const metrics=[
-    {label:'Today arrivals',value:String(todayArrivals.length)},
-    {label:'Tomorrow prep',value:String(tomorrowPrep.length)},
-    {label:'Pending confirmations',value:String(pendingConfirmations.length)},
-    {label:'Unpaid exposure',value:bookingAdminShared.formatMoney(unpaidExposure,state.settings.currency||'NAD')},
-    {label:'Refund exposure',value:bookingAdminShared.formatMoney(refundExposure,state.settings.currency||'NAD')},
-    {label:'Operator payouts due',value:bookingAdminShared.formatMoney(payoutExposure,state.settings.currency||'NAD')},
-    {label:'Gross revenue',value:bookingAdminShared.formatMoney(totalRevenue,state.settings.currency||'NAD')},
-    {label:'Open tasks',value:String(openTasks.length)},
-    {label:'Documents generated',value:String(state.bookingDocuments.length)},
+    {label:'Today arrivals',value:String(todayArrivals.length),meta:'Departures and pickups due today',tone:'blue'},
+    {label:'Tomorrow prep',value:String(tomorrowPrep.length),meta:'Bookings requiring next-day readiness',tone:'neutral'},
+    {label:'Pending confirmations',value:String(pendingConfirmations.length),meta:'Reservations desk queue',tone:pendingConfirmations.length?'warn':'good'},
+    {label:'Unpaid exposure',value:bookingAdminShared.formatMoney(unpaidExposure,state.settings.currency||'NAD'),meta:'Outstanding guest balances',tone:unpaidExposure?'risk':'good'},
+    {label:'Refund exposure',value:bookingAdminShared.formatMoney(refundExposure,state.settings.currency||'NAD'),meta:'Refunds requiring review',tone:refundExposure?'risk':'good'},
+    {label:'Operator payouts due',value:bookingAdminShared.formatMoney(payoutExposure,state.settings.currency||'NAD'),meta:'Supplier settlement exposure',tone:payoutExposure?'warn':'good'},
+    {label:'Gross revenue',value:bookingAdminShared.formatMoney(totalRevenue,state.settings.currency||'NAD'),meta:'All loaded bookings',tone:'blue'},
+    {label:'Open tasks',value:String(openTasks.length),meta:'Follow-ups and operational work',tone:openTasks.length?'warn':'good'},
+    {label:'Documents generated',value:String(state.bookingDocuments.length),meta:'Invoices, receipts, manifests, vouchers',tone:'neutral'},
     ...brandMetrics,
-    {label:'Resources loaded',value:String(state.resources.length)}
+    {label:'Resources loaded',value:String(state.resources.length),meta:'Vehicles, vessels, guides, kayaks',tone:'neutral'}
   ]
   nodes.dashboardCards.innerHTML=metrics.map(metric=>`
-    <article class="metric-card">
+    <article class="metric-card is-${bookingAdminShared.escapeHtml(metric.tone||'neutral')}">
       <span>${bookingAdminShared.escapeHtml(metric.label)}</span>
       <strong>${bookingAdminShared.escapeHtml(metric.value)}</strong>
+      ${metric.meta ? `<small>${bookingAdminShared.escapeHtml(metric.meta)}</small>` : ''}
     </article>
   `).join('')
   nodes.dashboardActionQueue.innerHTML=actionQueue.map(item=>`
-    <article class="queue-card">
+    <article class="queue-card is-${bookingAdminShared.escapeHtml(item.tone||'neutral')}">
       <div>
         <strong>${bookingAdminShared.escapeHtml(String(item.value))}</strong>
         <span>${bookingAdminShared.escapeHtml(item.label)}</span>
