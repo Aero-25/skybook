@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkyBook Secure Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260420-enterprise-auth">
+</head>
+<body class="booking-body skybook-auth-page">
+  <main class="skybook-login-shell">
+    <section class="skybook-login-card" aria-labelledby="skybookLoginTitle">
+      <div class="skybook-auth-brand">
+        <div class="admin-brand-mark">SB</div>
+        <div>
+          <p class="toolbar-eyebrow">SkyBook Enterprise</p>
+          <h1 id="skybookLoginTitle">Secure operations sign in</h1>
+          <p>Access the protected booking, finance, supplier, reporting, and multibrand operations console.</p>
+        </div>
+      </div>
+
+      <form id="loginForm" class="booking-form-grid skybook-login-form">
+        <label class="booking-field-full">
+          <span>Email</span>
+          <input type="email" name="email" autocomplete="email" required>
+        </label>
+        <label class="booking-field-full">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <div class="booking-field-full">
+          <button class="booking-button" type="submit">Sign In</button>
+        </div>
+      </form>
+
+      <div class="auth-utility-row">
+        <button class="booking-button ghost" type="button" id="resetAuthCacheButton">Reset Local Cache</button>
+      </div>
+      <div class="status-banner" id="authStatus">Enter your SkyBook admin credentials to continue.</div>
+      <p class="auth-environment-meta" id="authEnvironmentMeta">Checking live environment...</p>
+    </section>
+
+    <aside class="skybook-auth-aside" aria-label="SkyBook operations scope">
+      <span class="booking-chip">Production Workspace</span>
+      <h2>Separate login. Protected console. Cleaner operations.</h2>
+      <p>SkyBook now keeps authentication isolated from the live dashboard, so operators only see the command center after a valid Supabase session is confirmed.</p>
+      <div class="skybook-auth-checks">
+        <div><strong>Reservations</strong><span>Bookings, guests, tasks, documents, and customer portal actions.</span></div>
+        <div><strong>Finance</strong><span>Payments, reconciliation, refunds, invoices, commission, and settlements.</span></div>
+        <div><strong>Operations</strong><span>Calendar, manifests, operators, resources, supplier confirmations, and alerts.</span></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="assets/js/shared.js?v=20260408tourtypes"></script>
+  <script src="assets/js/booking-shared.js?v=20260420-enterprise-auth"></script>
+  <script src="assets/js/skybook-login.js?v=20260420-enterprise-auth"></script>
+</body>
+</html>

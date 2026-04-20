@@ -98,12 +98,15 @@ const state={
 const nodes={
   authGate:document.getElementById('adminAuthGate'),
   appShell:document.getElementById('adminAppShell'),
+  loadingScreen:document.getElementById('adminLoadingScreen'),
+  loadingStatus:document.getElementById('adminLoadingStatus'),
   authStatus:document.getElementById('authStatus'),
   resetAuthCacheButton:document.getElementById('resetAuthCacheButton'),
   authEnvironmentMeta:document.getElementById('authEnvironmentMeta'),
   loginForm:document.getElementById('loginForm'),
   logoutButton:document.getElementById('logoutButton'),
   sessionLabel:document.getElementById('sessionLabel'),
+  topSessionLabel:document.getElementById('topSessionLabel'),
   adminStatus:document.getElementById('bookingAdminStatus'),
   tabs:[...document.querySelectorAll('[data-admin-tab]')],
   views:[...document.querySelectorAll('[data-admin-view]')],
@@ -259,19 +262,45 @@ const nodes={
   officeCommissionAmount:document.getElementById('adminOfficeCommissionAmount'),
   officeInvoiceNotes:document.getElementById('adminOfficeInvoiceNotes'),
   openCommandPalette:document.getElementById('openCommandPalette'),
+  toolbarCommandPalette:document.getElementById('toolbarCommandPalette'),
   commandPalette:document.getElementById('commandPalette'),
   commandPaletteInput:document.getElementById('commandPaletteInput'),
   commandPaletteResults:document.getElementById('commandPaletteResults'),
   runJobsNowButton:document.getElementById('runJobsNowButton')
 }
 
+const getDashboardUrl=()=>{
+  const fallback='booking-admin.html'
+  try{
+    const next=new URLSearchParams(window.location.search).get('next')
+    return next || fallback
+  }catch{
+    return fallback
+  }
+}
+
+const redirectToLogin=()=>{
+  const currentPath=`${window.location.pathname.split('/').pop()||'booking-admin.html'}${window.location.search}${window.location.hash}`
+  const next=encodeURIComponent(currentPath)
+  window.location.replace(`login.html?next=${next}`)
+}
+
 const setAdminStatus=(message,isError=false)=>{
+  if(!nodes.adminStatus)return
   const timeLabel=new Date().toLocaleString('en-NA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
   nodes.adminStatus.textContent=isError ? message : `${message} Last sync ${timeLabel}.`
   nodes.adminStatus.classList.toggle('is-error',isError)
 }
 
 const setAuthStatus=(message,isError=false)=>{
+  if(!nodes.authStatus){
+    if(nodes.loadingStatus){
+      nodes.loadingStatus.textContent=message
+      nodes.loadingStatus.classList.toggle('is-error',isError)
+    }
+    setAdminStatus(message,isError)
+    return
+  }
   nodes.authStatus.textContent=message
   nodes.authStatus.classList.toggle('is-error',isError)
 }
@@ -305,7 +334,9 @@ const renderAuthEnvironmentMeta=()=>{
 
 const syncSessionLabel=()=>{
   if(!state.session?.access_token)return
-  nodes.sessionLabel.textContent=`${state.profile?.full_name||state.user?.email||'Admin'} - ${formatDisplayLabel(state.profile?.role||'admin')}`
+  const label=`${state.profile?.full_name||state.user?.email||'Admin'} - ${formatDisplayLabel(state.profile?.role||'admin')}`
+  if(nodes.sessionLabel)nodes.sessionLabel.textContent=label
+  if(nodes.topSessionLabel)nodes.topSessionLabel.textContent=label
 }
 
 const parseDateValue=value=>{
@@ -869,11 +900,15 @@ const requireClient=async()=>{
 
 const renderSession=()=>{
   const authenticated=Boolean(state.session?.access_token)
-  nodes.authGate.hidden=authenticated
-  nodes.appShell.hidden=!authenticated
-  nodes.sessionLabel.textContent=authenticated
-    ? `${state.profile?.full_name||state.user?.email||'Admin'} · ${state.profile?.role||'admin'}`
-    : 'Not signed in'
+  if(nodes.authGate)nodes.authGate.hidden=authenticated
+  if(nodes.appShell)nodes.appShell.hidden=!authenticated
+  if(nodes.loadingScreen)nodes.loadingScreen.hidden=authenticated
+  const label='Not signed in'
+  const safeLabel=authenticated
+    ? `${state.profile?.full_name||state.user?.email||'Admin'} - ${formatDisplayLabel(state.profile?.role||'admin')}`
+    : label
+  if(nodes.sessionLabel)nodes.sessionLabel.textContent=safeLabel
+  if(nodes.topSessionLabel)nodes.topSessionLabel.textContent=authenticated ? safeLabel : 'SkyBook'
 }
 
 const getFilteredBookings=()=>{
@@ -2728,6 +2763,7 @@ const handleLogout=async()=>{
   renderSession()
   renderAuthEnvironmentMeta()
   setAdminStatus('Signed out.')
+  window.location.replace('login.html')
 }
 
 const handleBookingSave=async event=>{
@@ -3094,8 +3130,8 @@ const exportBookingsCsv=()=>{
 }
 
 nodes.tabs.forEach(node=>node.addEventListener('click',()=>switchTab(node.dataset.adminTab)))
-nodes.loginForm.addEventListener('submit',handleLogin)
-nodes.logoutButton.addEventListener('click',()=>{void handleLogout()})
+nodes.loginForm?.addEventListener('submit',handleLogin)
+nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
 nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
@@ -3303,6 +3339,7 @@ nodes.runJobsNowButton?.addEventListener('click',()=>{
 })
 
 nodes.openCommandPalette?.addEventListener('click',openCommandPalette)
+nodes.toolbarCommandPalette?.addEventListener('click',openCommandPalette)
 nodes.commandPalette?.addEventListener('click',event=>{
   if(event.target.dataset.commandDismiss==='true')closeCommandPalette()
 })
@@ -3341,6 +3378,7 @@ document.addEventListener('keydown',event=>{
         state.user=null
         state.profile=null
         renderSession()
+        redirectToLogin()
         return
       }
       if(session.access_token!==previousToken && ['SIGNED_IN','TOKEN_REFRESHED'].includes(event)){
@@ -3353,7 +3391,7 @@ document.addEventListener('keydown',event=>{
     if(session){
       await refreshAdmin('Authenticated and loaded live booking data.')
     }else{
-      setAuthStatus('Sign in with your Supabase admin account to manage bookings.')
+      redirectToLogin()
     }
   }catch(error){
     setAuthStatus(error.message||'Admin authentication is not configured.',true)

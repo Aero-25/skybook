@@ -3,35 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkyBook Booking Admin</title>
+<title>SkyBook Operations Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260419-checkfront">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260420-enterprise-auth">
 </head>
-<body class="booking-body">
-  <section class="admin-auth-shell" id="adminAuthGate">
-    <article class="booking-panel auth-panel">
-      <h1>SkyBook</h1>
-      <p class="muted-copy">Sign in with your Supabase admin account to manage shared bookings, brands, services, customers, operators, payments, templates, exports, and booking settings.</p>
-      <form id="loginForm" class="booking-form-grid">
-        <label class="booking-field-full">
-          <span>Email</span>
-          <input type="email" name="email" autocomplete="email" required>
-        </label>
-        <label class="booking-field-full">
-          <span>Password</span>
-          <input type="password" name="password" autocomplete="current-password" required>
-        </label>
-        <div class="booking-field-full">
-          <button class="booking-button" type="submit">Sign In</button>
-        </div>
-      </form>
-      <div class="auth-utility-row">
-        <button class="booking-button ghost" type="button" id="resetAuthCacheButton">Reset Local Cache</button>
+<body class="booking-body skybook-admin-page">
+  <section class="admin-loading-screen" id="adminLoadingScreen">
+    <article class="admin-loading-card">
+      <div class="admin-brand-mark">SB</div>
+      <div>
+        <p class="toolbar-eyebrow">SkyBook Secure Console</p>
+        <h1>Checking admin session</h1>
+        <p id="adminLoadingStatus">Loading the protected operations workspace for reservations, finance, suppliers, and reporting.</p>
       </div>
-      <div class="status-banner" id="authStatus">Sign in with your Supabase admin account to continue.</div>
-      <p class="auth-environment-meta" id="authEnvironmentMeta">Live operations mode</p>
     </article>
   </section>
 
@@ -1144,7 +1130,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260419payments"></script>
-  <script src="assets/js/booking-admin.js?v=20260419payments"></script>
+  <script src="assets/js/booking-shared.js?v=20260420-enterprise-auth"></script>
+  <script src="assets/js/booking-admin.js?v=20260420-enterprise-auth"></script>
 </body>
 </html>
