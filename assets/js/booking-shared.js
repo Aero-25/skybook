@@ -210,10 +210,15 @@ window.TrueTravelBooking=(()=>{
       maximumFractionDigits:2
     }).format(amount)
   }
+  const getReferenceEntropy=()=>{
+    const cryptoApi=globalThis.crypto
+    if(cryptoApi?.randomUUID)return cryptoApi.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase()
+    return `${Math.random().toString(36).slice(2,8)}${Date.now().toString(36).slice(-4)}`.slice(0,8).toUpperCase()
+  }
   const createReference=()=>{
     const config=readConfig()
     const stamp=new Date().toISOString().slice(2,10).replace(/-/g,'')
-    const rand=Math.random().toString(36).slice(2,6).toUpperCase()
+    const rand=getReferenceEntropy()
     return `${config.bookingPrefix||'TT'}-${stamp}-${rand}`
   }
 
@@ -545,7 +550,9 @@ window.TrueTravelBooking=(()=>{
         Object.assign(customer,customerInput)
       }
       const pricing=calculatePricing(service,body)
-      const reference=createReference()
+      let reference=createReference()
+      for(let attempt=0;attempt<10&&db.bookings.some(item=>item.reference===reference);attempt+=1)reference=createReference()
+      if(db.bookings.some(item=>item.reference===reference))throw new Error('Unable to generate a unique booking reference. Please try again.')
       const bookingStatus=service.requires_manual_confirmation ? 'pending' : (pricing.amount_due_now>0 ? 'awaiting_payment' : 'confirmed')
       const paymentStatus=pricing.amount_due_now>0 ? 'pending' : 'unpaid'
       const booking={

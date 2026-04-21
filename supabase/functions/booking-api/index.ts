@@ -233,7 +233,13 @@ const getBrandByCode=async(code:string)=>{
   return brand || { code, name:code==='iventure' ? 'Iventure' : 'True Travel', booking_prefix:code==='iventure' ? 'IV' : 'TT' }
 }
 
-const formatReference=(prefix='TT')=>`${prefix}-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${crypto.randomUUID().slice(0,4).toUpperCase()}`
+const normalizeBookingReference=value=>normalizeText(value).replace(/\s+/g,'-').replace(/[^A-Z0-9-]/gi,'').toUpperCase()
+const normalizeReferencePrefix=(prefix='TT')=>normalizeBookingReference(prefix).replace(/-/g,'').slice(0,8)||'TT'
+const formatReference=(prefix='TT')=>{
+  const stamp=new Date().toISOString().slice(2,10).replace(/-/g,'')
+  const entropy=crypto.randomUUID().replace(/-/g,'').slice(0,8).toUpperCase()
+  return `${normalizeReferencePrefix(prefix)}-${stamp}-${entropy}`
+}
 
 const defaultEmailTemplates={
   booking_received:{
@@ -331,6 +337,24 @@ const safeMaybeSingle=async<T>(query:Promise<any>,fallback:T | null=null)=>{
     throw new Error(String(error.message || 'Database query failed.'))
   }
   return data ?? fallback
+}
+
+const isUniqueViolation=(error:unknown)=>String((error as { code?:unknown } | null)?.code || '')==='23505'
+
+const bookingReferenceExists=async(reference:string)=>{
+  if(!reference)return false
+  const existing=await safeMaybeSingle<Json>(
+    adminClient.from('bookings').select('id').eq('reference',reference).maybeSingle()
+  )
+  return Boolean(existing?.id)
+}
+
+const createUniqueBookingReference=async(prefix='TT')=>{
+  for(let attempt=0;attempt<12;attempt+=1){
+    const reference=formatReference(prefix)
+    if(!(await bookingReferenceExists(reference)))return reference
+  }
+  throw new Error('Unable to generate a unique booking reference. Please try again.')
 }
 
 const encodeUtf8=(value:string)=>new TextEncoder().encode(value)
@@ -1956,7 +1980,12 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const promotionState=await applyPromotions(service as unknown as Json,payload,basePricing)
   const pricing=calculatePricing(service,payload,settings as Json,promotionState.totalDiscountAmount)
   const customer=await upsertCustomer(payload.customer as Json||{})
-  const reference=normalizeText(payload.reference)||formatReference(String(brand.booking_prefix || 'TT'))
+  const requestedReference=normalizeBookingReference(payload.reference)
+  const bookingPrefix=String(brand.booking_prefix || 'TT')
+  if(requestedReference && await bookingReferenceExists(requestedReference)){
+    throw new Error('Booking reference already exists. Please use a unique reference.')
+  }
+  let reference=requestedReference || await createUniqueBookingReference(bookingPrefix)
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
@@ -1966,8 +1995,8 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const requestSource=normalizeText(payload.source)
   const bookingSource=isAdmin ? 'admin' : (requestSource || 'website')
   const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
-  const { data:booking,error }=await adminClient.from('bookings').insert({
-    reference,
+  const buildBookingInsert=(nextReference:string)=>({
+    reference:nextReference,
     brand_code:String(brand.code || brandCode),
     customer_id:customer.id,
     service_id:service.id,
@@ -1994,30 +2023,51 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
       created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via)
     }
-  }).select().single()
-  if(error)throw error
+  })
 
-  await syncBookingItems(booking.id,service,pricing)
+  let booking:Json | null=null
+  let lastInsertError:unknown=null
+  for(let attempt=0;attempt<6;attempt+=1){
+    const { data,error }=await adminClient.from('bookings').insert(buildBookingInsert(reference)).select().single()
+    if(!error){
+      booking=data
+      break
+    }
+    lastInsertError=error
+    if(isUniqueViolation(error)&&!requestedReference){
+      reference=await createUniqueBookingReference(bookingPrefix)
+      continue
+    }
+    if(isUniqueViolation(error)&&requestedReference){
+      throw new Error('Booking reference already exists. Please use a unique reference.')
+    }
+    throw error
+  }
+  if(!booking)throw lastInsertError || new Error('Unable to create booking with a unique reference.')
+  const bookingId=String(booking.id || '')
+  if(!bookingId)throw new Error('Booking was created without an id.')
+
+  await syncBookingItems(bookingId,service,pricing)
   await createOrUpdatePayment(
-    booking.id,
+    bookingId,
     paymentStatus,
     paymentStatus==='paid' ? pricing.totalAmount : outstandingAmounts.amountDueNow,
     service.currency,
     selectedPaymentProvider
   )
-  await maybeCreateBookingDiscounts(booking.id,promotionState.discounts)
+  await maybeCreateBookingDiscounts(bookingId,promotionState.discounts)
   const voucherDiscount=promotionState.discounts.find(item=>item.source_type==='voucher')?.amount || 0
   const agentDiscount=promotionState.discounts.find(item=>item.source_type==='agent')?.amount || 0
-  await maybeApplyVoucherRedemption(booking.id,promotionState.voucherRow,voucherDiscount)
-  await maybeLinkBookingAgent(booking.id,promotionState.agentRow,agentDiscount)
-  await maybeAllocateResources(booking.id,String(service.id || ''),normalizeText(payload.preferred_date),pricing.quantity)
-  await insertStatusHistory(booking.id,null,bookingStatus,isAdmin ? 'Booking created in admin' : `Booking created via ${bookingSource}`,isAdmin ? 'admin' : bookingSource,userId||null)
-  await syncInvoiceForBooking(booking.id)
-  await syncLifecycleTasks(booking.id,userId || null)
-  await maybeCreateAutomatedOfficeSettlement(booking.id,userId || null)
-  await syncReconciliationRecordForBooking(booking.id,userId || null)
+  await maybeApplyVoucherRedemption(bookingId,promotionState.voucherRow,voucherDiscount)
+  await maybeLinkBookingAgent(bookingId,promotionState.agentRow,agentDiscount)
+  await maybeAllocateResources(bookingId,String(service.id || ''),normalizeText(payload.preferred_date),pricing.quantity)
+  await insertStatusHistory(bookingId,null,bookingStatus,isAdmin ? 'Booking created in admin' : `Booking created via ${bookingSource}`,isAdmin ? 'admin' : bookingSource,userId||null)
+  await syncInvoiceForBooking(bookingId)
+  await syncLifecycleTasks(bookingId,userId || null)
+  await maybeCreateAutomatedOfficeSettlement(bookingId,userId || null)
+  await syncReconciliationRecordForBooking(bookingId,userId || null)
   await enqueueBookingEmailJob({
-    bookingId:booking.id,
+    bookingId,
     customerId:customer.id,
     templateKey:'booking_received',
     priority:'high',
@@ -2025,7 +2075,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   })
   if(outstandingAmounts.amountDueNow>0){
     await enqueueBookingEmailJob({
-      bookingId:booking.id,
+      bookingId,
       customerId:customer.id,
       templateKey:'status_changed',
       priority:'normal',
@@ -2037,13 +2087,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     job_type:'status_automation',
     job_group:'operations',
     priority:'normal',
-    booking_id:booking.id,
+    booking_id:bookingId,
     created_by:userId || null
   })
   await processDueSystemJobs()
 
   return {
-    id:booking.id,
+    id:bookingId,
     reference,
     brand_code:String(brand.code || brandCode),
     status:bookingStatus,
