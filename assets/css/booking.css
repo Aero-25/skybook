@@ -1288,6 +1288,120 @@ textarea:focus-visible{
   line-height:1.5;
 }
 
+.executive-radar{
+  display:grid;
+  grid-template-columns:minmax(320px,.8fr) minmax(0,1.4fr);
+  gap:14px;
+  margin:0 0 18px;
+}
+
+.radar-lead,
+.radar-card{
+  position:relative;
+  overflow:hidden;
+  border:1px solid var(--sky-line);
+  background:#fff;
+  box-shadow:var(--sky-shadow-soft);
+}
+
+.radar-lead{
+  min-height:196px;
+  padding:24px;
+  border-radius:26px;
+  background:
+    linear-gradient(140deg,#10283c,#174d7a 58%,#257ec0);
+  color:#fff;
+}
+
+.radar-lead:after{
+  content:"";
+  position:absolute;
+  right:-72px;
+  top:-84px;
+  width:240px;
+  height:240px;
+  border-radius:999px;
+  border:42px solid rgba(255,255,255,.08);
+}
+
+.radar-lead span,
+.radar-card span{
+  display:block;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+}
+
+.radar-lead span{
+  color:#bfe4ff;
+}
+
+.radar-lead h3{
+  position:relative;
+  z-index:1;
+  max-width:520px;
+  margin:16px 0 0;
+  font-size:clamp(28px,3vw,44px);
+  line-height:1.02;
+  letter-spacing:-.06em;
+}
+
+.radar-lead p{
+  position:relative;
+  z-index:1;
+  max-width:620px;
+  margin:14px 0 0;
+  color:#dcefff;
+  line-height:1.7;
+}
+
+.radar-card-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+
+.radar-card{
+  min-height:196px;
+  padding:18px;
+  border-radius:22px;
+}
+
+.radar-card:before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  height:4px;
+  background:#c8dbe9;
+}
+
+.radar-card.is-good:before{background:#45a56f}
+.radar-card.is-warn:before{background:#d89220}
+.radar-card.is-risk:before{background:#c84952}
+
+.radar-card span{
+  color:var(--sky-blue);
+}
+
+.radar-card strong{
+  display:block;
+  margin-top:18px;
+  color:var(--sky-text);
+  font-size:clamp(22px,2.2vw,32px);
+  line-height:1;
+  letter-spacing:-.06em;
+}
+
+.radar-card p{
+  margin:14px 0 0;
+  color:var(--sky-muted);
+  font-size:13px;
+  line-height:1.6;
+}
+
 .admin-view{
   margin-top:18px;
 }
@@ -1625,7 +1739,11 @@ tbody tr:hover td{
     background:linear-gradient(90deg,#ffffff 0 280px,transparent 280px),transparent;
   }
   .admin-command-grid,
+  .executive-radar,
   .ops-switchboard{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .radar-card-grid{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
   .skybook-topbar-title{
@@ -1637,6 +1755,8 @@ tbody tr:hover td{
   .skybook-admin-page .admin-grid,
   .skybook-login-shell,
   .ops-switchboard,
+  .executive-radar,
+  .radar-card-grid,
   .admin-command-grid{
     grid-template-columns:1fr;
   }

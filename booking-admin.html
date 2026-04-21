@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260420-enterprise-workbench">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260421-executive-radar">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -136,6 +136,15 @@
       </section>
 
       <section class="admin-view is-active" data-admin-view="dashboard">
+        <section class="executive-radar" aria-label="SkyBook executive operations radar">
+          <article class="radar-lead">
+            <span>Operating Posture</span>
+            <h3 id="opsPostureTitle">Loading live posture</h3>
+            <p id="opsPostureCopy">SkyBook is checking reservations, finance, supplier coverage, and automation health.</p>
+          </article>
+          <div class="radar-card-grid" id="executiveRadarCards"></div>
+        </section>
+
         <div class="admin-command-grid">
           <article class="booking-panel admin-command-lead">
             <div class="widget-header">
@@ -1158,7 +1167,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260420-enterprise-workbench"></script>
-  <script src="assets/js/booking-admin.js?v=20260420-enterprise-workbench"></script>
+  <script src="assets/js/booking-shared.js?v=20260421-executive-radar"></script>
+  <script src="assets/js/booking-admin.js?v=20260421-executive-radar"></script>
 </body>
 </html>

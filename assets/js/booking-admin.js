@@ -110,6 +110,9 @@ const nodes={
   adminStatus:document.getElementById('bookingAdminStatus'),
   tabs:[...document.querySelectorAll('[data-admin-tab]')],
   views:[...document.querySelectorAll('[data-admin-view]')],
+  opsPostureTitle:document.getElementById('opsPostureTitle'),
+  opsPostureCopy:document.getElementById('opsPostureCopy'),
+  executiveRadarCards:document.getElementById('executiveRadarCards'),
   dashboardCards:document.getElementById('dashboardCards'),
   dashboardActionQueue:document.getElementById('dashboardActionQueue'),
   dashboardArrivalsTable:document.getElementById('dashboardArrivalsTable'),
@@ -963,6 +966,56 @@ const renderDashboard=()=>{
   const payoutExposure=sumAmounts(operatorPayoutsDue,'total_amount')
   const openTasks=state.bookingTasks.filter(task=>String(task.status||'')==='open')
   const alerts=buildOperationalAlerts()
+  const unassignedOperators=state.bookings.filter(booking=>{
+    const status=String(booking.status||'').toLowerCase()
+    return ['pending','awaiting_payment','confirmed'].includes(status) && getBookingOperatorName(booking)==='Unassigned'
+  })
+  const failedJobs=state.systemJobs.filter(job=>String(job.status||'').toLowerCase()==='failed')
+  const failedEmails=state.emailLogs.filter(log=>String(log.status||'').toLowerCase()==='failed')
+  const postureRiskCount=pendingConfirmations.length+unpaidBookings.length+unassignedOperators.length+failedJobs.length+failedEmails.length
+  const postureTitle=postureRiskCount
+    ? `${postureRiskCount} operational signals need attention`
+    : 'Operations posture is steady'
+  const postureCopy=postureRiskCount
+    ? 'Prioritise the queues below before the next departure window: confirmations, guest balances, supplier assignment, and automation failures.'
+    : 'Reservations, finance, supplier coverage, and automation signals are currently inside the expected operating range.'
+  if(nodes.opsPostureTitle)nodes.opsPostureTitle.textContent=postureTitle
+  if(nodes.opsPostureCopy)nodes.opsPostureCopy.textContent=postureCopy
+  if(nodes.executiveRadarCards){
+    const radarCards=[
+      {
+        label:'Reservations readiness',
+        value:pendingConfirmations.length ? `${pendingConfirmations.length} pending` : 'Clear',
+        meta:pendingConfirmations.length ? 'Confirm or decline pending bookings.' : 'No reservations are waiting for confirmation.',
+        tone:pendingConfirmations.length?'warn':'good'
+      },
+      {
+        label:'Finance control',
+        value:unpaidExposure ? bookingAdminShared.formatMoney(unpaidExposure,state.settings.currency||'NAD') : 'Balanced',
+        meta:unpaidExposure ? 'Outstanding guest exposure requires follow-up.' : 'No unpaid exposure is currently loaded.',
+        tone:unpaidExposure?'risk':'good'
+      },
+      {
+        label:'Supplier coverage',
+        value:unassignedOperators.length ? `${unassignedOperators.length} unassigned` : 'Covered',
+        meta:unassignedOperators.length ? 'Assign operators, guides, vehicles, or resources.' : 'Active bookings have operator coverage.',
+        tone:unassignedOperators.length?'warn':'good'
+      },
+      {
+        label:'Automation health',
+        value:(failedJobs.length+failedEmails.length) ? `${failedJobs.length+failedEmails.length} failures` : 'Healthy',
+        meta:(failedJobs.length+failedEmails.length) ? 'Review failed jobs, emails, webhooks, or payment callbacks.' : 'No failed jobs or emails are currently loaded.',
+        tone:(failedJobs.length+failedEmails.length)?'risk':'good'
+      }
+    ]
+    nodes.executiveRadarCards.innerHTML=radarCards.map(card=>`
+      <article class="radar-card is-${bookingAdminShared.escapeHtml(card.tone)}">
+        <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+        <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+        <p>${bookingAdminShared.escapeHtml(card.meta)}</p>
+      </article>
+    `).join('')
+  }
   const cancellationAlerts=[
     ...state.bookings.filter(booking=>String(booking.status||'').toLowerCase()==='cancelled').slice(0,6).map(booking=>({
       booking:booking.reference,
