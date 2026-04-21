@@ -20,6 +20,7 @@ SkyBook is not considered public-launch ready until every blocked item is cleare
   - `SUPABASE_URL`
   - `SUPABASE_ANON_KEY`
   - `SUPABASE_SERVICE_ROLE_KEY`
+  - `STRIPE_WEBHOOK_SECRET` if Stripe, Apple Pay, or Google Pay webhooks are enabled.
   - `DPO_COMPANY_TOKEN`
   - `DPO_SERVICE_TYPE`
   - `STRIPE_SECRET_KEY` if Stripe, Apple Pay, or Google Pay are enabled through Stripe.

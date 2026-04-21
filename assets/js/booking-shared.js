@@ -799,11 +799,15 @@ window.TrueTravelBooking=(()=>{
     const host=String(window.location.hostname||'').toLowerCase()
     return window.location.protocol==='file:' || ['localhost','127.0.0.1','::1'].includes(host)
   }
+  const isNonProductionEnvironment=()=>{
+    const environment=safeText(readConfig().environment).toLowerCase()
+    return ['development','dev','demo','staging','test','local'].includes(environment)
+  }
   const isDemoFallbackAllowed=()=>{
     const query=new URLSearchParams(window.location.search)
-    if(query.get('demo')==='1')return true
     const config=readConfig()
-    return config.allowDemoFallback===true && isLocalRuntime()
+    if(isLocalRuntime())return query.get('demo')==='1' || config.allowDemoFallback===true
+    return query.get('demo')==='1' && config.allowDemoFallback===true && isNonProductionEnvironment()
   }
   const getLiveApiUnavailableError=()=>new Error('Live SkyBook API is unavailable. Demo fallback is disabled in production so no fake bookings or payments are created.')
 

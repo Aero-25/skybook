@@ -18,9 +18,51 @@ const asNumber=(value:unknown,fallback=0)=>{
   const numeric=Number(value)
   return Number.isFinite(numeric) ? numeric : fallback
 }
+const isTruthyEnv=(value:unknown)=>['1','true','yes','on'].includes(safeText(value).toLowerCase())
 const readXmlTag=(xml:string,tag:string)=>{
   const match=xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`,'i'))
   return safeText(match?.[1] ?? '')
+}
+const timingSafeEqual=(left:string,right:string)=>{
+  if(left.length!==right.length)return false
+  let mismatch=0
+  for(let index=0;index<left.length;index+=1){
+    mismatch|=left.charCodeAt(index)^right.charCodeAt(index)
+  }
+  return mismatch===0
+}
+const toHex=(bytes:ArrayBuffer)=>[...new Uint8Array(bytes)].map(value=>value.toString(16).padStart(2,'0')).join('')
+
+const verifyStripeWebhookSignature=async(rawBody:string,signatureHeader:string,secret:string)=>{
+  const components=signatureHeader.split(',').map(part=>part.trim()).filter(Boolean)
+  const timestamp=components.find(part=>part.startsWith('t='))?.slice(2) || ''
+  const signatures=components.filter(part=>part.startsWith('v1=')).map(part=>part.slice(3)).filter(Boolean)
+  if(!timestamp || !signatures.length){
+    throw new Error('Stripe webhook signature header is missing the expected timestamp or v1 signature.')
+  }
+
+  const toleranceSeconds=Math.max(0,asNumber(Deno.env.get('STRIPE_WEBHOOK_TOLERANCE_SECONDS'),300))
+  const timestampSeconds=asNumber(timestamp,0)
+  if(toleranceSeconds>0 && timestampSeconds>0){
+    const ageSeconds=Math.abs(Math.floor(Date.now()/1000)-timestampSeconds)
+    if(ageSeconds>toleranceSeconds){
+      throw new Error('Stripe webhook timestamp is outside the allowed tolerance.')
+    }
+  }
+
+  const encoder=new TextEncoder()
+  const cryptoKey=await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name:'HMAC', hash:'SHA-256' },
+    false,
+    ['sign']
+  )
+  const digest=await crypto.subtle.sign('HMAC',cryptoKey,encoder.encode(`${timestamp}.${rawBody}`))
+  const expectedSignature=toHex(digest)
+  if(!signatures.some(signature=>timingSafeEqual(signature,expectedSignature))){
+    throw new Error('Stripe webhook signature could not be verified.')
+  }
 }
 
 const recordHealthEvent=async(payload:{
@@ -46,25 +88,35 @@ const recordHealthEvent=async(payload:{
 }
 
 const parsePayload=async(request:Request,url:URL)=>{
-  if(request.method==='GET')return Object.fromEntries(url.searchParams.entries())
+  if(request.method==='GET')return { payload:Object.fromEntries(url.searchParams.entries()), rawText:'' }
   const contentType=request.headers.get('content-type') || ''
+  const clone=request.clone()
+  const rawText=await request.text()
   if(contentType.includes('application/json')){
-    return await request.json().catch(()=>({}))
+    return { payload:rawText ? JSON.parse(rawText) : {}, rawText }
   }
-  if(contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')){
-    const formData=await request.formData()
-    return Object.fromEntries([...formData.entries()].map(([key,value])=>[key,String(value)]))
+  if(contentType.includes('application/x-www-form-urlencoded')){
+    return { payload:Object.fromEntries(new URLSearchParams(rawText).entries()), rawText }
   }
-  const text=await request.text()
-  if(contentType.includes('xml') || text.trim().startsWith('<')){
+  if(contentType.includes('multipart/form-data')){
+    const formData=await clone.formData()
     return {
-      Result:readXmlTag(text,'Result'),
-      ResultExplanation:readXmlTag(text,'ResultExplanation'),
-      TransToken:readXmlTag(text,'TransToken'),
-      TransRef:readXmlTag(text,'TransRef')
+      payload:Object.fromEntries([...formData.entries()].map(([key,value])=>[key,String(value)])),
+      rawText
     }
   }
-  return Object.fromEntries(new URLSearchParams(text).entries())
+  if(contentType.includes('xml') || rawText.trim().startsWith('<')){
+    return {
+      payload:{
+        Result:readXmlTag(rawText,'Result'),
+        ResultExplanation:readXmlTag(rawText,'ResultExplanation'),
+        TransToken:readXmlTag(rawText,'TransToken'),
+        TransRef:readXmlTag(rawText,'TransRef')
+      },
+      rawText
+    }
+  }
+  return { payload:Object.fromEntries(new URLSearchParams(rawText).entries()), rawText }
 }
 
 const resolvePaymentId=(provider:string,payload:Record<string,unknown>,url:URL)=>{
@@ -132,16 +184,31 @@ Deno.serve(async request=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   if(!['POST','GET'].includes(request.method))return json(405,{error:'Method not allowed.'})
   try{
-    const payload=(await parsePayload(request,url)) as Record<string,unknown>
-    const gatewayProvider=resolveWebhookProvider(payload,url)
-    const paymentId=resolvePaymentId(gatewayProvider,payload,url)
+    const { payload, rawText }=await parsePayload(request,url)
+    const parsedPayload=payload as Record<string,unknown>
+    const gatewayProvider=resolveWebhookProvider(parsedPayload,url)
+    if(request.method==='GET' && gatewayProvider!=='dpo'){
+      return json(405,{error:'Method not allowed.'})
+    }
+    if(gatewayProvider==='stripe'){
+      if(request.method!=='POST'){
+        return json(405,{error:'Method not allowed.'})
+      }
+      const stripeWebhookSecret=safeText(Deno.env.get('STRIPE_WEBHOOK_SECRET'))
+      if(stripeWebhookSecret){
+        await verifyStripeWebhookSignature(rawText,request.headers.get('stripe-signature') || '',stripeWebhookSecret)
+      }else if(isTruthyEnv(Deno.env.get('REQUIRE_STRIPE_WEBHOOK_SIGNATURE'))){
+        throw new Error('STRIPE_WEBHOOK_SECRET is required to verify Stripe webhooks.')
+      }
+    }
+    const paymentId=resolvePaymentId(gatewayProvider,parsedPayload,url)
     if(!paymentId){
       await recordHealthEvent({
         event_type:'payment_callback',
         severity:'error',
         summary:'Payment webhook received without payment_id',
         detail:'The webhook payload did not include a resolvable payment_id.',
-        metadata:{ provider:gatewayProvider, payload }
+        metadata:{ provider:gatewayProvider, payload:parsedPayload }
       })
       return json(400,{error:'payment_id is required.'})
     }
@@ -153,15 +220,15 @@ Deno.serve(async request=>{
         severity:'critical',
         summary:'Payment webhook could not match payment record',
         detail:String(paymentError?.message || 'Payment not found.'),
-        metadata:{ provider:gatewayProvider, payment_id:paymentId, payload }
+        metadata:{ provider:gatewayProvider, payment_id:paymentId, payload:parsedPayload }
       })
       return json(404,{error:'Payment not found.'})
     }
 
     const paymentProvider=safeText(payment.provider || gatewayProvider || 'custom')
-    const nextStatus=resolveNextStatus(gatewayProvider,payload)
-    const amount=resolveAmount(gatewayProvider,payload,payment)
-    const providerReference=resolveProviderReference(gatewayProvider,payload)
+    const nextStatus=resolveNextStatus(gatewayProvider,parsedPayload)
+    const amount=resolveAmount(gatewayProvider,parsedPayload,payment)
+    const providerReference=resolveProviderReference(gatewayProvider,parsedPayload)
 
     const transactionInsert=await supabase.from('payment_transactions').insert({
       payment_id:payment.id,
@@ -171,7 +238,7 @@ Deno.serve(async request=>{
       status:nextStatus,
       amount,
       currency_code:String(payment.currency_code || 'NAD'),
-      raw_payload:payload,
+      raw_payload:parsedPayload,
       reconciled_at:new Date().toISOString()
     })
     if(transactionInsert.error)throw transactionInsert.error
@@ -212,7 +279,7 @@ Deno.serve(async request=>{
         event_type:'payment_callback',
         severity:'warning',
         summary:'Payment callback reported a failed payment',
-        detail:safeText(payload.ResultExplanation || payload.message || 'Gateway returned a failed payment status.'),
+        detail:safeText(parsedPayload.ResultExplanation || parsedPayload.message || 'Gateway returned a failed payment status.'),
         related_booking_id:safeText(payment.booking_id),
         metadata:{ provider:gatewayProvider, payment_id:paymentId, provider_reference:providerReference }
       })

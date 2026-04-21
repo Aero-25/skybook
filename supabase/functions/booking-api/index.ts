@@ -629,7 +629,7 @@ const resolvePortalSessionContext=async(rawToken:string)=>{
       .from('customer_portal_sessions')
       .select('*')
       .eq('token_hash',tokenHash)
-      .eq('status','active')
+      .in('status',['active','used'])
       .maybeSingle()
   )
   if(!session)throw new Error('Portal link is invalid or has expired.')
@@ -638,10 +638,13 @@ const resolvePortalSessionContext=async(rawToken:string)=>{
     await adminClient.from('customer_portal_sessions').update({ status:'expired' }).eq('id',session.id)
     throw new Error('Portal link has expired.')
   }
+  const accessedAt=nowIso()
+  const nextStatus=normalizeText(session.status)==='active' ? 'used' : normalizeText(session.status) || 'used'
   await adminClient.from('customer_portal_sessions').update({
-    last_accessed_at:nowIso(),
-    status:'used'
+    last_accessed_at:accessedAt,
+    status:nextStatus
   }).eq('id',session.id)
+  const resolvedSession={...session,last_accessed_at:accessedAt,status:nextStatus}
   const bookingContext=await fetchBookingDocumentContext(String(session.booking_id))
   const requests=await safeTableSelect<Json>(adminClient.from('booking_portal_requests').select('*').eq('booking_id',String(session.booking_id)).order('created_at',{ascending:false}),[])
   const documents=await safeTableSelect<Json>(adminClient.from('booking_documents').select('*').eq('booking_id',String(session.booking_id)).order('generated_at',{ascending:false}),[])
@@ -652,7 +655,7 @@ const resolvePortalSessionContext=async(rawToken:string)=>{
   })))
   return {
     success:true,
-    portal_session:session,
+    portal_session:resolvedSession,
     booking:{
       id:bookingContext.booking.id,
       reference:bookingContext.booking.reference,
