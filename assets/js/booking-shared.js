@@ -209,6 +209,7 @@ window.TrueTravelBooking=(()=>{
         deposit_value:30,
         media_url:tour.imageUrl||'',
         highlight_points:tour.timeSlots||[],
+        brand_codes:Object.keys(BRAND_CATALOG),
         addons:[],
         sort_order:index+1
       }
@@ -249,6 +250,13 @@ window.TrueTravelBooking=(()=>{
     deposit_value:Number(service?.deposit_value||30),
     media_url:safeText(service?.media_url||service?.imageUrl||''),
     highlight_points:Array.isArray(service?.highlight_points) ? service.highlight_points.map(safeText).filter(Boolean) : [],
+    brand_codes:Array.from(new Set(
+      (
+        Array.isArray(service?.brand_codes)
+          ? service.brand_codes
+          : (Array.isArray(service?.metadata?.brand_codes) ? service.metadata.brand_codes : Object.keys(BRAND_CATALOG))
+      ).map(value=>safeText(value)).filter(Boolean)
+    )),
     addons:Array.isArray(service?.addons) ? service.addons.map(normalizeAddon) : [],
     sort_order:Number(service?.sort_order||0)||0
   })
@@ -463,16 +471,21 @@ window.TrueTravelBooking=(()=>{
     return {bookings,customers,payments}
   }
 
-  const localApiRequest=async(path,{method='GET',body}={})=>{
+  const localApiRequest=async(path,{method='GET',body,headers={}}={})=>{
     const db=readDemoDb()
     const normalizedPath=String(path||'').replace(/^\/+/,'')
     const parts=normalizedPath.split('/').filter(Boolean)
+    const requestedBrandCode=safeText(headers?.['x-brand-code']||headers?.['X-Brand-Code']||body?.brand_code||readConfig().brandCode)
+    const isVisibleForBrand=(service,brandCode='')=>{
+      const normalizedService=normalizeService(service)
+      return !brandCode || normalizedService.brand_codes.includes(brandCode)
+    }
 
     if(method==='GET'&&normalizedPath==='services'){
-      return {services:db.services}
+      return {services:db.services.filter(service=>isVisibleForBrand(service,requestedBrandCode))}
     }
     if(method==='GET'&&parts[0]==='services'&&parts[1]){
-      const service=db.services.find(item=>item.slug===parts[1])
+      const service=db.services.find(item=>item.slug===parts[1]&&isVisibleForBrand(item,requestedBrandCode))
       if(!service)throw new Error('Service not found.')
       return {service}
     }

@@ -2202,6 +2202,9 @@ const rescheduleBooking=async(bookingId:string,payload:Json,userId:string)=>{
 const upsertService=async(payload:Json)=>{
   const categorySlug=normalizeText(payload.category_slug)||'coastal-tours'
   const { data:category }=await adminClient.from('service_categories').select('id').eq('slug',categorySlug).maybeSingle()
+  const brandCodes=Array.isArray(payload.brand_codes)
+    ? Array.from(new Set(payload.brand_codes.map(value=>normalizeText(value)).filter(Boolean)))
+    : []
   const servicePayload={
     category_id:category?.id||null,
     slug:normalizeText(payload.slug),
@@ -2220,7 +2223,8 @@ const upsertService=async(payload:Json)=>{
     is_active:Boolean(payload.is_active!==false),
     metadata:{
       category_slug:categorySlug,
-      highlight_points:Array.isArray(payload.highlight_points) ? payload.highlight_points : []
+      highlight_points:Array.isArray(payload.highlight_points) ? payload.highlight_points : [],
+      brand_codes:brandCodes
     },
     media:[]
   }

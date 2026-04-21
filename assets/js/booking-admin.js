@@ -95,6 +95,29 @@ const state={
   selectedServiceId:''
 }
 
+const getAdminRouteState=()=>{
+  try{
+    const params=new URLSearchParams(window.location.search)
+    return {
+      tab:String(params.get('tab')||'').trim(),
+      serviceId:String(params.get('service')||'').trim()
+    }
+  }catch{
+    return {tab:'',serviceId:''}
+  }
+}
+
+const syncAdminRouteState=({tab='',serviceId=''}={})=>{
+  try{
+    const currentUrl=new URL(window.location.href)
+    if(tab)currentUrl.searchParams.set('tab',tab)
+    else currentUrl.searchParams.delete('tab')
+    if(tab==='services'&&serviceId)currentUrl.searchParams.set('service',serviceId)
+    else currentUrl.searchParams.delete('service')
+    history.replaceState(null,'',`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
+  }catch{}
+}
+
 const nodes={
   authGate:document.getElementById('adminAuthGate'),
   appShell:document.getElementById('adminAppShell'),
@@ -183,6 +206,8 @@ const nodes={
   serviceDuration:document.getElementById('adminServiceDuration'),
   serviceSummary:document.getElementById('adminServiceSummary'),
   serviceHighlights:document.getElementById('adminServiceHighlights'),
+  serviceBrandTrueTravel:document.getElementById('adminServiceBrandTrueTravel'),
+  serviceBrandIventure:document.getElementById('adminServiceBrandIventure'),
   serviceActive:document.getElementById('adminServiceActive'),
   customersTable:document.getElementById('adminCustomersTable'),
   paymentsTable:document.getElementById('adminPaymentsTable'),
@@ -447,6 +472,11 @@ const fixLegacyText=value=>{
 
 const formatDisplayLabel=value=>fixLegacyText(value).replace(/_/g,' ').trim()
 
+const BRAND_VISIBILITY_LABELS={
+  'true-travel':'True Travel',
+  'iventure':'Iventure'
+}
+
 const rawEscapeHtml=bookingAdminShared.escapeHtml.bind(bookingAdminShared)
 bookingAdminShared.escapeHtml=value=>rawEscapeHtml(fixLegacyText(value))
 
@@ -512,6 +542,36 @@ const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
   const rightStamp=parseDateValue(right?.[key])?.getTime()||0
   return rightStamp-leftStamp
 })
+
+const getServiceBrandCodes=service=>{
+  const configured=Array.isArray(service?.brand_codes)
+    ? service.brand_codes.map(value=>String(value||'').trim().toLowerCase()).filter(Boolean)
+    : []
+  return configured.length ? configured : ['true-travel','iventure']
+}
+
+const formatServiceBrandVisibility=service=>{
+  const labels=getServiceBrandCodes(service)
+    .map(code=>BRAND_VISIBILITY_LABELS[code]||formatDisplayLabel(code))
+  if(labels.length===2)return 'True Travel + Iventure'
+  return labels[0]||'No brands selected'
+}
+
+const formatServiceVisibilityLabel=service=>`${service?.is_active===false ? 'Hidden' : 'Active'} - ${formatServiceBrandVisibility(service)}`
+
+const applyRequestedServiceRoute=()=>{
+  const routeState=getAdminRouteState()
+  if(routeState.serviceId){
+    const requestedService=state.services.find(item=>item.id===routeState.serviceId)
+    if(requestedService){
+      state.selectedServiceId=requestedService.id
+      fillServiceForm(requestedService)
+    }
+  }
+  if(routeState.tab||routeState.serviceId){
+    switchTab(routeState.tab||'services')
+  }
+}
 
 const getBookingInvoices=bookingId=>state.invoices.filter(invoice=>invoice.booking_id===bookingId)
 const getBookingOfficeInvoices=bookingId=>state.officeInvoices.filter(invoice=>invoice.booking_id===bookingId)
@@ -1112,6 +1172,10 @@ const switchTab=tab=>{
   nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===nextTab))
   const activeMenuItem=nodes.tabs.find(node=>node.dataset.adminTab===nextTab&&!node.hidden)
   activeMenuItem?.closest('details')?.setAttribute('open','')
+  syncAdminRouteState({
+    tab:nextTab,
+    serviceId:nextTab==='services' ? state.selectedServiceId : ''
+  })
   renderModuleChrome(nextTab)
 }
 
@@ -2079,12 +2143,13 @@ const renderServices=()=>{
       <td>${bookingAdminShared.escapeHtml(service.category_slug)}</td>
       <td>${bookingAdminShared.formatMoney(service.base_price,service.currency)}</td>
       <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
-      <td>${service.is_active ? 'Active' : 'Hidden'}</td>
+      <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
     </tr>
   `).join('')
 }
 
 const fillServiceForm=(service=null)=>{
+  const brandCodes=getServiceBrandCodes(service)
   nodes.serviceId.value=service?.id||''
   nodes.serviceName.value=service?.name||''
   nodes.serviceSlug.value=service?.slug||''
@@ -2094,6 +2159,8 @@ const fillServiceForm=(service=null)=>{
   nodes.serviceDuration.value=service?.duration_label||''
   nodes.serviceSummary.value=service?.short_description||''
   nodes.serviceHighlights.value=(service?.highlight_points||[]).join(', ')
+  if(nodes.serviceBrandTrueTravel)nodes.serviceBrandTrueTravel.checked=brandCodes.includes('true-travel')
+  if(nodes.serviceBrandIventure)nodes.serviceBrandIventure.checked=brandCodes.includes('iventure')
   nodes.serviceActive.checked=service?.is_active!==false
 }
 
@@ -2652,6 +2719,7 @@ const loadAdminData=async()=>{
   fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
   fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
   renderAll()
+  applyRequestedServiceRoute()
 }
 
 const refreshAdmin=async(message='Booking operations console synced.')=>{
@@ -3076,6 +3144,14 @@ const handleBookingSave=async event=>{
 
 const handleServiceSave=async event=>{
   event.preventDefault()
+  const brandCodes=[
+    nodes.serviceBrandTrueTravel?.checked ? 'true-travel' : '',
+    nodes.serviceBrandIventure?.checked ? 'iventure' : ''
+  ].filter(Boolean)
+  if(!brandCodes.length){
+    setAdminStatus('Choose at least one brand before saving this tour.',true)
+    return
+  }
   const payload={
     id:nodes.serviceId.value.trim(),
     slug:nodes.serviceSlug.value.trim(),
@@ -3086,15 +3162,16 @@ const handleServiceSave=async event=>{
     duration_label:nodes.serviceDuration.value.trim(),
     short_description:nodes.serviceSummary.value.trim(),
     highlight_points:nodes.serviceHighlights.value.split(',').map(item=>item.trim()).filter(Boolean),
+    brand_codes:brandCodes,
     is_active:nodes.serviceActive.checked
   }
-  await bookingAdminShared.apiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
+  const response=await bookingAdminShared.apiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
     method:payload.id ? 'PATCH' : 'POST',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   })
-  state.selectedServiceId=''
-  fillServiceForm(null)
+  state.selectedServiceId=String(response?.id||payload.id||state.selectedServiceId||'').trim()
+  syncAdminRouteState({tab:'services',serviceId:state.selectedServiceId})
   await refreshAdmin('Service saved.')
 }
 
@@ -3581,6 +3658,7 @@ nodes.servicesTable.addEventListener('click',event=>{
   if(!service)return
   state.selectedServiceId=service.id
   fillServiceForm(service)
+  switchTab('services')
 })
 
 nodes.adminUsersTable?.addEventListener('click',event=>{

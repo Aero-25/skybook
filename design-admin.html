@@ -76,7 +76,7 @@
       <div class="panel-nav">
         <a class="panel-link" href="admin.html">Gateway</a>
         <button class="panel-link is-active" type="button" data-page="index">Index</button>
-        <button class="panel-link" type="button" data-page="tours">Tours</button>
+        <button class="panel-link" type="button" data-page="tours">Catalog</button>
         <a class="panel-link" href="booking-admin.html">Booking Admin</a>
       </div>
     </aside>
@@ -104,15 +104,16 @@
           <div class="workspace-top">
             <div>
               <div class="editor-panel-kicker" id="libraryBrandKicker">True Travel Library</div>
-              <h1 id="libraryTitle">True Travel Tours</h1>
-              <p id="libraryDescription">Browse your shared tour library, then open a dedicated editor page for one tour at a time while keeping the selected brand preview context.</p>
+              <h1 id="libraryTitle">True Travel Catalog Preview</h1>
+              <p id="libraryDescription">Tours now load in the central SkyBook booking admin. This designer shows which tours the selected brand can display and gives you a direct handoff back to the shared catalog manager.</p>
             </div>
             <div class="workspace-top-actions">
-              <button type="button" id="reloadToursFromRemote">Reload Live Tours</button>
+              <button type="button" id="reloadToursFromRemote">Reload SkyBook Catalog</button>
+              <a id="openCatalogAdminLink" href="booking-admin.html?tab=services">Open Catalog In SkyBook</a>
               <a id="openToursPage" href="../sites/true-travel/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
             </div>
           </div>
-          <div class="workspace-status" id="adminStatus">Choose a brand to open its design workspace, or switch brands later from the sidebar.</div>
+          <div class="workspace-status" id="adminStatus">Choose a brand to open its design workspace. Tour creation, pricing, and brand visibility all live in SkyBook Admin.</div>
           <div class="tours-editor">
             <div class="tour-grid-library" id="tourGrid"></div>
           </div>
@@ -122,6 +123,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
-  <script src="assets/js/admin.js?v=20260417-brandchooser" defer></script>
+  <script src="assets/js/booking-shared.js?v=20260421-centralcatalog" defer></script>
+  <script src="assets/js/admin.js?v=20260421-centralcatalog" defer></script>
 </body>
 </html>
