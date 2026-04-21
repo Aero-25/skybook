@@ -41,3 +41,45 @@
     grid-template-columns:1fr;
   }
 }
+
+@media (max-width:760px){
+  .portal-shell{
+    padding-top:18px;
+  }
+  .portal-hero{
+    gap:14px;
+  }
+  .portal-security-card{
+    padding:18px;
+    border-radius:20px;
+  }
+  .portal-security-card strong{
+    font-size:20px;
+  }
+  .portal-actions-panel{
+    gap:14px;
+  }
+  .portal-actions-panel .detail-inline-actions{
+    display:grid;
+    grid-template-columns:1fr;
+  }
+  .portal-actions-panel .detail-inline-actions .booking-button,
+  .portal-actions-panel .detail-inline-actions button{
+    width:100%;
+    justify-content:center;
+  }
+  .portal-documents-table,
+  .portal-requests-table{
+    margin-top:16px;
+  }
+}
+
+@media (max-width:560px){
+  .portal-security-card{
+    padding:16px;
+  }
+  .portal-body .booking-panel{
+    padding:18px;
+    border-radius:22px;
+  }
+}

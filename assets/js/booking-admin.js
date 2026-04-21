@@ -300,11 +300,31 @@ const nodes={
   toolbarCommandPalette:document.getElementById('toolbarCommandPalette'),
   quickCreateBooking:document.getElementById('quickCreateBooking'),
   toggleTableDensity:document.getElementById('toggleTableDensity'),
+  sidebarToggle:document.getElementById('mobileSidebarToggle'),
+  sidebarBackdrop:document.getElementById('sidebarBackdrop'),
   commandPalette:document.getElementById('commandPalette'),
   commandPaletteInput:document.getElementById('commandPaletteInput'),
   commandPaletteResults:document.getElementById('commandPaletteResults'),
   toastStack:document.getElementById('toastStack'),
   runJobsNowButton:document.getElementById('runJobsNowButton')
+}
+
+const isMobileSidebarViewport=()=>window.innerWidth<=980
+
+const closeMobileSidebar=()=>{
+  document.body.classList.remove('is-sidebar-open','skybook-sidebar-locked')
+  nodes.sidebarToggle?.setAttribute('aria-expanded','false')
+}
+
+const openMobileSidebar=()=>{
+  if(!isMobileSidebarViewport())return
+  document.body.classList.add('is-sidebar-open','skybook-sidebar-locked')
+  nodes.sidebarToggle?.setAttribute('aria-expanded','true')
+}
+
+const toggleMobileSidebar=()=>{
+  if(document.body.classList.contains('is-sidebar-open'))closeMobileSidebar()
+  else openMobileSidebar()
 }
 
 const MODULE_META={
@@ -1177,6 +1197,7 @@ const switchTab=tab=>{
     serviceId:nextTab==='services' ? state.selectedServiceId : ''
   })
   renderModuleChrome(nextTab)
+  closeMobileSidebar()
 }
 
 const requireClient=async()=>{
@@ -1195,6 +1216,7 @@ const renderSession=()=>{
     : label
   if(nodes.sessionLabel)nodes.sessionLabel.textContent=safeLabel
   if(nodes.topSessionLabel)nodes.topSessionLabel.textContent=authenticated ? safeLabel : 'SkyBook'
+  if(!authenticated)closeMobileSidebar()
 }
 
 const getFilteredBookings=()=>{
@@ -3707,6 +3729,8 @@ nodes.runJobsNowButton?.addEventListener('click',()=>{
 
 nodes.openCommandPalette?.addEventListener('click',openCommandPalette)
 nodes.toolbarCommandPalette?.addEventListener('click',openCommandPalette)
+nodes.sidebarToggle?.addEventListener('click',toggleMobileSidebar)
+nodes.sidebarBackdrop?.addEventListener('click',closeMobileSidebar)
 nodes.commandPalette?.addEventListener('click',event=>{
   if(event.target.dataset.commandDismiss==='true')closeCommandPalette()
 })
@@ -3731,7 +3755,15 @@ document.addEventListener('keydown',event=>{
   }
   if(event.key==='Escape'&&!nodes.commandPalette.hidden){
     closeCommandPalette()
+    return
   }
+  if(event.key==='Escape'&&document.body.classList.contains('is-sidebar-open')){
+    closeMobileSidebar()
+  }
+})
+
+window.addEventListener('resize',()=>{
+  if(!isMobileSidebarViewport())closeMobileSidebar()
 })
 
 ;(async()=>{

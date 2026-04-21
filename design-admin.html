@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/admin.css?v=20260417-brandchooser">
 </head>
-<body>
+<body class="design-admin-page">
   <script>
   window.SkyBookConfig={
     brandStorageKey:'skybook_designer_brand',
@@ -20,7 +20,21 @@
         siteBase:'../sites/true-travel',
         homePath:'index.html',
         toursPath:'tours.html',
-        toursLabel:'Tours'
+        toursLabel:'Tours',
+        galleryPath:'gallery.html',
+        galleryBucket:'True Travel',
+        galleryPathPrefix:'gallery/true-travel',
+        pages:[
+          {key:'index',label:'Homepage',path:'index.html',description:'Landing hero, coastal storytelling, and the main booking handoff.'},
+          {key:'tours',label:'Tours',path:'tours.html',description:'Tour discovery, normal vs combo distinction, and guided booking handoff.'},
+          {key:'gallery',label:'Gallery',path:'gallery.html',description:'Public image collection powered by the True Travel gallery library.'},
+          {key:'contact',label:'Contact',path:'contact.html',description:'Lean contact details and map experience.'},
+          {key:'booking',label:'Booking Form',path:'booking.html',description:'True Travel reservation form and payment handoff.'},
+          {key:'services',label:'Services Feed',path:'services.html',description:'Service list powered by the shared SkyBook catalog.'},
+          {key:'service-detail',label:'Service Detail',path:'service.html?service=pelican-point-kayaking',description:'Single service storytelling and booking entry.'},
+          {key:'lookup',label:'Booking Lookup',path:'booking-lookup.html',description:'Guest lookup experience for existing reservations.'},
+          {key:'success',label:'Booking Success',path:'booking-success.html',description:'Post-booking confirmation state for guests.'}
+        ]
       },
       'iventure':{
         label:'Iventure',
@@ -28,7 +42,18 @@
         siteBase:'../sites/iventure',
         homePath:'index.html',
         toursPath:'services.html',
-        toursLabel:'Services'
+        toursLabel:'Services',
+        galleryPath:'index.html',
+        galleryBucket:'True Travel',
+        galleryPathPrefix:'gallery/iventure',
+        pages:[
+          {key:'index',label:'Homepage',path:'index.html',description:'Desert-coast landing page and brand entry.'},
+          {key:'services',label:'Services',path:'services.html',description:'Iventure expedition catalog and booking links.'},
+          {key:'service-detail',label:'Service Detail',path:'service.html?service=sandwich-harbour-dune-drive',description:'Single route detail and booking handoff.'},
+          {key:'booking',label:'Booking Form',path:'booking.html',description:'Shared booking capture for the Iventure guest journey.'},
+          {key:'lookup',label:'Booking Lookup',path:'booking-lookup.html',description:'Guest booking lookup flow.'},
+          {key:'success',label:'Booking Success',path:'booking-success.html',description:'Guest confirmation screen after booking creation.'}
+        ]
       }
     }
   }
@@ -57,6 +82,7 @@
   </div>
 
   <div class="admin-layout">
+    <button class="studio-sidebar-backdrop" id="studioSidebarBackdrop" type="button" aria-label="Close design navigation"></button>
     <aside class="admin-sidebar">
       <div class="admin-brand">SkyBook<span>Design Studio</span></div>
       <p class="admin-note">This workspace is for public-site content and visual editing. Operational booking management, reports, and finance stay in the separate SkyBook booking admin.</p>
@@ -75,31 +101,44 @@
 
       <div class="panel-nav">
         <a class="panel-link" href="admin.html">Gateway</a>
-        <button class="panel-link is-active" type="button" data-page="index">Index</button>
-        <button class="panel-link" type="button" data-page="tours">Catalog</button>
+        <button class="panel-link is-active" type="button" data-page="pages">Pages</button>
+        <button class="panel-link" type="button" data-page="catalog">Catalog</button>
+        <button class="panel-link" type="button" data-page="gallery">Gallery Uploads</button>
         <a class="panel-link" href="booking-admin.html">Booking Admin</a>
       </div>
     </aside>
 
     <main class="admin-main">
-      <section class="panel-view is-active" data-panel-view="index">
+      <div class="studio-mobile-bar">
+        <button class="studio-sidebar-toggle" id="mobileStudioToggle" type="button" aria-label="Open design navigation" aria-expanded="false">
+          <span class="studio-sidebar-toggle-line"></span>
+          <span class="studio-sidebar-toggle-line"></span>
+          <span class="studio-sidebar-toggle-line"></span>
+        </button>
+        <div class="studio-mobile-bar-copy">
+          <span>SkyBook Design Studio</span>
+          <strong id="mobileBrandSummary">True Travel workspace</strong>
+        </div>
+      </div>
+      <section class="panel-view is-active" data-panel-view="pages">
         <div class="workspace-shell">
           <div class="workspace-top">
             <div>
               <div class="editor-panel-kicker" id="workspaceBrandKicker">True Travel Workspace</div>
               <h1 id="workspaceTitle">True Travel Homepage</h1>
-              <p id="workspaceDescription">Preview and visually inspect the selected homepage in admin mode. Use the brand switcher if you want to jump from the ocean-facing site to the dune-facing site.</p>
+              <p id="workspaceDescription">Move page by page through the selected public site so each True Travel surface has its own dedicated design workspace.</p>
             </div>
             <div class="workspace-links">
-              <a class="primary" id="openSiteEditor" href="../sites/true-travel/index.html?admin=1" target="_blank" rel="noopener">Open True Travel Editor</a>
-              <a id="viewSiteLink" href="../sites/true-travel/index.html" target="_blank" rel="noopener">View True Travel Site</a>
+              <a class="primary" id="openSiteEditor" href="../sites/true-travel/index.html?admin=1" target="_blank" rel="noopener">Open Homepage Workspace</a>
+              <a id="viewSiteLink" href="../sites/true-travel/index.html" target="_blank" rel="noopener">View Homepage</a>
             </div>
           </div>
+          <div class="workspace-page-grid" id="pageWorkspaceGrid"></div>
           <iframe id="previewFrame" class="preview-frame" src="../sites/true-travel/index.html?admin=1" title="Site editor preview"></iframe>
         </div>
       </section>
 
-      <section class="panel-view" data-panel-view="tours">
+      <section class="panel-view" data-panel-view="catalog">
         <div class="tours-shell">
           <div class="workspace-top">
             <div>
@@ -119,11 +158,87 @@
           </div>
         </div>
       </section>
+
+      <section class="panel-view" data-panel-view="gallery">
+        <div class="gallery-manager-shell">
+          <div class="workspace-top">
+            <div>
+              <div class="editor-panel-kicker" id="galleryBrandKicker">True Travel Gallery Upload</div>
+              <h1 id="galleryTitle">Publish images to the public gallery</h1>
+              <p id="galleryDescription">Upload True Travel visuals once, save them into Supabase, and let the public gallery page render the same collection directly from the database.</p>
+            </div>
+            <div class="workspace-top-actions">
+              <button type="button" id="reloadGalleryCollection">Reload Gallery</button>
+              <a id="openGalleryPage" href="../sites/true-travel/gallery.html" target="_blank" rel="noopener">Open Gallery Page</a>
+            </div>
+          </div>
+          <div class="workspace-status" id="galleryStatus">Sign in with a SkyBook admin session to upload and manage gallery images.</div>
+          <div class="gallery-manager-grid">
+            <article class="gallery-upload-card">
+              <div class="editor-panel-kicker">Gallery Upload</div>
+              <h2>Add a new gallery image</h2>
+              <p>Each upload stores the image in Supabase Storage and writes the public metadata into the gallery database collection.</p>
+              <form id="galleryUploadForm" class="gallery-upload-form">
+                <label class="sidebar-field">
+                  <span>Image Title</span>
+                  <input id="galleryImageTitle" type="text" placeholder="Pelican Point morning launch" required>
+                </label>
+                <label class="sidebar-field">
+                  <span>Category</span>
+                  <select id="galleryImageCategory" required>
+                    <option value="Coastline">Coastline</option>
+                    <option value="Ocean">Ocean</option>
+                    <option value="Desert">Desert</option>
+                    <option value="Wildlife">Wildlife</option>
+                    <option value="Guest Moments">Guest Moments</option>
+                    <option value="Collection">Collection</option>
+                  </select>
+                </label>
+                <label class="sidebar-field">
+                  <span>Caption</span>
+                  <textarea id="galleryImageCaption" rows="4" placeholder="Describe the light, location, or guest moment shown in this image."></textarea>
+                </label>
+                <div class="gallery-upload-row">
+                  <label class="sidebar-field">
+                    <span>Sort Order</span>
+                    <input id="galleryImageSortOrder" type="number" min="0" step="1" value="0">
+                  </label>
+                  <label class="gallery-toggle">
+                    <input id="galleryImagePublished" type="checkbox" checked>
+                    <span>Publish to the public gallery immediately</span>
+                  </label>
+                </div>
+                <label class="sidebar-field">
+                  <span>Image File</span>
+                  <input id="galleryImageFile" type="file" accept="image/*" required>
+                </label>
+                <div class="workspace-top-actions">
+                  <button type="submit" id="galleryUploadSubmit">Upload To Gallery</button>
+                </div>
+              </form>
+            </article>
+
+            <article class="gallery-library-card">
+              <div class="gallery-library-head">
+                <div>
+                  <div class="editor-panel-kicker">Gallery Library</div>
+                  <h2 id="galleryLibraryTitle">Current public image collection</h2>
+                  <p id="galleryLibraryDescription">These images feed the True Travel gallery page once they are published.</p>
+                </div>
+                <div class="tour-grid-group-count" id="galleryLibraryCount">0</div>
+              </div>
+              <div class="gallery-library-grid" id="galleryLibraryGrid">
+                <article class="tour-grid-empty">The gallery library is loading.</article>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
   <script src="assets/js/booking-shared.js?v=20260421-centralcatalog" defer></script>
-  <script src="assets/js/admin.js?v=20260421-centralcatalog" defer></script>
+  <script src="assets/js/admin.js?v=20260421-gallerystudio" defer></script>
 </body>
 </html>

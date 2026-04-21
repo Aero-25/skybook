@@ -29,10 +29,15 @@ body.has-site-picker{
   display:grid;
   grid-template-columns:280px 1fr;
 }
+.studio-mobile-bar,
+.studio-sidebar-toggle,
+.studio-sidebar-backdrop{
+  display:none;
+}
 .site-picker{
   position:fixed;
   inset:0;
-  z-index:40;
+  z-index:80;
   padding:24px;
   display:none;
   align-items:center;
@@ -224,7 +229,9 @@ body.has-site-picker{
   text-transform:uppercase;
   color:rgba(247,242,233,.58);
 }
-.sidebar-field input{
+.sidebar-field input,
+.sidebar-field select,
+.sidebar-field textarea{
   width:100%;
   padding:12px 14px;
   border-radius:14px;
@@ -233,7 +240,12 @@ body.has-site-picker{
   color:var(--text);
   font:inherit;
 }
-.sidebar-field input::placeholder{color:rgba(247,242,233,.28)}
+.sidebar-field textarea{
+  min-height:120px;
+  resize:vertical;
+}
+.sidebar-field input::placeholder,
+.sidebar-field textarea::placeholder{color:rgba(247,242,233,.28)}
 .sidebar-help{
   margin-top:4px;
   font-size:11px;
@@ -345,6 +357,187 @@ body.has-site-picker{
 .workspace-links a.primary{
   background:var(--gold);
   border-color:transparent;
+}
+.workspace-page-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+}
+.workspace-page-card{
+  display:grid;
+  gap:10px;
+  padding:18px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:22px;
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  text-align:left;
+  cursor:pointer;
+  transition:transform .22s,border-color .22s,background .22s,box-shadow .22s;
+}
+.workspace-page-card:hover,
+.workspace-page-card.is-active{
+  transform:translateY(-2px);
+  border-color:rgba(244,186,24,.34);
+  background:rgba(244,186,24,.08);
+  box-shadow:0 22px 52px rgba(0,0,0,.16);
+}
+.workspace-page-card span{
+  font-size:10px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(247,242,233,.58);
+}
+.workspace-page-card strong{
+  font-family:'Playfair Display',serif;
+  font-size:24px;
+  line-height:1;
+}
+.workspace-page-card p{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.7;
+}
+.gallery-manager-shell{
+  min-height:calc(100vh - 44px);
+  min-height:calc(100svh - 44px);
+  min-height:calc(100dvh - 44px);
+  display:grid;
+  grid-template-rows:auto auto 1fr;
+  gap:16px;
+}
+.gallery-manager-grid{
+  display:grid;
+  grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);
+  gap:16px;
+  min-height:0;
+}
+.gallery-upload-card,
+.gallery-library-card{
+  padding:22px;
+  border-radius:26px;
+  border:1px solid var(--line);
+  background:rgba(12,36,52,.72);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+}
+.gallery-upload-card h2,
+.gallery-library-head h2{
+  margin-top:10px;
+  font-family:'Playfair Display',serif;
+  font-size:32px;
+  line-height:1;
+}
+.gallery-upload-card p,
+.gallery-library-head p{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.75;
+}
+.gallery-upload-form{
+  display:grid;
+  gap:14px;
+  margin-top:18px;
+}
+.gallery-upload-row{
+  display:grid;
+  grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);
+  gap:14px;
+  align-items:end;
+}
+.gallery-toggle{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:50px;
+  padding:0 14px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:14px;
+  background:rgba(255,255,255,.04);
+  font-size:12px;
+  line-height:1.5;
+  color:var(--muted);
+}
+.gallery-toggle input{
+  width:18px;
+  height:18px;
+  margin:0;
+}
+.gallery-library-card{
+  display:grid;
+  grid-template-rows:auto 1fr;
+  gap:18px;
+  min-height:0;
+}
+.gallery-library-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.gallery-library-grid{
+  min-height:0;
+  overflow:auto;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+  padding-right:4px;
+}
+.gallery-media-card{
+  display:grid;
+  gap:12px;
+  padding:16px;
+  border-radius:22px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);
+}
+.gallery-media-card img{
+  width:100%;
+  aspect-ratio:1 / 1;
+  object-fit:cover;
+  border-radius:18px;
+  background:rgba(5,22,35,.5);
+}
+.gallery-media-card strong{
+  font-size:16px;
+  line-height:1.25;
+}
+.gallery-media-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.gallery-media-pill{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.06);
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:rgba(247,242,233,.72);
+}
+.gallery-media-pill.is-published{
+  background:rgba(244,186,24,.12);
+  border-color:rgba(244,186,24,.3);
+  color:#ffdd8a;
+}
+.gallery-media-card p{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.65;
+}
+.gallery-media-card a{
+  color:#ffdd8a;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  text-decoration:none;
+  font-weight:700;
 }
 .preview-frame{
   width:100%;
@@ -898,10 +1091,117 @@ body.has-site-picker{
 }
 .tour-editor-actions button.primary{background:var(--gold);color:#0d2230}
 @media(max-width:980px){
-  .admin-layout{grid-template-columns:1fr}
-  .admin-sidebar{border-right:none;border-bottom:1px solid var(--line)}
+  body.design-admin-page.is-studio-sidebar-open{
+    overflow:hidden;
+  }
+  .admin-layout{
+    grid-template-columns:1fr;
+    position:relative;
+  }
+  .studio-mobile-bar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:14px;
+    padding:14px 16px;
+    border-radius:22px;
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(12,36,52,.72);
+    backdrop-filter:blur(18px);
+    -webkit-backdrop-filter:blur(18px);
+  }
+  .studio-mobile-bar-copy{
+    display:grid;
+    gap:4px;
+    min-width:0;
+  }
+  .studio-mobile-bar-copy span{
+    font-size:10px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:rgba(247,242,233,.58);
+  }
+  .studio-mobile-bar-copy strong{
+    min-width:0;
+    font-size:15px;
+    line-height:1.2;
+    text-transform:capitalize;
+  }
+  .studio-sidebar-toggle{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:4px;
+    width:44px;
+    height:44px;
+    padding:0;
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;
+    background:rgba(255,255,255,.08);
+    color:var(--text);
+    box-shadow:0 10px 22px rgba(0,0,0,.16);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .studio-sidebar-toggle-line{
+    display:block;
+    width:16px;
+    height:2px;
+    border-radius:999px;
+    background:currentColor;
+    transition:transform .2s ease,opacity .2s ease;
+  }
+  .design-admin-page.is-studio-sidebar-open .studio-sidebar-toggle-line:nth-child(1){
+    transform:translateY(6px) rotate(45deg);
+  }
+  .design-admin-page.is-studio-sidebar-open .studio-sidebar-toggle-line:nth-child(2){
+    opacity:0;
+  }
+  .design-admin-page.is-studio-sidebar-open .studio-sidebar-toggle-line:nth-child(3){
+    transform:translateY(-6px) rotate(-45deg);
+  }
+  .studio-sidebar-backdrop{
+    display:block;
+    position:fixed;
+    inset:0;
+    z-index:50;
+    border:none;
+    padding:0;
+    background:rgba(4,16,24,.52);
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+    transition:opacity .22s ease,visibility .22s ease;
+  }
+  .design-admin-page.is-studio-sidebar-open .studio-sidebar-backdrop{
+    opacity:1;
+    visibility:visible;
+    pointer-events:auto;
+  }
+  .admin-sidebar{
+    position:fixed;
+    inset:0 auto 0 0;
+    z-index:60;
+    width:min(86vw,340px);
+    height:100dvh;
+    overflow:auto;
+    padding:24px 18px 28px;
+    border-right:1px solid var(--line);
+    border-bottom:none;
+    border-radius:0 28px 28px 0;
+    background:rgba(7,26,38,.96);
+    box-shadow:26px 0 52px rgba(0,0,0,.26);
+    transform:translateX(-104%);
+    transition:transform .24s ease;
+  }
+  .design-admin-page.is-studio-sidebar-open .admin-sidebar{
+    transform:none;
+  }
   .workspace-shell{height:auto}
   .tours-shell{height:auto}
+  .gallery-manager-shell{min-height:auto}
+  .gallery-manager-grid{grid-template-columns:1fr}
   .preview-frame{min-height:78vh}
   .tour-form-grid,.season-grid{grid-template-columns:1fr}
 }
@@ -914,7 +1214,9 @@ body.has-site-picker{
   .site-picker-dialog{padding:22px}
   .site-picker-copy h1{font-size:34px}
   .site-picker-grid{grid-template-columns:1fr}
-  .workspace-shell,.tours-shell{gap:12px}
+  .workspace-shell,.tours-shell,.gallery-manager-shell{gap:12px}
+  .workspace-page-grid,
+  .gallery-library-grid{grid-template-columns:1fr}
   .workspace-top{
     padding:18px 16px;
     flex-direction:column;
@@ -930,6 +1232,13 @@ body.has-site-picker{
     width:100%;
     text-align:center;
     justify-content:center;
+  }
+  .gallery-library-head{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+  .gallery-upload-row{
+    grid-template-columns:1fr;
   }
   .workspace-status{padding:12px 14px}
   .preview-frame{min-height:62vh;border-radius:22px}
@@ -966,11 +1275,13 @@ body.has-site-picker{
   .site-picker-copy h1{font-size:28px}
   .site-picker-card{padding:18px}
   .site-picker-card strong{font-size:28px}
+  .studio-mobile-bar{padding:12px 14px}
+  .studio-mobile-bar-copy strong{font-size:14px}
   .sidebar-card{padding:14px}
-  .workspace-top,.editor-topbar,.editor-panel,.tour-grid-card,.tour-editor-card{padding:16px}
+  .workspace-top,.editor-topbar,.editor-panel,.tour-grid-card,.tour-editor-card,.gallery-upload-card,.gallery-library-card{padding:16px}
   .preview-frame{min-height:56vh;min-height:56svh;border-radius:18px}
   .editor-shell{width:min(100% - 12px,1180px);margin:12px auto 18px}
-  .sidebar-field input,.tour-field input,.tour-field textarea,.tour-field select,.season-field input{font-size:16px}
+  .sidebar-field input,.sidebar-field select,.sidebar-field textarea,.tour-field input,.tour-field textarea,.tour-field select,.season-field input{font-size:16px}
   .workspace-links a,.workspace-top-actions a,.workspace-top-actions button,.editor-actions a,.editor-actions button,.sidebar-card-actions button,.tour-editor-actions button{min-height:48px;display:flex;align-items:center;justify-content:center}
   .tour-toggle{align-items:flex-start}
 }
