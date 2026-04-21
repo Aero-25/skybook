@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260421-executive-radar">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260421-clean-modules">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -41,39 +41,58 @@
         <div><span>Mode</span><strong>Live Supabase</strong></div>
         <div><span>Brands</span><strong>True Travel + Iventure</strong></div>
       </div>
-      <div class="admin-nav-group">
-        <span>Operations</span>
-        <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">DB</span><span>Command Center</span></button>
-        <button class="admin-tab" data-admin-tab="notifications" type="button"><span class="admin-tab-icon">AL</span><span>Notifications</span></button>
-        <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
-        <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports</span></button>
-        <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
-        <button class="admin-tab" data-admin-tab="audit" type="button"><span class="admin-tab-icon">AD</span><span>Audit Viewer</span></button>
-        <button class="admin-tab" data-admin-tab="health" type="button"><span class="admin-tab-icon">HL</span><span>System Health</span></button>
-        <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
-        <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
-        <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers</span></button>
-      </div>
-      <div class="admin-nav-group">
-        <span>Catalog</span>
-        <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services</span></button>
-        <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">EN</span><span>Booking Engine</span></button>
-      </div>
-      <div class="admin-nav-group">
-        <span>Finance</span>
-        <button class="admin-tab" data-admin-tab="platform" type="button"><span class="admin-tab-icon">FN</span><span>Finance & Platform</span></button>
-      </div>
-      <div class="admin-nav-group">
-        <span>Configuration</span>
-        <button class="admin-tab" data-admin-tab="settings" type="button"><span class="admin-tab-icon">ST</span><span>Settings</span></button>
-        <button class="admin-tab" data-admin-tab="emails" type="button"><span class="admin-tab-icon">EM</span><span>Email Templates</span></button>
-        <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">UR</span><span>Admin Users</span></button>
-      </div>
-      <div class="admin-nav-group">
-        <span>Switch</span>
-        <a class="admin-tab admin-tab-link" href="design-admin.html">Open Design Studio</a>
-        <a class="admin-tab admin-tab-link" href="admin.html">Admin Gateway</a>
-      </div>
+      <nav class="admin-menu" aria-label="SkyBook primary navigation">
+        <details class="admin-menu-section" open>
+          <summary><span>01</span> Command</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">DB</span><span>Command Center</span></button>
+            <button class="admin-tab" data-admin-tab="notifications" type="button"><span class="admin-tab-icon">AL</span><span>Notifications</span></button>
+            <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
+          </div>
+        </details>
+        <details class="admin-menu-section" open>
+          <summary><span>02</span> Reservations</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
+            <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
+            <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
+          </div>
+        </details>
+        <details class="admin-menu-section">
+          <summary><span>03</span> Inventory</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">EN</span><span>Availability Engine</span></button>
+            <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">RS</span><span>Resources & Capacity</span></button>
+            <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">RT</span><span>Rates & Promotions</span></button>
+          </div>
+        </details>
+        <details class="admin-menu-section" open>
+          <summary><span>04</span> Revenue</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
+            <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
+            <button class="admin-tab" data-admin-tab="platform" type="button"><span class="admin-tab-icon">FN</span><span>Invoices & Settlements</span></button>
+            <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports & Analytics</span></button>
+          </div>
+        </details>
+        <details class="admin-menu-section">
+          <summary><span>05</span> Automation</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="emails" type="button"><span class="admin-tab-icon">EM</span><span>Templates & Reminders</span></button>
+            <button class="admin-tab" data-admin-tab="health" type="button"><span class="admin-tab-icon">HL</span><span>System Health</span></button>
+            <button class="admin-tab" data-admin-tab="audit" type="button"><span class="admin-tab-icon">AD</span><span>Audit Trail</span></button>
+          </div>
+        </details>
+        <details class="admin-menu-section">
+          <summary><span>06</span> Administration</summary>
+          <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="settings" type="button"><span class="admin-tab-icon">ST</span><span>Settings</span></button>
+            <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">UR</span><span>Users & Roles</span></button>
+            <a class="admin-tab admin-tab-link" href="design-admin.html"><span class="admin-tab-icon">DS</span><span>Design Studio</span></a>
+            <a class="admin-tab admin-tab-link" href="admin.html"><span class="admin-tab-icon">GW</span><span>Admin Gateway</span></a>
+          </div>
+        </details>
+      </nav>
     </aside>
 
     <main class="admin-content">
@@ -143,6 +162,25 @@
             <p id="opsPostureCopy">SkyBook is checking reservations, finance, supplier coverage, and automation health.</p>
           </article>
           <div class="radar-card-grid" id="executiveRadarCards"></div>
+        </section>
+
+        <section class="capability-map" aria-label="SkyBook capability map">
+          <div class="capability-map-header">
+            <div>
+              <span>SkyBook Platform Architecture</span>
+              <h3>Clean modules, full booking-system depth</h3>
+              <p>Everything is organised into calm work areas so the system can grow into tours, rentals, activities, accommodation, rates, channels, automations, and reporting without becoming cluttered.</p>
+            </div>
+            <button class="booking-button ghost" type="button" data-admin-tab="engine">Open Engine</button>
+          </div>
+          <div class="capability-grid">
+            <button type="button" data-admin-tab="bookings"><span>Booking Core</span><strong>Reservations, availability, groups, public/private bookings, calendar</strong></button>
+            <button type="button" data-admin-tab="customers"><span>CRM</span><strong>Profiles, accounts, booking history, forms, communication</strong></button>
+            <button type="button" data-admin-tab="reports"><span>Analytics</span><strong>Revenue, trends, exports, sales and marketing insight</strong></button>
+            <button type="button" data-admin-tab="engine"><span>Inventory</span><strong>Resources, capacity, multi-location availability, allocation</strong></button>
+            <button type="button" data-admin-tab="platform"><span>Revenue</span><strong>Pricing, discounts, packages, commissions, settlements</strong></button>
+            <button type="button" data-admin-tab="health"><span>Automation</span><strong>Confirmations, reminders, restrictions, jobs, channel workflows</strong></button>
+          </div>
         </section>
 
         <div class="admin-command-grid">
@@ -1167,7 +1205,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260421-executive-radar"></script>
-  <script src="assets/js/booking-admin.js?v=20260421-executive-radar"></script>
+  <script src="assets/js/booking-shared.js?v=20260421-clean-modules"></script>
+  <script src="assets/js/booking-admin.js?v=20260421-clean-modules"></script>
 </body>
 </html>
