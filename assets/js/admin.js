@@ -258,7 +258,16 @@ const getServiceBrandCodes=service=>{
 
 const formatMoney=(value,currency='NAD')=>{
   if(bookingCatalog?.formatMoney)return bookingCatalog.formatMoney(value,currency)
-  return new Intl.NumberFormat('en-NA',{style:'currency',currency,maximumFractionDigits:2}).format(Number(value||0))
+  const amount=Number(value||0)
+  const normalizedCurrency=String(currency||'NAD').trim().toUpperCase()
+  if(normalizedCurrency==='NAD' || normalizedCurrency==='N$'){
+    const formattedAmount=new Intl.NumberFormat('en-NA',{
+      minimumFractionDigits:2,
+      maximumFractionDigits:2
+    }).format(Math.abs(amount))
+    return `${amount<0 ? '-' : ''}N$${formattedAmount}`
+  }
+  return new Intl.NumberFormat('en-NA',{style:'currency',currency:normalizedCurrency,maximumFractionDigits:2}).format(amount)
 }
 
 const formatDateTime=value=>{

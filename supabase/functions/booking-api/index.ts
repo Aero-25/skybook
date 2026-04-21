@@ -953,6 +953,9 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     media_url:Array.isArray(service.media)&&service.media.length ? String(service.media[0]?.url||'') : '',
     highlight_points:Array.isArray(service.metadata?.highlight_points) ? service.metadata.highlight_points : [],
     brand_codes:Array.isArray(service.metadata?.brand_codes) ? service.metadata.brand_codes : [],
+    minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
+    departure_window:normalizeText(service.metadata?.departure_window),
+    pickup_time:normalizeText(service.metadata?.pickup_time),
     addons:[]
   }))
 }
@@ -964,7 +967,8 @@ const getServiceBySlug=async(slug:string,includeInactive=false,brandCode='')=>{
 }
 
 const calculatePricing=(service:Json,payload:Json,settings:Json,discountAmount=0)=>{
-  const quantity=Math.max(1,Number(payload.quantity||1)||1)
+  const minimumPax=Math.max(1,Number(service.minimum_pax||1)||1)
+  const quantity=Math.max(minimumPax,Number(payload.quantity||minimumPax)||minimumPax)
   const basePrice=Number(service.base_price||0)
   const subtotal=Number((basePrice*quantity).toFixed(2))
   const taxRate=Number(payload.taxRate ?? settings.taxRate ?? 0)
@@ -996,11 +1000,12 @@ const calculatePricing=(service:Json,payload:Json,settings:Json,discountAmount=0
 const validatePublicBookingPayload=(service:Json,payload:Json)=>{
   const customer=(payload.customer||{}) as Json
   const errors:string[]=[]
+  const minimumPax=Math.max(1,Number(service.minimum_pax||1)||1)
   if(!normalizeText(payload.service_slug))errors.push('Service is required.')
   if(!normalizeText(customer.full_name))errors.push('Customer full name is required.')
   if(!normalizeText(customer.email)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(customer.email)))errors.push('Valid customer email is required.')
   if(!normalizeText(customer.phone))errors.push('Phone or WhatsApp is required.')
-  if(Number(payload.quantity||0)<1)errors.push('Quantity must be at least 1.')
+  if(Number(payload.quantity||0)<minimumPax)errors.push(`Quantity must be at least ${minimumPax}.`)
   if(String(service.preferred_date_mode)==='required'&&!normalizeText(payload.preferred_date))errors.push('Preferred date is required for this service.')
   if(payload.accept_terms!==true && payload.admin_created!==true)errors.push('Terms acceptance is required.')
   if(errors.length)throw new Error(errors[0])
@@ -2217,6 +2222,7 @@ const upsertService=async(payload:Json)=>{
   const brandCodes=Array.isArray(payload.brand_codes)
     ? Array.from(new Set(payload.brand_codes.map(value=>normalizeText(value)).filter(Boolean)))
     : []
+  const minimumPax=Math.max(1,Number(payload.minimum_pax||1)||1)
   const servicePayload={
     category_id:category?.id||null,
     slug:normalizeText(payload.slug),
@@ -2236,7 +2242,10 @@ const upsertService=async(payload:Json)=>{
     metadata:{
       category_slug:categorySlug,
       highlight_points:Array.isArray(payload.highlight_points) ? payload.highlight_points : [],
-      brand_codes:brandCodes
+      brand_codes:brandCodes,
+      minimum_pax:minimumPax,
+      departure_window:normalizeText(payload.departure_window),
+      pickup_time:normalizeText(payload.pickup_time)
     },
     media:[]
   }

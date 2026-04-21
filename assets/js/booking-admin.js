@@ -204,6 +204,9 @@ const nodes={
   servicePrice:document.getElementById('adminServicePrice'),
   serviceDateRule:document.getElementById('adminServiceDateRule'),
   serviceDuration:document.getElementById('adminServiceDuration'),
+  serviceMinPax:document.getElementById('adminServiceMinPax'),
+  serviceDepartureWindow:document.getElementById('adminServiceDepartureWindow'),
+  servicePickupTime:document.getElementById('adminServicePickupTime'),
   serviceSummary:document.getElementById('adminServiceSummary'),
   serviceHighlights:document.getElementById('adminServiceHighlights'),
   serviceBrandTrueTravel:document.getElementById('adminServiceBrandTrueTravel'),
@@ -2164,6 +2167,7 @@ const renderServices=()=>{
       <td>${bookingAdminShared.escapeHtml(service.name)}</td>
       <td>${bookingAdminShared.escapeHtml(service.category_slug)}</td>
       <td>${bookingAdminShared.formatMoney(service.base_price,service.currency)}</td>
+      <td>${bookingAdminShared.escapeHtml(service.minimum_pax||1)}</td>
       <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
       <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
     </tr>
@@ -2179,6 +2183,9 @@ const fillServiceForm=(service=null)=>{
   nodes.servicePrice.value=service?.base_price||''
   nodes.serviceDateRule.value=service?.preferred_date_mode||'optional'
   nodes.serviceDuration.value=service?.duration_label||''
+  if(nodes.serviceMinPax)nodes.serviceMinPax.value=service?.minimum_pax||1
+  if(nodes.serviceDepartureWindow)nodes.serviceDepartureWindow.value=service?.departure_window||''
+  if(nodes.servicePickupTime)nodes.servicePickupTime.value=service?.pickup_time||''
   nodes.serviceSummary.value=service?.short_description||''
   nodes.serviceHighlights.value=(service?.highlight_points||[]).join(', ')
   if(nodes.serviceBrandTrueTravel)nodes.serviceBrandTrueTravel.checked=brandCodes.includes('true-travel')
@@ -3182,6 +3189,9 @@ const handleServiceSave=async event=>{
     base_price:Number(nodes.servicePrice.value||0),
     preferred_date_mode:nodes.serviceDateRule.value,
     duration_label:nodes.serviceDuration.value.trim(),
+    minimum_pax:Math.max(1,Number(nodes.serviceMinPax?.value||1)||1),
+    departure_window:nodes.serviceDepartureWindow?.value?.trim()||'',
+    pickup_time:nodes.servicePickupTime?.value?.trim()||'',
     short_description:nodes.serviceSummary.value.trim(),
     highlight_points:nodes.serviceHighlights.value.split(',').map(item=>item.trim()).filter(Boolean),
     brand_codes:brandCodes,
@@ -3222,7 +3232,9 @@ const handleSettingsSave=async event=>{
   event.preventDefault()
   const data=new FormData(nodes.settingsForm)
   const payload={
-    currency:String(data.get('currency')||'NAD'),
+    currency:bookingAdminShared.normalizeCurrencyCode
+      ? bookingAdminShared.normalizeCurrencyCode(String(data.get('currency')||'NAD'))
+      : String(data.get('currency')||'NAD'),
     supportEmail:String(data.get('supportEmail')||''),
     supportPhone:String(data.get('supportPhone')||''),
     defaultDepositValue:Number(data.get('defaultDepositValue')||30),

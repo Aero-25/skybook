@@ -121,6 +121,14 @@ window.TrueTravelBooking=(()=>{
     }
   }
   const writeJson=(key,value)=>localStorage.setItem(key,JSON.stringify(value))
+  const normalizeCurrencyCode=value=>{
+    const normalized=String(value||'').trim().toUpperCase()
+    if(!normalized)return 'NAD'
+    if(normalized==='N$')return 'NAD'
+    const compact=normalized.replace(/[^A-Z$]/g,'')
+    if(compact==='N$' || compact==='NAD' || compact.includes('N$'))return 'NAD'
+    return compact.replace(/[^A-Z]/g,'')||'NAD'
+  }
   const getPageBrandCode=()=>{
     const queryBrand=new URLSearchParams(window.location.search).get('brand')
     if(queryBrand&&BRAND_CATALOG[toSlug(queryBrand)])return toSlug(queryBrand)
@@ -140,9 +148,18 @@ window.TrueTravelBooking=(()=>{
     const savedConfig=readJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,{})
     const stored={...DEFAULT_CONFIG,...savedConfig}
     const brandCode=toSlug(getPageBrandCode()||savedConfig.brandCode||DEFAULT_CONFIG.brandCode)||'true-travel'
-    return {...stored,...getBrandConfig(brandCode),brandCode}
+    return {
+      ...stored,
+      ...getBrandConfig(brandCode),
+      currency:normalizeCurrencyCode(stored.currency||DEFAULT_CONFIG.currency),
+      brandCode
+    }
   }
-  const writeConfig=config=>writeJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,{...readConfig(),...config})
+  const writeConfig=config=>{
+    const nextConfig={...readConfig(),...config}
+    nextConfig.currency=normalizeCurrencyCode(nextConfig.currency)
+    writeJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,nextConfig)
+  }
   let supabaseBrowserModulePromise=null
   const loadSupabaseBrowserModule=()=>{
     if(supabaseBrowserModulePromise)return supabaseBrowserModulePromise
@@ -177,7 +194,21 @@ window.TrueTravelBooking=(()=>{
   const uid=(prefix='tt')=>`${prefix}_${Math.random().toString(36).slice(2,10)}${Date.now().toString(36).slice(-4)}`
   const formatMoney=(value,currency=readConfig().currency)=>{
     const amount=Number(value||0)
-    return new Intl.NumberFormat(readConfig().locale,{style:'currency',currency,maximumFractionDigits:2}).format(amount)
+    const locale=readConfig().locale||'en-NA'
+    const normalizedCurrency=normalizeCurrencyCode(currency||readConfig().currency)
+    if(normalizedCurrency==='NAD'){
+      const formattedAmount=new Intl.NumberFormat(locale,{
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
+      }).format(Math.abs(amount))
+      const symbol=readConfig().currencySymbol||'N$'
+      return `${amount<0 ? '-' : ''}${symbol}${formattedAmount}`
+    }
+    return new Intl.NumberFormat(locale,{
+      style:'currency',
+      currency:normalizedCurrency,
+      maximumFractionDigits:2
+    }).format(amount)
   }
   const createReference=()=>{
     const config=readConfig()
@@ -231,35 +262,44 @@ window.TrueTravelBooking=(()=>{
     is_active:addon?.is_active!==false
   })
 
-  const normalizeService=service=>({
-    id:service?.id||uid('svc'),
-    slug:toSlug(service?.slug||service?.name||uid('service')),
-    category_slug:toSlug(service?.category_slug||service?.categorySlug||'coastal-tours'),
-    name:safeText(service?.name)||'Untitled Service',
-    short_description:safeText(service?.short_description||service?.shortDescription||''),
-    full_description:safeText(service?.full_description||service?.fullDescription||service?.short_description||''),
-    duration_label:safeText(service?.duration_label||service?.durationLabel||'Flexible'),
-    unit_label:safeText(service?.unit_label||service?.unitLabel||'guest'),
-    preferred_date_mode:DATE_REQUIREMENT_TYPES.includes(service?.preferred_date_mode) ? service.preferred_date_mode : 'optional',
-    base_price:Number(service?.base_price||service?.basePrice||0),
-    currency:safeText(service?.currency||'NAD')||'NAD',
-    is_active:service?.is_active!==false,
-    requires_manual_confirmation:service?.requires_manual_confirmation!==false,
-    payment_mode:safeText(service?.payment_mode||'deposit')||'deposit',
-    deposit_type:safeText(service?.deposit_type||'percentage')||'percentage',
-    deposit_value:Number(service?.deposit_value||30),
-    media_url:safeText(service?.media_url||service?.imageUrl||''),
-    highlight_points:Array.isArray(service?.highlight_points) ? service.highlight_points.map(safeText).filter(Boolean) : [],
-    brand_codes:Array.from(new Set(
-      (
-        Array.isArray(service?.brand_codes)
-          ? service.brand_codes
-          : (Array.isArray(service?.metadata?.brand_codes) ? service.metadata.brand_codes : Object.keys(BRAND_CATALOG))
-      ).map(value=>safeText(value)).filter(Boolean)
-    )),
-    addons:Array.isArray(service?.addons) ? service.addons.map(normalizeAddon) : [],
-    sort_order:Number(service?.sort_order||0)||0
-  })
+  const normalizeService=service=>{
+    const metadata=service?.metadata && typeof service.metadata==='object' && !Array.isArray(service.metadata) ? service.metadata : {}
+    return {
+      id:service?.id||uid('svc'),
+      slug:toSlug(service?.slug||service?.name||uid('service')),
+      category_slug:toSlug(service?.category_slug||service?.categorySlug||metadata.category_slug||'coastal-tours'),
+      name:safeText(service?.name)||'Untitled Service',
+      short_description:safeText(service?.short_description||service?.shortDescription||''),
+      full_description:safeText(service?.full_description||service?.fullDescription||service?.short_description||''),
+      duration_label:safeText(service?.duration_label||service?.durationLabel||'Flexible'),
+      unit_label:safeText(service?.unit_label||service?.unitLabel||'guest'),
+      preferred_date_mode:DATE_REQUIREMENT_TYPES.includes(service?.preferred_date_mode) ? service.preferred_date_mode : 'optional',
+      base_price:Number(service?.base_price||service?.basePrice||0),
+      currency:normalizeCurrencyCode(service?.currency||'NAD'),
+      is_active:service?.is_active!==false,
+      requires_manual_confirmation:service?.requires_manual_confirmation!==false,
+      payment_mode:safeText(service?.payment_mode||'deposit')||'deposit',
+      deposit_type:safeText(service?.deposit_type||'percentage')||'percentage',
+      deposit_value:Number(service?.deposit_value||30),
+      minimum_pax:Math.max(1,Number(service?.minimum_pax ?? metadata.minimum_pax ?? 1)||1),
+      departure_window:safeText(service?.departure_window ?? metadata.departure_window ?? ''),
+      pickup_time:safeText(service?.pickup_time ?? metadata.pickup_time ?? ''),
+      media_url:safeText(service?.media_url||service?.imageUrl||''),
+      highlight_points:Array.isArray(service?.highlight_points)
+        ? service.highlight_points.map(safeText).filter(Boolean)
+        : (Array.isArray(metadata.highlight_points) ? metadata.highlight_points.map(safeText).filter(Boolean) : []),
+      metadata,
+      brand_codes:Array.from(new Set(
+        (
+          Array.isArray(service?.brand_codes)
+            ? service.brand_codes
+            : (Array.isArray(metadata.brand_codes) ? metadata.brand_codes : Object.keys(BRAND_CATALOG))
+        ).map(value=>safeText(value)).filter(Boolean)
+      )),
+      addons:Array.isArray(service?.addons) ? service.addons.map(normalizeAddon) : [],
+      sort_order:Number(service?.sort_order||0)||0
+    }
+  }
 
   const normalizeCustomer=input=>({
     full_name:safeText(input?.full_name||input?.fullName||''),
@@ -271,7 +311,8 @@ window.TrueTravelBooking=(()=>{
 
   const calculatePricing=(service,payload,config=readConfig())=>{
     const normalizedService=normalizeService(service)
-    const quantity=Math.max(1,Number(payload?.quantity||payload?.persons||1)||1)
+    const minimumPax=Math.max(1,Number(normalizedService.minimum_pax||1)||1)
+    const quantity=Math.max(minimumPax,Number(payload?.quantity||payload?.persons||1)||1)
     const selectedAddons=Array.isArray(payload?.addons) ? payload.addons : []
     const addonRows=normalizedService.addons.filter(addon=>selectedAddons.includes(addon.slug))
     const baseSubtotal=normalizedService.base_price*quantity
@@ -325,9 +366,10 @@ window.TrueTravelBooking=(()=>{
       if(normalized.replace(/[^\d+]/g,'').length<7)return 'Enter a valid phone or WhatsApp number.'
       return ''
     },
-    quantity(value){
+    quantity(value,minValue=1){
       const numeric=Number(value||0)
       if(!Number.isFinite(numeric)||numeric<1)return 'Quantity must be at least 1.'
+      if(numeric<Math.max(1,Number(minValue||1)||1))return `This tour requires at least ${Math.max(1,Number(minValue||1)||1)} guests.`
       if(numeric>99)return 'Quantity must be 99 or fewer.'
       return ''
     },
@@ -348,7 +390,7 @@ window.TrueTravelBooking=(()=>{
     errors.full_name=validators.required(customer.full_name,'Full name')
     errors.email=validators.email(customer.email)
     errors.phone=validators.phone(customer.phone||customer.whatsapp)
-    errors.quantity=validators.quantity(payload.quantity)
+    errors.quantity=validators.quantity(payload.quantity,normalizedService.minimum_pax)
     errors.preferred_date=validators.preferredDate(payload.preferred_date,normalizedService.preferred_date_mode)
     errors.terms=validators.acceptedTerms(Boolean(payload.accept_terms))
     return Object.fromEntries(Object.entries(errors).filter(([,value])=>value))
@@ -901,6 +943,7 @@ window.TrueTravelBooking=(()=>{
     clone,
     toSlug,
     capitalize,
+    normalizeCurrencyCode,
     readConfig,
     writeConfig,
     detectBrandCode,

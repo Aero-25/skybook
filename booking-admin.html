@@ -644,7 +644,7 @@
             <h3>Service catalog</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Date rule</th><th>Visibility</th></tr></thead>
+                <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
                 <tbody id="adminServicesTable"></tbody>
               </table>
             </div>
@@ -684,6 +684,18 @@
               <label class="booking-field">
                 <span>Duration Label</span>
                 <input id="adminServiceDuration" type="text" placeholder="Half Day · 3 Hours">
+              </label>
+              <label class="booking-field">
+                <span>Minimum Pax</span>
+                <input id="adminServiceMinPax" type="number" min="1" step="1" value="1">
+              </label>
+              <label class="booking-field">
+                <span>Departure Window</span>
+                <input id="adminServiceDepartureWindow" type="text" placeholder="AM departure / PM departure / Flexible">
+              </label>
+              <label class="booking-field">
+                <span>Pickup Time</span>
+                <input id="adminServicePickupTime" type="text" placeholder="08:00 or TBC">
               </label>
               <label class="booking-field-full">
                 <span>Summary</span>
@@ -748,8 +760,9 @@
           <h3>Booking settings</h3>
           <form id="bookingSettingsForm" class="booking-form-grid">
             <label class="booking-field">
-              <span>Currency</span>
-              <input id="settingCurrency" name="currency" type="text" value="NAD">
+              <span>Currency Code</span>
+              <input id="settingCurrency" name="currency" type="text" value="NAD" placeholder="NAD">
+              <small class="field-hint">Namibian Dollar displays as N$ across SkyBook.</small>
             </label>
             <label class="booking-field">
               <span>Support Email</span>

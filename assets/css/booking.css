@@ -226,6 +226,7 @@ body.skybook-auth-page{
 .booking-field,.booking-field-full{display:grid;gap:8px}
 .booking-field-full{grid-column:1 / -1}
 .booking-field label,.booking-field-full label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--booking-ocean)}
+.field-hint{font-size:12px;line-height:1.5;color:var(--booking-muted)}
 .booking-field input,.booking-field select,.booking-field textarea,.booking-field-full input,.booking-field-full select,.booking-field-full textarea{
   width:100%;min-height:50px;padding:14px 16px;border-radius:18px;border:1px solid var(--booking-line);background:#fbfdff;color:var(--booking-ink);font:inherit;
 }
