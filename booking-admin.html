@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260421-launch-hardening">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260421-enterprise-polish">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -121,14 +121,17 @@
 
       <section class="admin-toolbar">
         <div>
-          <div class="toolbar-eyebrow">Live Operations Dashboard</div>
-          <h2>Command Center</h2>
-          <p class="toolbar-subtitle">Enterprise control for reservations, finance, supplier management, documents, audit trails, and multibrand guest service.</p>
+          <div class="module-breadcrumb" id="moduleBreadcrumb">SkyBook / Command / Command Center</div>
+          <div class="toolbar-eyebrow" id="moduleEyebrow">Live Operations Dashboard</div>
+          <h2 id="moduleTitle">Command Center</h2>
+          <p class="toolbar-subtitle" id="moduleSubtitle">Enterprise control for reservations, finance, supplier management, documents, audit trails, and multibrand guest service.</p>
           <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
         </div>
         <div class="toolbar-actions">
           <span class="booking-chip">SkyBook Enterprise</span>
+          <button type="button" id="quickCreateBooking">New Booking</button>
           <button type="button" id="toolbarCommandPalette">Command Bar</button>
+          <button type="button" id="toggleTableDensity">Compact Tables</button>
           <button type="button" id="exportBookingsCsv">Export CSV</button>
           <a class="booking-button ghost" href="design-admin.html">Design Studio</a>
           <a class="booking-button ghost" href="admin.html">Admin Gateway</a>
@@ -1221,8 +1224,10 @@
     </section>
   </div>
 
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260421-launch-hardening"></script>
-  <script src="assets/js/booking-admin.js?v=20260421-launch-hardening"></script>
+  <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
+  <script src="assets/js/booking-admin.js?v=20260421-enterprise-polish"></script>
 </body>
 </html>

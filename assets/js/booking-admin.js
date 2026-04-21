@@ -108,6 +108,10 @@ const nodes={
   sessionLabel:document.getElementById('sessionLabel'),
   topSessionLabel:document.getElementById('topSessionLabel'),
   adminStatus:document.getElementById('bookingAdminStatus'),
+  moduleBreadcrumb:document.getElementById('moduleBreadcrumb'),
+  moduleEyebrow:document.getElementById('moduleEyebrow'),
+  moduleTitle:document.getElementById('moduleTitle'),
+  moduleSubtitle:document.getElementById('moduleSubtitle'),
   tabs:[...document.querySelectorAll('[data-admin-tab]')],
   views:[...document.querySelectorAll('[data-admin-view]')],
   opsPostureTitle:document.getElementById('opsPostureTitle'),
@@ -269,10 +273,133 @@ const nodes={
   officeInvoiceNotes:document.getElementById('adminOfficeInvoiceNotes'),
   openCommandPalette:document.getElementById('openCommandPalette'),
   toolbarCommandPalette:document.getElementById('toolbarCommandPalette'),
+  quickCreateBooking:document.getElementById('quickCreateBooking'),
+  toggleTableDensity:document.getElementById('toggleTableDensity'),
   commandPalette:document.getElementById('commandPalette'),
   commandPaletteInput:document.getElementById('commandPaletteInput'),
   commandPaletteResults:document.getElementById('commandPaletteResults'),
+  toastStack:document.getElementById('toastStack'),
   runJobsNowButton:document.getElementById('runJobsNowButton')
+}
+
+const MODULE_META={
+  dashboard:{
+    group:'Command',
+    eyebrow:'Live Operations Dashboard',
+    title:'Command Center',
+    subtitle:'Enterprise control for arrivals, confirmations, unpaid exposure, supplier payouts, refunds, and multibrand guest service.'
+  },
+  notifications:{
+    group:'Command',
+    eyebrow:'Exceptions And Alerts',
+    title:'Notification Center',
+    subtitle:'Failed payments, overdue balances, unassigned operators, incomplete bookings, and operational follow-ups in one queue.'
+  },
+  calendar:{
+    group:'Command',
+    eyebrow:'Calendar And Manifest',
+    title:'Operations Calendar',
+    subtitle:'Day, week, and month planning for bookings, tours, pickup windows, assigned operators, vehicles, and resources.'
+  },
+  bookings:{
+    group:'Reservations',
+    eyebrow:'Reservation Workspace',
+    title:'Bookings',
+    subtitle:'Rich booking records with guest invoices, office invoices, payment timelines, notes, documents, operators, guides, vehicles, and commissions.'
+  },
+  customers:{
+    group:'Reservations',
+    eyebrow:'Customer Intelligence',
+    title:'Customers And CRM',
+    subtitle:'Customer profiles, booking history, portal actions, communications, support context, and guest service follow-up.'
+  },
+  services:{
+    group:'Reservations',
+    eyebrow:'Tour Product Setup',
+    title:'Services And Tours',
+    subtitle:'Shared tour catalogue for True Travel and Iventure with pricing, summaries, duration, highlights, and availability rules.'
+  },
+  engine:{
+    group:'Inventory',
+    eyebrow:'Availability Engine',
+    title:'Resources And Capacity',
+    subtitle:'Operating schedules, blackout dates, departure windows, resources, vehicles, kayaks, boats, guides, drivers, rates, and vouchers.'
+  },
+  payments:{
+    group:'Revenue',
+    eyebrow:'Payment Operations',
+    title:'Payments',
+    subtitle:'Payment status, guest balances, refunds, deposits, payment timelines, and integration readiness for card and wallet gateways.'
+  },
+  reconciliation:{
+    group:'Revenue',
+    eyebrow:'Finance Control',
+    title:'Reconciliation',
+    subtitle:'Match guest payments, invoices, refunds, commissions, operator payouts, and settlement records in a finance-first workflow.'
+  },
+  platform:{
+    group:'Revenue',
+    eyebrow:'Documents And Settlements',
+    title:'Invoices And Settlements',
+    subtitle:'Guest invoices, receipts, vouchers, manifests, office invoices, operator statements, and commission/payout separation.'
+  },
+  reports:{
+    group:'Revenue',
+    eyebrow:'Performance Analytics',
+    title:'Reports And Analytics',
+    subtitle:'Sales by brand, bookings by source, commission due, operator payouts, unpaid invoices, cancellations, refunds, and tour performance.'
+  },
+  emails:{
+    group:'Automation',
+    eyebrow:'Template Operations',
+    title:'Templates And Reminders',
+    subtitle:'Email, invoice, voucher, terms, reminder, follow-up, confirmation, and internal note templates by brand.'
+  },
+  health:{
+    group:'Automation',
+    eyebrow:'System Reliability',
+    title:'System Health',
+    subtitle:'Job queues, failed emails, failing webhooks, callback errors, automation readiness, and launch-grade operational monitoring.'
+  },
+  audit:{
+    group:'Automation',
+    eyebrow:'Accountability',
+    title:'Audit Trail',
+    subtitle:'Every booking change, payment update, refund action, admin action, and operational handoff captured for traceability.'
+  },
+  settings:{
+    group:'Administration',
+    eyebrow:'Platform Settings',
+    title:'Settings',
+    subtitle:'Brand rules, booking terms, portal defaults, API behavior, automation settings, payment gateway readiness, and production configuration.'
+  },
+  'admin-users':{
+    group:'Administration',
+    eyebrow:'Access Governance',
+    title:'Users And Roles',
+    subtitle:'Super admin role control for reservations, finance, operations, supplier management, reporting, design, and system settings.'
+  }
+}
+
+const showToast=(message,type='info')=>{
+  if(!nodes.toastStack||!message)return
+  const toast=document.createElement('div')
+  toast.className=`toast is-${type}`
+  toast.textContent=message
+  nodes.toastStack.appendChild(toast)
+  window.setTimeout(()=>toast.classList.add('is-visible'),20)
+  window.setTimeout(()=>{
+    toast.classList.remove('is-visible')
+    window.setTimeout(()=>toast.remove(),220)
+  },4200)
+}
+
+const renderModuleChrome=tab=>{
+  const meta=MODULE_META[tab]||MODULE_META.dashboard
+  if(nodes.moduleBreadcrumb)nodes.moduleBreadcrumb.textContent=`SkyBook / ${meta.group} / ${meta.title}`
+  if(nodes.moduleEyebrow)nodes.moduleEyebrow.textContent=meta.eyebrow
+  if(nodes.moduleTitle)nodes.moduleTitle.textContent=meta.title
+  if(nodes.moduleSubtitle)nodes.moduleSubtitle.textContent=meta.subtitle
 }
 
 const getDashboardUrl=()=>{
@@ -296,6 +423,8 @@ const setAdminStatus=(message,isError=false)=>{
   const timeLabel=new Date().toLocaleString('en-NA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
   nodes.adminStatus.textContent=isError ? message : `${message} Last sync ${timeLabel}.`
   nodes.adminStatus.classList.toggle('is-error',isError)
+  const shouldToast=isError||/(saved|created|updated|generated|queued|sent|cancelled|cleared|assigned|paid|confirmed|completed|rescheduled|duplicated|signed out|failed)/i.test(message)
+  if(shouldToast)showToast(message,isError?'error':'success')
 }
 
 const setAuthStatus=(message,isError=false)=>{
@@ -887,7 +1016,16 @@ const renderHealthWorkbench=()=>{
 
 const sumAmounts=(rows,key)=>rows.reduce((sum,row)=>sum+Number(row?.[key]||0),0)
 
-const renderEmptyRow=(colspan,message)=>`<tr><td colspan="${colspan}">${bookingAdminShared.escapeHtml(message)}</td></tr>`
+const renderEmptyRow=(colspan,message)=>`
+  <tr class="empty-row">
+    <td colspan="${colspan}">
+      <div class="empty-state">
+        <strong>No records to show</strong>
+        <span>${bookingAdminShared.escapeHtml(message)}</span>
+      </div>
+    </td>
+  </tr>
+`
 
 const createDateRange=(focusDate,span)=>{
   const base=parseDateValue(focusDate)||parseDateValue(getTodayKey())||new Date()
@@ -972,6 +1110,9 @@ const switchTab=tab=>{
     : tab
   nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab))
   nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===nextTab))
+  const activeMenuItem=nodes.tabs.find(node=>node.dataset.adminTab===nextTab&&!node.hidden)
+  activeMenuItem?.closest('details')?.setAttribute('open','')
+  renderModuleChrome(nextTab)
 }
 
 const requireClient=async()=>{
@@ -3263,11 +3404,29 @@ const exportBookingsCsv=()=>{
   URL.revokeObjectURL(url)
 }
 
+const openNewBookingWorkspace=()=>{
+  switchTab('bookings')
+  state.selectedBookingId=''
+  fillBookingForm(null)
+  renderBookingDetail()
+  showToast('New booking workspace opened.','info')
+  window.setTimeout(()=>nodes.bookingCustomerName?.focus(),80)
+}
+
+const toggleTableDensity=()=>{
+  document.body.classList.toggle('is-compact-tables')
+  const isCompact=document.body.classList.contains('is-compact-tables')
+  if(nodes.toggleTableDensity)nodes.toggleTableDensity.textContent=isCompact ? 'Comfort Tables' : 'Compact Tables'
+  showToast(isCompact ? 'Compact table mode enabled.' : 'Comfort table mode enabled.','info')
+}
+
 nodes.tabs.forEach(node=>node.addEventListener('click',()=>switchTab(node.dataset.adminTab)))
 nodes.loginForm?.addEventListener('submit',handleLogin)
 nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
 nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
+nodes.quickCreateBooking?.addEventListener('click',openNewBookingWorkspace)
+nodes.toggleTableDensity?.addEventListener('click',toggleTableDensity)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
 nodes.bookingFilterBrand.addEventListener('change',renderBookings)
 nodes.bookingFilterStatus.addEventListener('change',renderBookings)
@@ -3286,11 +3445,7 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
   renderCalendar()
 })
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
-nodes.bookingNewButton.addEventListener('click',()=>{
-  state.selectedBookingId=''
-  fillBookingForm(null)
-  renderBookingDetail()
-})
+nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
 nodes.serviceForm.addEventListener('submit',event=>{void handleServiceSave(event)})
 nodes.adminUserForm?.addEventListener('submit',event=>{void handleAdminUserSave(event)})
 nodes.adminUserRole?.addEventListener('change',()=>renderAdminUserPermissionEditor(collectPermissionOverrides(),nodes.adminUserRole.value))
