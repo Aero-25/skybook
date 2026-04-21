@@ -1958,6 +1958,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const bookingStatus=desiredStatus || (service.requires_manual_confirmation && !isAdmin ? 'pending' : (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
   const paymentStatus=desiredPaymentStatus || (pricing.amountDueNow>0 ? 'pending' : 'unpaid')
   const outstandingAmounts=resolveOutstandingAmounts(pricing,paymentStatus)
+  const requestSource=normalizeText(payload.source)
+  const bookingSource=isAdmin ? 'admin' : (requestSource || 'website')
+  const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
   const { data:booking,error }=await adminClient.from('bookings').insert({
     reference,
     brand_code:String(brand.code || brandCode),
@@ -1965,7 +1968,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     service_id:service.id,
     status:bookingStatus,
     payment_status:paymentStatus,
-    source:isAdmin ? 'admin' : 'website',
+    source:bookingSource,
     preferred_date:normalizeText(payload.preferred_date) || null,
     confirmed_date:bookingStatus==='confirmed' ? (normalizeText(payload.preferred_date)||null) : null,
     quantity:pricing.quantity,
@@ -1979,7 +1982,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     amount_due_later:outstandingAmounts.amountDueLater,
     customer_notes:normalizeText(payload.notes),
     lookup_email:customer.email,
-    metadata:{source:isAdmin ? 'admin' : 'website_booking_module',brand_code:String(brand.code || brandCode)}
+    metadata:{
+      ...requestMetadata,
+      source:bookingSource,
+      brand_code:String(brand.code || brandCode),
+      source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
+      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via)
+    }
   }).select().single()
   if(error)throw error
 
@@ -1997,7 +2006,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await maybeApplyVoucherRedemption(booking.id,promotionState.voucherRow,voucherDiscount)
   await maybeLinkBookingAgent(booking.id,promotionState.agentRow,agentDiscount)
   await maybeAllocateResources(booking.id,String(service.id || ''),normalizeText(payload.preferred_date),pricing.quantity)
-  await insertStatusHistory(booking.id,null,bookingStatus,isAdmin ? 'Booking created in admin' : 'Booking created via website flow',isAdmin ? 'admin' : 'website',userId||null)
+  await insertStatusHistory(booking.id,null,bookingStatus,isAdmin ? 'Booking created in admin' : `Booking created via ${bookingSource}`,isAdmin ? 'admin' : bookingSource,userId||null)
   await syncInvoiceForBooking(booking.id)
   await syncLifecycleTasks(booking.id,userId || null)
   await maybeCreateAutomatedOfficeSettlement(booking.id,userId || null)
