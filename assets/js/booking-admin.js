@@ -137,6 +137,9 @@ const nodes={
   reconciliationTable:document.getElementById('reconciliationTable'),
   auditTable:document.getElementById('auditTable'),
   lifecycleMatrix:document.getElementById('lifecycleMatrix'),
+  launchReadinessSummary:document.getElementById('launchReadinessSummary'),
+  launchReadinessCards:document.getElementById('launchReadinessCards'),
+  launchReadinessTable:document.getElementById('launchReadinessTable'),
   healthCards:document.getElementById('healthCards'),
   systemJobsTable:document.getElementById('systemJobsTable'),
   healthEventsTable:document.getElementById('healthEventsTable'),
@@ -367,9 +370,9 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
-  if(['confirmed','completed','paid','active','default'].includes(normalized))return 'is-good'
-  if(['pending','awaiting_payment','partially_paid','queued','issued','investigating','processing','normal','high','needs_review'].includes(normalized))return 'is-warn'
-  if(['cancelled','failed','refunded','inactive','critical','error'].includes(normalized))return 'is-bad'
+  if(['ready','confirmed','completed','paid','active','default'].includes(normalized))return 'is-good'
+  if(['attention','pending','awaiting_payment','partially_paid','queued','issued','investigating','processing','normal','high','needs_review'].includes(normalized))return 'is-warn'
+  if(['blocked','cancelled','failed','refunded','inactive','critical','error'].includes(normalized))return 'is-bad'
   return 'is-neutral'
 }
 
@@ -720,6 +723,80 @@ const buildHealthRows=()=>{
   }
 }
 
+const buildLaunchReadinessRows=()=>{
+  const config=bookingAdminShared.readConfig()
+  const apiUrl=bookingAdminShared.getApiUrl('admin/bootstrap')
+  const functionBase=bookingAdminShared.getFunctionBase()
+  const paymentProviders=Array.isArray(config.paymentProviders) ? config.paymentProviders : []
+  const failedJobs=state.systemJobs.filter(job=>String(job.status||'').toLowerCase()==='failed')
+  const failedEmails=state.emailLogs.filter(log=>String(log.status||'').toLowerCase()==='failed')
+  const openHealthEvents=state.healthEvents.filter(event=>String(event.status||'').toLowerCase()==='open')
+  const hasTrueTravel=state.brands.some(brand=>brand.code==='true-travel')
+  const hasIventure=state.brands.some(brand=>brand.code==='iventure')
+  const hasAdminUsers=state.adminUsers.length>0
+  const hasOperators=state.operators.length>0
+  const hasServices=state.services.length>0
+  const hasDocumentsLayer=Array.isArray(state.bookingDocuments)&&Array.isArray(state.bookingDocumentVersions)
+  const isHttps=window.location.protocol==='https:' || bookingAdminShared.isLocalRuntime()
+  const hasLiveSupabase=Boolean(config.supabaseUrl&&/^https:\/\/.+\.supabase\.co$/i.test(config.supabaseUrl))
+  const hasAnonKey=Boolean(config.supabaseAnonKey&&String(config.supabaseAnonKey).split('.').length===3)
+  const hasLiveApi=Boolean(/^https:\/\//i.test(apiUrl)&&apiUrl.includes('/functions/v1/booking-api/'))
+  const hasFunctionBase=Boolean(/^https:\/\//i.test(functionBase)&&functionBase.includes('/functions/v1'))
+  const demoFallbackOff=!bookingAdminShared.isDemoFallbackAllowed()
+  return [
+    {area:'Access',label:'HTTPS admin delivery',status:isHttps?'ready':'blocked',action:isHttps?'Admin is served over HTTPS or local development.':'Serve SkyBook from a HTTPS Cloudflare domain before launch.'},
+    {area:'Access',label:'Admin authentication session',status:state.session?.access_token?'ready':'blocked',action:state.session?.access_token?'Current admin session is active.':'Confirm Supabase Auth login works on the live admin domain.'},
+    {area:'Access',label:'Admin users and roles',status:hasAdminUsers?'ready':'attention',action:hasAdminUsers?'Admin user records are loaded.':'Create at least one super admin and role-scoped operational users.'},
+    {area:'API',label:'Live Supabase project configured',status:hasLiveSupabase&&hasAnonKey?'ready':'blocked',action:hasLiveSupabase&&hasAnonKey?'Supabase URL and anon key are configured.':'Set production Supabase URL and publishable anon key.'},
+    {area:'API',label:'Booking API endpoint',status:hasLiveApi?'ready':'blocked',action:hasLiveApi?'Booking API points at Supabase Edge Functions.':'Configure apiBase to the live booking-api function.'},
+    {area:'API',label:'Payment function endpoint',status:hasFunctionBase?'ready':'blocked',action:hasFunctionBase?'Function base resolves to Supabase Edge Functions.':'Confirm payment-initiate and payment-webhook are deployed.'},
+    {area:'Safety',label:'Production demo fallback disabled',status:demoFallbackOff?'ready':'blocked',action:demoFallbackOff?'Network failures will not create fake demo bookings.':'Disable allowDemoFallback before live bookings.'},
+    {area:'Brands',label:'True Travel and Iventure loaded',status:hasTrueTravel&&hasIventure?'ready':'attention',action:hasTrueTravel&&hasIventure?'Both brands are visible in the shared backend.':'Seed or verify both brands in the production database.'},
+    {area:'Catalog',label:'Services and tours loaded',status:hasServices?'ready':'blocked',action:hasServices?'Bookable services are loaded.':'Load all launch tours, rentals, activities, and pricing before launch.'},
+    {area:'Inventory',label:'Operators/resources loaded',status:hasOperators||state.resources.length?'ready':'attention',action:hasOperators||state.resources.length?'Operator or resource records are loaded.':'Load operators, guides, vehicles, boats, rooms, and capacity rules.'},
+    {area:'Payments',label:'Live payment providers',status:paymentProviders.some(provider=>['dpo','stripe','apple_pay','google_pay'].includes(provider))?'attention':'blocked',action:'Requires live DPO/Stripe wallet secrets and webhook verification before taking real money.'},
+    {area:'Documents',label:'Document layer available',status:hasDocumentsLayer?'ready':'attention',action:hasDocumentsLayer?'Document records and version state are available.':'Verify PDF generation/storage with signed production links.'},
+    {area:'Portal',label:'Customer portal enabled',status:state.portalSettings.enabled?'attention':'blocked',action:state.portalSettings.enabled?'Portal is enabled; test secure links, downloads, and change requests live.':'Enable and test the customer portal before launch.'},
+    {area:'Automation',label:'Job queue enabled',status:state.queueSettings.enabled?'attention':'blocked',action:state.queueSettings.enabled?'Queue settings are enabled; run live reminder/settlement tests.':'Enable queue processing before launch.'},
+    {area:'Health',label:'No failed jobs/emails/events',status:failedJobs.length||failedEmails.length||openHealthEvents.length?'attention':'ready',action:failedJobs.length||failedEmails.length||openHealthEvents.length?'Resolve failures before launch.':'No failed jobs, failed emails, or open health events are loaded.'}
+  ]
+}
+
+const renderLaunchReadiness=()=>{
+  if(!nodes.launchReadinessTable)return
+  const rows=buildLaunchReadinessRows()
+  const blocked=rows.filter(row=>row.status==='blocked')
+  const attention=rows.filter(row=>row.status==='attention')
+  const ready=rows.filter(row=>row.status==='ready')
+  const summary=blocked.length ? `${blocked.length} blocked` : (attention.length ? `${attention.length} needs attention` : 'Launch checks clear')
+  if(nodes.launchReadinessSummary){
+    nodes.launchReadinessSummary.textContent=summary
+    nodes.launchReadinessSummary.classList.toggle('is-danger',Boolean(blocked.length))
+    nodes.launchReadinessSummary.classList.toggle('is-warning',!blocked.length&&Boolean(attention.length))
+  }
+  if(nodes.launchReadinessCards){
+    const cards=[
+      {label:'Ready',value:String(ready.length),tone:'good'},
+      {label:'Needs attention',value:String(attention.length),tone:attention.length?'warn':'good'},
+      {label:'Blocked',value:String(blocked.length),tone:blocked.length?'risk':'good'}
+    ]
+    nodes.launchReadinessCards.innerHTML=cards.map(card=>`
+      <article class="metric-card is-${card.tone}">
+        <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+        <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+      </article>
+    `).join('')
+  }
+  nodes.launchReadinessTable.innerHTML=rows.map(row=>`
+    <tr>
+      <td>${renderStatusBadge(row.status,row.status)}</td>
+      <td>${bookingAdminShared.escapeHtml(row.area)}</td>
+      <td><strong>${bookingAdminShared.escapeHtml(row.label)}</strong></td>
+      <td>${bookingAdminShared.escapeHtml(row.action)}</td>
+    </tr>
+  `).join('')
+}
+
 const renderReconciliationWorkbench=()=>{
   const cards=[
     {label:'Records',value:String(state.reconciliationRecords.length)},
@@ -763,6 +840,7 @@ const renderReconciliationWorkbench=()=>{
 }
 
 const renderHealthWorkbench=()=>{
+  renderLaunchReadiness()
   const health=buildHealthRows()
   nodes.healthCards.innerHTML=health.cards.map(card=>`
     <article class="metric-card">

@@ -23,6 +23,8 @@ window.TrueTravelBooking=(()=>{
     defaultDepositValue:30,
     taxRate:0,
     serviceFee:0,
+    environment:'production',
+    allowDemoFallback:false,
     supabaseUrl:'https://zegfirgyhdjyehvhlrnh.supabase.co',
     supabaseAnonKey:(shared.DEFAULT_SUPABASE_CONFIG?.anonKey)||''
   }
@@ -780,6 +782,17 @@ window.TrueTravelBooking=(()=>{
   }
 
   const getFunctionUrl=name=>`${getFunctionBase()}/${String(name||'').replace(/^\/+/,'')}`
+  const isLocalRuntime=()=>{
+    const host=String(window.location.hostname||'').toLowerCase()
+    return window.location.protocol==='file:' || ['localhost','127.0.0.1','::1'].includes(host)
+  }
+  const isDemoFallbackAllowed=()=>{
+    const query=new URLSearchParams(window.location.search)
+    if(query.get('demo')==='1')return true
+    const config=readConfig()
+    return config.allowDemoFallback===true && isLocalRuntime()
+  }
+  const getLiveApiUnavailableError=()=>new Error('Live SkyBook API is unavailable. Demo fallback is disabled in production so no fake bookings or payments are created.')
 
   const apiRequest=async(path,{method='GET',body,headers={}}={})=>{
     const config=readConfig()
@@ -808,6 +821,7 @@ window.TrueTravelBooking=(()=>{
       const message=String(error?.message||'')
       const shouldFallback=error instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(message)
       if(!shouldFallback)throw error
+      if(!isDemoFallbackAllowed())throw getLiveApiUnavailableError()
       return localApiRequest(path,{method,body,headers})
     }
   }
@@ -836,6 +850,7 @@ window.TrueTravelBooking=(()=>{
       const message=String(error?.message||'')
       const shouldFallback=error instanceof TypeError||/failed to fetch|networkerror|load failed/i.test(message)
       if(!shouldFallback)throw error
+      if(!isDemoFallbackAllowed())throw getLiveApiUnavailableError()
       return localApiRequest('payment-initiate',{method:'POST',body:payload,headers})
     }
   }
@@ -893,6 +908,8 @@ window.TrueTravelBooking=(()=>{
     localApiRequest,
     getFunctionBase,
     getFunctionUrl,
+    isLocalRuntime,
+    isDemoFallbackAllowed,
     normalizeAddon,
     normalizeService,
     normalizeCustomer,

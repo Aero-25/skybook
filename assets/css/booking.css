@@ -209,6 +209,8 @@ body.skybook-auth-page{
 .booking-card-media{height:210px;background:linear-gradient(145deg,#c7e3f8,#96c6ed,#5e99cf);background-size:cover;background-position:center}
 .booking-card-body{padding:22px}
 .booking-chip{display:inline-flex;padding:8px 12px;border-radius:999px;background:#e7f3fd;color:var(--booking-ocean);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;border:1px solid rgba(94,153,207,.16)}
+.booking-chip.is-danger{background:#fff0f0;color:#9b2f35;border-color:#f4cdd1}
+.booking-chip.is-warning{background:#fff7e8;color:#a06708;border-color:#f0dfbb}
 .booking-card h3,.booking-panel h3{margin:14px 0 8px;font-family:'Manrope','DM Sans',sans-serif;font-size:28px}
 .booking-card p,.booking-panel p,.muted-copy{font-size:14px;line-height:1.75;color:var(--booking-muted)}
 .booking-meta-row,.booking-action-row{display:flex;justify-content:space-between;gap:16px;align-items:center}

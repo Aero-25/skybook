@@ -21,3 +21,7 @@ SkyBook is the shared booking, operations, finance, and reporting platform behin
 - Deploy this repository to the admin domain or subdomain
 - Keep both public sites on their own domains
 - Point all three apps at the same Supabase backend
+
+## Launch readiness
+
+See `docs/launch-readiness.md` before taking real customer payments or opening public bookings.

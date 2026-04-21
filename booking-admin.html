@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260421-clean-modules">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260421-launch-hardening">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -415,6 +415,23 @@
       </section>
 
       <section class="admin-view" data-admin-view="health">
+        <article class="booking-panel launch-readiness-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Launch readiness</h3>
+              <p class="muted-copy">Production checks for API configuration, demo fallback, security posture, payments, portals, and operational coverage.</p>
+            </div>
+            <div class="booking-chip" id="launchReadinessSummary">Checking</div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="launchReadinessCards"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Status</th><th>Area</th><th>Check</th><th>Action</th></tr></thead>
+              <tbody id="launchReadinessTable"></tbody>
+            </table>
+          </div>
+        </article>
+
         <div class="admin-panel-grid">
           <article class="booking-panel">
             <div class="panel-header-inline">
@@ -1205,7 +1222,7 @@
   </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260421-clean-modules"></script>
-  <script src="assets/js/booking-admin.js?v=20260421-clean-modules"></script>
+  <script src="assets/js/booking-shared.js?v=20260421-launch-hardening"></script>
+  <script src="assets/js/booking-admin.js?v=20260421-launch-hardening"></script>
 </body>
 </html>
