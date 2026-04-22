@@ -382,8 +382,20 @@ const MODULE_META={
   engine:{
     group:'Inventory',
     eyebrow:'Availability Engine',
-    title:'Resources And Capacity',
+    title:'Availability Engine',
     subtitle:'Operating schedules, blackout dates, departure windows, resources, vehicles, kayaks, boats, guides, drivers, rates, and vouchers.'
+  },
+  resources:{
+    group:'Inventory',
+    eyebrow:'Fleet And Capacity',
+    title:'Resources And Capacity',
+    subtitle:'Manage vehicles, vessels, guides, refund-linked operational assets, and live resource capacity for booked departures.'
+  },
+  rates:{
+    group:'Inventory',
+    eyebrow:'Commercial Tools',
+    title:'Rates And Promotions',
+    subtitle:'Control coupons, vouchers, reseller structures, and other commercial levers that shape the live booking offer.'
   },
   payments:{
     group:'Revenue',
@@ -402,6 +414,12 @@ const MODULE_META={
     eyebrow:'Documents And Settlements',
     title:'Invoices And Settlements',
     subtitle:'Guest invoices, receipts, vouchers, manifests, office invoices, operator statements, and commission/payout separation.'
+  },
+  invoices:{
+    group:'Revenue',
+    eyebrow:'Documents And Settlements',
+    title:'Invoices And Settlements',
+    subtitle:'Manage guest invoices, refunds, office settlements, operator configuration, and finance-facing integrations from one workspace.'
   },
   reports:{
     group:'Revenue',
@@ -1226,7 +1244,7 @@ const createDateRange=(focusDate,span)=>{
   return dates
 }
 
-const TAB_PERMISSION_MAP={
+const VIEW_PERMISSION_MAP={
   dashboard:'dashboard',
   notifications:'dashboard',
   calendar:'calendar',
@@ -1244,6 +1262,28 @@ const TAB_PERMISSION_MAP={
   emails:'emails',
   'admin-users':'admin_users'
 }
+const TAB_ROUTE_MAP={
+  dashboard:{view:'dashboard',permission:'dashboard'},
+  notifications:{view:'notifications',permission:'dashboard'},
+  calendar:{view:'calendar',permission:'calendar'},
+  reports:{view:'reports',permission:'reports'},
+  reconciliation:{view:'reconciliation',permission:'reconciliation'},
+  audit:{view:'audit',permission:'bookings'},
+  health:{view:'health',permission:'health'},
+  bookings:{view:'bookings',permission:'bookings'},
+  payments:{view:'payments',permission:'payments'},
+  customers:{view:'customers',permission:'customers'},
+  services:{view:'services',permission:'services'},
+  engine:{view:'engine',permission:'engine',focusId:'engineAvailabilityPanel'},
+  resources:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
+  rates:{view:'engine',permission:'engine',focusId:'engineCommercialPanel'},
+  platform:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
+  invoices:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
+  settings:{view:'settings',permission:'settings'},
+  emails:{view:'emails',permission:'emails'},
+  'admin-users':{view:'admin-users',permission:'admin_users'}
+}
+const getTabRoute=tab=>TAB_ROUTE_MAP[tab]||{view:tab,permission:VIEW_PERMISSION_MAP[tab]||'',focusId:''}
 
 const getEffectivePermissions=profile=>{
   const role=String(profile?.role||'booking_agent')
@@ -1260,13 +1300,13 @@ const canAccess=permissionKey=>{
 
 const applyAccessControl=()=>{
   nodes.tabs.forEach(node=>{
-    const permissionKey=TAB_PERMISSION_MAP[node.dataset.adminTab]
+    const permissionKey=getTabRoute(node.dataset.adminTab).permission
     const isAllowed=permissionKey ? canAccess(permissionKey) : true
     node.hidden=!isAllowed
     node.disabled=!isAllowed
   })
   nodes.views.forEach(node=>{
-    const permissionKey=TAB_PERMISSION_MAP[node.dataset.adminView]
+    const permissionKey=VIEW_PERMISSION_MAP[node.dataset.adminView]
     node.hidden=permissionKey ? !canAccess(permissionKey) : false
   })
   const activeTab=nodes.tabs.find(node=>node.classList.contains('is-active') && !node.hidden)?.dataset.adminTab
@@ -1287,11 +1327,12 @@ const collectPermissionOverrides=()=>{
 }
 
 const switchTab=tab=>{
-  const nextTab=TAB_PERMISSION_MAP[tab] && !canAccess(TAB_PERMISSION_MAP[tab])
+  const nextTab=getTabRoute(tab).permission && !canAccess(getTabRoute(tab).permission)
     ? (nodes.tabs.find(node=>!node.hidden)?.dataset.adminTab||'dashboard')
     : tab
+  const route=getTabRoute(nextTab)
   nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab))
-  nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===nextTab))
+  nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===route.view))
   const activeMenuItem=nodes.tabs.find(node=>node.dataset.adminTab===nextTab&&!node.hidden)
   const activeSection=activeMenuItem?.closest('details')
   document.querySelectorAll('.admin-menu-section').forEach(section=>{
@@ -1303,6 +1344,9 @@ const switchTab=tab=>{
   })
   renderModuleChrome(nextTab)
   closeMobileSidebar()
+  if(route.focusId){
+    window.setTimeout(()=>document.getElementById(route.focusId)?.scrollIntoView?.({behavior:'smooth',block:'start'}),90)
+  }
 }
 
 const requireClient=async()=>{

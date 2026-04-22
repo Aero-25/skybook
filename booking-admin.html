@@ -57,8 +57,8 @@
           <summary><span>03</span> Inventory</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">EN</span><span>Availability Engine</span></button>
-            <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">RS</span><span>Resources & Capacity</span></button>
-            <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">RT</span><span>Rates & Promotions</span></button>
+            <button class="admin-tab" data-admin-tab="resources" type="button"><span class="admin-tab-icon">RS</span><span>Resources & Capacity</span></button>
+            <button class="admin-tab" data-admin-tab="rates" type="button"><span class="admin-tab-icon">RT</span><span>Rates & Promotions</span></button>
           </div>
         </details>
         <details class="admin-menu-section">
@@ -66,7 +66,7 @@
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
             <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
-            <button class="admin-tab" data-admin-tab="platform" type="button"><span class="admin-tab-icon">FN</span><span>Invoices & Settlements</span></button>
+            <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Invoices & Settlements</span></button>
             <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports & Analytics</span></button>
           </div>
         </details>
@@ -140,7 +140,7 @@
             </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="dashboardCards"></div>
           </article>
-          <article class="booking-panel">
+            <article class="booking-panel" id="engineAvailabilityPanel">
             <div class="panel-header-inline">
               <div>
                 <h3>Action Queue</h3>
@@ -151,7 +151,7 @@
           </article>
         </div>
         <div class="admin-panel-grid admin-spacer">
-          <article class="booking-panel">
+            <article class="booking-panel" id="engineCommercialPanel">
             <h3>Today's arrivals</h3>
             <div class="table-wrap">
               <table>
@@ -160,7 +160,7 @@
               </table>
             </div>
           </article>
-          <article class="booking-panel">
+            <article class="booking-panel" id="platformOperationsPanel">
             <h3>Tomorrow prep</h3>
             <div class="table-wrap">
               <table>
@@ -171,7 +171,7 @@
           </article>
         </div>
         <div class="admin-panel-grid admin-spacer">
-          <article class="booking-panel">
+            <article class="booking-panel" id="platformConfigPanel">
             <h3>Pending confirmations</h3>
             <div class="table-wrap">
               <table>

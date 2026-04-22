@@ -214,6 +214,12 @@ const authClient=(request:Request)=>createClient(supabaseUrl,supabaseAnonKey,{
   global:{headers:{Authorization:request.headers.get('authorization') || `Bearer ${supabaseAnonKey}`}},
   auth:{persistSession:false}
 })
+const getBearerToken=(request:Request)=>{
+  const header=normalizeText(request.headers.get('authorization'))
+  if(!header)return ''
+  const match=header.match(/^bearer\s+(.+)$/i)
+  return normalizeText(match?.[1] ?? '')
+}
 
 const getRequestBrandCode=(request:Request, payload:Json={})=>{
   const headerBrand=normalizeText(request.headers.get('x-brand-code'))
@@ -289,8 +295,11 @@ const validateBookingTransition=(fromStatus:unknown,toStatus:unknown,paymentStat
 }
 
 const getAuthenticatedAdmin=async(request:Request)=>{
-  const client=authClient(request)
-  const { data:{ user }, error:userError }=await client.auth.getUser()
+  const accessToken=getBearerToken(request)
+  if(!accessToken || accessToken===supabaseAnonKey){
+    throw new Error('Authenticated admin user is required.')
+  }
+  const { data:{ user }, error:userError }=await adminClient.auth.getUser(accessToken)
   if(userError||!user)throw new Error('Authenticated admin user is required.')
   const { data:profile,error:profileError }=await adminClient
     .from('app_users')

@@ -178,8 +178,8 @@ window.TrueTravelBooking=(()=>{
     headers['x-brand-code']=config.brandCode
     if(config.supabaseAnonKey){
       headers.apikey=config.supabaseAnonKey
-      headers.Authorization=`Bearer ${token||config.supabaseAnonKey}`
-    }else if(token){
+    }
+    if(token){
       headers.Authorization=`Bearer ${token}`
     }
     return headers
@@ -882,18 +882,15 @@ window.TrueTravelBooking=(()=>{
   const apiRequest=async(path,{method='GET',body,headers={}}={})=>{
     const config=readConfig()
     try{
-    const response=await fetch(getApiUrl(path),{
+      const defaultHeaders={
+        'content-type':'application/json',
+        'x-project-name':config.projectName,
+        'x-brand-code':config.brandCode,
+        ...(config.supabaseAnonKey ? { apikey:config.supabaseAnonKey } : {})
+      }
+      const response=await fetch(getApiUrl(path),{
         method,
-        headers:{
-          'content-type':'application/json',
-          'x-project-name':config.projectName,
-          'x-brand-code':config.brandCode,
-          ...(config.supabaseAnonKey ? {
-            apikey:config.supabaseAnonKey,
-            Authorization:`Bearer ${config.supabaseAnonKey}`
-          } : {}),
-          ...headers
-        },
+        headers:{...defaultHeaders,...headers},
         body:body ? JSON.stringify(body) : undefined
       })
       let payload=null
@@ -914,18 +911,15 @@ window.TrueTravelBooking=(()=>{
   const initiatePayment=async(payload,{headers={}}={})=>{
     const config=readConfig()
     try{
+      const defaultHeaders={
+        'content-type':'application/json',
+        'x-project-name':config.projectName,
+        'x-brand-code':config.brandCode,
+        ...(config.supabaseAnonKey ? { apikey:config.supabaseAnonKey } : {})
+      }
       const response=await fetch(getFunctionUrl('payment-initiate'),{
         method:'POST',
-        headers:{
-          'content-type':'application/json',
-          'x-project-name':config.projectName,
-          'x-brand-code':config.brandCode,
-          ...(config.supabaseAnonKey ? {
-            apikey:config.supabaseAnonKey,
-            Authorization:`Bearer ${config.supabaseAnonKey}`
-          } : {}),
-          ...headers
-        },
+        headers:{...defaultHeaders,...headers},
         body:JSON.stringify(payload||{})
       })
       const result=await response.json().catch(()=>null)
