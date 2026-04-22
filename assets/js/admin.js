@@ -218,10 +218,6 @@ const buildSiteUrl=(brand,path,extraSearch='')=>{
 
 const buildWorkspaceUrl=(brand,pageKey=activePageKey)=>{
   const selectedPage=getPageConfig(brand,pageKey||getDefaultPageKey(brand))
-  const workspacePath=safeText(brand.workspacePath)
-  if(workspacePath&&selectedPage?.key){
-    return buildSiteUrl(brand,workspacePath,`?page=${encodeURIComponent(selectedPage.key)}`)
-  }
   return buildSiteUrl(brand,selectedPage?.path||brand.homePath||'index.html','?admin=1')
 }
 
@@ -493,7 +489,7 @@ const updatePageWorkspaceChrome=()=>{
   if(workspaceDescriptionNode)workspaceDescriptionNode.textContent=page.description||`Open the live ${brand.label} ${page.label.toLowerCase()} workspace and place imagery directly on that page.`
   if(openSiteEditorLink){
     openSiteEditorLink.href=buildWorkspaceUrl(brand,page.key)
-    openSiteEditorLink.textContent=`Open ${page.label} Workspace`
+    openSiteEditorLink.textContent=`Open ${page.label} Live Editor`
   }
   if(viewSiteLink){
     viewSiteLink.href=buildSiteUrl(brand,page.path)
