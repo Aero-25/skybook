@@ -817,7 +817,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Access</th></tr></thead>
+                <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Access</th></tr></thead>
                 <tbody id="adminUsersTable"></tbody>
               </table>
             </div>
@@ -827,12 +827,16 @@
             <form id="adminUserForm" class="booking-form-grid">
               <input id="adminUserId" type="hidden">
               <label class="booking-field">
-                <span>Email</span>
-                <input id="adminUserEmail" type="email" required>
+                <span>Username</span>
+                <input id="adminUserUsername" type="text" autocomplete="username" required>
               </label>
               <label class="booking-field">
                 <span>Full Name</span>
                 <input id="adminUserFullName" type="text">
+              </label>
+              <label class="booking-field">
+                <span>Password</span>
+                <input id="adminUserPassword" type="password" autocomplete="new-password" placeholder="Required for new admins">
               </label>
               <label class="booking-field">
                 <span>Role</span>

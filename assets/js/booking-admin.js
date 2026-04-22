@@ -231,7 +231,8 @@ const nodes={
   adminUsersTable:document.getElementById('adminUsersTable'),
   adminUserForm:document.getElementById('adminUserForm'),
   adminUserId:document.getElementById('adminUserId'),
-  adminUserEmail:document.getElementById('adminUserEmail'),
+  adminUserUsername:document.getElementById('adminUserUsername'),
+  adminUserPassword:document.getElementById('adminUserPassword'),
   adminUserFullName:document.getElementById('adminUserFullName'),
   adminUserRole:document.getElementById('adminUserRole'),
   adminUserActive:document.getElementById('adminUserActive'),
@@ -563,7 +564,8 @@ const renderAuthEnvironmentMeta=()=>{
 
 const syncSessionLabel=()=>{
   if(!state.session?.access_token)return
-  const label=`${state.profile?.full_name||state.user?.email||'Admin'} - ${formatDisplayLabel(state.profile?.role||'admin')}`
+  const identity=state.profile?.full_name||state.profile?.username||state.user?.user_metadata?.username||state.user?.email||'Admin'
+  const label=`${identity} - ${formatDisplayLabel(state.profile?.role||'admin')}`
   if(nodes.sessionLabel)nodes.sessionLabel.textContent=label
   if(nodes.topSessionLabel)nodes.topSessionLabel.textContent=label
 }
@@ -3035,8 +3037,10 @@ const renderAdminUserPermissionEditor=(permissions={},selectedRole='booking_agen
 
 const fillAdminUserForm=(user=null)=>{
   if(!nodes.adminUserForm)return
+  const username=user?.username||String(user?.email||'').split('@')[0]||''
   nodes.adminUserId.value=user?.id||''
-  nodes.adminUserEmail.value=user?.email||''
+  nodes.adminUserUsername.value=username
+  nodes.adminUserPassword.value=''
   nodes.adminUserFullName.value=user?.full_name||''
   nodes.adminUserRole.value=user?.role||'booking_agent'
   nodes.adminUserActive.checked=user?.is_active!==false
@@ -3052,7 +3056,7 @@ const renderAdminUsers=()=>{
         <strong>${bookingAdminShared.escapeHtml(user.full_name||'')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(user.last_sign_in_at ? formatDateTimeLabel(user.last_sign_in_at) : 'No sign-in yet')}</div>
       </td>
-      <td>${bookingAdminShared.escapeHtml(user.email||'')}</td>
+      <td>${bookingAdminShared.escapeHtml(user.username||String(user.email||'').split('@')[0]||'')}</td>
       <td>${bookingAdminShared.escapeHtml(String(user.role||'').replace(/_/g,' '))}</td>
       <td>${renderStatusBadge(user.is_active ? 'active' : 'inactive',user.is_active ? 'Active' : 'Inactive')}</td>
       <td>${bookingAdminShared.escapeHtml(Object.entries(user.effective_permissions||({...state.roleDefaults?.[user.role],...(user.permissions||{})})).filter(([,allowed])=>allowed).map(([key])=>key.replace(/_/g,' ')).slice(0,3).join(', ')||'No access')}</td>
@@ -3775,7 +3779,8 @@ const handleAdminUserSave=async event=>{
   event.preventDefault()
   const payload={
     id:nodes.adminUserId.value.trim(),
-    email:nodes.adminUserEmail.value.trim(),
+    username:nodes.adminUserUsername.value.trim(),
+    password:nodes.adminUserPassword.value,
     full_name:nodes.adminUserFullName.value.trim(),
     role:nodes.adminUserRole.value,
     is_active:nodes.adminUserActive.checked,

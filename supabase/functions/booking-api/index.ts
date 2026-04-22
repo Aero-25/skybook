@@ -166,6 +166,14 @@ const DEFAULT_QUEUE_SETTINGS={
   reminderDelayHours:12,
   maxJobsPerSweep:25
 }
+const BRAND_SUPPORT_EMAILS={
+  'true-travel':'info@jrimporters.com',
+  iventure:'info@aerodigital.space'
+}
+const BRAND_EMAIL_NAMES={
+  'true-travel':'True Travel',
+  iventure:'Iventure'
+}
 
 const json=(status:number,payload:Json)=>new Response(JSON.stringify(payload),{
   status,
@@ -177,6 +185,10 @@ const readBody=async(request:Request)=>{
 }
 
 const normalizeText=(value:unknown)=>String(value ?? '').trim()
+const normalizeUsername=(value:unknown)=>normalizeText(value).toLowerCase().replace(/[^a-z0-9._-]/g,'')
+const fallbackUsernameFromEmail=(value:unknown)=>normalizeUsername(normalizeText(value).split('@')[0] || '')
+const resolveAuthUsername=(user:Json={})=>normalizeUsername(user.user_metadata?.username) || fallbackUsernameFromEmail(user.email)
+const createInternalAdminEmail=username=>`${normalizeUsername(username)}@skybook.local`
 const displayLabel=(value:unknown)=>normalizeText(value).replace(/_/g,' ').trim()
 const nowIso=()=>new Date().toISOString()
 const parseDateValue=(value:string)=>{
@@ -346,7 +358,14 @@ const getAuthenticatedAdmin=async(request:Request)=>{
   if(profileError)throw new Error('Unable to load SkyBook admin access.')
   const profile=existingProfile || await bootstrapInitialSkybookAdmin(user as unknown as Json)
   if(!profile?.is_active)throw new Error('Admin access is not configured for this user.')
-  return { user, profile:{...profile,effective_permissions:resolveProfilePermissions(profile as unknown as Json)} }
+  return {
+    user,
+    profile:{
+      ...profile,
+      username:resolveAuthUsername(user as unknown as Json),
+      effective_permissions:resolveProfilePermissions(profile as unknown as Json)
+    }
+  }
 }
 
 const getSettingValue=async<T>(settingKey:string,fallback:T)=>{
@@ -1108,9 +1127,10 @@ const listSkybookAdminUsers=async()=>{
   return authUsers.map(user=>{
     const appUser=appById.get(String(user.id)) || {}
     const role=normalizeText(appUser.role) || 'booking_agent'
+    const username=resolveAuthUsername(user as unknown as Json)
     return {
       id:user.id,
-      email:user.email || '',
+      username,
       full_name:normalizeText(appUser.full_name) || normalizeText(user.user_metadata?.full_name) || normalizeText(user.email),
       role,
       is_active:appUser.is_active===undefined ? false : Boolean(appUser.is_active),
@@ -1122,7 +1142,7 @@ const listSkybookAdminUsers=async()=>{
     }
   }).sort((left,right)=>{
     if(left.has_access!==right.has_access)return left.has_access ? -1 : 1
-    return String(left.email).localeCompare(String(right.email))
+    return String(left.username).localeCompare(String(right.username))
   })
 }
 
@@ -1130,11 +1150,42 @@ const upsertSkybookAdminUser=async(payload:Json)=>{
   const requestedRole=normalizeText(payload.role).toLowerCase() || 'booking_agent'
   if(!(requestedRole in SKYBOOK_ROLE_DEFAULTS))throw new Error('Invalid admin role.')
   const requestedId=normalizeText(payload.id)
-  const requestedEmail=normalizeText(payload.email).toLowerCase()
+  const requestedUsername=normalizeUsername(payload.username)
+  const requestedPassword=normalizeText(payload.password)
+  if(!requestedUsername)throw new Error('Username is required.')
   const authUsers=await listAllAuthUsers()
-  const authUser=authUsers.find(user=>requestedId ? user.id===requestedId : normalizeText(user.email).toLowerCase()===requestedEmail)
-  if(!authUser)throw new Error('Auth user not found. Create or invite the user in Supabase Auth first.')
-  const fullName=normalizeText(payload.full_name) || normalizeText(authUser.user_metadata?.full_name) || normalizeText(authUser.email)
+  const existingByUsername=authUsers.find(user=>resolveAuthUsername(user as unknown as Json)===requestedUsername)
+  if(existingByUsername && requestedId && existingByUsername.id!==requestedId){
+    throw new Error('That username is already in use.')
+  }
+  let authUser=authUsers.find(user=>requestedId ? user.id===requestedId : resolveAuthUsername(user as unknown as Json)===requestedUsername)
+  if(!authUser && !requestedPassword)throw new Error('Password is required when creating a new admin user.')
+  if(!authUser){
+    const syntheticEmail=createInternalAdminEmail(requestedUsername)
+    const { data,error }=await adminClient.auth.admin.createUser({
+      email:syntheticEmail,
+      password:requestedPassword,
+      email_confirm:true,
+      user_metadata:{
+        username:requestedUsername,
+        full_name:normalizeText(payload.full_name) || requestedUsername
+      }
+    })
+    if(error || !data?.user)throw new Error(String(error?.message || 'Unable to create admin credentials.'))
+    authUser=data.user
+  }else{
+    const authUpdatePayload:Record<string,unknown>={
+      user_metadata:{
+        ...(authUser.user_metadata||{}),
+        username:requestedUsername,
+        full_name:normalizeText(payload.full_name) || normalizeText(authUser.user_metadata?.full_name) || normalizeText(authUser.email)
+      }
+    }
+    if(requestedPassword)authUpdatePayload.password=requestedPassword
+    const { error }=await adminClient.auth.admin.updateUserById(authUser.id,authUpdatePayload)
+    if(error)throw new Error(String(error.message || 'Unable to update admin credentials.'))
+  }
+  const fullName=normalizeText(payload.full_name) || normalizeText(authUser.user_metadata?.full_name) || requestedUsername
   const row={
     id:authUser.id,
     full_name:fullName,
@@ -1145,6 +1196,22 @@ const upsertSkybookAdminUser=async(payload:Json)=>{
   const { error }=await adminClient.from('app_users').upsert(row,{onConflict:'id'})
   if(error)throw new Error(String(error.message || 'Unable to save admin user.'))
   return { success:true, admin_user:row }
+}
+
+const loginAdminWithUsername=async(payload:Json)=>{
+  const username=normalizeUsername(payload.username)
+  const password=normalizeText(payload.password)
+  if(!username || !password)throw new Error('Username and password are required.')
+  const authUsers=await listAllAuthUsers()
+  const authUser=authUsers.find(user=>resolveAuthUsername(user as unknown as Json)===username)
+  if(!authUser?.email)throw new Error('Invalid username or password.')
+  const authBrowser=createClient(supabaseUrl,supabaseAnonKey,{auth:{persistSession:false}})
+  const { data,error }=await authBrowser.auth.signInWithPassword({
+    email:normalizeText(authUser.email),
+    password
+  })
+  if(error || !data?.session)throw new Error('Invalid username or password.')
+  return { session:data.session, user:data.user }
 }
 
 const normalizeDiscountAmount=(total:number,discountType:string,discountValue:number)=>{
@@ -1360,14 +1427,28 @@ const queueEmailLog=async({bookingId,customerId,recipientEmail,templateKey,subje
   return data
 }
 
-const readEmailIntegrationConfig=async()=>{
+const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
   const integrations=normalizeJsonRecord(await getSettingValue('integrations',{}))
   const emailConfig=normalizeJsonRecord(integrations.email)
+  const normalizedBrand=normalizeText(brandCode) || 'true-travel'
+  const configuredBrandMap=normalizeJsonRecord(emailConfig.from_email_by_brand)
+  const configuredNameMap=normalizeJsonRecord(emailConfig.from_name_by_brand)
   return {
     provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || 'log_only'),
     resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key),
-    fromEmail:normalizeText(Deno.env.get('EMAIL_FROM') || emailConfig.from_email),
-    fromName:normalizeText(Deno.env.get('EMAIL_FROM_NAME') || emailConfig.from_name || 'SkyBook')
+    fromEmail:normalizeText(
+      Deno.env.get('EMAIL_FROM')
+      || configuredBrandMap[normalizedBrand]
+      || emailConfig.from_email
+      || BRAND_SUPPORT_EMAILS[normalizedBrand as keyof typeof BRAND_SUPPORT_EMAILS]
+    ),
+    fromName:normalizeText(
+      Deno.env.get('EMAIL_FROM_NAME')
+      || configuredNameMap[normalizedBrand]
+      || emailConfig.from_name
+      || BRAND_EMAIL_NAMES[normalizedBrand as keyof typeof BRAND_EMAIL_NAMES]
+      || 'SkyBook'
+    )
   }
 }
 
@@ -1380,7 +1461,8 @@ const tryParseJson=async(response:Response)=>{
 }
 
 const dispatchEmailLog=async(emailLog:Json)=>{
-  const config=await readEmailIntegrationConfig()
+  const brandCode=normalizeText(emailLog.metadata?.brand_code) || 'true-travel'
+  const config=await readEmailIntegrationConfig(brandCode)
   const provider=normalizeText(config.provider)
   if(provider!=='resend' || !config.resendApiKey || !config.fromEmail){
     await adminClient.from('email_logs').update({
@@ -1514,6 +1596,7 @@ const performQueuedEmailJob=async(job:Json)=>{
     body,
     status:'queued',
     metadata:{
+      brand_code:normalizeText(booking.brand_code) || 'true-travel',
       source:'system_job',
       job_id:String(job.id || ''),
       delivery_intent:'automatic'
@@ -2772,9 +2855,10 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       defaultDepositValue:30,
       taxRate:0,
       serviceFee:0,
-      supportEmail:'bookings@truetravelnam.net',
+      supportEmail:'info@jrimporters.com',
       supportPhone:'+264813224270',
-      supportWhatsApp:'+264813224270'
+      supportWhatsApp:'+264813224270',
+      supportEmailsByBrand:BRAND_SUPPORT_EMAILS
     }),
     getSettingValue('email_templates',defaultEmailTemplates),
     getSettingValue('automation_rules',{
@@ -2794,7 +2878,11 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     getSettingValue('integrations',{
       whatsapp:{enabled:false},
       googleCalendar:{enabled:false},
-      webhooks:{enabled:true}
+      webhooks:{enabled:true},
+      email:{
+        from_email_by_brand:BRAND_SUPPORT_EMAILS,
+        from_name_by_brand:BRAND_EMAIL_NAMES
+      }
     }),
     getSettingValue('reporting',{
       defaultWindowDays:30,
@@ -3128,6 +3216,10 @@ Deno.serve(async request=>{
 
     if(resource==='portal' && request.method==='POST' && id==='session' && subresource==='request'){
       return json(201,await createPortalSelfServiceRequest(normalizeText(requestBody.token),requestBody))
+    }
+
+    if(resource==='admin' && request.method==='POST' && id==='login'){
+      return json(200,await loginAdminWithUsername(requestBody))
     }
 
     if(resource==='admin'){

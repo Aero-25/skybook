@@ -12,7 +12,7 @@ window.TrueTravelBooking=(()=>{
     currency:'NAD',
     currencySymbol:'N$',
     locale:'en-NA',
-    supportEmail:'bookings@truetravelnam.net',
+    supportEmail:'info@jrimporters.com',
     supportPhone:'+264813224270',
     supportWhatsApp:'+264813224270',
     lookupWindowDays:365,
@@ -33,7 +33,7 @@ window.TrueTravelBooking=(()=>{
     'true-travel':{
       code:'true-travel',
       projectName:'True Travel',
-      supportEmail:'bookings@truetravelnam.net',
+      supportEmail:'info@jrimporters.com',
       supportPhone:'+264813224270',
       supportWhatsApp:'+264813224270',
       bookingPrefix:'TT'
@@ -41,7 +41,7 @@ window.TrueTravelBooking=(()=>{
     iventure:{
       code:'iventure',
       projectName:'Iventure',
-      supportEmail:'bookings@iventure.com.na',
+      supportEmail:'info@aerodigital.space',
       supportPhone:'+264813224270',
       supportWhatsApp:'+264813224270',
       bookingPrefix:'IV'
@@ -717,13 +717,38 @@ window.TrueTravelBooking=(()=>{
     if(method==='GET'&&normalizedPath==='admin/users'){
       return {admin_users:db.app_users,permission_catalog:SKYBOOK_PERMISSION_CATALOG,role_defaults:SKYBOOK_ROLE_DEFAULTS}
     }
+    if(method==='POST'&&normalizedPath==='admin/login'){
+      const username=safeText(body?.username).toLowerCase()
+      const password=safeText(body?.password)
+      const matchedUser=db.app_users.find(item=>{
+        const storedUsername=safeText(item.username||item.email).split('@')[0].toLowerCase()
+        return storedUsername===username && safeText(item.password||'demo123')===password
+      })
+      if(!matchedUser)throw new Error('Invalid username or password.')
+      return {
+        session:{
+          access_token:uid('access'),
+          refresh_token:uid('refresh')
+        },
+        user:{
+          id:matchedUser.id,
+          email:matchedUser.email||`${username}@skybook.local`,
+          user_metadata:{
+            username,
+            full_name:matchedUser.full_name||username
+          }
+        }
+      }
+    }
     if(method==='POST'&&normalizedPath==='admin/users'){
-      const email=safeText(body?.email).toLowerCase()
-      const existing=db.app_users.find(item=>item.id===safeText(body?.id) || item.email===email)
+      const username=safeText(body?.username).toLowerCase()
+      const existing=db.app_users.find(item=>item.id===safeText(body?.id) || safeText(item.username).toLowerCase()===username)
       const nextUser={
         id:safeText(body?.id)||existing?.id||uid('auth'),
-        email:email||existing?.email||'',
-        full_name:safeText(body?.full_name)||existing?.full_name||email,
+        email:existing?.email||`${username}@skybook.local`,
+        username:username||existing?.username||'',
+        password:safeText(body?.password)||existing?.password||'demo123',
+        full_name:safeText(body?.full_name)||existing?.full_name||username,
         role:safeText(body?.role)||existing?.role||'booking_agent',
         is_active:body?.is_active!==false,
         permissions:sanitizePermissions(body?.permissions||existing?.permissions||{})

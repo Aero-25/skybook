@@ -71,16 +71,23 @@ const handleLogin=async event=>{
     const formData=new FormData(loginNodes.form)
     setLoginStatus('Signing in securely...')
     if(submitButton)submitButton.disabled=true
-    const { data, error }=await client.auth.signInWithPassword({
-      email:String(formData.get('email')||'').trim(),
-      password:String(formData.get('password')||'')
+    const result=await skybookShared.apiRequest('admin/login',{
+      method:'POST',
+      body:{
+        username:String(formData.get('username')||'').trim(),
+        password:String(formData.get('password')||'')
+      }
+    })
+    if(!result?.session?.access_token || !result?.session?.refresh_token){
+      setLoginStatus('Supabase did not return a valid admin session.',true)
+      return
+    }
+    const { error }=await client.auth.setSession({
+      access_token:String(result.session.access_token),
+      refresh_token:String(result.session.refresh_token)
     })
     if(error){
       setLoginStatus(error.message,true)
-      return
-    }
-    if(!data?.session?.access_token){
-      setLoginStatus('Supabase did not return a valid admin session.',true)
       return
     }
     setLoginStatus('Signed in. Opening SkyBook operations console...')
