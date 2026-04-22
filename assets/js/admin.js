@@ -22,6 +22,10 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
     galleryPath:'gallery.html',
     galleryBucket:GALLERY_BUCKET,
     galleryPathPrefix:'gallery/true-travel',
+    assetBucket:'True Travel',
+    assetPathPrefix:'index-assets',
+    assetStorageKey:'true-travel-index-assets-v2',
+    assetSignalKey:'true-travel-index-assets-sync-v2',
     pages:[
       {key:'index',label:'Homepage',path:'index.html',description:'Landing hero, coastal storytelling, and the main booking handoff.'},
       {key:'tours',label:'Tours',path:'tours.html',description:'Tour discovery, normal vs combo distinction, and guided booking handoff.'},
@@ -44,6 +48,10 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
     galleryPath:'index.html',
     galleryBucket:GALLERY_BUCKET,
     galleryPathPrefix:'gallery/iventure',
+    assetBucket:'Demo Bucket',
+    assetPathPrefix:'index-assets',
+    assetStorageKey:'true-travel-index-assets-v1',
+    assetSignalKey:'true-travel-index-assets-sync-v1',
     pages:[
       {key:'index',label:'Homepage',path:'index.html',description:'Desert-coast landing page and brand entry.'},
       {key:'services',label:'Services',path:'services.html',description:'Iventure expedition catalog and booking links.'},
@@ -72,6 +80,36 @@ const CATEGORY_GROUPS=[
     description:'Premium or custom departures that still flow through the shared backend.'
   }
 ]
+
+const PAGE_ASSET_SLOT_FALLBACKS={
+  'true-travel':{
+    index:[
+      {slot:'brand-logo',label:'Brand Logo',kind:'image'},
+      {slot:'about-primary',label:'About Main Image',kind:'background'},
+      {slot:'about-secondary',label:'About Secondary Image',kind:'background'},
+      {slot:'about-tertiary',label:'About Tertiary Image',kind:'background'},
+      {slot:'about-quaternary',label:'About Quaternary Image',kind:'background'},
+      {slot:'about-quinary',label:'About Quinary Image',kind:'background'},
+      {slot:'tour-1',label:'Tour Card 1',kind:'background'},
+      {slot:'tour-2',label:'Tour Card 2',kind:'background'},
+      {slot:'tour-3',label:'Tour Card 3',kind:'background'},
+      {slot:'tour-4',label:'Tour Card 4',kind:'background'},
+      {slot:'tour-5',label:'Tour Card 5',kind:'background'},
+      {slot:'experience-1',label:'Experience Image 1',kind:'background'},
+      {slot:'experience-2',label:'Experience Image 2',kind:'background'},
+      {slot:'experience-3',label:'Experience Image 3',kind:'background'},
+      {slot:'experience-4',label:'Experience Image 4',kind:'background'}
+    ],
+    default:[
+      {slot:'brand-logo',label:'Brand Logo',kind:'image'}
+    ]
+  },
+  iventure:{
+    default:[
+      {slot:'brand-logo',label:'Brand Logo',kind:'image'}
+    ]
+  }
+}
 
 const pageUrl=new URL(window.location.href)
 const requestedBrandCode=pageUrl.searchParams.get('brand')?.trim().toLowerCase()||''
@@ -112,6 +150,8 @@ let catalogLoaded=false
 let galleryLibraryItems=[]
 let galleryLoadedBrandCode=''
 let isGalleryUploading=false
+let pageAssetSlots=[]
+let isPageAssetUploading=false
 
 const shouldPromptForBrand=!isValidBrandCode(requestedBrandCode)
 
@@ -155,6 +195,11 @@ const galleryImageFileInput=document.getElementById('galleryImageFile')
 const galleryUploadSubmit=document.getElementById('galleryUploadSubmit')
 const reloadGalleryCollectionButton=document.getElementById('reloadGalleryCollection')
 const openGalleryPageLink=document.getElementById('openGalleryPage')
+const pageAssetUploadForm=document.getElementById('pageAssetUploadForm')
+const pageAssetSlotSelect=document.getElementById('pageAssetSlot')
+const pageAssetFileInput=document.getElementById('pageAssetFile')
+const pageAssetUploadSubmit=document.getElementById('pageAssetUploadSubmit')
+const pageAssetUploadStatusNode=document.getElementById('pageAssetUploadStatus')
 const studioSidebarToggle=document.getElementById('mobileStudioToggle')
 const studioSidebarBackdrop=document.getElementById('studioSidebarBackdrop')
 
@@ -194,6 +239,16 @@ const setGalleryStatus=(message,isError=false)=>{
   }
   galleryStatusNode.textContent=message
   galleryStatusNode.classList.toggle('is-error',isError)
+}
+
+const setPageAssetStatus=(message,isError=false)=>{
+  if(!pageAssetUploadStatusNode){
+    if(isError)console.error(message)
+    else console.info(message)
+    return
+  }
+  pageAssetUploadStatusNode.textContent=message
+  pageAssetUploadStatusNode.classList.toggle('is-error',isError)
 }
 
 const appendSearchParams=(path,extraSearch='')=>{
@@ -462,6 +517,202 @@ const updateGalleryUploadState=()=>{
   }
 }
 
+const updatePageAssetUploadState=()=>{
+  const hasSlots=pageAssetSlots.length>0
+  if(pageAssetSlotSelect)pageAssetSlotSelect.disabled=isPageAssetUploading||!hasSlots
+  if(pageAssetFileInput)pageAssetFileInput.disabled=isPageAssetUploading||!hasSlots
+  if(pageAssetUploadSubmit){
+    pageAssetUploadSubmit.disabled=isPageAssetUploading||!hasSlots
+    pageAssetUploadSubmit.textContent=isPageAssetUploading ? 'Uploading...' : 'Upload & Sync Page'
+  }
+}
+
+const getFallbackAssetSlots=(brand,page)=>{
+  const brandFallbacks=PAGE_ASSET_SLOT_FALLBACKS[activeBrandCode]||{}
+  return [...(brandFallbacks[page.key]||[]),...(brandFallbacks.default||[])]
+    .filter((slot,index,items)=>slot?.slot&&items.findIndex(candidate=>candidate.slot===slot.slot)===index)
+}
+
+const getFrameAssetSlots=()=>{
+  try{
+    const doc=frame?.contentDocument
+    if(!doc)return []
+    const slots=[...doc.querySelectorAll('[data-asset-slot]')].map(node=>({
+      slot:safeText(node.dataset.assetSlot),
+      label:safeText(node.dataset.assetLabel)||safeText(node.dataset.assetSlot),
+      kind:safeText(node.dataset.assetKind)||'image'
+    })).filter(item=>item.slot)
+    return slots.filter((slot,index,items)=>items.findIndex(candidate=>candidate.slot===slot.slot)===index)
+  }catch{
+    return []
+  }
+}
+
+const renderPageAssetSlotOptions=()=>{
+  if(!pageAssetSlotSelect)return
+  const brand=getActiveBrand()
+  const page=getPageConfig(brand,activePageKey)
+  if(!pageAssetSlots.length){
+    pageAssetSlotSelect.innerHTML='<option value="">No editable image holders found</option>'
+    setPageAssetStatus(`${brand.label} ${page.label} has no visible image holders yet. Use the live preview to confirm the page layout, or add data-asset-slot markers before uploading images here.`,true)
+    updatePageAssetUploadState()
+    return
+  }
+  pageAssetSlotSelect.innerHTML=pageAssetSlots.map(item=>`
+    <option value="${escapeHtml(item.slot)}">${escapeHtml(item.label||item.slot)} (${escapeHtml(item.slot)})</option>
+  `).join('')
+  setPageAssetStatus(`${pageAssetSlots.length} editable image holder${pageAssetSlots.length===1 ? '' : 's'} available on ${brand.label} ${page.label}.`)
+  updatePageAssetUploadState()
+}
+
+const refreshPageAssetUploadPanel=()=>{
+  const brand=getActiveBrand()
+  const page=getPageConfig(brand,activePageKey)
+  pageAssetSlots=getFrameAssetSlots()
+  if(!pageAssetSlots.length){
+    pageAssetSlots=getFallbackAssetSlots(brand,page)
+  }
+  renderPageAssetSlotOptions()
+}
+
+const getBrandAssetConfig=brand=>{
+  const sharedConfig=shared.normalizeSupabaseConfig
+    ? shared.normalizeSupabaseConfig(shared.readSupabaseConfig?.()||{})
+    : {}
+  const bucket=safeText(brand.assetBucket)||safeText(brand.galleryBucket)||safeText(sharedConfig.bucket)||GALLERY_BUCKET
+  const assetPathPrefix=safeText(brand.assetPathPrefix)||safeText(sharedConfig.assetPathPrefix)||'index-assets'
+  return {
+    ...sharedConfig,
+    bucket,
+    assetPathPrefix,
+    manifestPath:`${assetPathPrefix}/manifest.json`,
+    storageKey:safeText(brand.assetStorageKey)||'true-travel-index-assets-v1',
+    signalKey:safeText(brand.assetSignalKey)||'true-travel-index-assets-sync-v1'
+  }
+}
+
+const normalizePageAssetEntry=value=>{
+  if(value&&typeof value==='object'&&!Array.isArray(value)){
+    return {
+      ...value,
+      src:safeText(value.src)
+    }
+  }
+  return {
+    src:safeText(value)
+  }
+}
+
+const serializePageAssetEntry=entry=>{
+  const src=safeText(entry?.src)
+  const caption=Object.prototype.hasOwnProperty.call(entry||{},'caption') ? String(entry.caption??'') : null
+  if(!src&&caption===null)return undefined
+  if(caption===null)return src
+  return {
+    ...(src ? {src} : {}),
+    caption
+  }
+}
+
+const applyPageAssetEntry=(assets,slot,entry)=>{
+  const next={...(assets&&typeof assets==='object' ? assets : {})}
+  const serialized=serializePageAssetEntry(entry)
+  if(typeof serialized==='undefined')delete next[slot]
+  else next[slot]=serialized
+  return next
+}
+
+const loadPageAssetManifest=async(client,assetConfig)=>{
+  const result=await client.storage.from(assetConfig.bucket).download(assetConfig.manifestPath)
+  if(result.error)return {}
+  try{
+    const payload=JSON.parse(await result.data.text())
+    return payload&&typeof payload.assets==='object'&&payload.assets ? payload.assets : {}
+  }catch{
+    return {}
+  }
+}
+
+const savePageAssetManifest=async(client,assetConfig,assets)=>{
+  const payload={updatedAt:new Date().toISOString(),assets}
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})
+  const result=await client.storage.from(assetConfig.bucket).upload(assetConfig.manifestPath,blob,{
+    cacheControl:'3600',
+    contentType:'application/json',
+    upsert:true
+  })
+  if(result.error)throw result.error
+}
+
+const syncPageAssetLocalStore=(assetConfig,assets)=>{
+  try{
+    window.localStorage.setItem(assetConfig.storageKey,JSON.stringify(assets))
+    window.localStorage.setItem(assetConfig.signalKey,String(Date.now()))
+  }catch{}
+}
+
+const buildPageAssetStoragePath=(slot,file,assetConfig)=>{
+  const extension=getFileExtension(file)
+  const fileStem=toSlug(safeText(file?.name).replace(/\.[^.]+$/,''))||toSlug(slot)||'page-image'
+  const pageStem=toSlug(activePageKey)||'page'
+  return `${assetConfig.assetPathPrefix}/${pageStem}/${toSlug(slot)||'image'}-${Date.now()}-${fileStem}.${extension}`
+}
+
+const submitPageAssetUpload=async event=>{
+  event.preventDefault()
+  if(isPageAssetUploading)return
+
+  const slot=safeText(pageAssetSlotSelect?.value)
+  const file=pageAssetFileInput?.files?.[0]||null
+  const slotLabel=pageAssetSlots.find(item=>item.slot===slot)?.label||slot
+
+  if(!slot){
+    setPageAssetStatus('Choose an editable image holder before uploading.',true)
+    return
+  }
+  if(!file){
+    setPageAssetStatus('Choose an image file before uploading.',true)
+    return
+  }
+
+  isPageAssetUploading=true
+  updatePageAssetUploadState()
+  setPageAssetStatus(`Uploading ${slotLabel} for ${getActiveBrand().label}...`)
+
+  try{
+    const {client}=await requireGalleryClient()
+    const brand=getActiveBrand()
+    const assetConfig=getBrandAssetConfig(brand)
+    const storagePath=buildPageAssetStoragePath(slot,file,assetConfig)
+    const uploadResult=await client.storage.from(assetConfig.bucket).upload(storagePath,file,{
+      cacheControl:'3600',
+      upsert:true,
+      contentType:file.type||undefined
+    })
+    if(uploadResult.error)throw uploadResult.error
+
+    const publicUrlResult=client.storage.from(assetConfig.bucket).getPublicUrl(storagePath)
+    const publicUrl=publicUrlResult?.data?.publicUrl ? `${publicUrlResult.data.publicUrl}?v=${Date.now()}` : ''
+    if(!publicUrl)throw new Error('The uploaded image URL could not be resolved.')
+
+    const latestAssets=await loadPageAssetManifest(client,assetConfig)
+    const previousEntry=normalizePageAssetEntry(latestAssets[slot])
+    const nextAssets=applyPageAssetEntry(latestAssets,slot,{...previousEntry,src:publicUrl})
+    await savePageAssetManifest(client,assetConfig,nextAssets)
+    syncPageAssetLocalStore(assetConfig,nextAssets)
+
+    if(pageAssetUploadForm)pageAssetUploadForm.reset()
+    setPageAssetStatus(`${slotLabel} uploaded and synced live. Reloading the preview now.`)
+    setStatus(`${brand.label} ${slotLabel} image synced to the public page.`)
+    reloadPreview()
+  }catch(error){
+    setPageAssetStatus(error?.message||'The page image upload failed.',true)
+  }finally{
+    isPageAssetUploading=false
+    updatePageAssetUploadState()
+  }
+}
+
 const getGalleryBucket=brand=>safeText(brand.galleryBucket)||GALLERY_BUCKET
 const getGalleryPathPrefix=brand=>safeText(brand.galleryPathPrefix)||`${GALLERY_PATH_PREFIX}/${activeBrandCode}`
 const getGalleryPagePath=brand=>safeText(brand.galleryPath)||getPageConfig(brand,'gallery')?.path||brand.homePath||'index.html'
@@ -522,6 +773,7 @@ const updateBrandChrome=()=>{
   updatePageWorkspaceChrome()
   renderPageWorkspaceGrid()
   renderGalleryLibrary()
+  refreshPageAssetUploadPanel()
 }
 
 const reloadPreview=()=>{
@@ -546,6 +798,7 @@ const updateActivePanel=(panel,{updateHash=true,refreshPreview=true}={})=>{
 
   if(nextPanel==='pages'&&refreshPreview){
     reloadPreview()
+    refreshPageAssetUploadPanel()
     setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded.`)
   }
   if(nextPanel==='gallery'&&galleryLoadedBrandCode!==activeBrandCode){
@@ -773,6 +1026,8 @@ reloadGalleryCollectionButton?.addEventListener('click',()=>{
 })
 
 galleryUploadForm?.addEventListener('submit',submitGalleryUpload)
+pageAssetUploadForm?.addEventListener('submit',submitPageAssetUpload)
+frame?.addEventListener('load',refreshPageAssetUploadPanel)
 
 studioSidebarToggle?.addEventListener('click',toggleStudioSidebar)
 studioSidebarBackdrop?.addEventListener('click',closeStudioSidebar)

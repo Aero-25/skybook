@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260421-enterprise-polish">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260422-management">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -421,6 +421,14 @@
               <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
             </div>
             <div class="booking-form-grid">
+              <div class="booking-field-full booking-quick-filter-bar" aria-label="Booking quick filters">
+                <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All bookings <span data-filter-count="all">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="needs_action">Needs action <span data-filter-count="needs_action">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="unpaid">Unpaid <span data-filter-count="unpaid">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="unassigned">Unassigned <span data-filter-count="unassigned">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="upcoming">Upcoming <span data-filter-count="upcoming">0</span></button>
+                <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset filters</button>
+              </div>
               <div class="booking-field">
                 <label for="bookingFilterBrand">Brand</label>
                 <select id="bookingFilterBrand">
@@ -498,16 +506,16 @@
           <article class="booking-panel booking-detail-panel">
             <div class="widget-header">
               <div>
-                <h3>Booking Detail</h3>
-                <p class="muted-copy">Guest, finance, operator, and timeline context in one record.</p>
+                <h3>Booking Management</h3>
+                <p class="muted-copy">Guest communication, admin changes, notifications, finance, operator, and timeline context in one record.</p>
               </div>
-              <div class="booking-chip">Live Record</div>
+              <div class="booking-chip">Live Management Screen</div>
             </div>
             <div id="adminBookingDetail"></div>
           </article>
         </div>
 
-        <article class="booking-panel booking-editor-panel admin-spacer">
+        <article class="booking-panel booking-editor-panel admin-spacer" id="booking-editor-panel">
           <div class="widget-header">
             <div>
               <h3>Create or Edit Booking</h3>
@@ -1257,6 +1265,6 @@
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
-  <script src="assets/js/booking-admin.js?v=20260421-enterprise-polish"></script>
+  <script src="assets/js/booking-admin.js?v=20260422-management"></script>
 </body>
 </html>

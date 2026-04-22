@@ -131,6 +131,29 @@
             </div>
           </div>
           <div class="workspace-page-grid" id="pageWorkspaceGrid"></div>
+          <div class="page-asset-uploader" aria-label="Page image upload manager">
+            <article class="page-asset-upload-card">
+              <div>
+                <div class="editor-panel-kicker">Page Image Upload</div>
+                <h2>Place imagery directly into this page</h2>
+                <p>Choose one of the live image holders, upload a file, and SkyBook will sync the public manifest so the selected page updates for guests.</p>
+              </div>
+              <form id="pageAssetUploadForm" class="page-asset-upload-form">
+                <label class="sidebar-field">
+                  <span>Image Holder</span>
+                  <select id="pageAssetSlot" required>
+                    <option value="">Loading editable image holders...</option>
+                  </select>
+                </label>
+                <label class="sidebar-field">
+                  <span>Image File</span>
+                  <input id="pageAssetFile" type="file" accept="image/*" required>
+                </label>
+                <button type="submit" id="pageAssetUploadSubmit">Upload &amp; Sync Page</button>
+              </form>
+            </article>
+            <div class="workspace-status" id="pageAssetUploadStatus">Select a page to see the available image holders.</div>
+          </div>
           <iframe id="previewFrame" class="preview-frame" src="../true-travel-site/index.html?admin=1" title="Site editor preview"></iframe>
         </div>
       </section>
@@ -236,6 +259,6 @@
 
   <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
   <script src="assets/js/booking-shared.js?v=20260421-centralcatalog" defer></script>
-  <script src="assets/js/admin.js?v=20260421-gallerystudio" defer></script>
+  <script src="assets/js/admin.js?v=20260422-pageassets" defer></script>
 </body>
 </html>

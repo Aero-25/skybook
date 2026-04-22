@@ -514,6 +514,61 @@ tbody tr:hover td{background:#f8fbfe}
 .detail-actions button,.toolbar-actions button{
   min-height:42px;padding:0 16px;border-radius:999px;border:none;background:var(--booking-ocean);color:#fff;cursor:pointer;font-weight:700;
 }
+.booking-quick-filter-bar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  padding:12px;
+  border-radius:20px;
+  background:#f4f8fc;
+  border:1px solid var(--booking-line);
+}
+.booking-quick-filter{
+  min-height:38px;
+  padding:0 13px;
+  border-radius:999px;
+  border:1px solid rgba(35,70,102,.12);
+  background:#fff;
+  color:var(--booking-ink);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  cursor:pointer;
+  box-shadow:0 10px 22px rgba(20,52,83,.05);
+}
+.booking-quick-filter span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:24px;
+  min-height:24px;
+  margin-left:8px;
+  padding:0 7px;
+  border-radius:999px;
+  background:#eef5fb;
+  color:var(--booking-muted);
+}
+.booking-quick-filter.is-active{
+  background:linear-gradient(135deg,var(--booking-ocean),#1d6f9d);
+  color:#fff;
+  border-color:transparent;
+}
+.booking-quick-filter.is-active span{
+  background:rgba(255,255,255,.16);
+  color:#fff;
+}
+.booking-quick-filter.is-reset{
+  margin-left:auto;
+  background:transparent;
+  box-shadow:none;
+}
+.booking-row.is-selected{
+  outline:2px solid rgba(26,95,134,.24);
+  outline-offset:-2px;
+  background:#eef7fc;
+}
 .template-card{padding:20px}
 .template-card pre{margin:10px 0 0;white-space:pre-wrap;font-family:'DM Sans',sans-serif;color:var(--booking-muted)}
 
@@ -648,6 +703,81 @@ tbody tr:hover td{background:#f8fbfe}
   display:grid;
   gap:16px;
 }
+.booking-management-hero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:18px;
+  align-items:center;
+  padding:22px;
+  border-radius:26px;
+  border:1px solid rgba(35,70,102,.12);
+  background:
+    radial-gradient(circle at 8% 0%,rgba(48,139,177,.18),transparent 28%),
+    linear-gradient(135deg,#ffffff,#eef6fc);
+  box-shadow:0 18px 42px rgba(20,52,83,.08);
+}
+.booking-management-hero h3{
+  margin:12px 0 8px;
+  font-size:28px;
+  letter-spacing:-.04em;
+}
+.booking-management-hero p{
+  margin:0;
+  max-width:760px;
+  color:var(--booking-muted);
+  line-height:1.7;
+}
+.booking-management-nav{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  justify-content:flex-end;
+  max-width:360px;
+}
+.booking-management-nav a{
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:0 13px;
+  border-radius:999px;
+  background:#fff;
+  border:1px solid var(--booking-line);
+  color:var(--booking-ocean);
+  text-decoration:none;
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.booking-alert-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:12px;
+}
+.booking-alert-card{
+  display:grid;
+  gap:8px;
+  padding:14px;
+  border-radius:18px;
+  border:1px solid var(--booking-line);
+  background:#fff;
+}
+.booking-alert-card span{
+  color:var(--booking-muted);
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:900;
+}
+.booking-alert-card strong{
+  line-height:1.4;
+}
+.booking-alert-card small{
+  color:var(--booking-muted);
+}
+.booking-alert-card.is-critical{border-color:#efb9b9;background:#fff5f5}
+.booking-alert-card.is-high{border-color:#f0dfb7;background:#fffaf0}
+.booking-alert-card.is-clear{border-color:#d7eadc;background:#edf8f0}
 .detail-section{
   padding:18px;
   border-radius:22px;
@@ -913,6 +1043,9 @@ tbody tr:hover td{background:#f8fbfe}
 }
 @media (max-width:980px){
   .booking-grid,.booking-two-col,.admin-panel-grid,.admin-panel-grid-single,.admin-grid,.detail-grid,.booking-form-grid,.admin-gateway-grid,.admin-command-grid,.booking-detail-shell,.detail-overview-grid,.detail-subgrid,.report-split-grid,.calendar-week-grid,.calendar-month-grid,.skybook-login-shell{grid-template-columns:1fr}
+  .booking-management-hero{grid-template-columns:1fr}
+  .booking-management-nav{justify-content:flex-start;max-width:none}
+  .booking-quick-filter.is-reset{margin-left:0}
   .memory-admin-grid{grid-template-columns:1fr}
   .booking-action-row,.booking-meta-row,.admin-toolbar,.panel-header-inline{flex-direction:column;align-items:flex-start}
   .calendar-cell{min-height:auto}

@@ -398,6 +398,64 @@ body.has-site-picker{
   font-size:13px;
   line-height:1.7;
 }
+.page-asset-uploader{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(260px,.42fr);
+  gap:14px;
+  align-items:stretch;
+}
+.page-asset-upload-card{
+  display:grid;
+  grid-template-columns:minmax(0,.9fr) minmax(300px,1.1fr);
+  gap:18px;
+  align-items:end;
+  padding:22px;
+  border-radius:26px;
+  border:1px solid rgba(244,186,24,.24);
+  background:
+    radial-gradient(circle at 12% 0%,rgba(244,186,24,.16),transparent 34%),
+    linear-gradient(135deg,rgba(12,36,52,.9),rgba(8,27,41,.78));
+  box-shadow:0 24px 62px rgba(0,0,0,.18);
+}
+.page-asset-upload-card h2{
+  margin-top:10px;
+  font-family:'Playfair Display',serif;
+  font-size:30px;
+  line-height:1;
+}
+.page-asset-upload-card p{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.7;
+}
+.page-asset-upload-form{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;
+  gap:12px;
+  align-items:end;
+}
+.page-asset-upload-form .sidebar-field{
+  margin:0;
+}
+.page-asset-upload-form button{
+  appearance:none;
+  border:none;
+  min-height:50px;
+  padding:0 18px;
+  border-radius:999px;
+  background:var(--gold);
+  color:#0d2230;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:800;
+  cursor:pointer;
+}
+.page-asset-upload-form button:disabled{
+  cursor:not-allowed;
+  opacity:.58;
+}
 .gallery-manager-shell{
   min-height:calc(100vh - 44px);
   min-height:calc(100svh - 44px);
@@ -1202,6 +1260,9 @@ body.has-site-picker{
   .tours-shell{height:auto}
   .gallery-manager-shell{min-height:auto}
   .gallery-manager-grid{grid-template-columns:1fr}
+  .page-asset-uploader,
+  .page-asset-upload-card,
+  .page-asset-upload-form{grid-template-columns:1fr}
   .preview-frame{min-height:78vh}
   .tour-form-grid,.season-grid{grid-template-columns:1fr}
 }
@@ -1240,6 +1301,7 @@ body.has-site-picker{
   .gallery-upload-row{
     grid-template-columns:1fr;
   }
+  .page-asset-upload-form button{width:100%}
   .workspace-status{padding:12px 14px}
   .preview-frame{min-height:62vh;border-radius:22px}
   .tours-grid{grid-template-columns:1fr}
@@ -1278,7 +1340,7 @@ body.has-site-picker{
   .studio-mobile-bar{padding:12px 14px}
   .studio-mobile-bar-copy strong{font-size:14px}
   .sidebar-card{padding:14px}
-  .workspace-top,.editor-topbar,.editor-panel,.tour-grid-card,.tour-editor-card,.gallery-upload-card,.gallery-library-card{padding:16px}
+  .workspace-top,.editor-topbar,.editor-panel,.tour-grid-card,.tour-editor-card,.gallery-upload-card,.gallery-library-card,.page-asset-upload-card{padding:16px}
   .preview-frame{min-height:56vh;min-height:56svh;border-radius:18px}
   .editor-shell{width:min(100% - 12px,1180px);margin:12px auto 18px}
   .sidebar-field input,.sidebar-field select,.sidebar-field textarea,.tour-field input,.tour-field textarea,.tour-field select,.season-field input{font-size:16px}

@@ -92,6 +92,7 @@ const state={
   },
   calendarView:'day',
   calendarFocusDate:bookingAdminShared.currentDate(),
+  bookingQuickFilter:'',
   selectedBookingId:'',
   selectedCustomerId:'',
   selectedServiceId:''
@@ -720,6 +721,50 @@ const getBookingChecklist=booking=>{
   return checklist
 }
 
+const bookingHasOpenOperationalWork=booking=>{
+  const status=String(booking?.status||'').toLowerCase()
+  const paymentStatus=String(booking?.payment_status||'').toLowerCase()
+  const openTasks=getBookingTasks(booking?.id).some(task=>String(task.status||'')==='open')
+  const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
+  const needsOperator=['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
+  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','unpaid','partially_paid'].includes(paymentStatus)
+}
+
+const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
+  const key=normalizeText(filter)
+  if(!key)return true
+  const status=String(booking?.status||'').toLowerCase()
+  const paymentStatus=String(booking?.payment_status||'').toLowerCase()
+  const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
+  const bookingDate=parseDateValue(booking?.preferred_date)
+  const today=parseDateValue(getTodayKey())
+  const nextWeek=parseDateValue(getTodayKey())
+  if(nextWeek)nextWeek.setDate(nextWeek.getDate()+7)
+  if(key==='needs_action')return bookingHasOpenOperationalWork(booking)
+  if(key==='unpaid')return hasOutstanding||['pending','unpaid','partially_paid','authorized','failed'].includes(paymentStatus)
+  if(key==='unassigned')return ['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
+  if(key==='upcoming')return Boolean(bookingDate&&today&&nextWeek&&bookingDate>=today&&bookingDate<=nextWeek&&!['cancelled','completed'].includes(status))
+  return true
+}
+
+const updateBookingQuickFilterBar=()=>{
+  document.querySelectorAll('[data-booking-quick-filter]').forEach(button=>{
+    const key=button.dataset.bookingQuickFilter||''
+    button.classList.toggle('is-active',key===state.bookingQuickFilter)
+  })
+  const countMap={
+    all:state.bookings.length,
+    needs_action:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'needs_action')).length,
+    unpaid:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'unpaid')).length,
+    unassigned:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'unassigned')).length,
+    upcoming:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'upcoming')).length
+  }
+  Object.entries(countMap).forEach(([key,count])=>{
+    const node=document.querySelector(`[data-filter-count="${key}"]`)
+    if(node)node.textContent=String(count)
+  })
+}
+
 const buildOperationalAlerts=()=>{
   const alerts=[]
   const now=new Date()
@@ -1321,6 +1366,7 @@ const getFilteredBookings=()=>{
       to.setHours(23,59,59,999)
       if(!bookingDate||bookingDate>to)return false
     }
+    if(!bookingMatchesQuickFilter(booking))return false
     return true
   })
 }
@@ -1723,8 +1769,9 @@ const renderReports=()=>{
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
+  updateBookingQuickFilterBar()
   nodes.bookingsTable.innerHTML=filtered.map(booking=>`
-    <tr class="booking-row" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <tr class="booking-row${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||'')}</div>
@@ -1790,9 +1837,49 @@ const renderBookingDetail=()=>{
   const checklist=getBookingChecklist(booking)
   const lastChangedBy=(booking.updated_by ? getStaffName(booking.updated_by) : '') || 'System'
   const noteTemplates=(state.opsTemplates?.internalNoteTemplates||[]).slice(0,3)
+  const bookingAlerts=buildOperationalAlerts().filter(alert=>alert.booking_id===booking.id || alert.reference===booking.reference)
   nodes.bookingDetail.innerHTML=`
     <div class="booking-detail-shell">
       <div class="booking-detail-main">
+        <section class="booking-management-hero">
+          <div>
+            <span class="booking-chip">Management workspace</span>
+            <h3>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+            <p>Communicate with the guest, update booking details, track notifications, manage payments, assign operators, and generate guest documents without leaving this record.</p>
+          </div>
+          <nav class="booking-management-nav" aria-label="Booking management navigation">
+            <a href="#booking-editor-panel">Edit booking</a>
+            <a href="#booking-guest-email">Email guest</a>
+            <a href="#booking-notification-panel">Notifications</a>
+            <a href="#booking-documents-panel">Documents</a>
+          </nav>
+        </section>
+
+        <section class="detail-section" id="booking-notification-panel">
+          <div class="section-heading">
+            <div>
+              <h4>Notifications for this booking</h4>
+              <p class="muted-copy">Operational signals that need admin attention before the guest experience is affected.</p>
+            </div>
+            ${renderStatusBadge(bookingAlerts.length ? 'pending' : 'completed',bookingAlerts.length ? `${bookingAlerts.length} alert${bookingAlerts.length===1 ? '' : 's'}` : 'No alerts')}
+          </div>
+          <div class="booking-alert-strip">
+            ${bookingAlerts.length ? bookingAlerts.map(alert=>`
+              <article class="booking-alert-card is-${bookingAdminShared.escapeHtml(alert.priority||'normal')}">
+                <span>${bookingAdminShared.escapeHtml(alert.category||'Alert')}</span>
+                <strong>${bookingAdminShared.escapeHtml(alert.message||'Review this booking.')}</strong>
+                <small>${bookingAdminShared.escapeHtml(formatDateTimeLabel(alert.when))}</small>
+              </article>
+            `).join('') : `
+              <article class="booking-alert-card is-clear">
+                <span>Clear</span>
+                <strong>No booking notifications are currently open.</strong>
+                <small>SkyBook will surface payment, assignment, task, and departure signals here.</small>
+              </article>
+            `}
+          </div>
+        </section>
+
         <section class="detail-section detail-overview-grid">
           <article class="detail-card">
             <span>Reference</span>
@@ -1817,7 +1904,7 @@ const renderBookingDetail=()=>{
             </article>
         </section>
 
-        <section class="detail-section">
+        <section class="detail-section" id="booking-documents-panel">
           <div class="section-heading">
             <div>
               <h4>Guest and service</h4>
@@ -2030,7 +2117,7 @@ const renderBookingDetail=()=>{
               </div>
             </form>
           </div>
-          <form class="booking-inline-form booking-inline-form-wide" data-inline-form="email">
+          <form class="booking-inline-form booking-inline-form-wide" data-inline-form="email" id="booking-guest-email">
             <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
             <div class="booking-form-grid">
               <label class="booking-field-full">
@@ -2329,6 +2416,20 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   nodes.bookingSaveButton.textContent=booking ? 'Save Booking' : 'Create Booking'
+}
+
+const openBookingManagementScreen=(booking,{scroll=true}={})=>{
+  if(!booking)return
+  state.selectedBookingId=booking.id
+  switchTab('bookings')
+  fillBookingForm(booking)
+  renderBookings()
+  renderBookingDetail()
+  const detailPanel=nodes.bookingDetail?.closest('.booking-detail-panel')
+  detailPanel?.classList.add('is-management-open')
+  if(scroll){
+    window.setTimeout(()=>detailPanel?.scrollIntoView?.({behavior:'smooth',block:'start'}),80)
+  }
 }
 
 const renderServices=()=>{
@@ -2818,12 +2919,15 @@ const renderNotifications=()=>{
     </article>
   `).join('')
   nodes.notificationsTable.innerHTML=alerts.slice(0,40).map(alert=>`
-    <tr>
+    <tr data-alert-booking-id="${bookingAdminShared.escapeHtml(alert.booking_id||'')}">
       <td>${bookingAdminShared.escapeHtml(alert.category)}</td>
       <td>${bookingAdminShared.escapeHtml(alert.reference||'')}</td>
       <td>${renderStatusBadge(alert.priority,alert.priority)}</td>
       <td>${bookingAdminShared.escapeHtml(alert.message)}</td>
-      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(alert.when))}</td>
+      <td>
+        ${bookingAdminShared.escapeHtml(formatDateTimeLabel(alert.when))}
+        ${alert.booking_id ? '<div class="table-subline">Click to open management screen</div>' : ''}
+      </td>
     </tr>
   `).join('') || renderEmptyRow(5,'No active alerts right now.')
 }
@@ -3420,9 +3524,7 @@ const handleCommandNavigation=(action,bookingId='',customerId='')=>{
   if(bookingId){
     const booking=state.bookings.find(item=>item.id===bookingId)
     if(booking){
-      state.selectedBookingId=booking.id
-      fillBookingForm(booking)
-      renderBookingDetail()
+      openBookingManagementScreen(booking,{scroll:true})
     }
   }
   if(customerId){
@@ -3546,6 +3648,8 @@ const handleLogout=async()=>{
 
 const handleBookingSave=async event=>{
   event.preventDefault()
+  const wasEditing=Boolean(state.selectedBookingId)
+  const previousSelectedId=state.selectedBookingId
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
@@ -3563,19 +3667,24 @@ const handleBookingSave=async event=>{
       whatsapp:nodes.bookingCustomerPhone.value.trim()
     }
   }
-  const isEditing=Boolean(state.selectedBookingId)
-  await bookingAdminShared.apiRequest(isEditing ? `admin/bookings/${encodeURIComponent(state.selectedBookingId)}` : 'admin/bookings',{
-    method:isEditing ? 'PATCH' : 'POST',
+  const response=await bookingAdminShared.apiRequest(wasEditing ? `admin/bookings/${encodeURIComponent(previousSelectedId)}` : 'admin/bookings',{
+    method:wasEditing ? 'PATCH' : 'POST',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   })
-  if(!isEditing){
-    nodes.bookingForm.reset()
-    nodes.bookingQuantity.value=2
-    state.selectedBookingId=''
-    fillBookingForm(null)
+  const savedReference=normalizeText(response?.booking?.reference)||normalizeText(response?.reference)||normalizeText(payload.reference)
+  const savedBookingId=normalizeText(response?.booking?.id)||normalizeText(response?.id)||previousSelectedId
+  await loadAdminData()
+  const savedBooking=state.bookings.find(booking=>booking.id===savedBookingId)
+    || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
+    || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
+  if(savedBooking){
+    openBookingManagementScreen(savedBooking,{scroll:true})
+    setAdminStatus(wasEditing ? 'Booking updated and management screen opened.' : 'Booking created and management screen opened.')
+    return
   }
-  await refreshAdmin(isEditing ? 'Booking updated.' : 'Booking created.')
+  renderAll()
+  setAdminStatus(wasEditing ? 'Booking updated.' : 'Booking created.')
 }
 
 const handleServiceSave=async event=>{
@@ -3959,6 +4068,24 @@ nodes.bookingFilterOperator?.addEventListener('change',renderBookings)
 nodes.bookingFilterAgent?.addEventListener('change',renderBookings)
 nodes.bookingFilterDateFrom?.addEventListener('change',renderBookings)
 nodes.bookingFilterDateTo?.addEventListener('change',renderBookings)
+document.querySelectorAll('[data-booking-quick-filter]').forEach(button=>button.addEventListener('click',()=>{
+  state.bookingQuickFilter=button.dataset.bookingQuickFilter||''
+  renderBookings()
+}))
+document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',()=>{
+  state.bookingQuickFilter=''
+  if(nodes.bookingFilterSearch)nodes.bookingFilterSearch.value=''
+  if(nodes.bookingFilterBrand)nodes.bookingFilterBrand.value=''
+  if(nodes.bookingFilterSource)nodes.bookingFilterSource.value=''
+  if(nodes.bookingFilterStatus)nodes.bookingFilterStatus.value=''
+  if(nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value=''
+  if(nodes.bookingFilterService)nodes.bookingFilterService.value=''
+  if(nodes.bookingFilterOperator)nodes.bookingFilterOperator.value=''
+  if(nodes.bookingFilterAgent)nodes.bookingFilterAgent.value=''
+  if(nodes.bookingFilterDateFrom)nodes.bookingFilterDateFrom.value=''
+  if(nodes.bookingFilterDateTo)nodes.bookingFilterDateTo.value=''
+  renderBookings()
+})
 nodes.customerFilterSearch?.addEventListener('input',renderCustomers)
 nodes.customerFilterBrand?.addEventListener('change',renderCustomers)
 nodes.customerFilterSource?.addEventListener('change',renderCustomers)
@@ -3998,9 +4125,7 @@ nodes.bookingsTable.addEventListener('click',event=>{
   if(!row)return
   const booking=state.bookings.find(item=>item.id===row.dataset.bookingId)
   if(!booking)return
-  state.selectedBookingId=booking.id
-  fillBookingForm(booking)
-  renderBookingDetail()
+  openBookingManagementScreen(booking,{scroll:true})
 })
 
 nodes.customersTable?.addEventListener('click',event=>{
@@ -4016,6 +4141,14 @@ nodes.customerDetail?.addEventListener('click',event=>{
   const bookingId=event.target.closest('[data-customer-booking-id]')?.dataset.customerBookingId
   if(!bookingId)return
   handleCommandNavigation('bookings',bookingId)
+})
+
+nodes.notificationsTable?.addEventListener('click',event=>{
+  const row=event.target.closest('[data-alert-booking-id]')
+  const bookingId=row?.dataset.alertBookingId||''
+  if(!bookingId)return
+  const booking=state.bookings.find(item=>item.id===bookingId)
+  if(booking)openBookingManagementScreen(booking,{scroll:true})
 })
 
 nodes.bookingDetail.addEventListener('click',event=>{
