@@ -16,6 +16,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
     label:'True Travel',
     vibe:'Ocean-led public site',
     siteBase:'../true-travel-site',
+    workspacePath:'admin.html',
     homePath:'index.html',
     toursPath:'tours.html',
     toursLabel:'Tours',
@@ -38,6 +39,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
     label:'Iventure',
     vibe:'Sand-and-dune public site',
     siteBase:'../iventure-site',
+    workspacePath:'admin.html',
     homePath:'index.html',
     toursPath:'services.html',
     toursLabel:'Services',
@@ -212,6 +214,15 @@ const buildSiteUrl=(brand,path,extraSearch='')=>{
   const base=String(brand.siteBase||'').replace(/\/+$/,'')
   const resolvedPath=appendSearchParams(path||brand.homePath||'index.html',extraSearch)
   return `${base}/${resolvedPath}`
+}
+
+const buildWorkspaceUrl=(brand,pageKey=activePageKey)=>{
+  const selectedPage=getPageConfig(brand,pageKey||getDefaultPageKey(brand))
+  const workspacePath=safeText(brand.workspacePath)
+  if(workspacePath&&selectedPage?.key){
+    return buildSiteUrl(brand,workspacePath,`?page=${encodeURIComponent(selectedPage.key)}`)
+  }
+  return buildSiteUrl(brand,selectedPage?.path||brand.homePath||'index.html','?admin=1')
 }
 
 const buildStudioHash=(panel=activePanel,pageKey=activePageKey)=>{
@@ -481,7 +492,7 @@ const updatePageWorkspaceChrome=()=>{
   if(workspaceTitleNode)workspaceTitleNode.textContent=`${brand.label} ${page.label}`
   if(workspaceDescriptionNode)workspaceDescriptionNode.textContent=page.description||`Open the live ${brand.label} ${page.label.toLowerCase()} workspace and place imagery directly on that page.`
   if(openSiteEditorLink){
-    openSiteEditorLink.href=buildSiteUrl(brand,page.path,'?admin=1')
+    openSiteEditorLink.href=buildWorkspaceUrl(brand,page.key)
     openSiteEditorLink.textContent=`Open ${page.label} Workspace`
   }
   if(viewSiteLink){
@@ -528,8 +539,8 @@ const reloadPreview=()=>{
   if(!frame)return
   const brand=getActiveBrand()
   const page=getPageConfig(brand,activePageKey)
-  frame.src=buildSiteUrl(brand,page.path,`?admin=1&v=${Date.now()}`)
-  frame.title=`${brand.label} ${page.label} preview`
+  frame.src=`${buildWorkspaceUrl(brand,page.key)}&v=${Date.now()}`
+  frame.title=`${brand.label} ${page.label} workspace preview`
 }
 
 const updateActivePanel=(panel,{updateHash=true,refreshPreview=true}={})=>{
