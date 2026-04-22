@@ -414,70 +414,85 @@
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="upcoming">Upcoming <span data-filter-count="upcoming">0</span></button>
                 <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset filters</button>
               </div>
-              <div class="booking-field">
-                <label for="bookingFilterBrand">Brand</label>
-                <select id="bookingFilterBrand">
-                  <option value="">All brands</option>
-                </select>
+              <div class="booking-field-full booking-filter-toggle-row">
+                <button
+                  type="button"
+                  class="booking-button ghost booking-filter-toggle"
+                  id="toggleBookingFilters"
+                  aria-expanded="false"
+                  aria-controls="bookingFiltersPanel"
+                >
+                  Show filters
+                </button>
               </div>
-              <div class="booking-field">
-                <label for="bookingFilterSource">Source</label>
-                <select id="bookingFilterSource">
-                  <option value="">All sources</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterStatus">Booking Status</label>
-                <select id="bookingFilterStatus">
-                  <option value="">All statuses</option>
-                  <option value="pending">Pending</option>
-                  <option value="awaiting_payment">Awaiting payment</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterPaymentStatus">Payment Status</label>
-                <select id="bookingFilterPaymentStatus">
-                  <option value="">All payment states</option>
-                  <option value="pending">Pending</option>
-                  <option value="unpaid">Unpaid</option>
-                  <option value="paid">Paid</option>
-                  <option value="partially_paid">Partially Paid</option>
-                  <option value="refunded">Refunded</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterService">Service</label>
-                <select id="bookingFilterService">
-                  <option value="">All services</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterOperator">Operator</label>
-                <select id="bookingFilterOperator">
-                  <option value="">All operators</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterAgent">Agent</label>
-                <select id="bookingFilterAgent">
-                  <option value="">All agents</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterDateFrom">Date From</label>
-                <input id="bookingFilterDateFrom" type="date">
-              </div>
-              <div class="booking-field">
-                <label for="bookingFilterDateTo">Date To</label>
-                <input id="bookingFilterDateTo" type="date">
-              </div>
-              <div class="booking-field-full">
-                <label for="bookingFilterSearch">Fast Search / Reference</label>
-                <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, email, service">
+              <div class="booking-filters-panel is-collapsed booking-field-full" id="bookingFiltersPanel" hidden>
+                <div class="booking-filters-grid">
+                  <div class="booking-field">
+                    <label for="bookingFilterBrand">Brand</label>
+                    <select id="bookingFilterBrand">
+                      <option value="">All brands</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterSource">Source</label>
+                    <select id="bookingFilterSource">
+                      <option value="">All sources</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterStatus">Booking Status</label>
+                    <select id="bookingFilterStatus">
+                      <option value="">All statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="awaiting_payment">Awaiting payment</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterPaymentStatus">Payment Status</label>
+                    <select id="bookingFilterPaymentStatus">
+                      <option value="">All payment states</option>
+                      <option value="pending">Pending</option>
+                      <option value="unpaid">Unpaid</option>
+                      <option value="paid">Paid</option>
+                      <option value="partially_paid">Partially Paid</option>
+                      <option value="refunded">Refunded</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterService">Service</label>
+                    <select id="bookingFilterService">
+                      <option value="">All services</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterOperator">Operator</label>
+                    <select id="bookingFilterOperator">
+                      <option value="">All operators</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterAgent">Agent</label>
+                    <select id="bookingFilterAgent">
+                      <option value="">All agents</option>
+                    </select>
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterDateFrom">Date From</label>
+                    <input id="bookingFilterDateFrom" type="date">
+                  </div>
+                  <div class="booking-field">
+                    <label for="bookingFilterDateTo">Date To</label>
+                    <input id="bookingFilterDateTo" type="date">
+                  </div>
+                  <div class="booking-field-full">
+                    <label for="bookingFilterSearch">Fast Search / Reference</label>
+                    <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, email, service">
+                  </div>
+                </div>
               </div>
             </div>
             <div class="table-wrap">

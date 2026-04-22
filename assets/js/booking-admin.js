@@ -183,6 +183,8 @@ const nodes={
   bookingFilterAgent:document.getElementById('bookingFilterAgent'),
   bookingFilterDateFrom:document.getElementById('bookingFilterDateFrom'),
   bookingFilterDateTo:document.getElementById('bookingFilterDateTo'),
+  toggleBookingFilters:document.getElementById('toggleBookingFilters'),
+  bookingFiltersPanel:document.getElementById('bookingFiltersPanel'),
   bookingsTable:document.getElementById('adminBookingsTable'),
   bookingDetail:document.getElementById('adminBookingDetail'),
   bookingForm:document.getElementById('adminBookingForm'),
@@ -4095,6 +4097,19 @@ const toggleTableDensity=()=>{
   showToast(isCompact ? 'Compact table mode enabled.' : 'Comfort table mode enabled.','info')
 }
 
+const setBookingFiltersCollapsed=collapsed=>{
+  if(!nodes.bookingFiltersPanel||!nodes.toggleBookingFilters)return
+  nodes.bookingFiltersPanel.hidden=collapsed
+  nodes.bookingFiltersPanel.classList.toggle('is-collapsed',collapsed)
+  nodes.toggleBookingFilters.setAttribute('aria-expanded',collapsed ? 'false' : 'true')
+  nodes.toggleBookingFilters.textContent=collapsed ? 'Show filters' : 'Hide filters'
+}
+
+const toggleBookingFiltersPanel=()=>{
+  const isCollapsed=nodes.bookingFiltersPanel?.hidden!==false
+  setBookingFiltersCollapsed(!isCollapsed)
+}
+
 nodes.tabs.forEach(node=>node.addEventListener('click',()=>switchTab(node.dataset.adminTab)))
 nodes.loginForm?.addEventListener('submit',handleLogin)
 nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
@@ -4102,6 +4117,7 @@ nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.quickCreateBooking?.addEventListener('click',openNewBookingWorkspace)
 nodes.toggleTableDensity?.addEventListener('click',toggleTableDensity)
+nodes.toggleBookingFilters?.addEventListener('click',toggleBookingFiltersPanel)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
 nodes.bookingFilterBrand.addEventListener('change',renderBookings)
 nodes.bookingFilterSource?.addEventListener('change',renderBookings)
@@ -4128,6 +4144,7 @@ document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',
   if(nodes.bookingFilterAgent)nodes.bookingFilterAgent.value=''
   if(nodes.bookingFilterDateFrom)nodes.bookingFilterDateFrom.value=''
   if(nodes.bookingFilterDateTo)nodes.bookingFilterDateTo.value=''
+  setBookingFiltersCollapsed(true)
   renderBookings()
 })
 nodes.customerFilterSearch?.addEventListener('input',renderCustomers)
@@ -4398,6 +4415,8 @@ document.addEventListener('keydown',event=>{
 window.addEventListener('resize',()=>{
   if(!isMobileSidebarViewport())closeMobileSidebar()
 })
+
+setBookingFiltersCollapsed(true)
 
 ;(async()=>{
   try{
