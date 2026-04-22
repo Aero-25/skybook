@@ -15,7 +15,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   'true-travel':{
     label:'True Travel',
     vibe:'Ocean-led public site',
-    siteBase:'../sites/true-travel',
+    siteBase:'../true-travel-site',
     homePath:'index.html',
     toursPath:'tours.html',
     toursLabel:'Tours',
@@ -37,7 +37,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   iventure:{
     label:'Iventure',
     vibe:'Sand-and-dune public site',
-    siteBase:'../sites/iventure',
+    siteBase:'../iventure-site',
     homePath:'index.html',
     toursPath:'services.html',
     toursLabel:'Services',
@@ -80,7 +80,7 @@ const storedBrandCode=(window.localStorage.getItem(DESIGNER_BRAND_STORAGE_KEY)||
 const isValidBrandCode=brandCode=>Boolean(brandCode)&&Object.prototype.hasOwnProperty.call(DESIGNER_BRANDS,brandCode)
 const getBrandConfig=brandCode=>DESIGNER_BRANDS[brandCode]||DESIGNER_BRANDS['true-travel']
 const getBrandPages=brand=>Array.isArray(brand?.pages)&&brand.pages.length ? brand.pages : [{key:'index',label:'Homepage',path:brand?.homePath||'index.html',description:'Public homepage workspace.'}]
-const isStudioPanel=value=>['pages','catalog','gallery'].includes(String(value||'').trim())
+const isStudioPanel=value=>['pages','gallery'].includes(String(value||'').trim())
 
 const toSlug=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
 const safeText=value=>String(value??'').trim()
@@ -479,7 +479,7 @@ const updatePageWorkspaceChrome=()=>{
 
   if(workspaceBrandKickerNode)workspaceBrandKickerNode.textContent=`${brand.label} Pages`
   if(workspaceTitleNode)workspaceTitleNode.textContent=`${brand.label} ${page.label}`
-  if(workspaceDescriptionNode)workspaceDescriptionNode.textContent=page.description||`Preview and inspect the ${page.label.toLowerCase()} page for ${brand.label}.`
+  if(workspaceDescriptionNode)workspaceDescriptionNode.textContent=page.description||`Open the live ${brand.label} ${page.label.toLowerCase()} workspace and place imagery directly on that page.`
   if(openSiteEditorLink){
     openSiteEditorLink.href=buildSiteUrl(brand,page.path,'?admin=1')
     openSiteEditorLink.textContent=`Open ${page.label} Workspace`
@@ -492,7 +492,6 @@ const updatePageWorkspaceChrome=()=>{
 
 const updateBrandChrome=()=>{
   const brand=getActiveBrand()
-  const brandToursLabel=brand.toursLabel||'Tours'
 
   if(!getBrandPages(brand).some(page=>page.key===activePageKey)){
     activePageKey=getDefaultPageKey(brand)
@@ -502,7 +501,7 @@ const updateBrandChrome=()=>{
 
   if(activeBrandNameNode)activeBrandNameNode.textContent=brand.label
   if(activeBrandVibeNode)activeBrandVibeNode.textContent=brand.vibe
-  if(mobileBrandSummaryNode)mobileBrandSummaryNode.textContent=`${brand.label} workspace`
+  if(mobileBrandSummaryNode)mobileBrandSummaryNode.textContent=`${brand.label} pages only`
   if(libraryBrandKickerNode)libraryBrandKickerNode.textContent=`${brand.label} Catalog`
   if(libraryTitleNode)libraryTitleNode.textContent=`${brand.label} Catalog Preview`
   if(libraryDescriptionNode)libraryDescriptionNode.textContent=`Tours are loaded in the shared SkyBook admin. This panel shows which tours the ${brand.label} site can display and hands you back to the central catalog when something needs to be added or changed.`
@@ -512,14 +511,6 @@ const updateBrandChrome=()=>{
   if(galleryLibraryTitleNode)galleryLibraryTitleNode.textContent=`${brand.label} gallery library`
   if(galleryLibraryDescriptionNode)galleryLibraryDescriptionNode.textContent=getGalleryLibraryDescription(brand)
 
-  if(openCatalogAdminLink){
-    openCatalogAdminLink.href=buildSkyBookCatalogUrl()
-    openCatalogAdminLink.textContent='Open Catalog In SkyBook'
-  }
-  if(openToursPageLink){
-    openToursPageLink.href=buildSiteUrl(brand,brand.toursPath)
-    openToursPageLink.textContent=`Open ${brandToursLabel} Page`
-  }
   if(openGalleryPageLink){
     openGalleryPageLink.href=buildSiteUrl(brand,getGalleryPagePath(brand))
     openGalleryPageLink.textContent=activeBrandCode==='true-travel' ? 'Open Gallery Page' : 'Open Brand Site'
@@ -556,10 +547,6 @@ const updateActivePanel=(panel,{updateHash=true,refreshPreview=true}={})=>{
   if(nextPanel==='pages'&&refreshPreview){
     reloadPreview()
     setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded.`)
-  }
-  if(nextPanel==='catalog'&&!catalogLoaded){
-    setStatus(`Syncing the shared SkyBook catalog for ${getActiveBrand().label}...`)
-    void loadCatalog()
   }
   if(nextPanel==='gallery'&&galleryLoadedBrandCode!==activeBrandCode){
     setGalleryStatus(`Loading the ${getActiveBrand().label} gallery library from Supabase...`)
@@ -768,16 +755,9 @@ const setActiveBrand=brandCode=>{
 
   if(activePanel==='pages'){
     updateActivePanel('pages',{updateHash:false})
-  }else if(activePanel==='catalog'){
-    setStatus(`${brand.label} design workspace loaded. Syncing the shared SkyBook catalog...`)
-    void loadCatalog()
   }else if(activePanel==='gallery'){
     setGalleryStatus(`Loading the ${brand.label} gallery library from Supabase...`)
     void loadGalleryLibrary()
-  }
-
-  if(activePanel!=='catalog'){
-    void loadCatalog()
   }
 }
 
@@ -856,19 +836,14 @@ updateActivePanel(activePanel,{updateHash:false,refreshPreview:true})
 
 if(shouldPromptForBrand){
   setPickerVisibility(true)
-  setStatus('Choose which brand you want to edit. Tour creation, pricing, and brand visibility now live in SkyBook Admin.')
+  setStatus('Choose which brand you want to edit, then move page by page through its live design workspace.')
 }else{
   setPickerVisibility(false)
-  if(activePanel==='catalog'){
-    setStatus(`${getActiveBrand().label} design workspace loaded. Syncing the shared SkyBook catalog...`)
-    void loadCatalog()
-  }else if(activePanel==='gallery'){
+  if(activePanel==='gallery'){
     setStatus(`${getActiveBrand().label} design workspace loaded.`)
     setGalleryStatus(`Loading the ${getActiveBrand().label} gallery library from Supabase...`)
-    void loadCatalog()
     void loadGalleryLibrary()
   }else{
-    setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded. Syncing the shared SkyBook catalog...`)
-    void loadCatalog()
+    setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded.`)
   }
 }

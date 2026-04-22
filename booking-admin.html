@@ -31,19 +31,13 @@
           <p class="admin-product-subtitle">Enterprise booking and operations platform</p>
         </div>
       </div>
-      <p>Shared operations console for True Travel and Iventure with live CRUD, reporting, documents, commissions, audit trails, and brand-aware booking management.</p>
-      <div class="admin-environment-chip">Production Workspace</div>
       <div class="admin-session">
         <strong id="sessionLabel">Not signed in</strong>
+        <button class="booking-button ghost" type="button" id="openCommandPalette">Search / Ctrl K</button>
         <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
       </div>
-      <div class="admin-side-health">
-        <div><span>Environment</span><strong>Production</strong></div>
-        <div><span>Mode</span><strong>Live Supabase</strong></div>
-        <div><span>Brands</span><strong>True Travel + Iventure</strong></div>
-      </div>
       <nav class="admin-menu" aria-label="SkyBook primary navigation">
-        <details class="admin-menu-section" open>
+        <details class="admin-menu-section">
           <summary><span>01</span> Command</summary>
           <div class="admin-subnav">
             <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">DB</span><span>Command Center</span></button>
@@ -51,7 +45,7 @@
             <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
           </div>
         </details>
-        <details class="admin-menu-section" open>
+        <details class="admin-menu-section">
           <summary><span>02</span> Reservations</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
@@ -67,7 +61,7 @@
             <button class="admin-tab" data-admin-tab="engine" type="button"><span class="admin-tab-icon">RT</span><span>Rates & Promotions</span></button>
           </div>
         </details>
-        <details class="admin-menu-section" open>
+        <details class="admin-menu-section">
           <summary><span>04</span> Revenue</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
@@ -97,70 +91,32 @@
     </aside>
 
     <main class="admin-content">
-      <header class="skybook-topbar">
-        <div class="skybook-topbar-left">
-          <button class="skybook-sidebar-toggle" id="mobileSidebarToggle" type="button" aria-label="Open navigation" aria-expanded="false">
-            <span class="skybook-sidebar-toggle-line"></span>
-            <span class="skybook-sidebar-toggle-line"></span>
-            <span class="skybook-sidebar-toggle-line"></span>
-          </button>
-          <div class="skybook-topbar-mark">SB</div>
-          <div class="skybook-topbar-title">
-            <strong>SkyBook Operations</strong>
-            <span>Reservations, finance, suppliers, reporting</span>
-          </div>
-          <nav class="skybook-topnav">
-            <button class="skybook-topnav-link" data-admin-tab="calendar" type="button">Calendar</button>
-            <button class="skybook-topnav-link" data-admin-tab="bookings" type="button">Booking</button>
-            <button class="skybook-topnav-link" data-admin-tab="customers" type="button">Customers</button>
-            <button class="skybook-topnav-link" data-admin-tab="reports" type="button">Reports</button>
-            <button class="skybook-topnav-link" data-admin-tab="engine" type="button">Inventory</button>
-            <button class="skybook-topnav-link" data-admin-tab="settings" type="button">Manage</button>
-          </nav>
-        </div>
-        <div class="skybook-topbar-right">
-          <span class="skybook-topbar-pill">Production</span>
-          <span class="skybook-topbar-user" id="topSessionLabel">SkyBook Demo</span>
-          <button class="skybook-topbar-search" type="button" id="openCommandPalette">Search / Ctrl K</button>
-        </div>
-      </header>
-
       <section class="admin-toolbar">
-        <div>
-          <div class="module-breadcrumb" id="moduleBreadcrumb">SkyBook / Command / Command Center</div>
-          <div class="toolbar-eyebrow" id="moduleEyebrow">Live Operations Dashboard</div>
-          <h2 id="moduleTitle">Command Center</h2>
-          <p class="toolbar-subtitle" id="moduleSubtitle">Enterprise control for reservations, finance, supplier management, documents, audit trails, and multibrand guest service.</p>
-          <p id="bookingAdminStatus" class="muted-copy">Loading live booking operations console...</p>
+        <div class="toolbar-meta">
+          <p class="module-breadcrumb" id="moduleBreadcrumb">SkyBook / Command / Command Center</p>
+          <div class="toolbar-title-row">
+            <button class="skybook-sidebar-toggle admin-toolbar-sidebar-toggle" id="mobileSidebarToggle" type="button" aria-label="Open navigation" aria-expanded="false">
+              <span class="skybook-sidebar-toggle-line"></span>
+              <span class="skybook-sidebar-toggle-line"></span>
+              <span class="skybook-sidebar-toggle-line"></span>
+            </button>
+            <div>
+              <p class="toolbar-eyebrow" id="moduleEyebrow">Live Operations</p>
+              <h2 id="moduleTitle">Command Center</h2>
+              <p class="toolbar-subtitle" id="moduleSubtitle">Manage shared reservations, CRM, finance, operator settlements, and automation for True Travel and Iventure in one place.</p>
+            </div>
+          </div>
         </div>
-        <div class="toolbar-actions">
-          <span class="booking-chip">SkyBook Enterprise</span>
-          <button type="button" id="quickCreateBooking">New Booking</button>
-          <button type="button" id="toolbarCommandPalette">Command Bar</button>
-          <button type="button" id="toggleTableDensity">Compact Tables</button>
-          <button type="button" id="exportBookingsCsv">Export CSV</button>
-          <a class="booking-button ghost" href="design-admin.html">Design Studio</a>
-          <a class="booking-button ghost" href="admin.html">Admin Gateway</a>
+        <div class="toolbar-side">
+          <div class="toolbar-session-meta">
+            <span class="booking-chip" id="topSessionLabel">SkyBook</span>
+            <p class="toolbar-status" id="bookingAdminStatus">Ready.</p>
+          </div>
+          <div class="toolbar-actions">
+            <button type="button" id="quickCreateBooking">New Booking</button>
+            <button type="button" id="exportBookingsCsv">Export CSV</button>
+          </div>
         </div>
-      </section>
-
-      <section class="ops-switchboard" aria-label="SkyBook operations switchboard">
-        <button type="button" data-admin-tab="bookings">
-          <span>Reservations Desk</span>
-          <strong>Bookings, guests, tasks, documents</strong>
-        </button>
-        <button type="button" data-admin-tab="calendar">
-          <span>Operations Board</span>
-          <strong>Calendar, resources, guides, vehicles</strong>
-        </button>
-        <button type="button" data-admin-tab="reconciliation">
-          <span>Finance Control</span>
-          <strong>Payments, refunds, invoices, payouts</strong>
-        </button>
-        <button type="button" data-admin-tab="health">
-          <span>System Monitor</span>
-          <strong>Jobs, emails, webhooks, alerts</strong>
-        </button>
       </section>
 
       <section class="admin-view is-active" data-admin-view="dashboard">
@@ -171,25 +127,6 @@
             <p id="opsPostureCopy">SkyBook is checking reservations, finance, supplier coverage, and automation health.</p>
           </article>
           <div class="radar-card-grid" id="executiveRadarCards"></div>
-        </section>
-
-        <section class="capability-map" aria-label="SkyBook capability map">
-          <div class="capability-map-header">
-            <div>
-              <span>SkyBook Platform Architecture</span>
-              <h3>Clean modules, full booking-system depth</h3>
-              <p>Everything is organised into calm work areas so the system can grow into tours, rentals, activities, accommodation, rates, channels, automations, and reporting without becoming cluttered.</p>
-            </div>
-            <button class="booking-button ghost" type="button" data-admin-tab="engine">Open Engine</button>
-          </div>
-          <div class="capability-grid">
-            <button type="button" data-admin-tab="bookings"><span>Booking Core</span><strong>Reservations, availability, groups, public/private bookings, calendar</strong></button>
-            <button type="button" data-admin-tab="customers"><span>CRM</span><strong>Profiles, accounts, booking history, forms, communication</strong></button>
-            <button type="button" data-admin-tab="reports"><span>Analytics</span><strong>Revenue, trends, exports, sales and marketing insight</strong></button>
-            <button type="button" data-admin-tab="engine"><span>Inventory</span><strong>Resources, capacity, multi-location availability, allocation</strong></button>
-            <button type="button" data-admin-tab="platform"><span>Revenue</span><strong>Pricing, discounts, packages, commissions, settlements</strong></button>
-            <button type="button" data-admin-tab="health"><span>Automation</span><strong>Confirmations, reminders, restrictions, jobs, channel workflows</strong></button>
-          </div>
         </section>
 
         <div class="admin-command-grid">
@@ -491,6 +428,12 @@
                 </select>
               </div>
               <div class="booking-field">
+                <label for="bookingFilterSource">Source</label>
+                <select id="bookingFilterSource">
+                  <option value="">All sources</option>
+                </select>
+              </div>
+              <div class="booking-field">
                 <label for="bookingFilterStatus">Booking Status</label>
                 <select id="bookingFilterStatus">
                   <option value="">All statuses</option>
@@ -546,7 +489,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Service</th><th>Status</th><th>Date</th><th>Total</th></tr></thead>
+                <thead><tr><th>Reference</th><th>Brand / Source</th><th>Customer</th><th>Service</th><th>Status</th><th>Date</th><th>Total</th></tr></thead>
                 <tbody id="adminBookingsTable"></tbody>
               </table>
             </div>
@@ -581,6 +524,19 @@
               <span>Brand</span>
               <select id="adminBookingBrand" required>
                 <option value="">Choose brand</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Source</span>
+              <select id="adminBookingSource">
+                <option value="admin">Admin Desk</option>
+                <option value="true_travel_website">True Travel Website</option>
+                <option value="iventure_website">Iventure Website</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="walk_in">Walk-In</option>
+                <option value="agent">Agent / Reseller</option>
               </select>
             </label>
             <label class="booking-field">
@@ -707,7 +663,7 @@
               </label>
               <div class="booking-field-full">
                 <span>Brand Visibility</span>
-                <div class="booking-stat-stack">
+              <div class="booking-stat-stack">
                   <label class="inline-check">
                     <input id="adminServiceBrandTrueTravel" type="checkbox" checked>
                     <span>Show this tour on True Travel.</span>
@@ -717,7 +673,6 @@
                     <span>Show this tour on Iventure.</span>
                   </label>
                 </div>
-                <p class="booking-inline-note">SkyBook is the source of truth for the shared tour catalogue. The designer previews presentation only and no longer owns tour loading.</p>
               </div>
               <label class="booking-field-full inline-check">
                 <input id="adminServiceActive" type="checkbox" checked>
@@ -732,15 +687,48 @@
       </section>
 
       <section class="admin-view" data-admin-view="customers">
-        <article class="booking-panel">
-          <h3>Customers</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Bookings</th><th>Latest Reference</th></tr></thead>
-              <tbody id="adminCustomersTable"></tbody>
-            </table>
-          </div>
-        </article>
+        <div class="customer-workspace">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Customers & CRM</h3>
+              </div>
+            </div>
+            <div class="booking-form-grid customer-filters">
+              <div class="booking-field-full">
+                <label for="customerFilterSearch">Search customer or booking reference</label>
+                <input id="customerFilterSearch" type="text" placeholder="Name, email, phone, reference">
+              </div>
+              <div class="booking-field">
+                <label for="customerFilterBrand">Brand</label>
+                <select id="customerFilterBrand">
+                  <option value="">All brands</option>
+                </select>
+              </div>
+              <div class="booking-field">
+                <label for="customerFilterSource">Source</label>
+                <select id="customerFilterSource">
+                  <option value="">All sources</option>
+                </select>
+              </div>
+            </div>
+            <div class="crm-overview-cards" id="crmOverviewCards"></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Guest</th><th>Contact</th><th>Brands</th><th>Sources</th><th>Activity</th><th>Latest Reference</th></tr></thead>
+                <tbody id="adminCustomersTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Customer Detail</h3>
+              </div>
+            </div>
+            <div id="adminCustomerDetail" class="crm-customer-detail"></div>
+          </article>
+        </div>
       </section>
 
       <section class="admin-view" data-admin-view="payments">

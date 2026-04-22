@@ -265,6 +265,10 @@ body.skybook-auth-page{
   background:linear-gradient(180deg,#ffffff 0%,#eef5fb 100%);
   color:var(--booking-ink);
   border-right:1px solid var(--booking-line);
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow:auto;
 }
 .admin-sidebar-booking h1{margin:0;font-family:'DM Sans',sans-serif;font-size:34px;font-weight:800;letter-spacing:-.03em}
 .admin-sidebar-booking p{color:var(--booking-muted);line-height:1.7}
@@ -314,6 +318,9 @@ body.skybook-auth-page{
   margin:18px 0 10px;
   display:grid;
   gap:10px;
+}
+.admin-session .booking-button{
+  width:100%;
 }
 .admin-tab{
   width:100%;margin-top:10px;min-height:46px;border-radius:16px;border:1px solid var(--booking-line);background:#ffffff;color:var(--booking-ink);font:inherit;text-align:left;padding:0 16px;cursor:pointer;display:flex;align-items:center;gap:12px;
@@ -425,6 +432,10 @@ body.skybook-auth-page{
   display:flex;justify-content:space-between;gap:18px;align-items:center;padding:22px 24px;border-radius:24px;background:var(--booking-paper);border:1px solid var(--booking-line);box-shadow:var(--booking-shadow);
 }
 .admin-toolbar h2{margin:0;font-family:'DM Sans',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.03em}
+.admin-toolbar > div:first-child{
+  display:grid;
+  gap:12px;
+}
 .toolbar-subtitle{margin:8px 0 0;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--booking-muted)}
 .admin-view{display:none;margin-top:18px}
 .admin-view.is-active{display:block}
@@ -1266,7 +1277,55 @@ textarea:focus-visible{
   letter-spacing:.1em;
 }
 
+.toolbar-meta{
+  display:grid;
+  gap:10px;
+}
+
+.module-breadcrumb{
+  margin:0;
+  color:#5e7486;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+
+.toolbar-title-row{
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+}
+
+.toolbar-title-row > div{
+  display:grid;
+  gap:8px;
+}
+
+.toolbar-side{
+  display:grid;
+  justify-items:end;
+  gap:14px;
+  min-width:320px;
+}
+
+.toolbar-session-meta{
+  display:grid;
+  justify-items:end;
+  gap:8px;
+}
+
+.toolbar-status{
+  margin:0;
+  color:#5f7486;
+  font-size:12px;
+  line-height:1.5;
+  text-align:right;
+}
+
 .toolbar-actions{
+  display:flex;
+  gap:12px;
   align-items:center;
   justify-content:flex-end;
 }
@@ -1298,6 +1357,85 @@ textarea:focus-visible{
   color:var(--sky-blue);
   border:1px solid var(--sky-line-strong);
   box-shadow:none;
+}
+
+.customer-workspace{
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr);
+  gap:18px;
+}
+
+.customer-filters{
+  margin-top:16px;
+}
+
+.crm-overview-cards{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+  margin:18px 0 4px;
+}
+
+.crm-customer-detail{
+  display:grid;
+  gap:18px;
+}
+
+.customer-row.is-active td{
+  background:#edf7ff;
+}
+
+.crm-profile-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+
+.crm-booking-list{
+  display:grid;
+  gap:12px;
+}
+
+.crm-booking-item{
+  width:100%;
+  padding:16px 18px;
+  border:1px solid var(--sky-line);
+  border-radius:20px;
+  background:#fbfdff;
+  color:var(--sky-text);
+  text-align:left;
+  cursor:pointer;
+  box-shadow:var(--sky-shadow-soft);
+}
+
+.crm-booking-item:hover{
+  border-color:#bdd8eb;
+  background:#f6fbff;
+  transform:translateY(-1px);
+}
+
+.crm-booking-item-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.crm-booking-item-top span{
+  color:#5c7284;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.crm-booking-item-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 16px;
+  margin-top:10px;
+  color:#546a7c;
+  font-size:13px;
 }
 
 .ops-switchboard{
@@ -2105,6 +2243,75 @@ body.is-compact-tables .status-badge{
   line-height:1.55;
 }
 
+.skybook-topbar-title span,
+.admin-product-subtitle,
+.admin-sidebar-booking > p,
+.admin-environment-chip,
+.admin-side-health,
+.widget-header .muted-copy,
+.panel-header-inline .muted-copy,
+.section-heading .muted-copy,
+.detail-helper-copy,
+.detail-callout,
+.booking-inline-note,
+.field-hint,
+.radar-lead span,
+.radar-lead p{
+  display:none !important;
+}
+
+.admin-content{
+  padding:16px 20px 24px;
+}
+
+.admin-grid{
+  grid-template-columns:304px minmax(0,1fr);
+}
+
+.skybook-topbar{
+  display:none !important;
+}
+
+.admin-toolbar .toolbar-actions{
+  margin-top:0;
+}
+
+.admin-sidebar-booking{
+  padding:24px 18px 28px;
+  box-shadow:inset -1px 0 0 rgba(208,225,239,.92);
+}
+
+.admin-session{
+  margin:16px 0 4px;
+}
+
+.admin-toolbar-sidebar-toggle{
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+
+.admin-menu{
+  margin-top:14px;
+}
+
+.admin-command-grid{
+  grid-template-columns:1fr;
+}
+
+.executive-radar{
+  margin-top:0;
+}
+
+.radar-lead{
+  min-height:auto;
+  padding:24px 26px;
+}
+
+.radar-lead h3{
+  margin:0;
+}
+
 .toast-stack{
   position:fixed;
   right:20px;
@@ -2279,69 +2486,48 @@ body.is-compact-tables .status-badge{
     pointer-events:auto;
   }
 
-  .skybook-topbar-left{
-    flex-wrap:wrap;
-  }
-
-  .skybook-topbar-right{
-    width:100%;
-    justify-content:space-between;
-  }
-
-  .skybook-topbar-search{
-    flex:1 1 220px;
-    justify-content:center;
-    min-height:42px;
-  }
-
-  .skybook-topnav{
-    order:3;
-    width:100%;
-    margin-left:0;
-    padding-left:0;
-    border-left:none;
-    overflow:auto;
-  }
-
   .admin-toolbar{
     padding:18px 16px;
+  }
+
+  .admin-toolbar-sidebar-toggle{
+    display:inline-flex;
+  }
+
+  .toolbar-title-row{
+    align-items:flex-start;
+  }
+
+  .toolbar-side{
+    width:100%;
+    justify-items:start;
+    min-width:0;
+  }
+
+  .toolbar-session-meta{
+    justify-items:start;
+  }
+
+  .toolbar-status{
+    text-align:left;
   }
 
   .toolbar-actions{
     width:100%;
     justify-content:flex-start;
   }
+
+  .customer-workspace,
+  .crm-profile-grid,
+  .crm-overview-cards{
+    grid-template-columns:1fr;
+  }
 }
 
 @media (max-width:760px){
-  .skybook-topbar-right{
-    gap:8px;
-  }
-
-  .skybook-topbar-pill{
-    display:none;
-  }
-
-  .skybook-topnav{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:8px;
-    overflow:visible;
-  }
-
-  .skybook-topnav-link{
-    justify-content:center;
-    min-height:42px;
-  }
-
   .toolbar-actions{
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-
-  .toolbar-actions .booking-chip{
-    grid-column:1 / -1;
-    width:max-content;
   }
 
   .toolbar-actions button,
@@ -2354,11 +2540,6 @@ body.is-compact-tables .status-badge{
 @media (max-width:560px){
   .skybook-admin-page .admin-sidebar-booking{
     width:min(92vw,320px);
-  }
-
-  .skybook-topbar-user,
-  .skybook-topbar-search{
-    width:100%;
   }
 
   .toolbar-actions{

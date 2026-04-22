@@ -19,7 +19,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   'true-travel':{
     label:'True Travel',
     vibe:'Ocean-led public site',
-    siteBase:'../sites/true-travel',
+    siteBase:'../true-travel-site',
     homePath:'index.html',
     toursPath:'tours.html',
     toursLabel:'Tours'
@@ -27,7 +27,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   'iventure':{
     label:'Iventure',
     vibe:'Sand-and-dune public site',
-    siteBase:'../sites/iventure',
+    siteBase:'../iventure-site',
     homePath:'index.html',
     toursPath:'services.html',
     toursLabel:'Services'
@@ -125,12 +125,12 @@ const setStatus=(message,isError=false)=>{
   statusNode.classList.toggle('is-error',isError)
 }
 
-const goBackToGrid=()=>{window.location.href=buildDesignStudioUrl('#tours')}
+const goBackToGrid=()=>{window.location.href=buildDesignStudioUrl('#pages')}
 
 const applyBrandChrome=()=>{
   document.title=`SkyBook Tour Editor · ${activeBrand.label}`
-  if(backToDesignStudioLink)backToDesignStudioLink.href=buildDesignStudioUrl('#tours')
-  if(backToGridLink)backToGridLink.href=buildDesignStudioUrl('#tours')
+  if(backToDesignStudioLink)backToDesignStudioLink.href=buildDesignStudioUrl('#pages')
+  if(backToGridLink)backToGridLink.href=buildDesignStudioUrl('#pages')
   if(openToursPageLink){
     openToursPageLink.href=buildSiteUrl(activeBrand.toursPath)
     openToursPageLink.textContent=`Open ${activeBrand.toursLabel||'Tours'} Page`

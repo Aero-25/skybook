@@ -1035,15 +1035,57 @@ const validatePublicBookingPayload=(service:Json,payload:Json)=>{
   if(errors.length)throw new Error(errors[0])
 }
 
-const upsertCustomer=async(customer:Json)=>{
+const normalizeJsonRecord=(value:unknown):Json=>{
+  if(value && typeof value==='object' && !Array.isArray(value))return value as Json
+  return {}
+}
+
+const mergeNormalizedTextSet=(...values:unknown[])=>Array.from(new Set(
+  values.flatMap(value=>Array.isArray(value) ? value : [value]).map(item=>normalizeText(item)).filter(Boolean)
+))
+
+const buildCustomerMetadata=(existingMetadata:Json,context:{
+  brandCode?:string
+  bookingSource?:string
+  sourcePage?:string
+  createdVia?:string
+  notes?:string
+})=>{
+  const brandCode=normalizeText(context.brandCode)
+  const bookingSource=normalizeText(context.bookingSource)
+  const sourcePage=normalizeText(context.sourcePage)
+  const createdVia=normalizeText(context.createdVia)
+  const notes=normalizeText(context.notes)
+  return {
+    ...existingMetadata,
+    last_booking_at:nowIso(),
+    first_brand_code:normalizeText(existingMetadata.first_brand_code) || brandCode,
+    last_brand_code:brandCode || normalizeText(existingMetadata.last_brand_code),
+    last_booking_source:bookingSource || normalizeText(existingMetadata.last_booking_source),
+    latest_source_page:sourcePage || normalizeText(existingMetadata.latest_source_page),
+    latest_created_via:createdVia || normalizeText(existingMetadata.latest_created_via),
+    latest_customer_note:notes || normalizeText(existingMetadata.latest_customer_note),
+    brand_codes:mergeNormalizedTextSet(existingMetadata.brand_codes,brandCode),
+    booking_sources:mergeNormalizedTextSet(existingMetadata.booking_sources,bookingSource)
+  }
+}
+
+const upsertCustomer=async(customer:Json,context:{
+  brandCode?:string
+  bookingSource?:string
+  sourcePage?:string
+  createdVia?:string
+  notes?:string
+}={})=>{
   const email=normalizeText(customer.email).toLowerCase()
   const { data:existing }=await adminClient.from('customers').select('*').ilike('email',email).maybeSingle()
   if(existing){
+    const existingMetadata=normalizeJsonRecord(existing.metadata)
     const { data,error }=await adminClient.from('customers').update({
       full_name:normalizeText(customer.full_name)||existing.full_name,
       phone:normalizeText(customer.phone)||existing.phone,
       whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone)||existing.whatsapp,
-      metadata:{...(existing.metadata||{}),last_booking_at:nowIso()}
+      metadata:buildCustomerMetadata(existingMetadata,context)
     }).eq('id',existing.id).select().single()
     if(error)throw error
     return data
@@ -1052,13 +1094,14 @@ const upsertCustomer=async(customer:Json)=>{
     full_name:normalizeText(customer.full_name),
     email,
     phone:normalizeText(customer.phone),
-    whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone)
+    whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone),
+    metadata:buildCustomerMetadata({},context)
   }).select().single()
   if(error)throw error
   return data
 }
 
-const queueEmailLog=async({bookingId,customerId,recipientEmail,templateKey,subject,body,status='queued'}:{
+const queueEmailLog=async({bookingId,customerId,recipientEmail,templateKey,subject,body,status='queued',metadata={}}:{
   bookingId:string
   customerId:string
   recipientEmail:string
@@ -1066,17 +1109,98 @@ const queueEmailLog=async({bookingId,customerId,recipientEmail,templateKey,subje
   subject:string
   body:string
   status?:string
+  metadata?:Json
 })=>{
-  const { error }=await adminClient.from('email_logs').insert({
+  const { data,error }=await adminClient.from('email_logs').insert({
     booking_id:bookingId,
     customer_id:customerId,
     template_key:templateKey,
     recipient_email:recipientEmail,
     subject,
     rendered_body:body,
-    status
-  })
+    status,
+    metadata
+  }).select().single()
   if(error)throw error
+  return data
+}
+
+const readEmailIntegrationConfig=async()=>{
+  const integrations=normalizeJsonRecord(await getSettingValue('integrations',{}))
+  const emailConfig=normalizeJsonRecord(integrations.email)
+  return {
+    provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || 'log_only'),
+    resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key),
+    fromEmail:normalizeText(Deno.env.get('EMAIL_FROM') || emailConfig.from_email),
+    fromName:normalizeText(Deno.env.get('EMAIL_FROM_NAME') || emailConfig.from_name || 'SkyBook')
+  }
+}
+
+const tryParseJson=async(response:Response)=>{
+  try{
+    return await response.json()
+  }catch{
+    return {}
+  }
+}
+
+const dispatchEmailLog=async(emailLog:Json)=>{
+  const config=await readEmailIntegrationConfig()
+  const provider=normalizeText(config.provider)
+  if(provider!=='resend' || !config.resendApiKey || !config.fromEmail){
+    await adminClient.from('email_logs').update({
+      status:'queued',
+      metadata:{
+        ...normalizeJsonRecord(emailLog.metadata),
+        dispatch_provider:provider || 'log_only',
+        dispatch_mode:'queue_only'
+      }
+    }).eq('id',String(emailLog.id || ''))
+    return { status:'queued', provider:provider || 'log_only' }
+  }
+
+  const fromLabel=normalizeText(config.fromName)
+  const fromAddress=fromLabel ? fromLabel + ' <' + config.fromEmail + '>' : config.fromEmail
+  const response=await fetch('https://api.resend.com/emails',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      Authorization:'Bearer ' + config.resendApiKey
+    },
+    body:JSON.stringify({
+      from:fromAddress,
+      to:[String(emailLog.recipient_email || '')],
+      subject:String(emailLog.subject || ''),
+      text:String(emailLog.rendered_body || '')
+    })
+  })
+  const responseBody=await tryParseJson(response)
+  if(!response.ok){
+    const errorMessage=normalizeText(responseBody?.message) || ('Email dispatch failed with status ' + response.status + '.')
+    await adminClient.from('email_logs').update({
+      status:'failed',
+      error_message:errorMessage,
+      metadata:{
+        ...normalizeJsonRecord(emailLog.metadata),
+        dispatch_provider:'resend',
+        response_status:response.status
+      }
+    }).eq('id',String(emailLog.id || ''))
+    throw new Error(errorMessage)
+  }
+
+  await adminClient.from('email_logs').update({
+    status:'sent',
+    sent_at:nowIso(),
+    provider_message_id:normalizeText(responseBody?.id),
+    error_message:null,
+    metadata:{
+      ...normalizeJsonRecord(emailLog.metadata),
+      dispatch_provider:'resend',
+      response_status:response.status
+    }
+  }).eq('id',String(emailLog.id || ''))
+  return { status:'sent', provider:'resend', provider_message_id:normalizeText(responseBody?.id) }
 }
 
 const loadBookingEmailContext=async(bookingId:string)=>{
@@ -1123,32 +1247,44 @@ const performQueuedEmailJob=async(job:Json)=>{
   if(!bookingId)throw new Error('Queued email job is missing booking_id.')
   const { booking, customer, service }=await loadBookingEmailContext(bookingId)
   if(!customer?.email)throw new Error('Customer email is missing for queued email delivery.')
-  const emailTemplates=await getSettingValue('email_templates',defaultEmailTemplates)
-  const fallbackTemplate=(defaultEmailTemplates as unknown as Record<string,Json>)[templateKey] || defaultEmailTemplates.status_changed
-  const template=(((emailTemplates||{}) as Json)[templateKey] || fallbackTemplate) as Json
-  await queueEmailLog({
+  let subject=normalizeText(job.payload?.subject)
+  let body=normalizeText(job.payload?.body)
+  if(!subject || !body){
+    const emailTemplates=await getSettingValue('email_templates',defaultEmailTemplates)
+    const fallbackTemplate=(defaultEmailTemplates as unknown as Record<string,Json>)[templateKey] || defaultEmailTemplates.status_changed
+    const template=(((emailTemplates||{}) as Json)[templateKey] || fallbackTemplate) as Json
+    subject=renderTemplate(String(template.subject || fallbackTemplate.subject),{
+      customer_name:customer.full_name || 'Guest',
+      booking_reference:booking.reference,
+      service_name:service?.name || 'Service',
+      booking_date:booking.preferred_date || 'To be confirmed',
+      total_amount:booking.total_amount,
+      payment_status:booking.payment_status
+    })
+    body=renderTemplate(String(template.body || fallbackTemplate.body),{
+      customer_name:customer.full_name || 'Guest',
+      booking_reference:booking.reference,
+      service_name:service?.name || 'Service',
+      booking_date:booking.preferred_date || 'To be confirmed',
+      total_amount:booking.total_amount,
+      payment_status:booking.payment_status
+    })
+  }
+  const emailLog=await queueEmailLog({
     bookingId,
     customerId:String(customer.id || booking.customer_id || ''),
     recipientEmail:String(customer.email),
     templateKey,
-    subject:renderTemplate(String(template.subject || fallbackTemplate.subject),{
-      customer_name:customer.full_name || 'Guest',
-      booking_reference:booking.reference,
-      service_name:service?.name || 'Service',
-      booking_date:booking.preferred_date || 'To be confirmed',
-      total_amount:booking.total_amount,
-      payment_status:booking.payment_status
-    }),
-    body:renderTemplate(String(template.body || fallbackTemplate.body),{
-      customer_name:customer.full_name || 'Guest',
-      booking_reference:booking.reference,
-      service_name:service?.name || 'Service',
-      booking_date:booking.preferred_date || 'To be confirmed',
-      total_amount:booking.total_amount,
-      payment_status:booking.payment_status
-    }),
-    status:'queued'
+    subject,
+    body,
+    status:'queued',
+    metadata:{
+      source:'system_job',
+      job_id:String(job.id || ''),
+      delivery_intent:'automatic'
+    }
   })
+  await dispatchEmailLog(emailLog)
 }
 
 const runStatusAutomations=async(job:Json)=>{
@@ -1979,7 +2115,16 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const basePricing=calculatePricing(service,payload,settings as Json)
   const promotionState=await applyPromotions(service as unknown as Json,payload,basePricing)
   const pricing=calculatePricing(service,payload,settings as Json,promotionState.totalDiscountAmount)
-  const customer=await upsertCustomer(payload.customer as Json||{})
+  const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
+  const requestSource=normalizeText(payload.source) || normalizeText(requestMetadata.source)
+  const bookingSource=requestSource || (isAdmin ? 'admin' : 'website')
+  const customer=await upsertCustomer(payload.customer as Json||{},{
+    brandCode:String(brand.code || brandCode),
+    bookingSource,
+    sourcePage:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
+    createdVia:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || (isAdmin ? 'skybook_admin' : 'website'),
+    notes:normalizeText(((payload.customer as Json)||{}).notes) || normalizeText(payload.notes)
+  })
   const requestedReference=normalizeBookingReference(payload.reference)
   const bookingPrefix=String(brand.booking_prefix || 'TT')
   if(requestedReference && await bookingReferenceExists(requestedReference)){
@@ -1992,9 +2137,6 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const bookingStatus=desiredStatus || (service.requires_manual_confirmation && !isAdmin ? 'pending' : (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
   const paymentStatus=desiredPaymentStatus || (pricing.amountDueNow>0 ? 'pending' : 'unpaid')
   const outstandingAmounts=resolveOutstandingAmounts(pricing,paymentStatus)
-  const requestSource=normalizeText(payload.source)
-  const bookingSource=isAdmin ? 'admin' : (requestSource || 'website')
-  const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
     brand_code:String(brand.code || brandCode),
@@ -2021,7 +2163,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
       source:bookingSource,
       brand_code:String(brand.code || brandCode),
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
-      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via)
+      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || (isAdmin ? 'skybook_admin' : 'website')
     }
   })
 
@@ -2116,23 +2258,32 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   })
   const currentCustomer=await adminClient.from('customers').select('*').eq('id',existing.customer_id).single()
   const incomingCustomer=(payload.customer as Json)||{}
+  const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
+  const nextBrandCode=normalizeText(payload.brand_code)||normalizeText(existing.brand_code)
+  const nextSource=(Object.prototype.hasOwnProperty.call(payload,'source') ? normalizeText(payload.source) : '') || normalizeText(requestMetadata.source) || normalizeText(existing.source) || 'admin'
   const nextCustomerPayload={
     full_name:normalizeText(incomingCustomer.full_name ?? payload.customer_name ?? currentCustomer.data?.full_name),
     email:normalizeText(incomingCustomer.email ?? payload.customer_email ?? currentCustomer.data?.email),
     phone:normalizeText(incomingCustomer.phone ?? payload.customer_phone ?? currentCustomer.data?.phone),
     whatsapp:normalizeText(incomingCustomer.whatsapp ?? payload.customer_phone ?? currentCustomer.data?.whatsapp)
   }
-  const customer=await upsertCustomer(nextCustomerPayload)
+  const customer=await upsertCustomer(nextCustomerPayload,{
+    brandCode:nextBrandCode,
+    bookingSource:nextSource,
+    sourcePage:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existing.metadata?.source_page),
+    createdVia:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existing.metadata?.created_via) || 'skybook_admin',
+    notes:normalizeText(incomingCustomer.notes) || normalizeText(payload.notes) || normalizeText(existing.customer_notes)
+  })
   let serviceId=existing.service_id
   let serviceSlug=''
   let service=(
     await fetchServices({
       includeInactive:true,
-      brandCode:normalizeText(payload.brand_code) || normalizeText(existing.brand_code)
+      brandCode:nextBrandCode
     })
   ).find(item=>String(item.id)===String(serviceId))
   if(normalizeText(payload.service_slug)){
-    service=await getServiceBySlug(normalizeText(payload.service_slug),true,normalizeText(payload.brand_code) || normalizeText(existing.brand_code))
+    service=await getServiceBySlug(normalizeText(payload.service_slug),true,nextBrandCode)
     serviceId=service.id
     serviceSlug=service.slug
   }
@@ -2147,13 +2298,15 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const nextQuantity=Math.max(1,Number(payload.quantity||existing.quantity||1))
   const pricing=calculatePricing(service,payload.quantity!==undefined ? {...payload,quantity:nextQuantity} : {quantity:nextQuantity},settings as Json)
   const outstandingAmounts=resolveOutstandingAmounts(pricing,nextPaymentStatus)
+  const existingMetadata=normalizeJsonRecord(existing.metadata)
   const updatePayload:Json={
     reference:normalizeText(payload.reference)||existing.reference,
-    brand_code:normalizeText(payload.brand_code)||existing.brand_code,
+    brand_code:nextBrandCode,
     customer_id:customer.id,
     service_id:serviceId,
     status:nextStatus,
     payment_status:nextPaymentStatus,
+    source:nextSource,
     preferred_date:nextPreferredDate,
     confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
     quantity:nextQuantity,
@@ -2166,6 +2319,14 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     currency_code:String(service.currency || existing.currency_code || 'NAD'),
     customer_notes:Object.prototype.hasOwnProperty.call(payload,'notes') ? normalizeText(payload.notes) : existing.customer_notes,
     lookup_email:customer.email,
+    metadata:{
+      ...existingMetadata,
+      ...requestMetadata,
+      source:nextSource,
+      brand_code:nextBrandCode,
+      source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existingMetadata.source_page),
+      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existingMetadata.created_via) || 'skybook_admin'
+    },
     updated_by:userId
   }
   const { error:updateError }=await adminClient.from('bookings').update(updatePayload).eq('id',id)
@@ -2366,7 +2527,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       .from('bookings')
       .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
       .order('created_at',{ascending:false}),
-    adminClient.from('customers').select('id,full_name,email,phone,created_at').order('created_at',{ascending:false}),
+    adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}),
     adminClient.from('payments').select('id,booking_id,provider,status,amount,amount_received,currency_code,provider_reference,external_checkout_url,paid_at,created_at').order('created_at',{ascending:false}),
     fetchServices({includeInactive:true}),
     getSettingValue('config',{
@@ -2439,18 +2600,56 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     updated_by:row.updated_by || null,
     created_at:row.created_at
   }))
-  const bookingsByCustomer=new Map<string,{booking_count:number,last_booking_reference:string}>()
+  const bookingsByCustomer=new Map<string,{
+    booking_count:number
+    last_booking_reference:string
+    last_booking_date:string
+    brand_codes:Set<string>
+    booking_sources:Set<string>
+    last_brand_code:string
+    last_source:string
+  }>()
   for(const booking of bookings){
-    const current=bookingsByCustomer.get(String(booking.customer_email))||{booking_count:0,last_booking_reference:''}
+    const key=String(booking.customer_id || booking.customer_email || '')
+    if(!key)continue
+    const current=bookingsByCustomer.get(key)||{
+      booking_count:0,
+      last_booking_reference:'',
+      last_booking_date:'',
+      brand_codes:new Set<string>(),
+      booking_sources:new Set<string>(),
+      last_brand_code:'',
+      last_source:''
+    }
     current.booking_count+=1
-    if(!current.last_booking_reference)current.last_booking_reference=String(booking.reference)
-    bookingsByCustomer.set(String(booking.customer_email),current)
+    if(!current.last_booking_reference){
+      current.last_booking_reference=String(booking.reference || '')
+      current.last_booking_date=String(booking.created_at || booking.preferred_date || '')
+      current.last_brand_code=String(booking.brand_code || '')
+      current.last_source=String(booking.source || booking.metadata?.source || '')
+    }
+    if(booking.brand_code)current.brand_codes.add(String(booking.brand_code))
+    const bookingSource=String(booking.source || booking.metadata?.source || '')
+    if(bookingSource)current.booking_sources.add(bookingSource)
+    bookingsByCustomer.set(key,current)
   }
-  const customers=(customersResult.data||[]).map(customer=>({
-    ...customer,
-    booking_count:bookingsByCustomer.get(String(customer.email))?.booking_count||0,
-    last_booking_reference:bookingsByCustomer.get(String(customer.email))?.last_booking_reference||''
-  }))
+  const customers=(customersResult.data||[]).map(customer=>{
+    const metadata=normalizeJsonRecord(customer.metadata)
+    const summary=bookingsByCustomer.get(String(customer.id || customer.email || ''))
+      || bookingsByCustomer.get(String(customer.email || ''))
+    return ({
+      ...customer,
+      metadata,
+      booking_count:summary?.booking_count||0,
+      last_booking_reference:summary?.last_booking_reference||'',
+      last_booking_date:summary?.last_booking_date||'',
+      last_brand_code:summary?.last_brand_code||normalizeText(metadata.last_brand_code),
+      last_source:summary?.last_source||normalizeText(metadata.last_booking_source),
+      brand_codes:Array.from(summary?.brand_codes || new Set(mergeNormalizedTextSet(metadata.brand_codes))),
+      booking_sources:Array.from(summary?.booking_sources || new Set(mergeNormalizedTextSet(metadata.booking_sources))),
+      latest_customer_note:normalizeText(metadata.latest_customer_note)
+    })
+  })
   const payments=(paymentsResult.data||[]).map(payment=>{
     const booking=bookings.find(row=>row.id===payment.booking_id)
     return {
@@ -2622,8 +2821,34 @@ const resendBookingEmail=async(bookingId:string,userId:string)=>{
     createdBy:userId
   })
   await processDueSystemJobs()
-  await insertStatusHistory(booking.id,String(booking.status),String(booking.status),'Confirmation email re-queued',`admin:${userId}`,userId)
+  await insertStatusHistory(booking.id,String(booking.status),String(booking.status),'Confirmation email re-queued', 'admin:' + userId,userId)
   return {success:true}
+}
+
+const sendBookingCustomEmail=async(bookingId:string,payload:Json,userId:string)=>{
+  const { booking, customer, service }=await loadBookingEmailContext(bookingId)
+  if(!booking)throw new Error('Booking not found.')
+  if(!customer?.email)throw new Error('Customer email is missing for outbound email.')
+  const subject=normalizeText(payload.subject)
+  const body=normalizeText(payload.body)
+  if(!subject || !body)throw new Error('Email subject and body are required.')
+  const emailLog=await queueEmailLog({
+    bookingId,
+    customerId:String(customer.id || booking.customer_id || ''),
+    recipientEmail:String(customer.email),
+    templateKey:normalizeText(payload.template_key) || 'manual_admin',
+    subject,
+    body,
+    status:'queued',
+    metadata:{
+      source:'admin_manual_email',
+      created_by:userId,
+      service_name:normalizeText(service?.name)
+    }
+  })
+  const delivery=await dispatchEmailLog(emailLog)
+  await insertStatusHistory(bookingId,String(booking.status || ''),String(booking.status || ''),'Guest email ' + (delivery.status==='sent' ? 'sent' : 'queued') + ': ' + subject,'admin:' + userId,userId)
+  return {success:true,delivery_status:delivery.status,email_log_id:emailLog.id}
 }
 
 Deno.serve(async request=>{
@@ -2752,6 +2977,11 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='resend'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(200,await resendBookingEmail(subresource,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='email'){
+        requireSkybookPermission(adminProfile,'emails')
+        return json(200,await sendBookingCustomEmail(subresource,requestBody,user.id))
       }
 
       if(request.method==='POST'&&id==='services'){

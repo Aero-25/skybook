@@ -17,7 +17,7 @@
       'true-travel':{
         label:'True Travel',
         vibe:'Ocean-led public site',
-        siteBase:'../sites/true-travel',
+        siteBase:'../true-travel-site',
         homePath:'index.html',
         toursPath:'tours.html',
         toursLabel:'Tours',
@@ -39,7 +39,7 @@
       'iventure':{
         label:'Iventure',
         vibe:'Sand-and-dune public site',
-        siteBase:'../sites/iventure',
+        siteBase:'../iventure-site',
         homePath:'index.html',
         toursPath:'services.html',
         toursLabel:'Services',
@@ -85,7 +85,7 @@
     <button class="studio-sidebar-backdrop" id="studioSidebarBackdrop" type="button" aria-label="Close design navigation"></button>
     <aside class="admin-sidebar">
       <div class="admin-brand">SkyBook<span>Design Studio</span></div>
-      <p class="admin-note">This workspace is for public-site content and visual editing. Operational booking management, reports, and finance stay in the separate SkyBook booking admin.</p>
+      <p class="admin-note">This workspace is only for public-site design, imagery, and layout. Choose a brand and work page by page inside the live site preview.</p>
 
       <div class="sidebar-card site-brand-card">
         <h3>Editing Brand</h3>
@@ -100,11 +100,8 @@
       </div>
 
       <div class="panel-nav">
-        <a class="panel-link" href="admin.html">Gateway</a>
         <button class="panel-link is-active" type="button" data-page="pages">Pages</button>
-        <button class="panel-link" type="button" data-page="catalog">Catalog</button>
         <button class="panel-link" type="button" data-page="gallery">Gallery Uploads</button>
-        <a class="panel-link" href="booking-admin.html">Booking Admin</a>
       </div>
     </aside>
 
@@ -129,16 +126,16 @@
               <p id="workspaceDescription">Move page by page through the selected public site so each True Travel surface has its own dedicated design workspace.</p>
             </div>
             <div class="workspace-links">
-              <a class="primary" id="openSiteEditor" href="../sites/true-travel/index.html?admin=1" target="_blank" rel="noopener">Open Homepage Workspace</a>
-              <a id="viewSiteLink" href="../sites/true-travel/index.html" target="_blank" rel="noopener">View Homepage</a>
+              <a class="primary" id="openSiteEditor" href="../true-travel-site/index.html?admin=1" target="_blank" rel="noopener">Open Homepage Workspace</a>
+              <a id="viewSiteLink" href="../true-travel-site/index.html" target="_blank" rel="noopener">View Homepage</a>
             </div>
           </div>
           <div class="workspace-page-grid" id="pageWorkspaceGrid"></div>
-          <iframe id="previewFrame" class="preview-frame" src="../sites/true-travel/index.html?admin=1" title="Site editor preview"></iframe>
+          <iframe id="previewFrame" class="preview-frame" src="../true-travel-site/index.html?admin=1" title="Site editor preview"></iframe>
         </div>
       </section>
 
-      <section class="panel-view" data-panel-view="catalog">
+      <section class="panel-view" data-panel-view="catalog" hidden>
         <div class="tours-shell">
           <div class="workspace-top">
             <div>
@@ -149,7 +146,7 @@
             <div class="workspace-top-actions">
               <button type="button" id="reloadToursFromRemote">Reload SkyBook Catalog</button>
               <a id="openCatalogAdminLink" href="booking-admin.html?tab=services">Open Catalog In SkyBook</a>
-              <a id="openToursPage" href="../sites/true-travel/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
+              <a id="openToursPage" href="../true-travel-site/tours.html" target="_blank" rel="noopener">Open Tours Page</a>
             </div>
           </div>
           <div class="workspace-status" id="adminStatus">Choose a brand to open its design workspace. Tour creation, pricing, and brand visibility all live in SkyBook Admin.</div>
@@ -169,7 +166,7 @@
             </div>
             <div class="workspace-top-actions">
               <button type="button" id="reloadGalleryCollection">Reload Gallery</button>
-              <a id="openGalleryPage" href="../sites/true-travel/gallery.html" target="_blank" rel="noopener">Open Gallery Page</a>
+              <a id="openGalleryPage" href="../true-travel-site/gallery.html" target="_blank" rel="noopener">Open Gallery Page</a>
             </div>
           </div>
           <div class="workspace-status" id="galleryStatus">Sign in with a SkyBook admin session to upload and manage gallery images.</div>
