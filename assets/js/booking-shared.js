@@ -244,6 +244,7 @@ window.TrueTravelBooking=(()=>{
         deposit_type:'percentage',
         deposit_value:30,
         media_url:tour.imageUrl||'',
+        media_gallery:tour.imageUrl ? [{url:tour.imageUrl,alt:tour.name,caption:''}] : [],
         highlight_points:tour.timeSlots||[],
         brand_codes:Object.keys(BRAND_CATALOG),
         addons:[],
@@ -269,6 +270,9 @@ window.TrueTravelBooking=(()=>{
 
   const normalizeService=service=>{
     const metadata=service?.metadata && typeof service.metadata==='object' && !Array.isArray(service.metadata) ? service.metadata : {}
+    const mediaGallerySource=Array.isArray(service?.media_gallery)
+      ? service.media_gallery
+      : (Array.isArray(service?.media) ? service.media : (Array.isArray(metadata.media_gallery) ? metadata.media_gallery : []))
     return {
       id:service?.id||uid('svc'),
       slug:toSlug(service?.slug||service?.name||uid('service')),
@@ -290,6 +294,21 @@ window.TrueTravelBooking=(()=>{
       departure_window:safeText(service?.departure_window ?? metadata.departure_window ?? ''),
       pickup_time:safeText(service?.pickup_time ?? metadata.pickup_time ?? ''),
       media_url:safeText(service?.media_url||service?.imageUrl||''),
+      media_gallery:mediaGallerySource.map((item,index)=>{
+        if(!item)return null
+        if(typeof item==='string'){
+          const url=safeText(item)
+          if(!url)return null
+          return {url,alt:`${safeText(service?.name||'Service')} image ${index+1}`,caption:''}
+        }
+        const url=safeText(item?.url||item?.src)
+        if(!url)return null
+        return {
+          url,
+          alt:safeText(item?.alt||item?.label||service?.name||`Service image ${index+1}`),
+          caption:safeText(item?.caption||'')
+        }
+      }).filter(Boolean),
       highlight_points:Array.isArray(service?.highlight_points)
         ? service.highlight_points.map(safeText).filter(Boolean)
         : (Array.isArray(metadata.highlight_points) ? metadata.highlight_points.map(safeText).filter(Boolean) : []),

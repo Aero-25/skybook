@@ -942,6 +942,30 @@ const normalizeDiscountAmount=(total:number,discountType:string,discountValue:nu
   return Number(Math.min(total,total*(discountValue/100)).toFixed(2))
 }
 
+const normalizeServiceMedia=(value:unknown,serviceName='')=>{
+  if(!Array.isArray(value))return []
+  return value.map((item,index)=>{
+    if(typeof item==='string'){
+      const url=normalizeText(item)
+      if(!url)return null
+      return {
+        url,
+        alt:serviceName ? `${serviceName} image ${index+1}` : '',
+        caption:''
+      }
+    }
+    if(!item || typeof item!=='object' || Array.isArray(item))return null
+    const media=normalizeJsonRecord(item)
+    const url=normalizeText(media.url || media.src)
+    if(!url)return null
+    return {
+      url,
+      alt:normalizeText(media.alt || media.label || (serviceName ? `${serviceName} image ${index+1}` : '')),
+      caption:normalizeText(media.caption)
+    }
+  }).filter(item=>Boolean(item?.url))
+}
+
 const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:string,includeInactive?:boolean,brandCode?:string}={})=>{
   let query=adminClient
     .from('services')
@@ -975,6 +999,7 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     deposit_type:service.deposit_type,
     deposit_value:Number(service.deposit_value||0),
     media_url:Array.isArray(service.media)&&service.media.length ? String(service.media[0]?.url||'') : '',
+    media_gallery:normalizeServiceMedia(service.media,service.name),
     highlight_points:Array.isArray(service.metadata?.highlight_points) ? service.metadata.highlight_points : [],
     brand_codes:Array.isArray(service.metadata?.brand_codes) ? service.metadata.brand_codes : [],
     minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
@@ -2434,6 +2459,7 @@ const upsertService=async(payload:Json)=>{
     ? Array.from(new Set(payload.brand_codes.map(value=>normalizeText(value)).filter(Boolean)))
     : []
   const minimumPax=Math.max(1,Number(payload.minimum_pax||1)||1)
+  const mediaGallery=normalizeServiceMedia(payload.media_urls || payload.media,normalizeText(payload.name))
   const servicePayload={
     category_id:category?.id||null,
     slug:normalizeText(payload.slug),
@@ -2458,7 +2484,7 @@ const upsertService=async(payload:Json)=>{
       departure_window:normalizeText(payload.departure_window),
       pickup_time:normalizeText(payload.pickup_time)
     },
-    media:[]
+    media:mediaGallery
   }
   if(normalizeText(payload.id)){
     const { error }=await adminClient.from('services').update(servicePayload).eq('id',normalizeText(payload.id))

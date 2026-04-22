@@ -211,7 +211,9 @@ const nodes={
   serviceDepartureWindow:document.getElementById('adminServiceDepartureWindow'),
   servicePickupTime:document.getElementById('adminServicePickupTime'),
   serviceSummary:document.getElementById('adminServiceSummary'),
+  serviceLearnMoreDescription:document.getElementById('adminServiceLearnMoreDescription'),
   serviceHighlights:document.getElementById('adminServiceHighlights'),
+  serviceLandscapeImages:document.getElementById('adminServiceLandscapeImages'),
   serviceBrandTrueTravel:document.getElementById('adminServiceBrandTrueTravel'),
   serviceBrandIventure:document.getElementById('adminServiceBrandIventure'),
   serviceActive:document.getElementById('adminServiceActive'),
@@ -2307,7 +2309,9 @@ const fillServiceForm=(service=null)=>{
   if(nodes.serviceDepartureWindow)nodes.serviceDepartureWindow.value=service?.departure_window||''
   if(nodes.servicePickupTime)nodes.servicePickupTime.value=service?.pickup_time||''
   nodes.serviceSummary.value=service?.short_description||''
+  if(nodes.serviceLearnMoreDescription)nodes.serviceLearnMoreDescription.value=service?.full_description||service?.short_description||''
   nodes.serviceHighlights.value=(service?.highlight_points||[]).join(', ')
+  if(nodes.serviceLandscapeImages)nodes.serviceLandscapeImages.value=(service?.media_gallery||[]).map(item=>String(item?.url||'').trim()).filter(Boolean).join('\n')
   if(nodes.serviceBrandTrueTravel)nodes.serviceBrandTrueTravel.checked=brandCodes.includes('true-travel')
   if(nodes.serviceBrandIventure)nodes.serviceBrandIventure.checked=brandCodes.includes('iventure')
   nodes.serviceActive.checked=service?.is_active!==false
@@ -3497,7 +3501,9 @@ const handleServiceSave=async event=>{
     departure_window:nodes.serviceDepartureWindow?.value?.trim()||'',
     pickup_time:nodes.servicePickupTime?.value?.trim()||'',
     short_description:nodes.serviceSummary.value.trim(),
+    full_description:nodes.serviceLearnMoreDescription?.value?.trim()||nodes.serviceSummary.value.trim(),
     highlight_points:nodes.serviceHighlights.value.split(',').map(item=>item.trim()).filter(Boolean),
+    media_urls:(nodes.serviceLandscapeImages?.value||'').split(/\r?\n/).map(item=>item.trim()).filter(Boolean),
     brand_codes:brandCodes,
     is_active:nodes.serviceActive.checked
   }
