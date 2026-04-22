@@ -136,6 +136,21 @@ body.has-site-picker{
   font-size:34px;
   line-height:.95;
 }
+.admin-brand-with-logo{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.admin-brand-logo{
+  width:56px;
+  height:56px;
+  object-fit:contain;
+  padding:6px;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 16px 28px rgba(0,0,0,.16);
+  flex-shrink:0;
+}
 .admin-brand span{
   display:block;
   margin-top:8px;

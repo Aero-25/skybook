@@ -290,6 +290,12 @@ body.skybook-auth-page{
   background:linear-gradient(135deg,#1e5b93,#5e99cf);
   box-shadow:0 12px 26px rgba(30,91,147,.18);
 }
+.admin-brand-mark-image{
+  display:block;
+  object-fit:contain;
+  padding:6px;
+  background:#fff;
+}
 .admin-product-subtitle{
   margin:4px 0 0;
   font-size:12px;
@@ -563,6 +569,28 @@ tbody tr:hover td{background:#f8fbfe}
   margin-left:auto;
   background:transparent;
   box-shadow:none;
+}
+.skybook-gateway-brand{
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:14px;
+}
+.skybook-gateway-logo{
+  width:52px;
+  height:52px;
+  object-fit:contain;
+  padding:6px;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 14px 28px rgba(20,52,83,.08);
+}
+.skybook-gateway-brand span{
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:var(--booking-ocean);
 }
 .booking-filter-toggle-row{
   display:flex;
@@ -1159,7 +1187,7 @@ textarea:focus-visible{
   border-bottom:1px solid var(--sky-line);
 }
 
-.admin-brand-mark,
+.admin-brand-mark:not(.admin-brand-mark-image),
 .skybook-topbar-mark{
   background:linear-gradient(135deg,var(--sky-blue),var(--sky-blue-2));
   box-shadow:0 16px 28px rgba(23,105,170,.22);
