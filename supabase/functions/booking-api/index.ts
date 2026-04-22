@@ -174,6 +174,34 @@ const BRAND_EMAIL_NAMES={
   'true-travel':'True Travel',
   iventure:'Iventure'
 }
+const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
+  'true-travel':{
+    code:'true-travel',
+    name:'True Travel',
+    booking_prefix:'TT',
+    logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png',
+    support_email:BRAND_SUPPORT_EMAILS['true-travel'],
+    support_phone:'+264813224270',
+    support_whatsapp:'+264813224270',
+    website_url:'https://truetravelnam.net',
+    document_company_line:'True Travel coastal reservations',
+    document_footer:'Atlantic Street, Waterfront, Walvis Bay, Namibia',
+    document_support_line:'info@jrimporters.com · +264 81 322 4270'
+  },
+  iventure:{
+    code:'iventure',
+    name:'Iventure',
+    booking_prefix:'IV',
+    logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png',
+    support_email:BRAND_SUPPORT_EMAILS.iventure,
+    support_phone:'+264813224270',
+    support_whatsapp:'+264813224270',
+    website_url:'https://iventuretours.net',
+    document_company_line:'Iventure desert-coast expedition desk',
+    document_footer:'Walvis Bay, Namibia',
+    document_support_line:'info@aerodigital.space · +264 81 322 4270'
+  }
+}
 
 const json=(status:number,payload:Json)=>new Response(JSON.stringify(payload),{
   status,
@@ -185,6 +213,29 @@ const readBody=async(request:Request)=>{
 }
 
 const normalizeText=(value:unknown)=>String(value ?? '').trim()
+const getDefaultBrandProfile=(code:unknown)=>{
+  const normalized=normalizeText(code) || 'true-travel'
+  return (DEFAULT_BRAND_DIRECTORY[normalized as keyof typeof DEFAULT_BRAND_DIRECTORY] || DEFAULT_BRAND_DIRECTORY['true-travel']) as Json
+}
+const mergeBrandProfile=(brand:Json={})=>{
+  const metadata=typeof brand?.metadata==='object' && brand.metadata && !Array.isArray(brand.metadata) ? brand.metadata as Json : {}
+  const fallback=getDefaultBrandProfile(brand.code)
+  return {
+    ...fallback,
+    ...brand,
+    code:normalizeText(brand.code || fallback.code) || normalizeText(fallback.code),
+    name:normalizeText(brand.name || metadata.name || fallback.name) || normalizeText(fallback.name),
+    booking_prefix:normalizeText(brand.booking_prefix || metadata.booking_prefix || fallback.booking_prefix) || normalizeText(fallback.booking_prefix),
+    logo_url:normalizeText(brand.logo_url || metadata.logo_url || fallback.logo_url) || normalizeText(fallback.logo_url),
+    support_email:normalizeText(brand.support_email || metadata.support_email || fallback.support_email) || normalizeText(fallback.support_email),
+    support_phone:normalizeText(brand.support_phone || metadata.support_phone || fallback.support_phone) || normalizeText(fallback.support_phone),
+    support_whatsapp:normalizeText(brand.support_whatsapp || metadata.support_whatsapp || fallback.support_whatsapp) || normalizeText(fallback.support_whatsapp),
+    website_url:normalizeText(brand.website_url || metadata.website_url || fallback.website_url) || normalizeText(fallback.website_url),
+    document_company_line:normalizeText(brand.document_company_line || metadata.document_company_line || fallback.document_company_line) || normalizeText(fallback.document_company_line),
+    document_footer:normalizeText(brand.document_footer || metadata.document_footer || fallback.document_footer) || normalizeText(fallback.document_footer),
+    document_support_line:normalizeText(brand.document_support_line || metadata.document_support_line || fallback.document_support_line) || normalizeText(fallback.document_support_line)
+  }
+}
 const normalizeUsername=(value:unknown)=>normalizeText(value).toLowerCase().replace(/[^a-z0-9._-]/g,'')
 const fallbackUsernameFromEmail=(value:unknown)=>normalizeUsername(normalizeText(value).split('@')[0] || '')
 const resolveAuthUsername=(user:Json={})=>normalizeUsername(user.user_metadata?.username) || fallbackUsernameFromEmail(user.email)
@@ -279,15 +330,12 @@ const getRequestBrandCode=(request:Request, payload:Json={})=>{
 
 const listBrands=async()=>{
   const brands=await safeTableSelect<Json>(adminClient.from('brands').select('*').order('sort_order',{ascending:true}),[])
-  return brands.length ? brands : [
-    { code:'true-travel', name:'True Travel', booking_prefix:'TT' },
-    { code:'iventure', name:'Iventure', booking_prefix:'IV' }
-  ]
+  return brands.length ? brands.map(brand=>mergeBrandProfile(brand)) : Object.values(DEFAULT_BRAND_DIRECTORY).map(brand=>mergeBrandProfile(brand))
 }
 
 const getBrandByCode=async(code:string)=>{
   const brand=await safeMaybeSingle<Json>(adminClient.from('brands').select('*').eq('code',code).maybeSingle())
-  return brand || { code, name:code==='iventure' ? 'Iventure' : 'True Travel', booking_prefix:code==='iventure' ? 'IV' : 'TT' }
+  return mergeBrandProfile(brand || { code })
 }
 
 const normalizeBookingReference=value=>normalizeText(value).replace(/\s+/g,'-').replace(/[^A-Z0-9-]/gi,'').toUpperCase()
@@ -301,19 +349,19 @@ const formatReference=(prefix='TT')=>{
 const defaultEmailTemplates={
   booking_received:{
     subject:'We received your booking request {{booking_reference}}',
-    body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\nTrue Travel'
+    body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   booking_confirmed:{
     subject:'Your booking {{booking_reference}} is confirmed',
-    body:'Hi {{customer_name}},\n\nYour booking for {{service_name}} is confirmed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe look forward to welcoming you.\n\nTrue Travel'
+    body:'Hi {{customer_name}},\n\nYour booking for {{service_name}} is confirmed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe look forward to welcoming you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   payment_received:{
     subject:'Payment received for {{booking_reference}}',
-    body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\nTrue Travel'
+    body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   status_changed:{
     subject:'Booking update for {{booking_reference}}',
-    body:'Hi {{customer_name}},\n\nYour booking status changed.\nReference: {{booking_reference}}\nService: {{service_name}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nTrue Travel'
+    body:'Hi {{customer_name}},\n\nYour booking status changed.\nReference: {{booking_reference}}\nService: {{service_name}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   }
 }
 
@@ -513,6 +561,35 @@ const createSignedMemoryUrl=async(storagePath:string,expiresIn=3600)=>{
   return data?.signedUrl || null
 }
 
+const getBrandDocumentPalette=(brandCode:string)=>normalizeText(brandCode)==='iventure'
+  ? {
+      accent:rgb(0.82,0.54,0.14),
+      accentSoft:rgb(0.97,0.92,0.8),
+      ink:rgb(0.12,0.11,0.1),
+      muted:rgb(0.42,0.34,0.24)
+    }
+  : {
+      accent:rgb(0.09,0.23,0.36),
+      accentSoft:rgb(0.89,0.95,0.98),
+      ink:rgb(0.09,0.13,0.19),
+      muted:rgb(0.4,0.5,0.58)
+    }
+
+const fetchBrandLogoAsset=async(brand:Json={})=>{
+  const logoUrl=normalizeText(brand.logo_url)
+  if(!logoUrl)return null
+  try{
+    const response=await fetch(logoUrl)
+    if(!response.ok)return null
+    const bytes=new Uint8Array(await response.arrayBuffer())
+    if(!bytes.byteLength)return null
+    const mimeType=normalizeText(response.headers.get('content-type')).toLowerCase()
+    return { bytes, format:mimeType.includes('png') ? 'png' : 'jpg' }
+  }catch{
+    return null
+  }
+}
+
 const sanitizeFileName=(value:unknown,fallback='tour-memory')=>{
   const raw=normalizeText(value) || fallback
   const clean=raw.replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'')
@@ -660,12 +737,37 @@ const buildDocumentPdfBytes=async(booking:Json,documentType:string,context:Json=
   let page=pdf.addPage([595.28,841.89])
   const font=await pdf.embedFont(StandardFonts.Helvetica)
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold)
-  const brandName=normalizeText(context.brand_name) || 'SkyBook'
+  const brandCode=normalizeText(context.brand_code || booking.brand_code || 'true-travel') || 'true-travel'
+  const brandProfile=mergeBrandProfile(typeof context.brand==='object' && context.brand && !Array.isArray(context.brand) ? context.brand as Json : { code:brandCode, name:context.brand_name })
+  const brandName=normalizeText(context.brand_name || brandProfile.name) || 'SkyBook'
+  const palette=getBrandDocumentPalette(brandCode)
+  const logoAsset=await fetchBrandLogoAsset(brandProfile)
+  let embeddedLogo:any=null
+  if(logoAsset){
+    try{
+      embeddedLogo=logoAsset.format==='png' ? await pdf.embedPng(logoAsset.bytes) : await pdf.embedJpg(logoAsset.bytes)
+    }catch{
+      embeddedLogo=null
+    }
+  }
   const currency=normalizeText(booking.currency_code || booking.currency || 'NAD')
   const totalAmount=Number(booking.total_amount || 0).toFixed(2)
   const invoiceNumber=normalizeText(context.document_number) || normalizeText(booking.reference)
+  page.drawRectangle({x:24,y:24,width:547.28,height:793.89,color:rgb(0.99,0.99,0.99)})
+  page.drawRectangle({x:24,y:760,width:547.28,height:58,color:palette.accent})
+  if(embeddedLogo){
+    const scale=Math.min(0.22,72/embeddedLogo.width)
+    const dims=embeddedLogo.scale(scale)
+    page.drawImage(embeddedLogo,{x:42,y:776,width:dims.width,height:dims.height})
+  }else{
+    page.drawText(brandName,{x:42,y:786,size:18,font:bold,color:rgb(1,1,1)})
+  }
+  page.drawText(displayLabel(documentType),{x:360,y:786,size:17,font:bold,color:rgb(1,1,1)})
+  page.drawText('Prepared in SkyBook',{x:360,y:769,size:9,font,color:rgb(0.95,0.97,0.99)})
+  page.drawRectangle({x:40,y:708,width:515,height:34,color:palette.accentSoft})
+  page.drawText(brandName,{x:54,y:721,size:13,font:bold,color:palette.accent})
+  page.drawText(normalizeText(brandProfile.document_company_line) || 'Brand-aligned booking operations',{x:160,y:721,size:10,font,color:palette.muted})
   const lines=[
-    'SkyBook Enterprise',
     `${brandName} ${displayLabel(documentType)}`,
     '',
     `Reference: ${normalizeText(booking.reference)}`,
@@ -680,19 +782,23 @@ const buildDocumentPdfBytes=async(booking:Json,documentType:string,context:Json=
     '',
     normalizeText(context.summary) || 'Operational document generated by SkyBook.',
     '',
-    normalizeText(context.notes) || ''
+    normalizeText(context.notes) || '',
+    '',
+    `Support: ${normalizeText(brandProfile.document_support_line || brandProfile.support_email || '')}`,
+    `Website: ${normalizeText(brandProfile.website_url)}`,
+    `Location: ${normalizeText(brandProfile.document_footer)}`
   ].filter(line=>line!==undefined)
-  let y=790
-  page.drawText(lines[0],{ x:40, y, size:24, font:bold, color:rgb(0.09,0.2,0.35) })
-  y-=30
-  page.drawText(lines[1],{ x:40, y, size:18, font:bold, color:rgb(0.12,0.36,0.58) })
-  y-=28
-  for(const line of lines.slice(2)){
+  let y=676
+  page.drawText(lines[0],{ x:40, y, size:22, font:bold, color:palette.ink })
+  y-=26
+  for(const line of lines.slice(1)){
     if(y<60){
       y=790
       page=pdf.addPage([595.28,841.89])
+      page.drawRectangle({x:24,y:24,width:547.28,height:793.89,color:rgb(0.99,0.99,0.99)})
+      page.drawRectangle({x:24,y:760,width:547.28,height:58,color:palette.accent})
     }
-    page.drawText(line || ' ',{ x:40, y, size:11, font, color:rgb(0.1,0.13,0.18), maxWidth:510 })
+    page.drawText(line || ' ',{ x:40, y, size:11, font, color:palette.ink, maxWidth:510 })
     y-=18
   }
   return new Uint8Array(await pdf.save())
@@ -732,19 +838,19 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
       .limit(1)
       .maybeSingle()
   )
-  const documentTitle=normalizeText(payload.title) || `SkyBook ${displayLabel(documentType)}`
+  const documentTitle=normalizeText(payload.title) || `${normalizeText(brand.name)} ${displayLabel(documentType)}`
   const documentNumber=normalizeText(payload.document_number) || `${documentType.slice(0,3).toUpperCase()}-${normalizeText(booking.reference)}`
   const bookingDocument=existingDocument?.id
     ? await safeMaybeSingle<Json>(
         adminClient
           .from('booking_documents')
-          .update({
-            title:documentTitle,
-            document_number:documentNumber,
-            status:'generated',
-            generated_at:nowIso(),
-            metadata:{ ...(existingDocument.metadata || {}), generated_in:'skybook-storage' }
-          })
+            .update({
+              title:documentTitle,
+              document_number:documentNumber,
+              status:'generated',
+              generated_at:nowIso(),
+              metadata:{ ...(existingDocument.metadata || {}), generated_in:'skybook-storage', brand_code:normalizeText(brand.code || booking.brand_code) }
+            })
           .eq('id',existingDocument.id)
           .select()
           .single()
@@ -755,13 +861,13 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
           .insert({
             booking_id:bookingId,
             document_type:documentType,
-            title:documentTitle,
-            document_number:documentNumber,
-            status:'generated',
-            generated_at:nowIso(),
-            metadata:{ generated_in:'skybook-storage' },
-            created_by:safeUuid(userId)
-          })
+              title:documentTitle,
+              document_number:documentNumber,
+              status:'generated',
+              generated_at:nowIso(),
+              metadata:{ generated_in:'skybook-storage', brand_code:normalizeText(brand.code || booking.brand_code) },
+              created_by:safeUuid(userId)
+            })
           .select()
           .single()
       )
@@ -773,7 +879,9 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
   const nextVersion=(Number(existingVersions[0]?.version_number || 0) + 1)
   const fileName=`${normalizeText(booking.reference).replace(/[^A-Z0-9-]/gi,'').toUpperCase()}-${documentType}-v${String(nextVersion).padStart(2,'0')}.pdf`
   const storagePath=`bookings/${bookingId}/${documentType}/v${nextVersion}/${fileName}`
-  const pdfBytes=await buildDocumentPdfBytes(booking,{
+  const pdfBytes=await buildDocumentPdfBytes(booking,documentType,{
+    brand_code:normalizeText(brand.code || booking.brand_code) || 'true-travel',
+    brand,
     brand_name:normalizeText(brand.name),
     customer_name,
     customer_email,
@@ -802,19 +910,19 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
   const version=await safeMaybeSingle<Json>(
     adminClient
       .from('booking_document_versions')
-      .insert({
-        booking_document_id:String(bookingDocument.id),
-        booking_id:bookingId,
-        version_number:nextVersion,
-        file_name:fileName,
+        .insert({
+          booking_document_id:String(bookingDocument.id),
+          booking_id:bookingId,
+          version_number:nextVersion,
+          file_name:fileName,
         storage_bucket:DOCUMENT_BUCKET,
         storage_path:storagePath,
         mime_type:'application/pdf',
         byte_size:pdfBytes.byteLength,
         checksum,
-        metadata:{ ...(typeof payload.metadata==='object' && payload.metadata ? payload.metadata : {}), generated_in:'skybook-storage' },
-        created_by:safeUuid(userId)
-      })
+          metadata:{ ...(typeof payload.metadata==='object' && payload.metadata ? payload.metadata : {}), generated_in:'skybook-storage', brand_code:normalizeText(brand.code || booking.brand_code) },
+          created_by:safeUuid(userId)
+        })
       .select()
       .single()
   )
@@ -1523,11 +1631,12 @@ const dispatchEmailLog=async(emailLog:Json)=>{
 const loadBookingEmailContext=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found for queued email.')
-  const [customer,service]=await Promise.all([
+  const [customer,service,brand]=await Promise.all([
     safeMaybeSingle<Json>(adminClient.from('customers').select('*').eq('id',String(booking.customer_id || '')).maybeSingle()),
-    safeMaybeSingle<Json>(adminClient.from('services').select('*').eq('id',String(booking.service_id || '')).maybeSingle())
+    safeMaybeSingle<Json>(adminClient.from('services').select('*').eq('id',String(booking.service_id || '')).maybeSingle()),
+    getBrandByCode(normalizeText(booking.brand_code) || 'true-travel')
   ])
-  return { booking, customer, service }
+  return { booking, customer, service, brand }
 }
 
 const enqueueBookingEmailJob=async({
@@ -1562,7 +1671,7 @@ const performQueuedEmailJob=async(job:Json)=>{
   const bookingId=normalizeText(job.booking_id)
   const templateKey=normalizeText(job.payload?.template_key) || 'status_changed'
   if(!bookingId)throw new Error('Queued email job is missing booking_id.')
-  const { booking, customer, service }=await loadBookingEmailContext(bookingId)
+  const { booking, customer, service, brand }=await loadBookingEmailContext(bookingId)
   if(!customer?.email)throw new Error('Customer email is missing for queued email delivery.')
   let subject=normalizeText(job.payload?.subject)
   let body=normalizeText(job.payload?.body)
@@ -1570,22 +1679,20 @@ const performQueuedEmailJob=async(job:Json)=>{
     const emailTemplates=await getSettingValue('email_templates',defaultEmailTemplates)
     const fallbackTemplate=(defaultEmailTemplates as unknown as Record<string,Json>)[templateKey] || defaultEmailTemplates.status_changed
     const template=(((emailTemplates||{}) as Json)[templateKey] || fallbackTemplate) as Json
-    subject=renderTemplate(String(template.subject || fallbackTemplate.subject),{
+    const templateVariables={
       customer_name:customer.full_name || 'Guest',
       booking_reference:booking.reference,
       service_name:service?.name || 'Service',
       booking_date:booking.preferred_date || 'To be confirmed',
       total_amount:booking.total_amount,
-      payment_status:booking.payment_status
-    })
-    body=renderTemplate(String(template.body || fallbackTemplate.body),{
-      customer_name:customer.full_name || 'Guest',
-      booking_reference:booking.reference,
-      service_name:service?.name || 'Service',
-      booking_date:booking.preferred_date || 'To be confirmed',
-      total_amount:booking.total_amount,
-      payment_status:booking.payment_status
-    })
+      payment_status:booking.payment_status,
+      brand_name:normalizeText(brand?.name) || BRAND_EMAIL_NAMES[normalizeText(booking.brand_code) as keyof typeof BRAND_EMAIL_NAMES] || 'SkyBook',
+      brand_support_email:normalizeText(brand?.support_email) || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
+      brand_support_phone:normalizeText(brand?.support_phone),
+      brand_website:normalizeText(brand?.website_url)
+    }
+    subject=renderTemplate(String(template.subject || fallbackTemplate.subject),templateVariables)
+    body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
   }
   const emailLog=await queueEmailLog({
     bookingId,
@@ -3172,6 +3279,7 @@ const sendBookingCustomEmail=async(bookingId:string,payload:Json,userId:string)=
     body,
     status:'queued',
     metadata:{
+      brand_code:normalizeText(booking.brand_code) || 'true-travel',
       source:'admin_manual_email',
       created_by:userId,
       service_name:normalizeText(service?.name)

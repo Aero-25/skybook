@@ -601,14 +601,26 @@
       </section>
 
       <section class="admin-view" data-admin-view="services">
-        <div class="admin-panel-grid">
-          <article class="booking-panel">
-            <h3>Service catalog</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
-                <tbody id="adminServicesTable"></tbody>
-              </table>
+          <div class="admin-panel-grid">
+            <article class="booking-panel">
+              <h3>Service catalog</h3>
+              <div class="crm-overview-cards" id="serviceOverviewCards"></div>
+              <div class="booking-form-grid admin-spacer">
+                <label class="booking-field">
+                  <span>Visibility Filter</span>
+                  <select id="serviceFilterBrand">
+                    <option value="">All tours</option>
+                    <option value="true-travel">True Travel only</option>
+                    <option value="iventure">Iventure only</option>
+                    <option value="shared">Shared across both</option>
+                  </select>
+                </label>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
+                  <tbody id="adminServicesTable"></tbody>
+                </table>
             </div>
           </article>
           <article class="booking-panel">

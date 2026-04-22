@@ -57,19 +57,19 @@ window.TrueTravelBooking=(()=>{
   const DEFAULT_EMAIL_TEMPLATES={
     booking_received:{
       subject:'We received your booking request {{booking_reference}}',
-      body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\nTrue Travel'
+      body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     },
     booking_confirmed:{
       subject:'Your booking {{booking_reference}} is confirmed',
-      body:'Hi {{customer_name}},\n\nYour booking for {{service_name}} is confirmed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe look forward to welcoming you.\n\nTrue Travel'
+      body:'Hi {{customer_name}},\n\nYour booking for {{service_name}} is confirmed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe look forward to welcoming you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     },
     payment_received:{
       subject:'Payment received for {{booking_reference}}',
-      body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\nTrue Travel'
+      body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     },
     status_changed:{
       subject:'Booking update for {{booking_reference}}',
-      body:'Hi {{customer_name}},\n\nYour booking status changed to {{payment_status}} for {{service_name}}.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\n\nTrue Travel'
+      body:'Hi {{customer_name}},\n\nYour booking status changed to {{payment_status}} for {{service_name}}.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     }
   }
 

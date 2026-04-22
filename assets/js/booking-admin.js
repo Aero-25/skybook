@@ -203,6 +203,8 @@ const nodes={
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
   servicesTable:document.getElementById('adminServicesTable'),
+  serviceOverviewCards:document.getElementById('serviceOverviewCards'),
+  serviceFilterBrand:document.getElementById('serviceFilterBrand'),
   serviceForm:document.getElementById('adminServiceForm'),
   serviceId:document.getElementById('adminServiceId'),
   serviceName:document.getElementById('adminServiceName'),
@@ -2495,8 +2497,46 @@ const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   }
 }
 
+const getFilteredServices=()=>{
+  const visibilityFilter=normalizeText(nodes.serviceFilterBrand?.value)
+  return [...state.services].filter(service=>{
+    const brandCodes=getServiceBrandCodes(service)
+    if(visibilityFilter==='shared')return brandCodes.includes('true-travel') && brandCodes.includes('iventure')
+    if(visibilityFilter)return brandCodes.includes(visibilityFilter)
+    return true
+  })
+}
+
 const renderServices=()=>{
-  nodes.servicesTable.innerHTML=state.services.map(service=>`
+  const filteredServices=getFilteredServices()
+  if(nodes.serviceOverviewCards){
+    const activeServices=state.services.filter(service=>service.is_active!==false)
+    const sharedServices=activeServices.filter(service=>{
+      const brandCodes=getServiceBrandCodes(service)
+      return brandCodes.includes('true-travel') && brandCodes.includes('iventure')
+    })
+    const trueTravelOnly=activeServices.filter(service=>{
+      const brandCodes=getServiceBrandCodes(service)
+      return brandCodes.includes('true-travel') && !brandCodes.includes('iventure')
+    })
+    const iventureOnly=activeServices.filter(service=>{
+      const brandCodes=getServiceBrandCodes(service)
+      return brandCodes.includes('iventure') && !brandCodes.includes('true-travel')
+    })
+    nodes.serviceOverviewCards.innerHTML=[
+      {label:'Visible now',value:String(filteredServices.length),meta:'Tours shown in the current filter.'},
+      {label:'Shared catalog',value:String(sharedServices.length),meta:'Available on both True Travel and Iventure.'},
+      {label:'True Travel only',value:String(trueTravelOnly.length),meta:'Brand-exclusive tours on True Travel.'},
+      {label:'Iventure only',value:String(iventureOnly.length),meta:'Brand-exclusive tours on Iventure.'}
+    ].map(card=>`
+      <article class="metric-card compact">
+        <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+        <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+        <small>${bookingAdminShared.escapeHtml(card.meta)}</small>
+      </article>
+    `).join('')
+  }
+  nodes.servicesTable.innerHTML=filteredServices.map(service=>`
     <tr data-service-id="${bookingAdminShared.escapeHtml(service.id)}">
       <td>${bookingAdminShared.escapeHtml(service.name)}</td>
       <td>${bookingAdminShared.escapeHtml(service.category_slug)}</td>
@@ -2505,7 +2545,7 @@ const renderServices=()=>{
       <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
       <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
     </tr>
-  `).join('')
+  `).join('') || renderEmptyRow(6,'No tours match the selected visibility filter.')
 }
 
 const fillServiceForm=(service=null)=>{
@@ -4180,6 +4220,7 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
 })
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
+nodes.serviceFilterBrand?.addEventListener('change',renderServices)
 nodes.serviceForm.addEventListener('submit',event=>{void handleServiceSave(event)})
 nodes.adminUserForm?.addEventListener('submit',event=>{void handleAdminUserSave(event)})
 nodes.adminUserRole?.addEventListener('change',()=>renderAdminUserPermissionEditor(collectPermissionOverrides(),nodes.adminUserRole.value))
