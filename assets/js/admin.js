@@ -15,8 +15,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   'true-travel':{
     label:'True Travel',
     vibe:'Ocean-led public site',
-    siteBase:'../true-travel-site',
-    workspacePath:'admin.html',
+    siteBase:'https://truetravelnam.net',
     homePath:'index.html',
     toursPath:'tours.html',
     toursLabel:'Tours',
@@ -38,8 +37,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   iventure:{
     label:'Iventure',
     vibe:'Sand-and-dune public site',
-    siteBase:'../iventure-site',
-    workspacePath:'admin.html',
+    siteBase:'https://iventuretours.net',
     homePath:'index.html',
     toursPath:'services.html',
     toursLabel:'Services',
