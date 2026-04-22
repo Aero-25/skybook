@@ -221,6 +221,43 @@ const getBearerToken=(request:Request)=>{
   return normalizeText(match?.[1] ?? '')
 }
 
+const bootstrapInitialSkybookAdmin=async(user:Json)=>{
+  const seededAdmins=await safeTableSelect<Json>(
+    adminClient
+      .from('app_users')
+      .select('id,is_active')
+      .eq('is_active',true)
+      .limit(1),
+    []
+  )
+  if(seededAdmins.length)return null
+  const seededProfile={
+    id:normalizeText(user.id),
+    full_name:normalizeText(user.user_metadata?.full_name) || normalizeText(user.email) || 'SkyBook Admin',
+    role:'super_admin',
+    is_active:true,
+    permissions:sanitizePermissionMap({})
+  }
+  const { data,error }=await adminClient
+    .from('app_users')
+    .upsert(seededProfile,{ onConflict:'id' })
+    .select('id,full_name,role,is_active,permissions')
+    .single()
+  if(error){
+    if(isUniqueViolation(error)){
+      return safeMaybeSingle<Json>(
+        adminClient
+          .from('app_users')
+          .select('id,full_name,role,is_active,permissions')
+          .eq('id',normalizeText(user.id))
+          .maybeSingle()
+      )
+    }
+    throw new Error(String(error.message || 'Unable to bootstrap the first SkyBook admin user.'))
+  }
+  return data || null
+}
+
 const getRequestBrandCode=(request:Request, payload:Json={})=>{
   const headerBrand=normalizeText(request.headers.get('x-brand-code'))
   const queryBrand=normalizeText(new URL(request.url).searchParams.get('brand'))
@@ -301,12 +338,14 @@ const getAuthenticatedAdmin=async(request:Request)=>{
   }
   const { data:{ user }, error:userError }=await adminClient.auth.getUser(accessToken)
   if(userError||!user)throw new Error('Authenticated admin user is required.')
-  const { data:profile,error:profileError }=await adminClient
+  const { data:existingProfile,error:profileError }=await adminClient
     .from('app_users')
     .select('id,full_name,role,is_active,permissions')
     .eq('id',user.id)
     .maybeSingle()
-  if(profileError||!profile?.is_active)throw new Error('Admin access is not configured for this user.')
+  if(profileError)throw new Error('Unable to load SkyBook admin access.')
+  const profile=existingProfile || await bootstrapInitialSkybookAdmin(user as unknown as Json)
+  if(!profile?.is_active)throw new Error('Admin access is not configured for this user.')
   return { user, profile:{...profile,effective_permissions:resolveProfilePermissions(profile as unknown as Json)} }
 }
 
