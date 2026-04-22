@@ -1302,6 +1302,20 @@ const canAccess=permissionKey=>{
   return Boolean(getEffectivePermissions(state.profile)[permissionKey])
 }
 
+const applySidebarVisibility=()=>{
+  document.querySelectorAll('[data-admin-permission]').forEach(node=>{
+    const permissionKey=String(node.dataset.adminPermission||'').trim()
+    const isAllowed=permissionKey ? canAccess(permissionKey) : true
+    node.hidden=!isAllowed
+    if('disabled' in node)node.disabled=!isAllowed
+  })
+  document.querySelectorAll('.admin-menu-section').forEach(section=>{
+    const hasVisibleItems=[...section.querySelectorAll('.admin-subnav > *')].some(item=>!item.hidden)
+    section.hidden=!hasVisibleItems
+    if(!hasVisibleItems)section.open=false
+  })
+}
+
 const applyAccessControl=()=>{
   nodes.tabs.forEach(node=>{
     const permissionKey=getTabRoute(node.dataset.adminTab).permission
@@ -1313,6 +1327,7 @@ const applyAccessControl=()=>{
     const permissionKey=VIEW_PERMISSION_MAP[node.dataset.adminView]
     node.hidden=permissionKey ? !canAccess(permissionKey) : false
   })
+  applySidebarVisibility()
   const activeTab=nodes.tabs.find(node=>node.classList.contains('is-active') && !node.hidden)?.dataset.adminTab
   if(activeTab){
     switchTab(activeTab)
