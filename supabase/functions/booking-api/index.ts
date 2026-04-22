@@ -158,6 +158,8 @@ const DEFAULT_OPS_TEMPLATES={
   ]
 }
 const DOCUMENT_BUCKET='skybook-documents'
+const MEMORY_BUCKET='tour-memories'
+const MEMORY_MIME_TYPES=new Set(['image/jpeg','image/png','image/webp','image/avif'])
 const DEFAULT_QUEUE_SETTINGS={
   enabled:true,
   autoProcessOnBootstrap:true,
@@ -424,6 +426,166 @@ const createSignedDocumentUrl=async(storageBucket:string,storagePath:string,expi
     return null
   }
   return data?.signedUrl || null
+}
+
+const createSignedMemoryUrl=async(storagePath:string,expiresIn=3600)=>{
+  const path=normalizeText(storagePath)
+  if(!path)return null
+  const { data,error }=await adminClient.storage.from(MEMORY_BUCKET).createSignedUrl(path,expiresIn)
+  if(error){
+    await recordHealthEvent({
+      event_type:'memory_storage',
+      severity:'error',
+      source:'booking-api',
+      summary:'Tour memory signed URL generation failed',
+      detail:String(error.message || 'Unable to create memory image link.'),
+      metadata:{ bucket:MEMORY_BUCKET, path }
+    })
+    return null
+  }
+  return data?.signedUrl || null
+}
+
+const sanitizeFileName=(value:unknown,fallback='tour-memory')=>{
+  const raw=normalizeText(value) || fallback
+  const clean=raw.replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'')
+  return clean || fallback
+}
+
+const decodeBase64File=(value:unknown)=>{
+  const raw=normalizeText(value)
+  if(!raw)return new Uint8Array()
+  const payload=raw.includes(',') ? raw.split(',').pop() || '' : raw
+  return Uint8Array.from(atob(payload),char=>char.charCodeAt(0))
+}
+
+const normalizeMemoryReference=(value:unknown)=>normalizeBookingReference(value)
+
+const fetchMemoryBookingByReference=async(referenceInput:unknown,brandCodeInput='')=>{
+  const reference=normalizeMemoryReference(referenceInput)
+  if(!reference)throw new Error('Booking reference is required.')
+  const booking=await safeMaybeSingle<Json>(
+    adminClient
+      .from('bookings')
+      .select('id,reference,brand_code,status,preferred_date,quantity,customers(full_name,email),services(name,slug)')
+      .eq('reference',reference)
+      .maybeSingle()
+  )
+  if(!booking)throw new Error('No memories found for that reference yet.')
+  const requestedBrand=normalizeText(brandCodeInput)
+  if(requestedBrand && normalizeText(booking.brand_code)!==requestedBrand){
+    throw new Error('No memories found for that reference yet.')
+  }
+  return booking
+}
+
+const decorateMemoryRows=async(rows:Json[])=>Promise.all(rows.map(async row=>({
+  id:row.id,
+  booking_reference:row.booking_reference,
+  title:normalizeText(row.title) || normalizeText(row.file_name) || 'Tour memory',
+  caption:normalizeText(row.caption),
+  file_name:row.file_name,
+  mime_type:row.mime_type,
+  byte_size:row.byte_size,
+  sort_order:row.sort_order,
+  created_at:row.created_at,
+  signed_url:await createSignedMemoryUrl(normalizeText(row.storage_path)),
+  download_name:sanitizeFileName(row.file_name,`tour-memory-${normalizeText(row.booking_reference)}`)
+})))
+
+const listTourMemories=async(payload:Json,brandCode:string)=>{
+  const booking=await fetchMemoryBookingByReference(payload.reference,brandCode)
+  const rows=await safeTableSelect<Json>(
+    adminClient
+      .from('booking_memories')
+      .select('*')
+      .eq('booking_id',String(booking.id))
+      .eq('is_active',true)
+      .order('sort_order',{ascending:true})
+      .order('created_at',{ascending:true}),
+    []
+  )
+  if(!rows.length)throw new Error('No memories found for that reference yet.')
+  return {
+    booking:{
+      reference:booking.reference,
+      brand_code:booking.brand_code,
+      preferred_date:booking.preferred_date,
+      quantity:booking.quantity,
+      customer_name:normalizeText((booking.customers as Json | null)?.full_name),
+      service_name:normalizeText((booking.services as Json | null)?.name)
+    },
+    memories:await decorateMemoryRows(rows)
+  }
+}
+
+const createTourMemoryUpload=async(payload:Json,userId:string)=>{
+  const booking=normalizeText(payload.booking_id)
+    ? await safeMaybeSingle<Json>(
+        adminClient
+          .from('bookings')
+          .select('id,reference,brand_code,status')
+          .eq('id',normalizeText(payload.booking_id))
+          .maybeSingle()
+      )
+    : await fetchMemoryBookingByReference(payload.reference)
+  if(!booking?.id)throw new Error('Booking not found for that reference.')
+  const files=Array.isArray(payload.files) ? payload.files as Json[] : []
+  if(!files.length)throw new Error('Choose at least one image to upload.')
+  const reference=normalizeMemoryReference(booking.reference)
+  const brandCode=normalizeText(booking.brand_code) || 'true-travel'
+  const existingRows=await safeTableSelect<Json>(
+    adminClient.from('booking_memories').select('id').eq('booking_id',String(booking.id)),
+    []
+  )
+  const uploaded:Json[]=[]
+  for(const [index,file] of files.entries()){
+    const fileName=sanitizeFileName(file.file_name,`memory-${index+1}.jpg`)
+    const mimeType=normalizeText(file.mime_type) || 'image/jpeg'
+    if(!MEMORY_MIME_TYPES.has(mimeType)){
+      throw new Error(`${fileName} is not a supported image type.`)
+    }
+    const fileBytes=decodeBase64File(file.file_content_base64)
+    if(!fileBytes.byteLength)throw new Error(`${fileName} is empty.`)
+    if(fileBytes.byteLength>20*1024*1024)throw new Error(`${fileName} is larger than the 20MB image limit.`)
+    const storagePath=`memories/${brandCode}/${reference}/${Date.now()}-${index+1}-${fileName}`
+    const upload=await adminClient.storage.from(MEMORY_BUCKET).upload(storagePath,fileBytes,{
+      contentType:mimeType,
+      upsert:false
+    })
+    if(upload.error)throw new Error(String(upload.error.message || `Unable to upload ${fileName}.`))
+    const memory=await safeMaybeSingle<Json>(
+      adminClient
+        .from('booking_memories')
+        .insert({
+          booking_id:String(booking.id),
+          booking_reference:reference,
+          brand_code:brandCode,
+          title:normalizeText(file.title) || normalizeText(payload.title) || null,
+          caption:normalizeText(file.caption) || normalizeText(payload.caption),
+          file_name:fileName,
+          storage_bucket:MEMORY_BUCKET,
+          storage_path:storagePath,
+          mime_type:mimeType,
+          byte_size:fileBytes.byteLength,
+          sort_order:existingRows.length+index+1,
+          metadata:{
+            original_name:normalizeText(file.original_name) || fileName,
+            uploaded_from:'skybook-admin'
+          },
+          uploaded_by:safeUuid(userId)
+        })
+        .select()
+        .single()
+    )
+    if(memory)uploaded.push(memory)
+  }
+  const currentStatus=normalizeText(booking.status) || 'pending'
+  await insertStatusHistory(String(booking.id),currentStatus,currentStatus,`${uploaded.length} tour memor${uploaded.length===1 ? 'y' : 'ies'} uploaded`,'admin:' + userId,userId)
+  return {
+    success:true,
+    memories:await decorateMemoryRows(uploaded)
+  }
 }
 
 const buildDocumentPdfBytes=async(booking:Json,documentType:string,context:Json={})=>{
@@ -2719,6 +2881,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     adminNotes,
     bookingTasks,
     bookingDocuments,
+    bookingMemories,
     portalRequests,
     staffDirectory,
     documentVersionsRaw,
@@ -2751,6 +2914,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     safeTableSelect<Json>(adminClient.from('admin_notes').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('booking_tasks').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('booking_documents').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('booking_memories').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('booking_portal_requests').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('app_users').select('id,full_name,role,is_active').order('full_name',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('booking_document_versions').select('*').order('created_at',{ascending:false})),
@@ -2773,6 +2937,10 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   const documentVersions=await Promise.all((documentVersionsRaw || []).slice(0,160).map(async version=>({
     ...version,
     signed_url:await createSignedDocumentUrl(normalizeText(version.storage_bucket) || DOCUMENT_BUCKET,normalizeText(version.storage_path))
+  })))
+  const bookingMemoriesWithLinks=await Promise.all((bookingMemories || []).slice(0,220).map(async memory=>({
+    ...memory,
+    signed_url:await createSignedMemoryUrl(normalizeText(memory.storage_path))
   })))
   const safeReports=permissions.reports ? buildReports({
     bookings,
@@ -2821,6 +2989,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     admin_notes:canSeeBookings ? adminNotes : [],
     booking_tasks:canSeeBookings ? bookingTasks : [],
     booking_documents:canSeeBookings ? bookingDocuments : [],
+    booking_memories:canSeeBookings ? bookingMemoriesWithLinks : [],
     booking_document_versions:canSeeBookings ? documentVersions : [],
     portal_requests:canSeeBookings ? portalRequests : [],
     portal_sessions:canSeeBookings ? portalSessions : [],
@@ -2899,6 +3068,10 @@ Deno.serve(async request=>{
 
     if(request.method==='POST'&&resource==='bookings'&&id==='lookup'){
       return json(200,await lookupBooking(requestBody))
+    }
+
+    if(request.method==='POST'&&resource==='memories'&&id==='lookup'){
+      return json(200,await listTourMemories(requestBody,brandCode))
     }
 
     if(resource==='portal' && request.method==='POST' && id==='session' && subresource==='resolve'){
@@ -2993,6 +3166,11 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='portal-requests'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(201,await createPortalRequest({...requestBody,booking_id:subresource},user.id))
+      }
+
+      if(request.method==='POST'&&id==='memories'){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(201,await createTourMemoryUpload(requestBody,user.id))
       }
 
       if(request.method==='GET'&&id==='document-versions'&&subresource&&parts[3]==='signed-url'){

@@ -38,6 +38,7 @@ const state={
   adminNotes:[],
   bookingTasks:[],
   bookingDocuments:[],
+  bookingMemories:[],
   bookingDocumentVersions:[],
   portalRequests:[],
   portalSessions:[],
@@ -630,6 +631,7 @@ const getBookingAllocations=bookingId=>state.resourceAllocations.filter(allocati
 const getBookingOperatorAssignment=bookingId=>state.bookingOperators.find(item=>item.booking_id===bookingId)
 const getBookingTasks=bookingId=>state.bookingTasks.filter(task=>task.booking_id===bookingId)
 const getBookingDocuments=bookingId=>state.bookingDocuments.filter(document=>document.booking_id===bookingId)
+const getBookingMemories=bookingId=>state.bookingMemories.filter(memory=>memory.booking_id===bookingId)
 const getBookingDocumentVersions=bookingId=>state.bookingDocumentVersions.filter(version=>version.booking_id===bookingId)
 const getBookingPortalRequests=bookingId=>state.portalRequests.filter(request=>request.booking_id===bookingId)
 const getBookingPortalSessions=bookingId=>state.portalSessions.filter(session=>session.booking_id===bookingId)
@@ -1772,6 +1774,7 @@ const renderBookingDetail=()=>{
   const notes=getBookingNotes(booking.id)
   const tasks=getBookingTasks(booking.id)
   const documents=getBookingDocuments(booking.id)
+  const memories=getBookingMemories(booking.id)
   const documentVersions=getBookingDocumentVersions(booking.id)
   const portalRequests=getBookingPortalRequests(booking.id)
   const portalSessions=getBookingPortalSessions(booking.id)
@@ -1985,10 +1988,47 @@ const renderBookingDetail=()=>{
               <p>${documentVersions.length ? documentVersions.map(item=>`${formatDisplayLabel(item.document_type)} v${item.version_number||1}`).slice(0,3).join(' / ') : 'Generate invoice, receipt, manifest, voucher, or settlement documents directly from this record.'}</p>
             </article>
             <article class="detail-card">
+              <span>Tour memories</span>
+              <strong>${bookingAdminShared.escapeHtml(String(memories.length))}</strong>
+              <p>${memories.length ? `${memories.length} private image${memories.length===1 ? '' : 's'} ready for reference ${bookingAdminShared.escapeHtml(booking.reference)}.` : 'Upload guest images here so only this booking reference can unlock them.'}</p>
+            </article>
+            <article class="detail-card">
               <span>Portal links</span>
               <strong>${bookingAdminShared.escapeHtml(String(portalSessions.length))}</strong>
               <p>${portalSessions.length ? `${portalSessions.length} secure access link${portalSessions.length===1 ? '' : 's'} issued.` : 'Create secure guest portal access with document downloads and self-service requests.'}</p>
             </article>
+          </div>
+          <div class="memory-admin-panel">
+            <div>
+              <span class="booking-chip">Guest gallery</span>
+              <h5>Upload tour memories for ${bookingAdminShared.escapeHtml(booking.reference)}</h5>
+              <p class="muted-copy">Images stay private in SkyBook and guests unlock only this gallery with their booking reference on the public sites.</p>
+            </div>
+            ${memories.length ? `
+              <div class="memory-admin-grid">
+                ${memories.slice(0,6).map(memory=>`
+                  <article class="memory-admin-thumb"${memory.signed_url ? ` style="background-image:linear-gradient(180deg,rgba(6,30,44,0),rgba(6,30,44,.72)),url('${bookingAdminShared.escapeHtml(memory.signed_url)}')"` : ''}>
+                    <div>${bookingAdminShared.escapeHtml(String(memory.file_name||'Tour memory'))}</div>
+                    <span>${bookingAdminShared.escapeHtml(formatDateTimeLabel(memory.created_at))}</span>
+                  </article>
+                `).join('')}
+              </div>
+            ` : '<p class="detail-helper-copy">No guest memory images uploaded yet.</p>'}
+            <form class="booking-inline-form booking-inline-form-wide memory-upload-form" data-inline-form="memories">
+              <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+              <input type="hidden" name="reference" value="${bookingAdminShared.escapeHtml(booking.reference)}">
+              <label class="booking-field-full">
+                <span>Tour Images</span>
+                <input name="memories" type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple required>
+              </label>
+              <label class="booking-field-full">
+                <span>Gallery note</span>
+                <input name="caption" type="text" placeholder="Optional note shown with each uploaded image">
+              </label>
+              <div class="detail-inline-actions">
+                <button class="booking-button" type="submit">Upload Tour Memories</button>
+              </div>
+            </form>
           </div>
           <form class="booking-inline-form booking-inline-form-wide" data-inline-form="email">
             <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
@@ -2011,6 +2051,13 @@ const renderBookingDetail=()=>{
               <thead><tr><th>Document / Request</th><th>Type</th><th>Status</th><th>When</th><th>Actions</th></tr></thead>
               <tbody>
                 ${[
+                  ...memories.map(item=>({
+                    label:item.file_name||'Tour memory',
+                    type:'Tour Memory Image',
+                    status:item.is_active===false ? 'inactive' : 'private',
+                    when:item.created_at,
+                    actions:''
+                  })),
                   ...documentVersions.map(item=>({
                     label:item.file_name||item.document_number||formatDisplayLabel(item.document_type),
                     type:`${formatDisplayLabel(item.document_type)} v${item.version_number||1}`,
@@ -2132,6 +2179,7 @@ const renderBookingDetail=()=>{
             <button type="button" data-booking-inline-action="document:manifest">Manifest PDF</button>
             <button type="button" data-booking-inline-action="document:voucher">Voucher PDF</button>
             <button type="button" data-booking-inline-action="document:settlement">Office Settlement PDF</button>
+            <button type="button" data-booking-inline-action="memories-focus">Upload Tour Memories</button>
             <button type="button" data-booking-inline-action="portal:request_change">Portal: Request Change</button>
             <button type="button" data-booking-inline-action="portal:upload_info">Portal: Upload Passport / Info</button>
             <button type="button" data-booking-inline-action="portal:confirm_pickup">Portal: Confirm Pickup</button>
@@ -3013,6 +3061,7 @@ const loadAdminData=async()=>{
   state.adminNotes=payload.admin_notes||[]
   state.bookingTasks=payload.booking_tasks||[]
   state.bookingDocuments=payload.booking_documents||[]
+  state.bookingMemories=payload.booking_memories||[]
   state.bookingDocumentVersions=payload.booking_document_versions||[]
   state.portalRequests=payload.portal_requests||[]
   state.portalSessions=payload.portal_sessions||[]
@@ -3109,6 +3158,56 @@ const handleBookingEmailSave=async form=>{
     body:{ subject, body }
   })
   await refreshAdmin(response?.delivery_status==='sent' ? 'Guest email sent.' : 'Guest email queued.')
+}
+
+const readFileAsDataUrl=file=>new Promise((resolve,reject)=>{
+  const reader=new FileReader()
+  reader.addEventListener('load',()=>resolve(String(reader.result||'')),{once:true})
+  reader.addEventListener('error',()=>reject(new Error(`Could not read ${file?.name||'image file'}.`)),{once:true})
+  reader.readAsDataURL(file)
+})
+
+const handleMemoryUploadSave=async form=>{
+  const data=new FormData(form)
+  const bookingId=String(data.get('booking_id')||'').trim()
+  const reference=String(data.get('reference')||'').trim()
+  const caption=String(data.get('caption')||'').trim()
+  const fileInput=form.querySelector('input[type="file"][name="memories"]')
+  const files=[...(fileInput?.files||[])]
+  if(!bookingId||!reference)throw new Error('Choose a booking before uploading memories.')
+  if(!files.length)throw new Error('Choose at least one guest image.')
+  const submitButton=form.querySelector('button[type="submit"]')
+  const originalLabel=submitButton?.textContent||'Upload Tour Memories'
+  if(submitButton){
+    submitButton.disabled=true
+    submitButton.textContent='Uploading memories...'
+  }
+  try{
+    const payloadFiles=await Promise.all(files.map(async file=>({
+      file_name:file.name,
+      original_name:file.name,
+      mime_type:file.type||'image/jpeg',
+      caption,
+      file_content_base64:await readFileAsDataUrl(file)
+    })))
+    await bookingAdminShared.apiRequest('admin/memories',{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{
+        booking_id:bookingId,
+        reference,
+        caption,
+        files:payloadFiles
+      }
+    })
+    form.reset()
+    await refreshAdmin(`${files.length} tour memor${files.length===1 ? 'y' : 'ies'} uploaded.`)
+  }finally{
+    if(submitButton){
+      submitButton.disabled=false
+      submitButton.textContent=originalLabel
+    }
+  }
 }
 
 const openDocumentPrintWindow=(title,markup)=>{
@@ -3946,6 +4045,12 @@ nodes.bookingDetail.addEventListener('click',event=>{
     void handlePortalAccessLink().catch(error=>setAdminStatus(error.message||'Portal link generation failed.',true))
     return
   }
+  if(inlineAction==='memories-focus'){
+    const fileInput=nodes.bookingDetail.querySelector('form[data-inline-form="memories"] input[type="file"]')
+    fileInput?.scrollIntoView?.({behavior:'smooth',block:'center'})
+    window.setTimeout(()=>fileInput?.focus?.(),260)
+    return
+  }
   if(inlineAction==='complete-task'&&event.target.dataset.taskId){
     void bookingAdminShared.apiRequest(`admin/booking-tasks/${encodeURIComponent(event.target.dataset.taskId)}`,{
       method:'PATCH',
@@ -4013,6 +4118,10 @@ nodes.bookingDetail.addEventListener('submit',event=>{
   }
   if(formType==='task'){
     void handleBookingTaskSave(form).catch(error=>setAdminStatus(error.message||'Task could not be saved.',true))
+    return
+  }
+  if(formType==='memories'){
+    void handleMemoryUploadSave(form).catch(error=>setAdminStatus(error.message||'Tour memories could not be uploaded.',true))
     return
   }
   if(formType==='email'){
