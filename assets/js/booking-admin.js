@@ -4,6 +4,7 @@ const state={
   session:null,
   user:null,
   profile:null,
+  activeTab:'dashboard',
   lastSyncedAt:'',
   staffDirectory:[],
   adminUsers:[],
@@ -243,8 +244,16 @@ const nodes={
   settingsForm:document.getElementById('bookingSettingsForm'),
   emailTemplatesForm:document.getElementById('emailTemplatesForm'),
   exportButton:document.getElementById('exportBookingsCsv'),
+  enginePrimaryPanel:document.getElementById('adminEnginePrimaryPanel'),
+  engineSecondaryPanel:document.getElementById('adminEngineSecondaryPanel'),
+  enginePrimaryTitle:document.getElementById('adminEnginePrimaryTitle'),
+  engineSecondaryTitle:document.getElementById('adminEngineSecondaryTitle'),
   engineSchedulesTable:document.getElementById('adminEngineSchedulesTable'),
   commercialToolsTable:document.getElementById('adminCommercialToolsTable'),
+  platformPrimaryPanel:document.getElementById('adminPlatformPrimaryPanel'),
+  platformSecondaryPanel:document.getElementById('adminPlatformSecondaryPanel'),
+  platformPrimaryTitle:document.getElementById('adminPlatformPrimaryTitle'),
+  platformSecondaryTitle:document.getElementById('adminPlatformSecondaryTitle'),
   platformOperationsTable:document.getElementById('adminPlatformOperationsTable'),
   platformConfigTable:document.getElementById('adminPlatformConfigTable'),
   scheduleForm:document.getElementById('adminScheduleForm'),
@@ -1291,16 +1300,21 @@ const TAB_ROUTE_MAP={
   payments:{view:'payments',permission:'payments'},
   customers:{view:'customers',permission:'customers'},
   services:{view:'services',permission:'services'},
-  engine:{view:'engine',permission:'engine',focusId:'engineAvailabilityPanel'},
-  resources:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
-  rates:{view:'engine',permission:'engine',focusId:'engineCommercialPanel'},
-  platform:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
-  invoices:{view:'platform',permission:'finance',focusId:'platformOperationsPanel'},
+  engine:{view:'engine',permission:'engine',focusId:'adminEnginePrimaryPanel'},
+  resources:{view:'platform',permission:'engine',focusId:'adminPlatformPrimaryPanel'},
+  rates:{view:'engine',permission:'engine',focusId:'adminEngineSecondaryPanel'},
+  platform:{view:'platform',permission:'finance',focusId:'adminPlatformPrimaryPanel'},
+  invoices:{view:'platform',permission:'finance',focusId:'adminPlatformSecondaryPanel'},
   settings:{view:'settings',permission:'settings'},
   emails:{view:'emails',permission:'emails'},
   'admin-users':{view:'admin-users',permission:'admin_users'}
 }
 const getTabRoute=tab=>TAB_ROUTE_MAP[tab]||{view:tab,permission:VIEW_PERMISSION_MAP[tab]||'',focusId:''}
+
+const setNodeVisibility=(node,isVisible=true)=>{
+  if(!node)return
+  node.hidden=!isVisible
+}
 
 const getEffectivePermissions=profile=>{
   const role=String(profile?.role||'booking_agent')
@@ -1362,6 +1376,7 @@ const switchTab=tab=>{
   const nextTab=getTabRoute(tab).permission && !canAccess(getTabRoute(tab).permission)
     ? (nodes.tabs.find(node=>!node.hidden)?.dataset.adminTab||'dashboard')
     : tab
+  state.activeTab=nextTab
   const route=getTabRoute(nextTab)
   nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab))
   nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===route.view))
@@ -1375,6 +1390,8 @@ const switchTab=tab=>{
     serviceId:nextTab==='services' ? state.selectedServiceId : ''
   })
   renderModuleChrome(nextTab)
+  renderEngineWorkbench()
+  renderPlatformWorkbench()
   closeMobileSidebar()
   if(route.focusId){
     window.setTimeout(()=>document.getElementById(route.focusId)?.scrollIntoView?.({behavior:'smooth',block:'start'}),90)
@@ -3131,6 +3148,14 @@ const renderAdminUsers=()=>{
 }
 
 const renderEngineWorkbench=()=>{
+  const scopedTab=state.activeTab==='rates' ? 'rates' : 'engine'
+  if(nodes.enginePrimaryTitle)nodes.enginePrimaryTitle.textContent='Schedules & Date Rules'
+  if(nodes.engineSecondaryTitle)nodes.engineSecondaryTitle.textContent='Commercial Tools'
+  setNodeVisibility(nodes.scheduleForm,scopedTab==='engine')
+  setNodeVisibility(nodes.blackoutForm,scopedTab==='engine')
+  setNodeVisibility(nodes.couponForm,scopedTab==='rates')
+  setNodeVisibility(nodes.voucherForm,scopedTab==='rates')
+  setNodeVisibility(nodes.agentForm,scopedTab==='rates')
   const serviceNameById=new Map(state.services.map(service=>[service.id,service.name]))
   const rows=[
     ...state.schedules.map(schedule=>({
@@ -3177,11 +3202,22 @@ const renderEngineWorkbench=()=>{
 }
 
 const renderPlatformWorkbench=()=>{
-  const opRows=[
-    ...state.resources.map(resource=>({label:resource.name,type:`Resource - ${resource.resource_type||'resource'}`,status:getResourceStatusLabel(resource),value:getResourceCapacityLabel(resource)})),
-    ...state.invoices.slice(0,6).map(invoice=>({label:invoice.invoice_number,type:'Invoice',status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
-    ...state.refunds.slice(0,6).map(refund=>({label:refund.booking_id,type:'Refund',status:refund.status,value:bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}))
-  ]
+  const showResources=state.activeTab!=='invoices'
+  if(nodes.platformPrimaryTitle)nodes.platformPrimaryTitle.textContent=showResources ? 'Resources & Capacity' : 'Guest Invoices & Refunds'
+  if(nodes.platformSecondaryTitle)nodes.platformSecondaryTitle.textContent=showResources ? 'Supporting Inventory Overview' : 'Office Invoices & Settlements'
+  setNodeVisibility(nodes.resourceForm,showResources)
+  setNodeVisibility(nodes.refundForm,!showResources)
+  setNodeVisibility(nodes.operatorForm,!showResources)
+  setNodeVisibility(nodes.officeInvoiceForm,!showResources)
+  setNodeVisibility(nodes.automationRulesForm,!showResources)
+  setNodeVisibility(nodes.portalSettingsForm,!showResources)
+  setNodeVisibility(nodes.webhookForm,!showResources)
+  const opRows=showResources
+    ? state.resources.map(resource=>({label:resource.name,type:`Resource - ${resource.resource_type||'resource'}`,status:getResourceStatusLabel(resource),value:getResourceCapacityLabel(resource)}))
+    : [
+        ...state.invoices.slice(0,10).map(invoice=>({label:invoice.invoice_number,type:'Invoice',status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
+        ...state.refunds.slice(0,10).map(refund=>({label:refund.booking_id,type:'Refund',status:refund.status,value:bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}))
+      ]
   nodes.platformOperationsTable.innerHTML=opRows.map(row=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(String(row.label||''))}</td>
@@ -3189,16 +3225,19 @@ const renderPlatformWorkbench=()=>{
       <td>${renderStatusBadge(String(row.status||''))}</td>
       <td>${bookingAdminShared.escapeHtml(String(row.value||''))}</td>
     </tr>
-  `).join('') || renderEmptyRow(4,'No resources, invoices, or refunds loaded yet.')
+  `).join('') || renderEmptyRow(4,showResources ? 'No resources loaded yet.' : 'No guest invoices or refunds loaded yet.')
 
-  const configRows=[
-    ...state.operators.map(operator=>({category:'Operator',name:operator.company_name,status:operator.is_active===false ? 'Inactive' : 'Active',value:`${operator.commission_type} ${operator.commission_value}`})),
-    ...state.officeInvoices.map(invoice=>({category:'Office Invoice',name:invoice.invoice_number,status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
-    ...state.supportedLanguages.map(language=>({category:'Language',name:language.name,status:language.is_active===false ? 'Inactive' : (language.is_default ? 'Default' : 'Active'),value:language.code})),
-    ...state.supportedCurrencies.map(currency=>({category:'Currency',name:currency.name,status:currency.is_active===false ? 'Inactive' : (currency.is_default ? 'Default' : 'Active'),value:`${currency.code} - ${currency.symbol||''}`})),
-    ...state.webhookEndpoints.map(webhook=>({category:'Webhook',name:webhook.name,status:webhook.is_active===false ? 'Inactive' : 'Active',value:webhook.target_url})),
-    ...state.calendarConnections.map(connection=>({category:'Calendar',name:connection.provider,status:connection.is_active===false ? 'Inactive' : 'Active',value:connection.external_calendar_id}))
-  ]
+  const configRows=showResources
+    ? [
+        ...state.supportedLanguages.map(language=>({category:'Language',name:language.name,status:language.is_active===false ? 'Inactive' : (language.is_default ? 'Default' : 'Active'),value:language.code})),
+        ...state.supportedCurrencies.map(currency=>({category:'Currency',name:currency.name,status:currency.is_active===false ? 'Inactive' : (currency.is_default ? 'Default' : 'Active'),value:`${currency.code} - ${currency.symbol||''}`})),
+        ...state.calendarConnections.map(connection=>({category:'Calendar',name:connection.provider,status:connection.is_active===false ? 'Inactive' : 'Active',value:connection.external_calendar_id}))
+      ]
+    : [
+        ...state.operators.map(operator=>({category:'Operator',name:operator.company_name,status:operator.is_active===false ? 'Inactive' : 'Active',value:`${operator.commission_type} ${operator.commission_value}`})),
+        ...state.officeInvoices.map(invoice=>({category:'Office Invoice',name:invoice.invoice_number,status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
+        ...state.webhookEndpoints.map(webhook=>({category:'Webhook',name:webhook.name,status:webhook.is_active===false ? 'Inactive' : 'Active',value:webhook.target_url}))
+      ]
   nodes.platformConfigTable.innerHTML=configRows.map(row=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(String(row.category||''))}</td>
@@ -3206,7 +3245,7 @@ const renderPlatformWorkbench=()=>{
       <td>${renderStatusBadge(String(row.status||''))}</td>
       <td>${bookingAdminShared.escapeHtml(String(row.value||''))}</td>
     </tr>
-  `).join('') || renderEmptyRow(4,'No platform configuration records loaded yet.')
+  `).join('') || renderEmptyRow(4,showResources ? 'No supporting inventory records loaded yet.' : 'No office invoices, operators, or settlement records loaded yet.')
 }
 
 const renderAll=()=>{
