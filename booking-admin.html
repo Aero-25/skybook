@@ -768,15 +768,42 @@
       </section>
 
       <section class="admin-view" data-admin-view="payments">
-        <article class="booking-panel">
-          <h3>Payments</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Booking / Provider</th><th>Status</th><th>Amount</th><th>When</th><th>Reference</th></tr></thead>
-              <tbody id="adminPaymentsTable"></tbody>
-            </table>
-          </div>
-        </article>
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Payments</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Booking / Provider</th><th>Status</th><th>Amount</th><th>When</th><th>Reference</th></tr></thead>
+                <tbody id="adminPaymentsTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <h3>Refunds</h3>
+            <form id="adminRefundForm" class="booking-form-grid">
+              <label class="booking-field">
+                <span>Booking ID</span>
+                <input id="adminRefundBookingId" type="text" placeholder="Paste booking UUID" required>
+              </label>
+              <label class="booking-field">
+                <span>Refund Amount</span>
+                <input id="adminRefundAmount" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field-full">
+                <span>Reason</span>
+                <input id="adminRefundReason" list="refundReasonSuggestions" type="text" placeholder="Customer cancellation, schedule change">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Process Refund</button>
+              </div>
+            </form>
+            <datalist id="refundReasonSuggestions">
+              <option value="Service cancelled before departure."></option>
+              <option value="Duplicate payment received."></option>
+              <option value="Partial refund approved by finance."></option>
+            </datalist>
+          </article>
+        </div>
       </section>
 
       <section class="admin-view" data-admin-view="settings">
@@ -1068,28 +1095,6 @@
                 <button class="booking-button" type="submit">Save Resource</button>
               </div>
             </form>
-            <form id="adminRefundForm" class="booking-form-grid admin-spacer">
-              <label class="booking-field">
-                <span>Booking ID</span>
-                <input id="adminRefundBookingId" type="text" placeholder="Paste booking UUID" required>
-              </label>
-              <label class="booking-field">
-                <span>Refund Amount</span>
-                <input id="adminRefundAmount" type="number" min="0" step="0.01" required>
-              </label>
-              <label class="booking-field-full">
-                <span>Reason</span>
-                <input id="adminRefundReason" list="refundReasonSuggestions" type="text" placeholder="Customer cancellation, schedule change">
-              </label>
-              <div class="booking-field-full">
-                <button class="booking-button ghost" type="submit">Process Refund</button>
-              </div>
-            </form>
-            <datalist id="refundReasonSuggestions">
-              <option value="Service cancelled before departure."></option>
-              <option value="Duplicate payment received."></option>
-              <option value="Partial refund approved by finance."></option>
-            </datalist>
           </article>
 
           <article class="booking-panel" id="adminPlatformSecondaryPanel">

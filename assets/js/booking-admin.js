@@ -3225,7 +3225,6 @@ const renderPlatformWorkbench=()=>{
   if(nodes.platformPrimaryTitle)nodes.platformPrimaryTitle.textContent=showResources ? 'Resources & Capacity' : 'Guest Invoices & Refunds'
   if(nodes.platformSecondaryTitle)nodes.platformSecondaryTitle.textContent=showResources ? 'Supporting Inventory Overview' : 'Office Invoices & Settlements'
   setNodeVisibility(nodes.resourceForm,showResources)
-  setNodeVisibility(nodes.refundForm,!showResources)
   setNodeVisibility(nodes.operatorForm,!showResources)
   setNodeVisibility(nodes.officeInvoiceForm,!showResources)
   setNodeVisibility(nodes.automationRulesForm,!showResources)
