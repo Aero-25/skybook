@@ -15,7 +15,7 @@ const DESIGNER_BRANDS=DESIGNER_CONFIG.brands||{
   'true-travel':{
     label:'True Travel',
     vibe:'Ocean-led public site',
-    siteBase:'https://truetravelnam.net',
+    siteBase:'https://true-travel-site.pages.dev',
     homePath:'index.html',
     toursPath:'tours.html',
     toursLabel:'Tours',

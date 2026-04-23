@@ -23,7 +23,7 @@
   const [pathname,search='']=wantedPath.split('?')
   const nextParams=new URLSearchParams(search)
   nextParams.set('admin','1')
-  const target=`https://truetravelnam.net/${pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`
+  const target=`https://true-travel-site.pages.dev/${pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`
   window.location.replace(target)
 })()
 </script>
