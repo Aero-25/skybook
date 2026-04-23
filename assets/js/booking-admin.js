@@ -108,7 +108,8 @@ const state={
   selectedBookingId:'',
   selectedCustomerId:'',
   selectedServiceId:'',
-  isServiceModalOpen:false
+  isServiceModalOpen:false,
+  isBookingModalOpen:false
 }
 
 const getAdminRouteState=()=>{
@@ -116,20 +117,26 @@ const getAdminRouteState=()=>{
     const params=new URLSearchParams(window.location.search)
     return {
       tab:String(params.get('tab')||'').trim(),
-      serviceId:String(params.get('service')||'').trim()
+      serviceId:String(params.get('service')||'').trim(),
+      bookingId:String(params.get('booking')||'').trim(),
+      reservationId:String(params.get('reservation')||'').trim()
     }
   }catch{
-    return {tab:'',serviceId:''}
+    return {tab:'',serviceId:'',bookingId:'',reservationId:''}
   }
 }
 
-const syncAdminRouteState=({tab='',serviceId=''}={})=>{
+const syncAdminRouteState=({tab='',serviceId='',bookingId='',reservationId=''}={})=>{
   try{
     const currentUrl=new URL(window.location.href)
     if(tab)currentUrl.searchParams.set('tab',tab)
     else currentUrl.searchParams.delete('tab')
     if(tab==='services'&&serviceId)currentUrl.searchParams.set('service',serviceId)
     else currentUrl.searchParams.delete('service')
+    if(tab==='bookings'&&bookingId)currentUrl.searchParams.set('booking',bookingId)
+    else currentUrl.searchParams.delete('booking')
+    if(tab==='reservations'&&reservationId)currentUrl.searchParams.set('reservation',reservationId)
+    else currentUrl.searchParams.delete('reservation')
     history.replaceState(null,'',`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
   }catch{}
 }
@@ -199,6 +206,9 @@ const nodes={
   bookingsTable:document.getElementById('adminBookingsTable'),
   bookingDetail:document.getElementById('adminBookingDetail'),
   bookingForm:document.getElementById('adminBookingForm'),
+  bookingModal:document.getElementById('bookingModal'),
+  bookingModalTitle:document.getElementById('bookingModalTitle'),
+  closeBookingModalButton:document.getElementById('closeBookingModalButton'),
   bookingReference:document.getElementById('adminBookingReference'),
   bookingBrand:document.getElementById('adminBookingBrand'),
   bookingSource:document.getElementById('adminBookingSource'),
@@ -213,6 +223,8 @@ const nodes={
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
+  reservationsTable:document.getElementById('adminReservationsTable'),
+  reservationDetail:document.getElementById('adminReservationDetail'),
   servicesTable:document.getElementById('adminServicesTable'),
   serviceOverviewCards:document.getElementById('serviceOverviewCards'),
   serviceFilterBrand:document.getElementById('serviceFilterBrand'),
@@ -397,11 +409,17 @@ const MODULE_META={
     title:'Operations Calendar',
     subtitle:'Day, week, and month planning for bookings, tours, pickup windows, assigned operators, vehicles, and resources.'
   },
+  reservations:{
+    group:'Reservations',
+    eyebrow:'Reservation Review',
+    title:'Reservations',
+    subtitle:'Website submissions from True Travel and Iventure wait here for review before they become payable bookings.'
+  },
   bookings:{
     group:'Reservations',
-    eyebrow:'Reservation Workspace',
+    eyebrow:'Booking Workspace',
     title:'Bookings',
-    subtitle:'Rich booking records with guest invoices, office invoices, payment timelines, notes, documents, operators, guides, vehicles, and commissions.'
+    subtitle:'Accepted reservations and admin-created bookings that now need payment, documents, operators, notes, and guest communication.'
   },
   customers:{
     group:'Reservations',
@@ -664,14 +682,31 @@ const formatServiceBrandVisibility=service=>{
 
 const formatServiceVisibilityLabel=service=>`${service?.is_active===false ? 'Hidden' : 'Active'} - ${formatServiceBrandVisibility(service)}`
 
-const applyRequestedServiceRoute=()=>{
+const applyRequestedRoute=()=>{
   const routeState=getAdminRouteState()
-  if(routeState.tab||routeState.serviceId){
+  if(routeState.tab||routeState.serviceId||routeState.bookingId||routeState.reservationId){
     switchTab(routeState.tab||'services')
   }
   if(routeState.serviceId){
     const requestedService=state.services.find(item=>item.id===routeState.serviceId)
     if(requestedService)openServiceModal(requestedService)
+  }
+  const requestedReservationId=routeState.reservationId||''
+  if(requestedReservationId){
+    const requestedReservation=state.bookings.find(item=>item.id===requestedReservationId)
+    if(requestedReservation){
+      state.selectedBookingId=requestedReservation.id
+      switchTab('reservations')
+      renderReservations()
+      renderReservationDetail()
+    }
+  }
+  const requestedBookingId=routeState.bookingId||''
+  if(requestedBookingId){
+    const requestedBooking=state.bookings.find(item=>item.id===requestedBookingId)
+    if(requestedBooking){
+      openBookingManagementScreen(requestedBooking,{scroll:false})
+    }
   }
 }
 
@@ -702,6 +737,20 @@ const getCustomerBookings=customer=>{
 const getCustomerEmails=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingEmails(booking.id))
 const getCustomerPortalRequests=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalRequests(booking.id))
 const getCustomerPortalSessions=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalSessions(booking.id))
+const normalizeBrandClass=brandCode=>{
+  const code=normalizeText(brandCode)
+  if(code==='true-travel')return 'true-travel'
+  if(code==='iventure')return 'iventure'
+  return 'neutral'
+}
+const getBrandName=brandCode=>state.brands.find(brand=>brand.code===brandCode)?.name||brandCode||'Unassigned'
+const renderBrandPill=brandCode=>{
+  const brandClass=normalizeBrandClass(brandCode)
+  return `<span class="brand-pill is-${bookingAdminShared.escapeHtml(brandClass)}">${bookingAdminShared.escapeHtml(getBrandName(brandCode))}</span>`
+}
+const isReviewReservation=booking=>['draft','pending'].includes(normalizeText(booking?.status))
+const getReviewReservations=()=>state.bookings.filter(isReviewReservation)
+const getOperationalBookings=()=>state.bookings.filter(booking=>!isReviewReservation(booking))
 const getResourceName=resourceId=>state.resources.find(item=>item.id===resourceId)?.name||resourceId
 const isResourceAbundant=resource=>Boolean(resource?.metadata?.abundant_resources)
 const getResourceCapacityLabel=resource=>{
@@ -820,12 +869,13 @@ const updateBookingQuickFilterBar=()=>{
     const key=button.dataset.bookingQuickFilter||''
     button.classList.toggle('is-active',key===state.bookingQuickFilter)
   })
+  const operationalBookings=getOperationalBookings()
   const countMap={
-    all:state.bookings.length,
-    needs_action:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'needs_action')).length,
-    unpaid:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'unpaid')).length,
-    unassigned:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'unassigned')).length,
-    upcoming:state.bookings.filter(booking=>bookingMatchesQuickFilter(booking,'upcoming')).length
+    all:operationalBookings.length,
+    needs_action:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'needs_action')).length,
+    unpaid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'unpaid')).length,
+    unassigned:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'unassigned')).length,
+    upcoming:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'upcoming')).length
   }
   Object.entries(countMap).forEach(([key,count])=>{
     const node=document.querySelector(`[data-filter-count="${key}"]`)
@@ -1302,6 +1352,7 @@ const VIEW_PERMISSION_MAP={
   reconciliation:'reconciliation',
   audit:'bookings',
   health:'health',
+  reservations:'bookings',
   bookings:'bookings',
   payments:'payments',
   refunds:'finance',
@@ -1321,6 +1372,7 @@ const TAB_ROUTE_MAP={
   reconciliation:{view:'reconciliation',permission:'reconciliation'},
   audit:{view:'audit',permission:'bookings'},
   health:{view:'health',permission:'health'},
+  reservations:{view:'reservations',permission:'bookings'},
   bookings:{view:'bookings',permission:'bookings'},
   payments:{view:'payments',permission:'payments'},
   refunds:{view:'refunds',permission:'finance'},
@@ -1414,7 +1466,9 @@ const switchTab=tab=>{
   })
   syncAdminRouteState({
     tab:nextTab,
-    serviceId:nextTab==='services' ? state.selectedServiceId : ''
+    serviceId:nextTab==='services' ? state.selectedServiceId : '',
+    bookingId:nextTab==='bookings' ? state.selectedBookingId : '',
+    reservationId:nextTab==='reservations' ? state.selectedBookingId : ''
   })
   renderModuleChrome(nextTab)
   renderEngineWorkbench()
@@ -1455,7 +1509,7 @@ const getFilteredBookings=()=>{
   const agentId=(nodes.bookingFilterAgent?.value||'').trim()
   const dateFrom=parseDateValue(nodes.bookingFilterDateFrom?.value||'')
   const dateTo=parseDateValue(nodes.bookingFilterDateTo?.value||'')
-  return state.bookings.filter(booking=>{
+  return getOperationalBookings().filter(booking=>{
     const bookingSource=normalizeText(booking.source) || normalizeText(booking.metadata?.source) || 'website'
     const haystack=[
       booking.reference,
@@ -1877,18 +1931,99 @@ const renderReports=()=>{
   }
 }
 
+const renderReservations=()=>{
+  if(!nodes.reservationsTable)return
+  const reservations=getReviewReservations().sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0))
+  nodes.reservationsTable.innerHTML=reservations.map(booking=>`
+    <tr class="reservation-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-reservation-id="${bookingAdminShared.escapeHtml(booking.id)}">
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.created_at))}</div>
+      </td>
+      <td>
+        ${renderBrandPill(booking.brand_code)}
+        <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
+      </td>
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
+      </td>
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(String(booking.quantity||1))} guest${Number(booking.quantity||1)===1 ? '' : 's'}</div>
+      </td>
+      <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+      <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
+      <td>
+        <div class="badge-stack">
+          ${renderStatusBadge(booking.status,'Needs review')}
+          <button class="booking-button ghost compact-button" type="button" data-reservation-open="${bookingAdminShared.escapeHtml(booking.id)}">Open</button>
+        </div>
+      </td>
+    </tr>
+  `).join('') || renderEmptyRow(7,'No reservations are waiting for review.')
+  renderReservationDetail()
+}
+
+const renderReservationDetail=()=>{
+  if(!nodes.reservationDetail)return
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId&&isReviewReservation(item))
+  if(!booking){
+    nodes.reservationDetail.innerHTML='<p class="muted-copy">Choose a reservation to review, amend, accept, or decline.</p>'
+    return
+  }
+  nodes.reservationDetail.innerHTML=`
+    <div class="reservation-review-card">
+      <div class="panel-header-inline">
+        <div>
+          <span class="booking-chip">Reservation screen</span>
+          <h3>${bookingAdminShared.escapeHtml(booking.reference)} - ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+        </div>
+        ${renderBrandPill(booking.brand_code)}
+      </div>
+      <div class="detail-overview-grid">
+        <article class="detail-card">
+          <span>Tour</span>
+          <strong>${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</strong>
+        </article>
+        <article class="detail-card">
+          <span>Preferred date</span>
+          <strong>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</strong>
+        </article>
+        <article class="detail-card">
+          <span>Guests</span>
+          <strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong>
+        </article>
+        <article class="detail-card">
+          <span>Total</span>
+          <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
+        </article>
+      </div>
+      <div class="detail-section">
+        <h4>Guest details</h4>
+        <p class="muted-copy">${bookingAdminShared.escapeHtml(booking.customer_email||'No email')} - ${bookingAdminShared.escapeHtml(booking.customer_phone||'No phone')}</p>
+        <p>${bookingAdminShared.escapeHtml(booking.customer_notes||booking.notes||'No notes captured.')}</p>
+      </div>
+      <div class="reservation-review-actions">
+        <button class="booking-button" type="button" data-reservation-action="accept">Accept reservation</button>
+        <button class="booking-button ghost" type="button" data-reservation-action="edit">Amend reservation</button>
+        <button class="booking-button ghost" type="button" data-reservation-action="decline">Decline</button>
+      </div>
+    </div>
+  `
+}
+
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
-  const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
   updateBookingQuickFilterBar()
   nodes.bookingsTable.innerHTML=filtered.map(booking=>`
-    <tr class="booking-row${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||'')}</div>
       </td>
       <td>
-        <strong>${bookingAdminShared.escapeHtml(brandMap.get(booking.brand_code)||booking.brand_code||'')}</strong>
+        ${renderBrandPill(booking.brand_code)}
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
       </td>
       <td>
@@ -1959,7 +2094,7 @@ const renderBookingDetail=()=>{
             <p>Communicate with the guest, update booking details, track notifications, manage payments, assign operators, and generate guest documents without leaving this record.</p>
           </div>
           <nav class="booking-management-nav" aria-label="Booking management navigation">
-            <a href="#booking-editor-panel">Edit booking</a>
+            <button type="button" data-booking-inline-action="edit-booking">Edit booking</button>
             <a href="#booking-guest-email">Email guest</a>
             <a href="#booking-notification-panel">Notifications</a>
             <a href="#booking-documents-panel">Documents</a>
@@ -2518,7 +2653,7 @@ const fillBookingForm=(booking=null)=>{
   if(nodes.bookingBrand)nodes.bookingBrand.value=booking?.brand_code||bookingAdminShared.readConfig().brandCode||state.brands[0]?.code||''
   if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
   nodes.bookingService.value=booking?.service_slug||''
-  nodes.bookingStatus.value=booking?.status||'pending'
+  nodes.bookingStatus.value=booking?.status||'awaiting_payment'
   nodes.bookingPaymentStatus.value=booking?.payment_status||'pending'
   nodes.bookingDate.value=booking?.preferred_date||''
   nodes.bookingQuantity.value=booking?.quantity||2
@@ -2527,6 +2662,22 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   nodes.bookingSaveButton.textContent=booking ? 'Save Booking' : 'Create Booking'
+}
+
+const openBookingModal=(booking=null)=>{
+  const requestedBooking=booking&&typeof booking==='object' ? booking : null
+  state.selectedBookingId=requestedBooking?.id||''
+  fillBookingForm(requestedBooking)
+  if(nodes.bookingModalTitle)nodes.bookingModalTitle.textContent=requestedBooking ? 'Edit booking' : 'Create booking'
+  setBookingModalState(true)
+  window.setTimeout(()=>nodes.bookingCustomerName?.focus(),60)
+}
+
+const closeBookingModal=()=>{
+  if(!state.isBookingModalOpen && !nodes.bookingModal)return
+  fillBookingForm(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
+  if(nodes.bookingModalTitle)nodes.bookingModalTitle.textContent='Create booking'
+  setBookingModalState(false)
 }
 
 const openBookingManagementScreen=(booking,{scroll=true}={})=>{
@@ -2594,12 +2745,24 @@ const renderServices=()=>{
   `).join('') || renderEmptyRow(6,'No tours match the selected visibility filter.')
 }
 
+const syncModalBodyState=()=>{
+  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen)
+}
+
 const setServiceModalState=isOpen=>{
   if(!nodes.serviceModal)return
   state.isServiceModalOpen=Boolean(isOpen)
   nodes.serviceModal.hidden=!state.isServiceModalOpen
   nodes.serviceModal.setAttribute('aria-hidden',String(!state.isServiceModalOpen))
-  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen)
+  syncModalBodyState()
+}
+
+const setBookingModalState=isOpen=>{
+  if(!nodes.bookingModal)return
+  state.isBookingModalOpen=Boolean(isOpen)
+  nodes.bookingModal.hidden=!state.isBookingModalOpen
+  nodes.bookingModal.setAttribute('aria-hidden',String(!state.isBookingModalOpen))
+  syncModalBodyState()
 }
 
 const fillServiceForm=(service=null)=>{
@@ -3355,6 +3518,7 @@ const renderAll=()=>{
   renderDashboard()
   renderNotifications()
   renderCalendar()
+  renderReservations()
   renderBookings()
   renderBookingDetail()
   renderServices()
@@ -3435,7 +3599,7 @@ const loadAdminData=async()=>{
   fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
   fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
   renderAll()
-  applyRequestedServiceRoute()
+  applyRequestedRoute()
 }
 
 const refreshAdmin=async(message='Booking operations console synced.')=>{
@@ -3928,10 +4092,12 @@ const handleBookingSave=async event=>{
     || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
     || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
   if(savedBooking){
+    closeBookingModal()
     openBookingManagementScreen(savedBooking,{scroll:true})
     setAdminStatus(wasEditing ? 'Booking updated and management screen opened.' : 'Booking created and management screen opened.')
     return
   }
+  closeBookingModal()
   renderAll()
   setAdminStatus(wasEditing ? 'Booking updated.' : 'Booking created.')
 }
@@ -4309,13 +4475,27 @@ const exportBookingsCsv=()=>{
   URL.revokeObjectURL(url)
 }
 
+const openRecordInNewTab=(tab,recordId)=>{
+  if(!recordId)return
+  const url=new URL(window.location.href)
+  url.searchParams.set('tab',tab)
+  url.searchParams.delete('service')
+  if(tab==='reservations'){
+    url.searchParams.set('reservation',recordId)
+    url.searchParams.delete('booking')
+  }else{
+    url.searchParams.set('booking',recordId)
+    url.searchParams.delete('reservation')
+  }
+  window.open(`${url.pathname}${url.search}${url.hash}`,'_blank','noopener')
+}
+
 const openNewBookingWorkspace=()=>{
   switchTab('bookings')
   state.selectedBookingId=''
-  fillBookingForm(null)
   renderBookingDetail()
-  showToast('New booking workspace opened.','info')
-  window.setTimeout(()=>nodes.bookingCustomerName?.focus(),80)
+  openBookingModal()
+  showToast('New booking popup opened.','info')
 }
 
 const toggleTableDensity=()=>{
@@ -4388,6 +4568,7 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
 })
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
+nodes.closeBookingModalButton?.addEventListener('click',closeBookingModal)
 nodes.serviceFilterBrand?.addEventListener('change',renderServices)
 nodes.openServiceModalButton?.addEventListener('click',()=>openServiceModal())
 nodes.closeServiceModalButton?.addEventListener('click',closeServiceModal)
@@ -4419,7 +4600,14 @@ nodes.bookingsTable.addEventListener('click',event=>{
   if(!row)return
   const booking=state.bookings.find(item=>item.id===row.dataset.bookingId)
   if(!booking)return
-  openBookingManagementScreen(booking,{scroll:true})
+  openRecordInNewTab('bookings',booking.id)
+})
+
+nodes.reservationsTable?.addEventListener('click',event=>{
+  const reservationId=event.target.closest('[data-reservation-open]')?.dataset.reservationOpen
+    || event.target.closest('[data-reservation-id]')?.dataset.reservationId
+  if(!reservationId)return
+  openRecordInNewTab('reservations',reservationId)
 })
 
 nodes.customersTable?.addEventListener('click',event=>{
@@ -4445,6 +4633,38 @@ nodes.notificationsTable?.addEventListener('click',event=>{
   if(booking)openBookingManagementScreen(booking,{scroll:true})
 })
 
+nodes.reservationDetail?.addEventListener('click',event=>{
+  const action=event.target.dataset.reservationAction
+  if(!action||!state.selectedBookingId)return
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+  if(!booking)return
+  if(action==='edit'){
+    openBookingModal(booking)
+    return
+  }
+  if(action==='decline'){
+    const reason=window.prompt('Enter a decline reason.','Reservation declined after review.')
+    if(reason===null)return
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ status:'cancelled', payment_status:'cancelled', reason, notes:reason }
+    }).then(()=>refreshAdmin('Reservation declined.')).catch(error=>setAdminStatus(error.message||'Reservation update failed.',true))
+    return
+  }
+  if(action==='accept'){
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ status:'awaiting_payment', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
+    }).then(async()=>{
+      await refreshAdmin('Reservation accepted and moved to bookings.')
+      const acceptedBooking=state.bookings.find(item=>item.id===state.selectedBookingId)
+      if(acceptedBooking)openBookingManagementScreen(acceptedBooking,{scroll:true})
+    }).catch(error=>setAdminStatus(error.message||'Reservation acceptance failed.',true))
+  }
+})
+
 nodes.bookingDetail.addEventListener('click',event=>{
   const action=event.target.dataset.bookingAction
   const inlineAction=event.target.dataset.bookingInlineAction
@@ -4462,6 +4682,11 @@ nodes.bookingDetail.addEventListener('click',event=>{
   }
   if(inlineAction==='duplicate'){
     void handleBookingDuplicate().catch(error=>setAdminStatus(error.message||'Booking duplication failed.',true))
+    return
+  }
+  if(inlineAction==='edit-booking'){
+    const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+    if(booking)openBookingModal(booking)
     return
   }
   if(inlineAction==='reschedule'){

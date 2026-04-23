@@ -47,6 +47,7 @@
         <details class="admin-menu-section">
           <summary><span>02</span> Reservations</summary>
           <div class="admin-subnav">
+            <button class="admin-tab" data-admin-tab="reservations" type="button"><span class="admin-tab-icon">RV</span><span>Reservation Review</span></button>
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
             <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
             <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
@@ -394,6 +395,29 @@
         </article>
       </section>
 
+      <section class="admin-view" data-admin-view="reservations">
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Reservations waiting for review</h3>
+              </div>
+              <span class="booking-chip">Website Intake</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Reference</th><th>Brand / Source</th><th>Guest</th><th>Tour</th><th>Date</th><th>Total</th><th>Review</th></tr></thead>
+                <tbody id="adminReservationsTable"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="booking-panel booking-detail-panel">
+            <div id="adminReservationDetail"></div>
+          </article>
+        </div>
+      </section>
+
       <section class="admin-view" data-admin-view="bookings">
         <div class="booking-workspace">
           <article class="booking-panel booking-list-panel">
@@ -506,12 +530,15 @@
           </article>
         </div>
 
-        <article class="booking-panel booking-editor-panel admin-spacer" id="booking-editor-panel">
-          <div class="widget-header">
+      </section>
+      <div class="admin-modal-shell" id="bookingModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel admin-booking-modal" role="dialog" aria-modal="true" aria-labelledby="bookingModalTitle">
+          <div class="panel-header-inline admin-modal-header">
             <div>
-              <h3>Create or Edit Booking</h3>
+              <h3 id="bookingModalTitle">Create booking</h3>
             </div>
-            <div class="booking-chip">Booking Form</div>
+            <button class="admin-modal-close" id="closeBookingModalButton" type="button" aria-label="Close booking editor">X</button>
           </div>
           <form id="adminBookingForm" class="booking-form-grid">
             <label class="booking-field">
@@ -585,12 +612,12 @@
               <span>Notes</span>
               <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
             </label>
-            <div class="booking-field-full">
+            <div class="booking-field-full booking-action-row">
               <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
             </div>
           </form>
         </article>
-      </section>
+      </div>
 
       <section class="admin-view" data-admin-view="services">
           <div class="admin-panel-grid">

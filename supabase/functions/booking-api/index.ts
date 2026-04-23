@@ -2613,7 +2613,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
-  const bookingStatus=desiredStatus || (service.requires_manual_confirmation && !isAdmin ? 'pending' : (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
+  const bookingStatus=isAdmin
+    ? (desiredStatus || (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
+    : 'pending'
   const paymentStatus=desiredPaymentStatus || (pricing.amountDueNow>0 ? 'pending' : 'unpaid')
   const outstandingAmounts=resolveOutstandingAmounts(pricing,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({

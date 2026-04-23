@@ -506,6 +506,61 @@ body.skybook-auth-page{
 .admin-service-modal .booking-form-grid{
   padding-bottom:4px;
 }
+.admin-booking-modal .booking-form-grid{
+  padding-bottom:4px;
+}
+.brand-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:28px;
+  padding:0 11px;
+  border-radius:999px;
+  border:1px solid var(--booking-line);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+}
+.brand-pill::before{
+  content:'';
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  background:currentColor;
+}
+.brand-pill.is-true-travel{
+  background:#eaf7fb;
+  border-color:#bfe5ee;
+  color:#0c6c86;
+}
+.brand-pill.is-iventure{
+  background:#fff3db;
+  border-color:#f4cf86;
+  color:#a26100;
+}
+.brand-pill.is-neutral{
+  background:#edf2f7;
+  border-color:#dde7f1;
+  color:#5f6f80;
+}
+.booking-row.is-true-travel td:first-child,
+.reservation-row.is-true-travel td:first-child{
+  box-shadow:inset 4px 0 0 #1799b7;
+}
+.booking-row.is-iventure td:first-child,
+.reservation-row.is-iventure td:first-child{
+  box-shadow:inset 4px 0 0 #ffb000;
+}
+.reservation-review-card{
+  display:grid;
+  gap:16px;
+}
+.reservation-review-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
 .email-automation-card{
   display:grid;
   gap:12px;
@@ -887,7 +942,8 @@ tbody tr:hover td{background:#f8fbfe}
   justify-content:flex-end;
   max-width:360px;
 }
-.booking-management-nav a{
+.booking-management-nav a,
+.booking-management-nav button{
   display:inline-flex;
   align-items:center;
   min-height:38px;
@@ -897,10 +953,12 @@ tbody tr:hover td{background:#f8fbfe}
   border:1px solid var(--booking-line);
   color:var(--booking-ocean);
   text-decoration:none;
+  font-family:inherit;
   font-size:11px;
   font-weight:900;
   letter-spacing:.1em;
   text-transform:uppercase;
+  cursor:pointer;
 }
 .booking-alert-strip{
   display:grid;
