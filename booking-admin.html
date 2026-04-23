@@ -117,9 +117,6 @@
 
       <section class="admin-view is-active" data-admin-view="dashboard">
         <section class="executive-radar" aria-label="SkyBook executive operations radar">
-          <article class="radar-lead">
-            <h3 id="opsPostureTitle">Loading live posture</h3>
-          </article>
           <div class="radar-card-grid" id="executiveRadarCards"></div>
         </section>
 
@@ -603,7 +600,12 @@
       <section class="admin-view" data-admin-view="services">
           <div class="admin-panel-grid">
             <article class="booking-panel">
-              <h3>Service catalog</h3>
+              <div class="panel-header-inline">
+                <div>
+                  <h3>Service catalog</h3>
+                </div>
+                <button class="booking-button" id="openServiceModalButton" type="button">Create Service</button>
+              </div>
               <div class="crm-overview-cards" id="serviceOverviewCards"></div>
               <div class="booking-form-grid admin-spacer">
                 <label class="booking-field">
@@ -623,8 +625,15 @@
                 </table>
             </div>
           </article>
-          <article class="booking-panel">
-            <h3>Create or edit service</h3>
+        <div class="admin-modal-shell" id="serviceModal" hidden aria-hidden="true">
+          <div class="admin-modal-backdrop" aria-hidden="true"></div>
+          <article class="booking-panel admin-modal-panel admin-service-modal" role="dialog" aria-modal="true" aria-labelledby="serviceModalTitle">
+            <div class="panel-header-inline admin-modal-header">
+              <div>
+                <h3 id="serviceModalTitle">Create service</h3>
+              </div>
+              <button class="admin-modal-close" id="closeServiceModalButton" type="button" aria-label="Close service editor">X</button>
+            </div>
             <form id="adminServiceForm" class="booking-form-grid">
               <input id="adminServiceId" type="hidden">
               <label class="booking-field">
@@ -657,7 +666,7 @@
               </label>
               <label class="booking-field">
                 <span>Duration Label</span>
-                <input id="adminServiceDuration" type="text" placeholder="Half Day · 3 Hours">
+                <input id="adminServiceDuration" type="text" placeholder="Half Day - 3 Hours">
               </label>
               <label class="booking-field">
                 <span>Minimum Pax</span>
@@ -709,6 +718,7 @@
               </div>
             </form>
           </article>
+        </div>
         </div>
       </section>
 

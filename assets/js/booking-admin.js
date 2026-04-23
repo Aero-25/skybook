@@ -96,7 +96,8 @@ const state={
   bookingQuickFilter:'',
   selectedBookingId:'',
   selectedCustomerId:'',
-  selectedServiceId:''
+  selectedServiceId:'',
+  isServiceModalOpen:false
 }
 
 const getAdminRouteState=()=>{
@@ -141,8 +142,6 @@ const nodes={
   moduleSubtitle:document.getElementById('moduleSubtitle'),
   tabs:[...document.querySelectorAll('[data-admin-tab]')],
   views:[...document.querySelectorAll('[data-admin-view]')],
-  opsPostureTitle:document.getElementById('opsPostureTitle'),
-  opsPostureCopy:document.getElementById('opsPostureCopy'),
   executiveRadarCards:document.getElementById('executiveRadarCards'),
   dashboardCards:document.getElementById('dashboardCards'),
   dashboardActionQueue:document.getElementById('dashboardActionQueue'),
@@ -206,6 +205,10 @@ const nodes={
   servicesTable:document.getElementById('adminServicesTable'),
   serviceOverviewCards:document.getElementById('serviceOverviewCards'),
   serviceFilterBrand:document.getElementById('serviceFilterBrand'),
+  openServiceModalButton:document.getElementById('openServiceModalButton'),
+  serviceModal:document.getElementById('serviceModal'),
+  serviceModalTitle:document.getElementById('serviceModalTitle'),
+  closeServiceModalButton:document.getElementById('closeServiceModalButton'),
   serviceForm:document.getElementById('adminServiceForm'),
   serviceId:document.getElementById('adminServiceId'),
   serviceName:document.getElementById('adminServiceName'),
@@ -639,15 +642,12 @@ const formatServiceVisibilityLabel=service=>`${service?.is_active===false ? 'Hid
 
 const applyRequestedServiceRoute=()=>{
   const routeState=getAdminRouteState()
-  if(routeState.serviceId){
-    const requestedService=state.services.find(item=>item.id===routeState.serviceId)
-    if(requestedService){
-      state.selectedServiceId=requestedService.id
-      fillServiceForm(requestedService)
-    }
-  }
   if(routeState.tab||routeState.serviceId){
     switchTab(routeState.tab||'services')
+  }
+  if(routeState.serviceId){
+    const requestedService=state.services.find(item=>item.id===routeState.serviceId)
+    if(requestedService)openServiceModal(requestedService)
   }
 }
 
@@ -1376,6 +1376,7 @@ const switchTab=tab=>{
   const nextTab=getTabRoute(tab).permission && !canAccess(getTabRoute(tab).permission)
     ? (nodes.tabs.find(node=>!node.hidden)?.dataset.adminTab||'dashboard')
     : tab
+  if(nextTab!=='services'&&state.isServiceModalOpen)closeServiceModal()
   state.activeTab=nextTab
   const route=getTabRoute(nextTab)
   nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab))
@@ -1487,15 +1488,6 @@ const renderDashboard=()=>{
   })
   const failedJobs=state.systemJobs.filter(job=>String(job.status||'').toLowerCase()==='failed')
   const failedEmails=state.emailLogs.filter(log=>String(log.status||'').toLowerCase()==='failed')
-  const postureRiskCount=pendingConfirmations.length+unpaidBookings.length+unassignedOperators.length+failedJobs.length+failedEmails.length
-  const postureTitle=postureRiskCount
-    ? `${postureRiskCount} operational signals need attention`
-    : 'Operations posture is steady'
-  const postureCopy=postureRiskCount
-    ? 'Prioritise the queues below before the next departure window: confirmations, guest balances, supplier assignment, and automation failures.'
-    : 'Reservations, finance, supplier coverage, and automation signals are currently inside the expected operating range.'
-  if(nodes.opsPostureTitle)nodes.opsPostureTitle.textContent=postureTitle
-  if(nodes.opsPostureCopy)nodes.opsPostureCopy.textContent=postureCopy
   if(nodes.executiveRadarCards){
     const radarCards=[
       {
@@ -2576,6 +2568,14 @@ const renderServices=()=>{
   `).join('') || renderEmptyRow(6,'No tours match the selected visibility filter.')
 }
 
+const setServiceModalState=isOpen=>{
+  if(!nodes.serviceModal)return
+  state.isServiceModalOpen=Boolean(isOpen)
+  nodes.serviceModal.hidden=!state.isServiceModalOpen
+  nodes.serviceModal.setAttribute('aria-hidden',String(!state.isServiceModalOpen))
+  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen)
+}
+
 const fillServiceForm=(service=null)=>{
   const brandCodes=getServiceBrandCodes(service)
   nodes.serviceId.value=service?.id||''
@@ -2595,6 +2595,25 @@ const fillServiceForm=(service=null)=>{
   if(nodes.serviceBrandTrueTravel)nodes.serviceBrandTrueTravel.checked=brandCodes.includes('true-travel')
   if(nodes.serviceBrandIventure)nodes.serviceBrandIventure.checked=brandCodes.includes('iventure')
   nodes.serviceActive.checked=service?.is_active!==false
+}
+
+const openServiceModal=(service=null)=>{
+  const requestedService=service&&typeof service==='object' ? service : null
+  state.selectedServiceId=requestedService?.id||''
+  fillServiceForm(requestedService)
+  if(nodes.serviceModalTitle)nodes.serviceModalTitle.textContent=requestedService ? 'Edit service' : 'Create service'
+  syncAdminRouteState({tab:'services',serviceId:state.selectedServiceId})
+  setServiceModalState(true)
+  window.setTimeout(()=>nodes.serviceName?.focus(),60)
+}
+
+const closeServiceModal=()=>{
+  if(!state.isServiceModalOpen && !nodes.serviceModal)return
+  state.selectedServiceId=''
+  fillServiceForm(null)
+  if(nodes.serviceModalTitle)nodes.serviceModalTitle.textContent='Create service'
+  setServiceModalState(false)
+  syncAdminRouteState({tab:'services',serviceId:''})
 }
 
 const getFilteredCustomers=()=>{
@@ -3876,8 +3895,8 @@ const handleServiceSave=async event=>{
     body:payload
   })
   state.selectedServiceId=String(response?.id||payload.id||state.selectedServiceId||'').trim()
-  syncAdminRouteState({tab:'services',serviceId:state.selectedServiceId})
   await refreshAdmin('Service saved.')
+  closeServiceModal()
 }
 
 const handleAdminUserSave=async event=>{
@@ -4284,6 +4303,8 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
 nodes.serviceFilterBrand?.addEventListener('change',renderServices)
+nodes.openServiceModalButton?.addEventListener('click',()=>openServiceModal())
+nodes.closeServiceModalButton?.addEventListener('click',closeServiceModal)
 nodes.serviceForm.addEventListener('submit',event=>{void handleServiceSave(event)})
 nodes.adminUserForm?.addEventListener('submit',event=>{void handleAdminUserSave(event)})
 nodes.adminUserRole?.addEventListener('change',()=>renderAdminUserPermissionEditor(collectPermissionOverrides(),nodes.adminUserRole.value))
@@ -4453,9 +4474,8 @@ nodes.servicesTable.addEventListener('click',event=>{
   if(!row)return
   const service=state.services.find(item=>item.id===row.dataset.serviceId)
   if(!service)return
-  state.selectedServiceId=service.id
-  fillServiceForm(service)
   switchTab('services')
+  openServiceModal(service)
 })
 
 nodes.adminUsersTable?.addEventListener('click',event=>{

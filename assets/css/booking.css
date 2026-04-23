@@ -454,6 +454,58 @@ body.skybook-auth-page{
   justify-content:space-between;
   gap:14px;
 }
+.is-modal-open{
+  overflow:hidden;
+}
+.admin-modal-shell{
+  position:fixed;
+  inset:0;
+  z-index:60;
+  display:grid;
+  place-items:center;
+  padding:28px;
+}
+.admin-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(12,24,37,.44);
+  backdrop-filter:blur(10px);
+}
+.admin-modal-panel{
+  position:relative;
+  z-index:1;
+  width:min(920px,100%);
+  max-height:min(90vh,980px);
+  overflow:auto;
+}
+.admin-modal-header{
+  position:sticky;
+  top:0;
+  z-index:2;
+  padding-bottom:14px;
+  margin-bottom:8px;
+  background:var(--booking-paper);
+}
+.admin-modal-close{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  border:1px solid var(--booking-line);
+  background:#f5f9fd;
+  color:var(--booking-ocean);
+  font:inherit;
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.admin-service-modal .booking-form-grid{
+  padding-bottom:4px;
+}
 .table-wrap{margin-top:16px;overflow:auto;border-radius:24px;background:var(--booking-paper);border:1px solid var(--booking-line);box-shadow:var(--booking-shadow)}
 table{width:100%;border-collapse:collapse}
 th,td{padding:14px 16px;text-align:left;border-bottom:1px solid var(--booking-line);font-size:14px}
@@ -1741,13 +1793,10 @@ textarea:focus-visible{
 }
 
 .executive-radar{
-  display:grid;
-  grid-template-columns:minmax(320px,.8fr) minmax(0,1.4fr);
-  gap:14px;
+  display:block;
   margin:0 0 18px;
 }
 
-.radar-lead,
 .radar-card{
   position:relative;
   overflow:hidden;
@@ -1756,56 +1805,12 @@ textarea:focus-visible{
   box-shadow:var(--sky-shadow-soft);
 }
 
-.radar-lead{
-  min-height:196px;
-  padding:24px;
-  border-radius:26px;
-  background:
-    linear-gradient(140deg,#10283c,#174d7a 58%,#257ec0);
-  color:#fff;
-}
-
-.radar-lead:after{
-  content:"";
-  position:absolute;
-  right:-72px;
-  top:-84px;
-  width:240px;
-  height:240px;
-  border-radius:999px;
-  border:42px solid rgba(255,255,255,.08);
-}
-
-.radar-lead span,
 .radar-card span{
   display:block;
   font-size:10px;
   font-weight:900;
   letter-spacing:.18em;
   text-transform:uppercase;
-}
-
-.radar-lead span{
-  color:#bfe4ff;
-}
-
-.radar-lead h3{
-  position:relative;
-  z-index:1;
-  max-width:520px;
-  margin:16px 0 0;
-  font-size:clamp(28px,3vw,44px);
-  line-height:1.02;
-  letter-spacing:-.06em;
-}
-
-.radar-lead p{
-  position:relative;
-  z-index:1;
-  max-width:620px;
-  margin:14px 0 0;
-  color:#dcefff;
-  line-height:1.7;
 }
 
 .radar-card-grid{
@@ -2849,6 +2854,19 @@ body.is-compact-tables .status-badge{
 }
 
 @media (max-width:560px){
+  .admin-modal-shell{
+    padding:12px;
+  }
+
+  .admin-modal-panel{
+    max-height:calc(100vh - 24px);
+  }
+
+  .admin-modal-close{
+    width:40px;
+    height:40px;
+  }
+
   .skybook-login-card,
   .skybook-auth-aside,
   .admin-loading-card{
