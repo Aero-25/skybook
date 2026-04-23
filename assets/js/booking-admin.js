@@ -584,6 +584,7 @@ const fixLegacyText=value=>{
 }
 
 const formatDisplayLabel=value=>fixLegacyText(value).replace(/_/g,' ').trim()
+const normalizeText=value=>fixLegacyText(value ?? '').trim().toLowerCase()
 
 const BRAND_VISIBILITY_LABELS={
   'true-travel':'True Travel',
