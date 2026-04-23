@@ -166,8 +166,18 @@ const DEFAULT_QUEUE_SETTINGS={
   reminderDelayHours:12,
   maxJobsPerSweep:25
 }
+const DEFAULT_AUTOMATION_RULES={
+  autoConfirmPaidBookings:true,
+  autoCompletePastConfirmedBookings:false,
+  autoCancelExpiredAwaitingPayment:false,
+  awaitingPaymentExpiryHours:48,
+  sendOnBookingMade:true,
+  sendOnBookingConfirmed:true,
+  sendOnPaymentReceived:true,
+  sendOnCancellationRefund:true
+}
 const BRAND_SUPPORT_EMAILS={
-  'true-travel':'info@jrimporters.com',
+  'true-travel':'bookings@truetravelnam.net',
   iventure:'info@aerodigital.space'
 }
 const BRAND_EMAIL_NAMES={
@@ -186,7 +196,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     website_url:'https://truetravelnam.net',
     document_company_line:'True Travel coastal reservations',
     document_footer:'Atlantic Street, Waterfront, Walvis Bay, Namibia',
-    document_support_line:'info@jrimporters.com · +264 81 322 4270'
+    document_support_line:'bookings@truetravelnam.net · +264 81 322 4270'
   },
   iventure:{
     code:'iventure',
@@ -358,6 +368,10 @@ const defaultEmailTemplates={
   payment_received:{
     subject:'Payment received for {{booking_reference}}',
     body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
+  },
+  cancellation_refund:{
+    subject:'Update for {{booking_reference}}',
+    body:'Hi {{customer_name}},\n\nThere is an update for your booking {{booking_reference}} for {{service_name}}.\nDate: {{booking_date}}\nTotal: {{total_amount}}\n\nIf a refund applies, our team will confirm the next steps with you shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   status_changed:{
     subject:'Booking update for {{booking_reference}}',
@@ -1541,6 +1555,7 @@ const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
   const normalizedBrand=normalizeText(brandCode) || 'true-travel'
   const configuredBrandMap=normalizeJsonRecord(emailConfig.from_email_by_brand)
   const configuredNameMap=normalizeJsonRecord(emailConfig.from_name_by_brand)
+  const configuredSupportEmail=await getConfiguredBrandSupportEmail(normalizedBrand)
   return {
     provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || 'log_only'),
     resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key),
@@ -1548,6 +1563,7 @@ const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
       Deno.env.get('EMAIL_FROM')
       || configuredBrandMap[normalizedBrand]
       || emailConfig.from_email
+      || configuredSupportEmail
       || BRAND_SUPPORT_EMAILS[normalizedBrand as keyof typeof BRAND_SUPPORT_EMAILS]
     ),
     fromName:normalizeText(
@@ -1566,6 +1582,31 @@ const tryParseJson=async(response:Response)=>{
   }catch{
     return {}
   }
+}
+
+const shouldSendAutomationEmail=(automationRules:Json,trigger:'bookingMade'|'bookingConfirmed'|'paymentReceived'|'cancellationRefund')=>{
+  const triggerMap={
+    bookingMade:'sendOnBookingMade',
+    bookingConfirmed:'sendOnBookingConfirmed',
+    paymentReceived:'sendOnPaymentReceived',
+    cancellationRefund:'sendOnCancellationRefund'
+  } as const
+  const flagKey=triggerMap[trigger]
+  const normalizedRules=normalizeJsonRecord(automationRules)
+  return normalizedRules[flagKey]!==false
+}
+
+const getConfiguredBrandSupportEmail=async(brandCode:string)=>{
+  const config=normalizeJsonRecord(await getSettingValue('config',{
+    supportEmail:BRAND_SUPPORT_EMAILS['true-travel'],
+    supportEmailsByBrand:BRAND_SUPPORT_EMAILS
+  }))
+  const supportEmailsByBrand=normalizeJsonRecord(config.supportEmailsByBrand)
+  return normalizeText(
+    supportEmailsByBrand[brandCode]
+    || config.supportEmail
+    || BRAND_SUPPORT_EMAILS[brandCode as keyof typeof BRAND_SUPPORT_EMAILS]
+  )
 }
 
 const dispatchEmailLog=async(emailLog:Json)=>{
@@ -1645,7 +1686,8 @@ const enqueueBookingEmailJob=async({
   templateKey,
   priority='normal',
   runAt=nowIso(),
-  createdBy=null
+  createdBy=null,
+  payload={}
 }:{
   bookingId:string
   customerId:string
@@ -1653,6 +1695,7 @@ const enqueueBookingEmailJob=async({
   priority?:string
   runAt?:string
   createdBy?:string | null
+  payload?:Json
 })=>{
   await enqueueSystemJob({
     job_type:'email_notification',
@@ -1662,7 +1705,7 @@ const enqueueBookingEmailJob=async({
     booking_id:bookingId,
     customer_id:customerId,
     related_table:'email_logs',
-    payload:{ template_key:templateKey },
+    payload:{ template_key:templateKey, ...(payload||{}) },
     created_by:createdBy
   })
 }
@@ -1679,15 +1722,18 @@ const performQueuedEmailJob=async(job:Json)=>{
     const emailTemplates=await getSettingValue('email_templates',defaultEmailTemplates)
     const fallbackTemplate=(defaultEmailTemplates as unknown as Record<string,Json>)[templateKey] || defaultEmailTemplates.status_changed
     const template=(((emailTemplates||{}) as Json)[templateKey] || fallbackTemplate) as Json
+    const configuredSupportEmail=await getConfiguredBrandSupportEmail(normalizeText(booking.brand_code) || 'true-travel')
     const templateVariables={
       customer_name:customer.full_name || 'Guest',
       booking_reference:booking.reference,
       service_name:service?.name || 'Service',
       booking_date:booking.preferred_date || 'To be confirmed',
       total_amount:booking.total_amount,
+      booking_status:booking.status,
       payment_status:booking.payment_status,
+      refund_amount:normalizeText(job.payload?.refund_amount),
       brand_name:normalizeText(brand?.name) || BRAND_EMAIL_NAMES[normalizeText(booking.brand_code) as keyof typeof BRAND_EMAIL_NAMES] || 'SkyBook',
-      brand_support_email:normalizeText(brand?.support_email) || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
+      brand_support_email:configuredSupportEmail || normalizeText(brand?.support_email) || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
       brand_support_phone:normalizeText(brand?.support_phone),
       brand_website:normalizeText(brand?.website_url)
     }
@@ -1713,12 +1759,7 @@ const performQueuedEmailJob=async(job:Json)=>{
 }
 
 const runStatusAutomations=async(job:Json)=>{
-  const automationRules=await getSettingValue('automation_rules',{
-    autoConfirmPaidBookings:true,
-    autoCompletePastConfirmedBookings:false,
-    autoCancelExpiredAwaitingPayment:false,
-    awaitingPaymentExpiryHours:48
-  })
+  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
   const bookingId=normalizeText(job.booking_id)
   if(bookingId){
     const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
@@ -2359,6 +2400,7 @@ const maybeAllocateResources=async(bookingId:string,serviceId:string,preferredDa
 }
 
 const createRefund=async(bookingId:string,payload:Json,userId:string)=>{
+  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found.')
   const payment=await safeMaybeSingle<Json>(adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle())
@@ -2389,6 +2431,17 @@ const createRefund=async(bookingId:string,payload:Json,userId:string)=>{
   await syncInvoiceForBooking(bookingId)
   await syncLifecycleTasks(bookingId,userId)
   await syncReconciliationRecordForBooking(bookingId,userId)
+  if(shouldSendAutomationEmail(automationRules as Json,'cancellationRefund')){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:String(booking.customer_id || ''),
+      templateKey:'cancellation_refund',
+      priority:'high',
+      createdBy:userId,
+      payload:{ refund_amount:String(amount) }
+    })
+    await processDueSystemJobs()
+  }
   return { success:true, refund }
 }
 
@@ -2527,6 +2580,7 @@ const buildReports=({
 }
 
 const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-travel'}={})=>{
+  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
   const settings=await getSettingValue('config',{
     currency:'NAD',
     paymentMode:'deposit',
@@ -2633,13 +2687,33 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await syncLifecycleTasks(bookingId,userId || null)
   await maybeCreateAutomatedOfficeSettlement(bookingId,userId || null)
   await syncReconciliationRecordForBooking(bookingId,userId || null)
-  await enqueueBookingEmailJob({
-    bookingId,
-    customerId:customer.id,
-    templateKey:'booking_received',
-    priority:'high',
-    createdBy:userId || null
-  })
+  if(shouldSendAutomationEmail(automationRules as Json,'bookingMade')){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:customer.id,
+      templateKey:'booking_received',
+      priority:'high',
+      createdBy:userId || null
+    })
+  }
+  if(normalizeText(bookingStatus)==='confirmed' && shouldSendAutomationEmail(automationRules as Json,'bookingConfirmed')){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:customer.id,
+      templateKey:'booking_confirmed',
+      priority:'high',
+      createdBy:userId || null
+    })
+  }
+  if(normalizeText(paymentStatus)==='paid' && shouldSendAutomationEmail(automationRules as Json,'paymentReceived')){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:customer.id,
+      templateKey:'payment_received',
+      priority:'high',
+      createdBy:userId || null
+    })
+  }
   if(outstandingAmounts.amountDueNow>0){
     await enqueueBookingEmailJob({
       bookingId,
@@ -2673,6 +2747,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
 const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const { data:existing,error:existingError }=await adminClient.from('bookings').select('*').eq('id',id).single()
   if(existingError||!existing)throw new Error('Booking not found.')
+  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
   const { data:existingPayment }=await adminClient.from('payments').select('provider').eq('booking_id',id).maybeSingle()
   const settings=await getSettingValue('config',{
     currency:'NAD',
@@ -2781,13 +2856,35 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
       created_by:userId
     })
   }
-  if(String(updatePayload.status)==='confirmed'){
+  const paymentJustReceived=!['paid','partially_paid'].includes(String(existing.payment_status)) && ['paid','partially_paid'].includes(String(updatePayload.payment_status))
+  const becameCancelledOrRefunded=!['cancelled','refunded'].includes(String(existing.status)) && ['cancelled','refunded'].includes(String(updatePayload.status))
+
+  if(paymentJustReceived && shouldSendAutomationEmail(automationRules as Json,'paymentReceived')){
+    await enqueueBookingEmailJob({
+      bookingId:id,
+      customerId:String(customer.id || ''),
+      templateKey:'payment_received',
+      priority:'high',
+      createdBy:userId
+    })
+  }
+
+  if(String(updatePayload.status)==='confirmed' && shouldSendAutomationEmail(automationRules as Json,'bookingConfirmed')){
     await enqueueBookingEmailJob({
       bookingId:id,
       customerId:String(customer.id || ''),
       templateKey:'booking_confirmed',
       priority:'high',
       createdBy:userId
+    })
+  }else if(becameCancelledOrRefunded && shouldSendAutomationEmail(automationRules as Json,'cancellationRefund')){
+    await enqueueBookingEmailJob({
+      bookingId:id,
+      customerId:String(customer.id || ''),
+      templateKey:'cancellation_refund',
+      priority:'high',
+      createdBy:userId,
+      payload:{ refund_amount:String(updatePayload.total_amount || '') }
     })
   }else if(String(updatePayload.status)!==String(existing.status) || String(updatePayload.payment_status)!==String(existing.payment_status)){
     await enqueueBookingEmailJob({
@@ -2962,18 +3059,13 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       defaultDepositValue:30,
       taxRate:0,
       serviceFee:0,
-      supportEmail:'info@jrimporters.com',
+      supportEmail:'bookings@truetravelnam.net',
       supportPhone:'+264813224270',
       supportWhatsApp:'+264813224270',
       supportEmailsByBrand:BRAND_SUPPORT_EMAILS
     }),
     getSettingValue('email_templates',defaultEmailTemplates),
-    getSettingValue('automation_rules',{
-      autoConfirmPaidBookings:true,
-      autoCompletePastConfirmedBookings:false,
-      autoCancelExpiredAwaitingPayment:false,
-      awaitingPaymentExpiryHours:48
-    }),
+    getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES),
     getSettingValue('portal',{
       enabled:true,
       allowBookingLookup:true,

@@ -64,6 +64,7 @@
           <summary><span>04</span> Revenue</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
+            <button class="admin-tab" data-admin-tab="refunds" type="button"><span class="admin-tab-icon">RF</span><span>Refunds</span></button>
             <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
             <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Invoices & Settlements</span></button>
             <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports & Analytics</span></button>
@@ -768,18 +769,30 @@
       </section>
 
       <section class="admin-view" data-admin-view="payments">
+        <article class="booking-panel">
+          <h3>Payments</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Booking / Provider</th><th>Status</th><th>Amount</th><th>When</th><th>Reference</th></tr></thead>
+              <tbody id="adminPaymentsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="refunds">
         <div class="admin-panel-grid">
           <article class="booking-panel">
-            <h3>Payments</h3>
+            <h3>Refund Register</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Booking / Provider</th><th>Status</th><th>Amount</th><th>When</th><th>Reference</th></tr></thead>
-                <tbody id="adminPaymentsTable"></tbody>
+                <thead><tr><th>Booking</th><th>Status</th><th>Amount</th><th>Processed</th><th>Reason</th></tr></thead>
+                <tbody id="adminRefundsTable"></tbody>
               </table>
             </div>
           </article>
           <article class="booking-panel">
-            <h3>Refunds</h3>
+            <h3>Process Refund</h3>
             <form id="adminRefundForm" class="booking-form-grid">
               <label class="booking-field">
                 <span>Booking ID</span>
@@ -843,17 +856,62 @@
       </section>
 
       <section class="admin-view" data-admin-view="emails">
-        <article class="booking-panel">
-          <div class="panel-header-inline">
-            <div>
-              <h3>Email templates</h3>
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Automation & Email Triggers</h3>
+              </div>
             </div>
-          </div>
-          <form id="emailTemplatesForm" class="admin-panel-grid"></form>
-          <div class="admin-spacer">
-            <button class="booking-button" type="submit" form="emailTemplatesForm">Save Templates</button>
-          </div>
-        </article>
+            <form id="emailAutomationForm" class="booking-form-grid">
+              <label class="booking-field-full inline-check">
+                <input id="emailTriggerBookingMade" type="checkbox">
+                <span>Automatically send an email when a booking is made.</span>
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="emailTriggerBookingConfirmed" type="checkbox">
+                <span>Automatically send an email when a booking is confirmed.</span>
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="emailTriggerPaymentReceived" type="checkbox">
+                <span>Automatically send an email when payment is received.</span>
+              </label>
+              <label class="booking-field-full inline-check">
+                <input id="emailTriggerCancellationRefund" type="checkbox">
+                <span>Automatically send an email when a booking is cancelled or refunded.</span>
+              </label>
+              <div class="booking-field-full email-automation-card">
+                <span class="booking-chip">True Travel Sender</span>
+                <strong id="emailSenderTrueTravel">bookings@truetravelnam.net</strong>
+                <p class="admin-inline-copy">Automatic True Travel emails should use this booking address.</p>
+              </div>
+              <div class="booking-field-full">
+                <span class="email-token-title">Available variables</span>
+                <div class="email-token-grid">
+                  <span class="email-token-chip">{{customer_name}}</span>
+                  <span class="email-token-chip">{{booking_reference}}</span>
+                  <span class="email-token-chip">{{service_name}}</span>
+                  <span class="email-token-chip">{{booking_date}}</span>
+                  <span class="email-token-chip">{{total_amount}}</span>
+                </div>
+              </div>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Email Triggers</button>
+              </div>
+            </form>
+          </article>
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Email templates</h3>
+              </div>
+            </div>
+            <form id="emailTemplatesForm" class="admin-panel-grid"></form>
+            <div class="admin-spacer">
+              <button class="booking-button" type="submit" form="emailTemplatesForm">Save Templates</button>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="admin-view" data-admin-view="admin-users">

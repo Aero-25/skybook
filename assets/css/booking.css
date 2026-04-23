@@ -506,6 +506,52 @@ body.skybook-auth-page{
 .admin-service-modal .booking-form-grid{
   padding-bottom:4px;
 }
+.email-automation-card{
+  display:grid;
+  gap:12px;
+  padding:20px;
+  border:1px solid var(--sky-line);
+  border-radius:22px;
+  background:rgba(248,251,254,.96);
+}
+.email-automation-card strong{
+  font-family:'Manrope','DM Sans',sans-serif;
+  font-size:22px;
+  color:var(--sky-text);
+}
+.admin-inline-copy{
+  margin:0;
+  color:var(--sky-muted);
+  font-size:14px;
+  line-height:1.6;
+}
+.email-token-title{
+  display:block;
+  margin-bottom:10px;
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:700;
+  color:var(--booking-ocean);
+}
+.email-token-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.email-token-chip{
+  display:inline-flex;
+  align-items:center;
+  min-height:36px;
+  padding:0 14px;
+  border-radius:999px;
+  border:1px solid #cfe1ef;
+  background:#f6fbff;
+  color:var(--sky-text);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.04em;
+}
 .table-wrap{margin-top:16px;overflow:auto;border-radius:24px;background:var(--booking-paper);border:1px solid var(--booking-line);box-shadow:var(--booking-shadow)}
 table{width:100%;border-collapse:collapse}
 th,td{padding:14px 16px;text-align:left;border-bottom:1px solid var(--booking-line);font-size:14px}

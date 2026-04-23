@@ -1,4 +1,11 @@
 const bookingAdminShared=window.TrueTravelBooking
+const EMAIL_TEMPLATE_META={
+  booking_received:{label:'Booking Made',description:'Sent when a guest creates a booking.'},
+  booking_confirmed:{label:'Booking Confirmed',description:'Sent when a booking is confirmed.'},
+  payment_received:{label:'Payment Received',description:'Sent when payment is recorded as paid.'},
+  cancellation_refund:{label:'Cancellation / Refund',description:'Sent when a booking is cancelled or refunded.'},
+  status_changed:{label:'Status Update',description:'Used for broader booking updates and reminders.'}
+}
 
 const state={
   session:null,
@@ -58,7 +65,11 @@ const state={
     autoConfirmPaidBookings:true,
     autoCompletePastConfirmedBookings:false,
     autoCancelExpiredAwaitingPayment:false,
-    awaitingPaymentExpiryHours:48
+    awaitingPaymentExpiryHours:48,
+    sendOnBookingMade:true,
+    sendOnBookingConfirmed:true,
+    sendOnPaymentReceived:true,
+    sendOnCancellationRefund:true
   },
   portalSettings:{
     enabled:true,
@@ -234,6 +245,7 @@ const nodes={
   crmOverviewCards:document.getElementById('crmOverviewCards'),
   customerDetail:document.getElementById('adminCustomerDetail'),
   paymentsTable:document.getElementById('adminPaymentsTable'),
+  refundsTable:document.getElementById('adminRefundsTable'),
   adminUsersTable:document.getElementById('adminUsersTable'),
   adminUserForm:document.getElementById('adminUserForm'),
   adminUserId:document.getElementById('adminUserId'),
@@ -245,6 +257,12 @@ const nodes={
   adminUserPermissions:document.getElementById('adminUserPermissions'),
   adminUserSaveButton:document.getElementById('adminUserSaveButton'),
   settingsForm:document.getElementById('bookingSettingsForm'),
+  emailAutomationForm:document.getElementById('emailAutomationForm'),
+  emailTriggerBookingMade:document.getElementById('emailTriggerBookingMade'),
+  emailTriggerBookingConfirmed:document.getElementById('emailTriggerBookingConfirmed'),
+  emailTriggerPaymentReceived:document.getElementById('emailTriggerPaymentReceived'),
+  emailTriggerCancellationRefund:document.getElementById('emailTriggerCancellationRefund'),
+  emailSenderTrueTravel:document.getElementById('emailSenderTrueTravel'),
   emailTemplatesForm:document.getElementById('emailTemplatesForm'),
   exportButton:document.getElementById('exportBookingsCsv'),
   enginePrimaryPanel:document.getElementById('adminEnginePrimaryPanel'),
@@ -419,7 +437,13 @@ const MODULE_META={
     group:'Revenue',
     eyebrow:'Payment Operations',
     title:'Payments',
-    subtitle:'Payment status, guest balances, refunds, deposits, payment timelines, and integration readiness for card and wallet gateways.'
+    subtitle:'Payment status, guest balances, deposits, provider timelines, and incoming payment activity across the booking system.'
+  },
+  refunds:{
+    group:'Revenue',
+    eyebrow:'Refund Control',
+    title:'Refunds',
+    subtitle:'A dedicated finance module for refund processing, cancellation payouts, and the refund register.'
   },
   reconciliation:{
     group:'Revenue',
@@ -1280,6 +1304,7 @@ const VIEW_PERMISSION_MAP={
   health:'health',
   bookings:'bookings',
   payments:'payments',
+  refunds:'finance',
   customers:'customers',
   services:'services',
   engine:'engine',
@@ -1298,6 +1323,7 @@ const TAB_ROUTE_MAP={
   health:{view:'health',permission:'health'},
   bookings:{view:'bookings',permission:'bookings'},
   payments:{view:'payments',permission:'payments'},
+  refunds:{view:'refunds',permission:'finance'},
   customers:{view:'customers',permission:'customers'},
   services:{view:'services',permission:'services'},
   engine:{view:'engine',permission:'engine',focusId:'adminEnginePrimaryPanel'},
@@ -2802,7 +2828,7 @@ const renderPayments=()=>{
 
 const renderSettings=()=>{
   nodes.settingsForm.currency.value=state.settings.currency||'NAD'
-  nodes.settingsForm.supportEmail.value=state.settings.supportEmail||''
+  nodes.settingsForm.supportEmail.value=state.settings.supportEmail||state.settings.supportEmailsByBrand?.['true-travel']||'bookings@truetravelnam.net'
   nodes.settingsForm.supportPhone.value=state.settings.supportPhone||''
   nodes.settingsForm.defaultDepositValue.value=state.settings.defaultDepositValue||30
   nodes.settingsForm.taxRate.value=state.settings.taxRate||0
@@ -2812,9 +2838,18 @@ const renderSettings=()=>{
 }
 
 const renderEmailTemplates=()=>{
-  nodes.emailTemplatesForm.innerHTML=Object.entries(state.emailTemplates).map(([key,template])=>`
+  const mergedTemplates={...bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),...(state.emailTemplates||{})}
+  const orderedKeys=[
+    ...Object.keys(EMAIL_TEMPLATE_META),
+    ...Object.keys(mergedTemplates).filter(key=>!Object.prototype.hasOwnProperty.call(EMAIL_TEMPLATE_META,key))
+  ]
+  nodes.emailTemplatesForm.innerHTML=orderedKeys.map(key=>{
+    const template=mergedTemplates[key]||{subject:'',body:''}
+    const meta=EMAIL_TEMPLATE_META[key]||{label:key,description:'Custom template.'}
+    return `
     <article class="template-card">
-      <h3>${bookingAdminShared.escapeHtml(key)}</h3>
+      <h3>${bookingAdminShared.escapeHtml(meta.label)}</h3>
+      <p class="admin-inline-copy">${bookingAdminShared.escapeHtml(meta.description)}</p>
       <label class="booking-field-full">
         <span>Subject</span>
         <input type="text" data-template-key="${bookingAdminShared.escapeHtml(key)}" data-template-field="subject" value="${bookingAdminShared.escapeHtml(template.subject)}">
@@ -2824,7 +2859,16 @@ const renderEmailTemplates=()=>{
         <textarea rows="8" data-template-key="${bookingAdminShared.escapeHtml(key)}" data-template-field="body">${bookingAdminShared.escapeHtml(template.body)}</textarea>
       </label>
     </article>
-  `).join('')
+  `
+  }).join('')
+  if(nodes.emailTriggerBookingMade)nodes.emailTriggerBookingMade.checked=state.automationRules.sendOnBookingMade!==false
+  if(nodes.emailTriggerBookingConfirmed)nodes.emailTriggerBookingConfirmed.checked=state.automationRules.sendOnBookingConfirmed!==false
+  if(nodes.emailTriggerPaymentReceived)nodes.emailTriggerPaymentReceived.checked=state.automationRules.sendOnPaymentReceived!==false
+  if(nodes.emailTriggerCancellationRefund)nodes.emailTriggerCancellationRefund.checked=state.automationRules.sendOnCancellationRefund!==false
+  if(nodes.emailSenderTrueTravel){
+    const configuredSupportEmails=state.settings.supportEmailsByBrand||{}
+    nodes.emailSenderTrueTravel.textContent=configuredSupportEmails['true-travel']||state.settings.supportEmail||'bookings@truetravelnam.net'
+  }
 }
 
 const renderEngine=()=>{
@@ -2913,6 +2957,17 @@ const renderPlatform=()=>{
   nodes.portalEnabled.checked=Boolean(state.portalSettings.enabled)
   nodes.portalLookupEnabled.checked=Boolean(state.portalSettings.allowBookingLookup)
 }
+
+const buildAutomationRulesPayload=()=>({
+  autoConfirmPaidBookings:Boolean(nodes.automationAutoConfirmPaid?.checked),
+  autoCompletePastConfirmedBookings:Boolean(nodes.automationAutoCompletePast?.checked),
+  autoCancelExpiredAwaitingPayment:Boolean(state.automationRules.autoCancelExpiredAwaitingPayment),
+  awaitingPaymentExpiryHours:Number(nodes.automationExpiryHours?.value||48),
+  sendOnBookingMade:Boolean(nodes.emailTriggerBookingMade?.checked),
+  sendOnBookingConfirmed:Boolean(nodes.emailTriggerBookingConfirmed?.checked),
+  sendOnPaymentReceived:Boolean(nodes.emailTriggerPaymentReceived?.checked),
+  sendOnCancellationRefund:Boolean(nodes.emailTriggerCancellationRefund?.checked)
+})
 
 const renderReportsWorkbench=()=>{
   const overview=state.reports?.overview||{}
@@ -3120,6 +3175,26 @@ const renderPaymentsWorkbench=()=>{
   `).join('') || renderEmptyRow(5,'No payments recorded yet.')
 }
 
+const renderRefundsWorkbench=()=>{
+  if(!nodes.refundsTable)return
+  const refunds=[...state.refunds].sort((left,right)=>(new Date(right.processed_at||right.created_at||0)).getTime()-(new Date(left.processed_at||left.created_at||0)).getTime())
+  nodes.refundsTable.innerHTML=refunds.map(refund=>{
+    const booking=state.bookings.find(item=>item.id===refund.booking_id)
+    return `
+    <tr data-booking-id="${bookingAdminShared.escapeHtml(refund.booking_id||'')}">
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking?.reference||refund.booking_id||'')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking?.customer_name||booking?.service_name||'Booking record')}</div>
+      </td>
+      <td>${renderStatusBadge(refund.status||'processed')}</td>
+      <td><strong>${bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}</strong></td>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(refund.processed_at||refund.created_at||''))}</td>
+      <td>${bookingAdminShared.escapeHtml(refund.reason||'No reason captured')}</td>
+    </tr>
+  `
+  }).join('') || renderEmptyRow(5,'No refunds have been processed yet.')
+}
+
 const renderAdminUserPermissionEditor=(permissions={},selectedRole='booking_agent')=>{
   if(!nodes.adminUserPermissions)return
   const defaults=state.roleDefaults?.[selectedRole]||{}
@@ -3285,6 +3360,7 @@ const renderAll=()=>{
   renderServices()
   renderCustomers()
   renderPaymentsWorkbench()
+  renderRefundsWorkbench()
   renderAdminUsers()
   renderSettings()
   renderEmailTemplates()
@@ -3348,7 +3424,7 @@ const loadAdminData=async()=>{
   state.opsTemplates={...state.opsTemplates,...(payload.ops_templates||{})}
   state.lifecycleRules=payload.lifecycle_rules||{}
   state.settings={...bookingAdminShared.readConfig(),...(payload.settings||{})}
-  state.emailTemplates=payload.email_templates||bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES)
+  state.emailTemplates={...bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),...(payload.email_templates||{})}
   state.automationRules={...state.automationRules,...(payload.automation_rules||{})}
   state.portalSettings={...state.portalSettings,...(payload.portal_settings||{})}
   state.queueSettings={...state.queueSettings,...(payload.queue_settings||{})}
@@ -3932,7 +4008,12 @@ const handleSettingsSave=async event=>{
     defaultDepositValue:Number(data.get('defaultDepositValue')||30),
     taxRate:Number(data.get('taxRate')||0),
     serviceFee:Number(data.get('serviceFee')||0),
-    supportWhatsApp:String(data.get('supportPhone')||'')
+    supportWhatsApp:String(data.get('supportPhone')||''),
+    supportEmailsByBrand:{
+      ...(state.settings.supportEmailsByBrand||{}),
+      'true-travel':String(data.get('supportEmail')||'').trim()||'bookings@truetravelnam.net',
+      iventure:(state.settings.supportEmailsByBrand||{}).iventure||'info@aerodigital.space'
+    }
   }
   await bookingAdminShared.apiRequest('admin/settings',{
     method:'PATCH',
@@ -4092,13 +4173,19 @@ const handleAutomationSave=async event=>{
   await bookingAdminShared.apiRequest('admin/automation-rules',{
     method:'PATCH',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-    body:{
-      autoConfirmPaidBookings:nodes.automationAutoConfirmPaid.checked,
-      autoCompletePastConfirmedBookings:nodes.automationAutoCompletePast.checked,
-      awaitingPaymentExpiryHours:Number(nodes.automationExpiryHours.value||48)
-    }
+    body:buildAutomationRulesPayload()
   })
   await refreshAdmin('Automation rules saved.')
+}
+
+const handleEmailAutomationSave=async event=>{
+  event.preventDefault()
+  await bookingAdminShared.apiRequest('admin/automation-rules',{
+    method:'PATCH',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:buildAutomationRulesPayload()
+  })
+  await refreshAdmin('Email triggers saved.')
 }
 
 const syncResourceCapacityState=()=>{
@@ -4308,6 +4395,7 @@ nodes.serviceForm.addEventListener('submit',event=>{void handleServiceSave(event
 nodes.adminUserForm?.addEventListener('submit',event=>{void handleAdminUserSave(event)})
 nodes.adminUserRole?.addEventListener('change',()=>renderAdminUserPermissionEditor(collectPermissionOverrides(),nodes.adminUserRole.value))
 nodes.settingsForm.addEventListener('submit',event=>{void handleSettingsSave(event)})
+nodes.emailAutomationForm?.addEventListener('submit',event=>{void handleEmailAutomationSave(event)})
 nodes.emailTemplatesForm.addEventListener('submit',event=>{
   event.preventDefault()
   void handleTemplateSave()
@@ -4475,6 +4563,13 @@ nodes.servicesTable.addEventListener('click',event=>{
   if(!service)return
   switchTab('services')
   openServiceModal(service)
+})
+
+nodes.refundsTable?.addEventListener('click',event=>{
+  const row=event.target.closest('[data-booking-id]')
+  const bookingId=row?.dataset.bookingId||''
+  if(!bookingId)return
+  handleCommandNavigation('bookings',bookingId)
 })
 
 nodes.adminUsersTable?.addEventListener('click',event=>{

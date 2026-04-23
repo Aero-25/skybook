@@ -12,9 +12,13 @@ window.TrueTravelBooking=(()=>{
     currency:'NAD',
     currencySymbol:'N$',
     locale:'en-NA',
-    supportEmail:'info@jrimporters.com',
+    supportEmail:'bookings@truetravelnam.net',
     supportPhone:'+264813224270',
     supportWhatsApp:'+264813224270',
+    supportEmailsByBrand:{
+      'true-travel':'bookings@truetravelnam.net',
+      iventure:'info@aerodigital.space'
+    },
     lookupWindowDays:365,
     apiBase:'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api',
     paymentProviders:['dpo','apple_pay','google_pay','manual_eft','stripe'],
@@ -33,7 +37,7 @@ window.TrueTravelBooking=(()=>{
     'true-travel':{
       code:'true-travel',
       projectName:'True Travel',
-      supportEmail:'info@jrimporters.com',
+      supportEmail:'bookings@truetravelnam.net',
       supportPhone:'+264813224270',
       supportWhatsApp:'+264813224270',
       bookingPrefix:'TT'
@@ -66,6 +70,10 @@ window.TrueTravelBooking=(()=>{
     payment_received:{
       subject:'Payment received for {{booking_reference}}',
       body:'Hi {{customer_name}},\n\nWe received your payment for {{service_name}}.\nReference: {{booking_reference}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nThank you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
+    },
+    cancellation_refund:{
+      subject:'Update for {{booking_reference}}',
+      body:'Hi {{customer_name}},\n\nThere is an update for your booking {{booking_reference}} for {{service_name}}.\nDate: {{booking_date}}\nTotal: {{total_amount}}\n\nIf a refund applies, our team will confirm the next steps with you shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     },
     status_changed:{
       subject:'Booking update for {{booking_reference}}',
