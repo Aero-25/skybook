@@ -1047,6 +1047,13 @@
                 <span>Capacity</span>
                 <input id="adminResourceCapacity" type="number" min="1" step="1">
               </label>
+              <label class="booking-field admin-toggle">
+                <span>Abundant resources</span>
+                <input id="adminResourceAbundant" type="checkbox" checked>
+              </label>
+              <div class="booking-field-full">
+                <small class="field-hint">Tick this when the resource should not be treated as operationally limited inside SkyBook, even if guests still book normally.</small>
+              </div>
               <div class="booking-field-full">
                 <button class="booking-button" type="submit">Save Resource</button>
               </div>

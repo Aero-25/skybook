@@ -277,6 +277,7 @@ const nodes={
   resourceSlug:document.getElementById('adminResourceSlug'),
   resourceType:document.getElementById('adminResourceType'),
   resourceCapacity:document.getElementById('adminResourceCapacity'),
+  resourceAbundant:document.getElementById('adminResourceAbundant'),
   refundForm:document.getElementById('adminRefundForm'),
   refundBookingId:document.getElementById('adminRefundBookingId'),
   refundAmount:document.getElementById('adminRefundAmount'),
@@ -669,6 +670,16 @@ const getCustomerEmails=customer=>getCustomerBookings(customer).flatMap(booking=
 const getCustomerPortalRequests=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalRequests(booking.id))
 const getCustomerPortalSessions=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalSessions(booking.id))
 const getResourceName=resourceId=>state.resources.find(item=>item.id===resourceId)?.name||resourceId
+const isResourceAbundant=resource=>Boolean(resource?.metadata?.abundant_resources)
+const getResourceCapacityLabel=resource=>{
+  if(isResourceAbundant(resource))return 'Abundant'
+  const capacity=Number(resource?.capacity||0)
+  return capacity>0 ? String(capacity) : '--'
+}
+const getResourceStatusLabel=resource=>{
+  if(resource?.is_active===false)return 'Inactive'
+  return isResourceAbundant(resource) ? 'Abundant' : 'Active'
+}
 const buildManualEmailDraft=(booking,brandName)=>{
   const brandLabel=brandName || 'SkyBook'
   const guestName=booking?.customer_name || 'Guest'
@@ -2821,7 +2832,7 @@ const renderEngine=()=>{
 
 const renderPlatform=()=>{
   const opRows=[
-    ...state.resources.map(resource=>({label:resource.name,type:`Resource · ${resource.resource_type||'resource'}`,status:resource.is_active===false ? 'Inactive' : 'Active',value:resource.capacity||'--'})),
+    ...state.resources.map(resource=>({label:resource.name,type:`Resource · ${resource.resource_type||'resource'}`,status:getResourceStatusLabel(resource),value:getResourceCapacityLabel(resource)})),
     ...state.invoices.slice(0,6).map(invoice=>({label:invoice.invoice_number,type:'Invoice',status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
     ...state.refunds.slice(0,6).map(refund=>({label:refund.booking_id,type:'Refund',status:refund.status,value:bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}))
   ]
@@ -3167,7 +3178,7 @@ const renderEngineWorkbench=()=>{
 
 const renderPlatformWorkbench=()=>{
   const opRows=[
-    ...state.resources.map(resource=>({label:resource.name,type:`Resource - ${resource.resource_type||'resource'}`,status:resource.is_active===false ? 'Inactive' : 'Active',value:resource.capacity||'--'})),
+    ...state.resources.map(resource=>({label:resource.name,type:`Resource - ${resource.resource_type||'resource'}`,status:getResourceStatusLabel(resource),value:getResourceCapacityLabel(resource)})),
     ...state.invoices.slice(0,6).map(invoice=>({label:invoice.invoice_number,type:'Invoice',status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
     ...state.refunds.slice(0,6).map(refund=>({label:refund.booking_id,type:'Refund',status:refund.status,value:bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}))
   ]
@@ -3991,12 +4002,17 @@ const handleResourceSave=async event=>{
       name:nodes.resourceName.value.trim(),
       slug:nodes.resourceSlug.value.trim(),
       resource_type:nodes.resourceType.value.trim()||'vehicle',
-      capacity:Number(nodes.resourceCapacity.value||0)||null,
+      capacity:nodes.resourceAbundant.checked ? null : (Number(nodes.resourceCapacity.value||0)||null),
       is_active:true,
-      metadata:{source:'admin-ui'}
+      metadata:{
+        source:'admin-ui',
+        abundant_resources:Boolean(nodes.resourceAbundant.checked)
+      }
     }
   })
   nodes.resourceForm.reset()
+  if(nodes.resourceAbundant)nodes.resourceAbundant.checked=true
+  syncResourceCapacityState()
   await refreshAdmin('Resource saved.')
 }
 
@@ -4026,6 +4042,14 @@ const handleAutomationSave=async event=>{
     }
   })
   await refreshAdmin('Automation rules saved.')
+}
+
+const syncResourceCapacityState=()=>{
+  if(!nodes.resourceCapacity||!nodes.resourceAbundant)return
+  const isAbundant=Boolean(nodes.resourceAbundant.checked)
+  nodes.resourceCapacity.disabled=isAbundant
+  if(isAbundant)nodes.resourceCapacity.value=''
+  nodes.resourceCapacity.placeholder=isAbundant ? 'Not needed for abundant resources' : ''
 }
 
 const handlePortalSave=async event=>{
@@ -4235,6 +4259,7 @@ nodes.couponForm.addEventListener('submit',event=>{void handleCouponSave(event)}
 nodes.voucherForm.addEventListener('submit',event=>{void handleVoucherSave(event)})
 nodes.agentForm.addEventListener('submit',event=>{void handleAgentSave(event)})
 nodes.resourceForm.addEventListener('submit',event=>{void handleResourceSave(event)})
+nodes.resourceAbundant?.addEventListener('change',syncResourceCapacityState)
 nodes.refundForm.addEventListener('submit',event=>{void handleRefundSave(event)})
 nodes.automationRulesForm.addEventListener('submit',event=>{void handleAutomationSave(event)})
 nodes.portalSettingsForm.addEventListener('submit',event=>{void handlePortalSave(event)})
@@ -4478,6 +4503,7 @@ window.addEventListener('resize',()=>{
 })
 
 setBookingFiltersCollapsed(true)
+syncResourceCapacityState()
 
 ;(async()=>{
   try{
