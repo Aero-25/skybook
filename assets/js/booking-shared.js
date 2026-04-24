@@ -434,7 +434,28 @@ window.TrueTravelBooking=(()=>{
 
   const readDemoDb=()=>{
     const existing=readJson(STORAGE_KEYS.BOOKING_DEMO_DB_KEY,null)
-    if(existing)return existing
+    if(existing){
+      return {
+        ...existing,
+        services:Array.isArray(existing.services)&&existing.services.length ? existing.services : getSeedServices(),
+        customers:Array.isArray(existing.customers) ? existing.customers : [],
+        bookings:Array.isArray(existing.bookings) ? existing.bookings : [],
+        payments:Array.isArray(existing.payments) ? existing.payments : [],
+        app_users:Array.isArray(existing.app_users) ? existing.app_users : [],
+        notes:Array.isArray(existing.notes) ? existing.notes : [],
+        email_logs:Array.isArray(existing.email_logs) ? existing.email_logs : [],
+        status_history:Array.isArray(existing.status_history) ? existing.status_history : [],
+        agents:Array.isArray(existing.agents) ? existing.agents : [],
+        operators:Array.isArray(existing.operators) ? existing.operators : [],
+        booking_agents:Array.isArray(existing.booking_agents) ? existing.booking_agents : [],
+        booking_operators:Array.isArray(existing.booking_operators) ? existing.booking_operators : [],
+        office_invoices:Array.isArray(existing.office_invoices) ? existing.office_invoices : [],
+        refunds:Array.isArray(existing.refunds) ? existing.refunds : [],
+        payment_transactions:Array.isArray(existing.payment_transactions) ? existing.payment_transactions : [],
+        resources:Array.isArray(existing.resources) ? existing.resources : [],
+        resource_allocations:Array.isArray(existing.resource_allocations) ? existing.resource_allocations : []
+      }
+    }
     const services=getSeedServices()
     const customer={
       id:'cust-demo-1',
@@ -471,6 +492,28 @@ window.TrueTravelBooking=(()=>{
       created_at:nowIso(),
       updated_at:nowIso()
     }
+    const agent={
+      id:'agent-demo-1',
+      company_name:'Atlantic Travel Desk',
+      contact_name:'Leah Martin',
+      contact_email:'agents@example.com',
+      commission_type:'percentage',
+      commission_value:12,
+      is_active:true,
+      created_at:nowIso(),
+      updated_at:nowIso()
+    }
+    const operator={
+      id:'operator-demo-1',
+      company_name:'Walvis Bay Marine Support',
+      contact_name:'Jacob Paulus',
+      contact_email:'ops@example.com',
+      commission_type:'fixed',
+      commission_value:1850,
+      is_active:true,
+      created_at:nowIso(),
+      updated_at:nowIso()
+    }
     const payment={
       id:'pay-demo-1',
       booking_id:booking.id,
@@ -494,6 +537,15 @@ window.TrueTravelBooking=(()=>{
         is_active:true,
         permissions:sanitizePermissions({})
       }],
+      agents:[agent],
+      operators:[operator],
+      booking_agents:[],
+      booking_operators:[],
+      office_invoices:[],
+      refunds:[],
+      payment_transactions:[],
+      resources:[],
+      resource_allocations:[],
       notes:[],
       email_logs:[{
         id:'email-demo-1',
@@ -554,6 +606,14 @@ window.TrueTravelBooking=(()=>{
     const normalizedPath=String(path||'').replace(/^\/+/,'')
     const parts=normalizedPath.split('/').filter(Boolean)
     const requestedBrandCode=safeText(headers?.['x-brand-code']||headers?.['X-Brand-Code']||body?.brand_code||readConfig().brandCode)
+    const resolvePartnerAmount=(baseAmount,partner)=>{
+      if(!partner)return 0
+      const commissionType=safeText(partner.commission_type).toLowerCase()
+      const commissionValue=Number(partner.commission_value||0)
+      return commissionType==='fixed'
+        ? commissionValue
+        : Number(((Number(baseAmount||0)*commissionValue)/100).toFixed(2))
+    }
     const isVisibleForBrand=(service,brandCode='')=>{
       const normalizedService=normalizeService(service)
       return !brandCode || normalizedService.brand_codes.includes(brandCode)
@@ -710,14 +770,15 @@ window.TrueTravelBooking=(()=>{
         settings:readConfig(),
         email_templates:DEFAULT_EMAIL_TEMPLATES,
         invoices:[],
-        office_invoices:[],
-        refunds:[],
-        payment_transactions:[],
-        resources:[],
-        resource_allocations:[],
-        operators:[],
-        booking_operators:[],
-        agents:[],
+        office_invoices:db.office_invoices,
+        refunds:db.refunds,
+        payment_transactions:db.payment_transactions,
+        resources:db.resources,
+        resource_allocations:db.resource_allocations,
+        operators:db.operators,
+        booking_operators:db.booking_operators,
+        agents:db.agents,
+        booking_agents:db.booking_agents,
         email_logs:db.email_logs,
         status_history:db.status_history,
         admin_notes:db.notes,
@@ -798,6 +859,9 @@ window.TrueTravelBooking=(()=>{
       const previousStatus=booking.status
       booking.status=safeText(body?.status)||booking.status
       booking.payment_status=safeText(body?.payment_status)||booking.payment_status
+      if(body?.metadata&&typeof body.metadata==='object'&&!Array.isArray(body.metadata)){
+        booking.metadata={...(booking.metadata||{}),...body.metadata}
+      }
       booking.updated_at=nowIso()
       if(booking.status==='confirmed'&&booking.payment_status==='pending'&&booking.amount_due_now===0)booking.payment_status='unpaid'
       if(booking.status==='cancelled'){
@@ -842,6 +906,54 @@ window.TrueTravelBooking=(()=>{
       }
       writeDemoDb(db)
       return {success:true,booking}
+    }
+    if(method==='POST'&&normalizedPath==='admin/booking-agents'){
+      const bookingId=safeText(body?.booking_id)
+      if(!bookingId)throw new Error('Booking is required for selling partner assignment.')
+      const booking=db.bookings.find(item=>item.id===bookingId)
+      if(!booking)throw new Error('Booking not found.')
+      const agentId=safeText(body?.agent_id)
+      db.booking_agents=db.booking_agents.filter(item=>item.booking_id!==bookingId)
+      if(agentId){
+        const agent=db.agents.find(item=>item.id===agentId)
+        if(!agent)throw new Error('Selling partner not found.')
+        const explicitAmount=Number(body?.commission_amount||0)
+        const commissionAmount=explicitAmount>0 ? explicitAmount : resolvePartnerAmount(booking.total_amount,agent)
+        db.booking_agents.unshift({
+          id:uid('bagt'),
+          booking_id:bookingId,
+          agent_id:agentId,
+          commission_amount:commissionAmount,
+          created_at:nowIso(),
+          updated_at:nowIso()
+        })
+      }
+      writeDemoDb(db)
+      return {success:true}
+    }
+    if(method==='POST'&&normalizedPath==='admin/booking-operators'){
+      const bookingId=safeText(body?.booking_id)
+      if(!bookingId)throw new Error('Booking is required for operating partner assignment.')
+      const booking=db.bookings.find(item=>item.id===bookingId)
+      if(!booking)throw new Error('Booking not found.')
+      const operatorId=safeText(body?.operator_id)
+      db.booking_operators=db.booking_operators.filter(item=>item.booking_id!==bookingId)
+      if(operatorId){
+        const operator=db.operators.find(item=>item.id===operatorId)
+        if(!operator)throw new Error('Operating partner not found.')
+        const explicitAmount=Number(body?.commission_amount||0)
+        const commissionAmount=explicitAmount>0 ? explicitAmount : resolvePartnerAmount(booking.total_amount,operator)
+        db.booking_operators.unshift({
+          id:uid('bopt'),
+          booking_id:bookingId,
+          operator_id:operatorId,
+          commission_amount:commissionAmount,
+          created_at:nowIso(),
+          updated_at:nowIso()
+        })
+      }
+      writeDemoDb(db)
+      return {success:true}
     }
     if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='payment-request'){
       const booking=db.bookings.find(item=>item.id===parts[2])

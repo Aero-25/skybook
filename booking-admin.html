@@ -67,7 +67,7 @@
             <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
             <button class="admin-tab" data-admin-tab="refunds" type="button"><span class="admin-tab-icon">RF</span><span>Refunds</span></button>
             <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
-            <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Invoices & Settlements</span></button>
+            <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Debtors & Creditors</span></button>
             <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports & Analytics</span></button>
           </div>
         </details>
@@ -270,6 +270,7 @@
                 <button type="button" class="booking-button ghost" data-print-report="bookings">Print Booking Report</button>
                 <button type="button" class="booking-button ghost" data-print-report="financial">Print Financial Report</button>
                 <button type="button" class="booking-button ghost" data-print-report="commissions">Print Commission Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="consultants">Print Consultant Report</button>
               </div>
             </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
@@ -286,19 +287,53 @@
         </div>
         <div class="admin-panel-grid admin-spacer">
           <article class="booking-panel">
-            <h3>Guest Invoices</h3>
+            <div class="panel-header-inline">
+              <div>
+                <h3>Arrivals Manifest</h3>
+                <p class="field-hint">Choose a date to review the printable arrivals list with guest notes, pickups, drop offs, and operator context.</p>
+              </div>
+              <div class="toolbar-actions">
+                <input id="reportsArrivalsDate" type="date">
+                <button type="button" class="booking-button ghost" id="printReportArrivals">Print Arrivals List</button>
+              </div>
+            </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Invoice</th><th>Status</th><th>Total</th><th>Balance</th></tr></thead>
+                <thead><tr><th>Guest</th><th>Tour</th><th>Pickups</th><th>Drop Offs</th><th>Notes</th><th>Operator</th><th>Status</th></tr></thead>
+                <tbody id="reportsArrivalsTable"></tbody>
+              </table>
+            </div>
+          </article>
+          <article class="booking-panel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Consultant Productivity</h3>
+                <p class="field-hint">Manager view of owned bookings, conversion, and turnover per consultant.</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Consultant</th><th>Bookings</th><th>Accepted</th><th>Completed</th><th>Cancelled</th><th>No Shows</th><th>Gross</th><th>Paid</th></tr></thead>
+                <tbody id="reportsConsultantTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+        <div class="admin-panel-grid admin-spacer">
+          <article class="booking-panel">
+            <h3>Debtors Snapshot</h3>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Debtor</th><th>Status</th><th>Total</th><th>Outstanding</th></tr></thead>
                 <tbody id="reportsGuestInvoicesTable"></tbody>
               </table>
             </div>
           </article>
           <article class="booking-panel">
-            <h3>Office Invoices & Settlements</h3>
+            <h3>Creditors Snapshot</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Invoice</th><th>Type</th><th>Status</th><th>Total</th></tr></thead>
+                <thead><tr><th>Creditor</th><th>Type</th><th>Status</th><th>Amount</th></tr></thead>
                 <tbody id="reportsOfficeInvoicesTable"></tbody>
               </table>
             </div>
@@ -427,12 +462,23 @@
           <div class="panel-header-inline">
             <div>
               <h3>Reservation trash</h3>
+              <p class="field-hint">Search archived reservations, review who archived them, and restore records with full history intact.</p>
             </div>
             <span class="booking-chip">Permanent archive</span>
           </div>
+          <div class="booking-form-grid admin-spacer">
+            <label class="booking-field">
+              <span>Search</span>
+              <input id="reservationTrashSearch" type="search" placeholder="Reference, guest, reason, or tour">
+            </label>
+            <label class="booking-field">
+              <span>Archived By</span>
+              <input id="reservationTrashArchivedBy" type="search" placeholder="Admin name or user id">
+            </label>
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>Reason</th><th>Action</th></tr></thead>
+              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>History</th><th>Action</th></tr></thead>
               <tbody id="adminReservationTrashTable"></tbody>
             </table>
           </div>
@@ -444,12 +490,23 @@
           <div class="panel-header-inline">
             <div>
               <h3>Booking trash</h3>
+              <p class="field-hint">Filter archived bookings, audit restore history, and track why records were removed from the live workspace.</p>
             </div>
             <span class="booking-chip">Permanent archive</span>
           </div>
+          <div class="booking-form-grid admin-spacer">
+            <label class="booking-field">
+              <span>Search</span>
+              <input id="bookingTrashSearch" type="search" placeholder="Reference, guest, reason, or tour">
+            </label>
+            <label class="booking-field">
+              <span>Archived By</span>
+              <input id="bookingTrashArchivedBy" type="search" placeholder="Admin name or user id">
+            </label>
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>Reason</th><th>Action</th></tr></thead>
+              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>History</th><th>Action</th></tr></thead>
               <tbody id="adminBookingTrashTable"></tbody>
             </table>
           </div>
@@ -506,7 +563,9 @@
                       <option value="pending">Pending</option>
                       <option value="payment_request_sent">Payment request sent</option>
                       <option value="awaiting_payment">Awaiting payment</option>
+                      <option value="rescheduled">Rescheduled</option>
                       <option value="confirmed">Confirmed</option>
+                      <option value="no_show">No show</option>
                       <option value="completed">Completed</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
@@ -613,7 +672,9 @@
                 <option value="pending">Pending</option>
                 <option value="payment_request_sent">Payment Request Sent</option>
                 <option value="awaiting_payment">Awaiting Payment</option>
+                <option value="rescheduled">Rescheduled</option>
                 <option value="confirmed">Confirmed</option>
+                <option value="no_show">No Show</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
@@ -808,6 +869,26 @@
             <button class="admin-modal-close" id="closeCustomerModalButton" type="button" aria-label="Close customer details">X</button>
           </div>
           <div id="adminCustomerDetail" class="crm-customer-detail"></div>
+        </article>
+      </div>
+
+      <div class="admin-modal-shell" id="workflowModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel admin-workflow-modal" role="dialog" aria-modal="true" aria-labelledby="workflowModalTitle">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3 id="workflowModalTitle">Workflow action</h3>
+              <p class="field-hint" id="workflowModalDescription">Complete the required details to continue.</p>
+            </div>
+            <button class="admin-modal-close" id="closeWorkflowModalButton" type="button" aria-label="Close workflow dialog">X</button>
+          </div>
+          <form id="workflowModalForm" class="booking-form-grid">
+            <div id="workflowModalFields" class="booking-field-full"></div>
+            <div class="booking-field-full workflow-modal-actions">
+              <button class="booking-button ghost" id="workflowModalCancelButton" type="button">Cancel</button>
+              <button class="booking-button" id="workflowModalSubmitButton" type="submit">Confirm</button>
+            </div>
+          </form>
         </article>
       </div>
 
@@ -1161,10 +1242,10 @@
       <section class="admin-view" data-admin-view="platform">
         <div class="admin-panel-grid">
           <article class="booking-panel" id="adminPlatformPrimaryPanel">
-            <h3 id="adminPlatformPrimaryTitle">Resources, Guest Invoices & Refunds</h3>
+            <h3 id="adminPlatformPrimaryTitle">Debtors Ledger</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Resource / Invoice</th><th>Type</th><th>Status</th><th>Amount / Capacity</th></tr></thead>
+                <thead id="adminPlatformOperationsHead"><tr><th>Debtor</th><th>Reference</th><th>Status</th><th>Exposure</th></tr></thead>
                 <tbody id="adminPlatformOperationsTable"></tbody>
               </table>
             </div>
@@ -1199,10 +1280,10 @@
           </article>
 
           <article class="booking-panel" id="adminPlatformSecondaryPanel">
-            <h3 id="adminPlatformSecondaryTitle">Operators, Office Invoices & Integrations</h3>
+            <h3 id="adminPlatformSecondaryTitle">Creditors Ledger</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Category</th><th>Name</th><th>Status</th><th>Value</th></tr></thead>
+                <thead id="adminPlatformConfigHead"><tr><th>Creditor</th><th>Payable</th><th>Status</th><th>Amount</th></tr></thead>
                 <tbody id="adminPlatformConfigTable"></tbody>
               </table>
             </div>
@@ -1274,17 +1355,17 @@
               <label class="booking-field">
                 <span>Invoice Type</span>
                 <select id="adminOfficeInvoiceType">
+                  <option value="supplier_payable">Operating Partner Payable</option>
+                  <option value="agent_commission">Selling Partner Commission</option>
                   <option value="operator_commission">Operator Commission</option>
-                  <option value="agent_commission">Agent Commission</option>
-                  <option value="supplier_payable">Supplier Payable</option>
                   <option value="internal_settlement">Internal Settlement</option>
                 </select>
               </label>
               <label class="booking-field">
                 <span>Payee Type</span>
                 <select id="adminOfficePayeeType">
-                  <option value="operator">Operator</option>
-                  <option value="agent">Agent</option>
+                  <option value="operator">Operating Partner</option>
+                  <option value="agent">Selling Partner</option>
                   <option value="office">Office</option>
                 </select>
               </label>
@@ -1309,7 +1390,7 @@
                 <input id="adminOfficeInvoiceNotes" type="text" placeholder="Settlement for completed booking">
               </label>
               <div class="booking-field-full">
-                <button class="booking-button ghost" type="submit">Generate Office Invoice</button>
+                <button class="booking-button ghost" type="submit">Create Creditor Entry</button>
               </div>
             </form>
             <form id="automationRulesForm" class="booking-form-grid admin-spacer">
@@ -1400,6 +1481,8 @@
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
+  <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
+  <script src="assets/js/admin-modules/reports.js?v=20260424"></script>
   <script src="assets/js/booking-admin.js?v=20260422-management"></script>
 </body>
 </html>

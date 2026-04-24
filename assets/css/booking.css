@@ -544,6 +544,17 @@ body.skybook-auth-page{
 .admin-booking-modal .booking-form-grid{
   padding-bottom:4px;
 }
+.admin-workflow-modal{
+  width:min(720px,100%);
+}
+.admin-workflow-modal .booking-form-grid{
+  padding-bottom:4px;
+}
+.workflow-modal-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:12px;
+}
 .admin-customer-modal{
   width:min(1080px,100%);
 }
@@ -1170,11 +1181,15 @@ tbody tr:hover td{background:#f8fbfe}
   display:grid;
   gap:16px;
 }
+.booking-detail-rail{
+  align-content:start;
+}
 .booking-management-hero{
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   gap:18px;
   align-items:center;
+  overflow:hidden;
   padding:22px;
   border-radius:26px;
   border:1px solid rgba(35,70,102,.12);
@@ -2540,6 +2555,7 @@ tbody tr:hover td{
 
 .booking-detail-shell{
   grid-template-columns:minmax(0,1.55fr) minmax(320px,.78fr);
+  align-items:start;
 }
 
 .detail-section,
@@ -2555,6 +2571,30 @@ tbody tr:hover td{
 .sticky-actions{
   top:84px;
   box-shadow:var(--sky-shadow-soft);
+}
+
+.booking-detail-main,
+.booking-detail-rail,
+.booking-management-hero > *,
+.management-scroll-header-inner > *{
+  min-width:0;
+}
+
+.booking-detail-rail .detail-subgrid{
+  grid-template-columns:1fr;
+}
+
+.reservation-management-shell{
+  grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);
+}
+
+.reservation-management-shell .booking-management-hero{
+  align-items:start;
+}
+
+.reservation-management-shell .booking-management-nav{
+  align-self:start;
+  max-width:100%;
 }
 
 .command-palette-panel{
@@ -3285,5 +3325,220 @@ body.is-compact-tables .status-badge{
   .metric-card,
   .template-card{
     border-radius:22px;
+  }
+}
+
+body.skybook-auth-page{
+  position:relative;
+  overflow-x:hidden;
+  padding:28px 16px;
+  background:
+    radial-gradient(circle at 18% 18%,rgba(97,176,233,.28),transparent 26%),
+    radial-gradient(circle at 84% 16%,rgba(255,255,255,.94),transparent 32%),
+    radial-gradient(circle at 78% 82%,rgba(34,113,180,.14),transparent 24%),
+    linear-gradient(160deg,#eef7ff 0%,#f8fbff 42%,#e7f1fa 100%);
+}
+
+body.skybook-auth-page::before,
+body.skybook-auth-page::after{
+  content:"";
+  position:fixed;
+  inset:auto;
+  pointer-events:none;
+  border-radius:999px;
+  z-index:0;
+}
+
+body.skybook-auth-page::before{
+  top:-120px;
+  right:-90px;
+  width:360px;
+  height:360px;
+  background:radial-gradient(circle,rgba(44,138,211,.18),rgba(44,138,211,0));
+}
+
+body.skybook-auth-page::after{
+  left:-140px;
+  bottom:-180px;
+  width:420px;
+  height:420px;
+  background:radial-gradient(circle,rgba(18,78,129,.12),rgba(18,78,129,0));
+}
+
+.skybook-login-shell{
+  position:relative;
+  z-index:1;
+  width:min(560px,100%);
+  display:block;
+}
+
+.skybook-login-card.skybook-login-card-solo{
+  position:relative;
+  overflow:hidden;
+  padding:26px;
+  border:1px solid rgba(133,171,205,.28);
+  border-radius:34px;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.96),rgba(248,252,255,.92)),
+    radial-gradient(circle at 82% 0%,rgba(68,156,223,.12),transparent 32%);
+  box-shadow:
+    0 32px 90px rgba(16,44,71,.12),
+    inset 0 1px 0 rgba(255,255,255,.7);
+}
+
+.skybook-login-atmosphere{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+
+.skybook-login-orb{
+  position:absolute;
+  border-radius:999px;
+  filter:blur(2px);
+}
+
+.skybook-login-orb-one{
+  top:-72px;
+  right:-44px;
+  width:220px;
+  height:220px;
+  background:radial-gradient(circle,rgba(52,145,216,.2),rgba(52,145,216,0));
+}
+
+.skybook-login-orb-two{
+  left:-78px;
+  bottom:54px;
+  width:180px;
+  height:180px;
+  background:radial-gradient(circle,rgba(21,84,140,.12),rgba(21,84,140,0));
+}
+
+.skybook-login-orb-three{
+  right:44px;
+  bottom:-90px;
+  width:260px;
+  height:260px;
+  border:34px solid rgba(34,113,180,.08);
+  background:transparent;
+}
+
+.skybook-login-content{
+  position:relative;
+  z-index:1;
+  display:grid;
+  gap:18px;
+}
+
+.skybook-login-hero{
+  display:grid;
+  gap:18px;
+  padding:22px;
+  border-radius:28px;
+  border:1px solid rgba(133,171,205,.24);
+  background:
+    linear-gradient(140deg,rgba(255,255,255,.82),rgba(238,247,255,.9)),
+    radial-gradient(circle at top right,rgba(52,145,216,.14),transparent 34%);
+}
+
+.skybook-auth-brand{
+  margin-bottom:0;
+  align-items:center;
+}
+
+.skybook-login-copy h1{
+  margin:0;
+  color:var(--sky-text,#102333);
+  font-family:'Manrope','DM Sans',sans-serif;
+  font-size:clamp(36px,7vw,58px);
+  line-height:.95;
+  letter-spacing:-.07em;
+  max-width:10ch;
+}
+
+.skybook-login-copy p{
+  margin:14px 0 0;
+  max-width:42ch;
+  color:rgba(47,70,91,.82);
+  font-size:15px;
+  line-height:1.8;
+}
+
+.skybook-login-form{
+  margin-top:0;
+  padding:22px;
+  border-radius:28px;
+  border:1px solid rgba(133,171,205,.22);
+  background:rgba(255,255,255,.9);
+  box-shadow:0 18px 48px rgba(20,52,83,.08);
+}
+
+.skybook-login-form input{
+  min-height:60px;
+  border-radius:20px;
+  border:1px solid rgba(126,165,199,.22);
+  background:rgba(250,252,255,.96);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+
+.skybook-login-form input:focus{
+  outline:none;
+  border-color:rgba(34,113,180,.44);
+  box-shadow:0 0 0 4px rgba(34,113,180,.12);
+  transform:translateY(-1px);
+}
+
+.skybook-login-form .booking-button{
+  width:100%;
+  min-height:60px;
+  background:linear-gradient(135deg,#14395b,#246eaf);
+  box-shadow:0 18px 36px rgba(26,84,135,.22);
+}
+
+.skybook-login-form .booking-button.ghost{
+  box-shadow:none;
+}
+
+.auth-utility-row{
+  margin-top:0;
+  justify-content:flex-start;
+}
+
+.auth-utility-row .booking-button{
+  min-height:44px;
+  padding:0 16px;
+}
+
+.status-banner{
+  margin-top:0;
+  border-radius:22px;
+  border:1px solid rgba(133,171,205,.22);
+  background:rgba(245,249,253,.84);
+}
+
+.auth-environment-meta{
+  margin:2px 0 0;
+  padding-left:2px;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+
+@media (max-width:760px){
+  .skybook-login-card.skybook-login-card-solo{
+    padding:18px;
+    border-radius:28px;
+  }
+
+  .skybook-login-hero,
+  .skybook-login-form{
+    padding:18px;
+    border-radius:24px;
+  }
+
+  .skybook-login-copy h1{
+    max-width:12ch;
+    font-size:clamp(32px,12vw,44px);
   }
 }

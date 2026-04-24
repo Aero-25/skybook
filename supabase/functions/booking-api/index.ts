@@ -131,10 +131,12 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
   draft:['pending','payment_request_sent','awaiting_payment','cancelled','failed'],
-  pending:['payment_request_sent','awaiting_payment','confirmed','cancelled','failed'],
-  payment_request_sent:['awaiting_payment','confirmed','cancelled','failed'],
-  awaiting_payment:['payment_request_sent','confirmed','cancelled','failed'],
-  confirmed:['completed','cancelled','refunded'],
+  pending:['payment_request_sent','awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
+  payment_request_sent:['awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
+  awaiting_payment:['payment_request_sent','confirmed','rescheduled','cancelled','failed','no_show'],
+  rescheduled:['payment_request_sent','awaiting_payment','confirmed','cancelled','failed','no_show','completed'],
+  confirmed:['rescheduled','completed','cancelled','refunded','no_show'],
+  no_show:['confirmed','cancelled','refunded'],
   completed:['refunded'],
   cancelled:[],
   refunded:[],
@@ -2063,6 +2065,33 @@ const maybeLinkBookingOperator=async(bookingId:string,operatorRow:Json | null,co
   if(error && !['42P01','PGRST205'].includes(String(error.code || '')))throw error
 }
 
+const upsertBookingAgentAssignment=async(payload:Json,userId:string)=>{
+  const bookingId=normalizeText(payload.booking_id)
+  if(!bookingId)throw new Error('Booking is required for selling partner assignment.')
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('id,status,total_amount,metadata').eq('id',bookingId).maybeSingle())
+  if(!booking)throw new Error('Booking not found.')
+  const agentId=normalizeText(payload.agent_id)
+  if(!agentId){
+    const deleteResult=await adminClient.from('booking_agents').delete().eq('booking_id',bookingId)
+    if(deleteResult.error && !['42P01','PGRST205'].includes(String(deleteResult.error.code || '')))throw deleteResult.error
+    await insertStatusHistory(bookingId,String(booking.status || ''),String(booking.status || ''),'Selling partner cleared',`admin:${userId}`,userId)
+    await maybeCreateAutomatedOfficeSettlement(bookingId,userId)
+    await syncReconciliationRecordForBooking(bookingId,userId)
+    return { success:true, cleared:true }
+  }
+  const agent=await safeMaybeSingle<Json>(adminClient.from('agents').select('*').eq('id',agentId).maybeSingle())
+  if(!agent)throw new Error('Selling partner not found.')
+  const explicitCommission=Number(payload.commission_amount || 0)
+  const commissionAmount=explicitCommission>0
+    ? explicitCommission
+    : normalizeDiscountAmount(Number(booking.total_amount || 0),String(agent.commission_type || 'percentage'),Number(agent.commission_value || 0))
+  await maybeLinkBookingAgent(bookingId,agent,commissionAmount)
+  await insertStatusHistory(bookingId,String(booking.status || ''),String(booking.status || ''),`Selling partner assigned to ${normalizeText(agent.company_name) || 'partner'}`,`admin:${userId}`,userId)
+  await maybeCreateAutomatedOfficeSettlement(bookingId,userId)
+  await syncReconciliationRecordForBooking(bookingId,userId)
+  return { success:true, agent_id:agentId, commission_amount:commissionAmount }
+}
+
 const upsertBookingOperatorAssignment=async(payload:Json,userId:string)=>{
   const bookingId=normalizeText(payload.booking_id)
   if(!bookingId)throw new Error('Booking is required for operator assignment.')
@@ -2476,7 +2505,9 @@ const createOfficeInvoice=async(payload:Json,userId:string)=>{
   if(!commissionAmount && agent){
     commissionAmount=normalizeDiscountAmount(commissionBase,String(agent.commission_type || 'percentage'),Number(agent.commission_value || 0))
   }
-  const subtotalAmount=Number(payload.subtotal_amount || commissionBase || 0)
+  const subtotalAmount=Object.prototype.hasOwnProperty.call(payload,'subtotal_amount')
+    ? Number(payload.subtotal_amount || 0)
+    : (['agent','operator'].includes(payeeType) ? 0 : commissionBase || 0)
   const taxAmount=Number(payload.tax_amount || 0)
   const totalAmount=Number((subtotalAmount + commissionAmount + taxAmount).toFixed(2))
   const invoiceNumber=normalizeText(payload.invoice_number) || `OFF-${Date.now()}`
@@ -2499,7 +2530,13 @@ const createOfficeInvoice=async(payload:Json,userId:string)=>{
     metadata:{ actor_user_id:safeUuid(userId), source:'booking-api' }
   }).select().single()
   if(error)throw error
-  const itemDescription=normalizeText(payload.line_description) || `${payeeType==='agent' ? 'Agent' : 'Operator'} commission settlement`
+  const itemDescription=normalizeText(payload.line_description) || (
+    payeeType==='agent'
+      ? 'Agent commission payable'
+      : payeeType==='operator'
+        ? 'Operator / supplier payable'
+        : 'Internal settlement'
+  )
   const itemInsert=await adminClient.from('office_invoice_items').insert({
     office_invoice_id:invoice.id,
     description:itemDescription,
@@ -2519,36 +2556,68 @@ const maybeCreateAutomatedOfficeSettlement=async(bookingId:string,userId:string 
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,status,total_amount,currency_code')
+      .select('id,reference,status,total_amount,currency_code,metadata')
       .eq('id',bookingId)
       .maybeSingle()
   )
   if(!booking)return null
   if(!['confirmed','completed'].includes(normalizeText(booking.status)))return null
-  const assignment=await safeMaybeSingle<Json>(adminClient.from('booking_operators').select('*').eq('booking_id',bookingId).maybeSingle())
-  if(!assignment?.operator_id)return null
-  const existing=await safeMaybeSingle<Json>(
-    adminClient
-      .from('office_invoices')
-      .select('id')
-      .eq('booking_id',bookingId)
-      .eq('operator_id',assignment.operator_id)
-      .eq('invoice_type','operator_commission')
-      .neq('status','cancelled')
-      .maybeSingle()
-  )
-  if(existing?.id)return existing
-  const result=await createOfficeInvoice({
-    booking_id:bookingId,
-    operator_id:assignment.operator_id,
-    invoice_type:'operator_commission',
-    payee_type:'operator',
-    commission_base_amount:Number(booking.total_amount || 0),
-    commission_amount:Number(assignment.commission_amount || 0),
-    currency_code:String(booking.currency_code || 'NAD'),
-    notes:'Auto-generated from booking confirmation/completion.'
-  },String(userId || ''))
-  return result.office_invoice || null
+  const commercials=normalizeJsonRecord((booking.metadata as Json)?.commercials)
+  const sellingModel=normalizeText(commercials.selling_model)
+  const operatorAssignment=await safeMaybeSingle<Json>(adminClient.from('booking_operators').select('*').eq('booking_id',bookingId).maybeSingle())
+  const agentAssignment=await safeMaybeSingle<Json>(adminClient.from('booking_agents').select('*').eq('booking_id',bookingId).maybeSingle())
+  let latestInvoice:Json | null=null
+  if(operatorAssignment?.operator_id && Number(operatorAssignment.commission_amount || 0)>0){
+    const existingOperatorInvoice=await safeMaybeSingle<Json>(
+      adminClient
+        .from('office_invoices')
+        .select('id')
+        .eq('booking_id',bookingId)
+        .in('invoice_type',['supplier_payable','operator_commission'])
+        .neq('status','cancelled')
+        .maybeSingle()
+    )
+    if(!existingOperatorInvoice?.id){
+      const result=await createOfficeInvoice({
+        booking_id:bookingId,
+        operator_id:operatorAssignment.operator_id,
+        invoice_type:'supplier_payable',
+        payee_type:'operator',
+        subtotal_amount:0,
+        commission_base_amount:Number(booking.total_amount || 0),
+        commission_amount:Number(operatorAssignment.commission_amount || 0),
+        currency_code:String(booking.currency_code || 'NAD'),
+        notes:'Auto-generated operating partner payable from booking confirmation/completion.'
+      },String(userId || ''))
+      latestInvoice=result.office_invoice || latestInvoice
+    }
+  }
+  if(agentAssignment?.agent_id && sellingModel==='gross_commission' && Number(agentAssignment.commission_amount || 0)>0){
+    const existingAgentInvoice=await safeMaybeSingle<Json>(
+      adminClient
+        .from('office_invoices')
+        .select('id')
+        .eq('booking_id',bookingId)
+        .eq('invoice_type','agent_commission')
+        .neq('status','cancelled')
+        .maybeSingle()
+    )
+    if(!existingAgentInvoice?.id){
+      const result=await createOfficeInvoice({
+        booking_id:bookingId,
+        agent_id:agentAssignment.agent_id,
+        invoice_type:'agent_commission',
+        payee_type:'agent',
+        subtotal_amount:0,
+        commission_base_amount:Number(booking.total_amount || 0),
+        commission_amount:Number(agentAssignment.commission_amount || 0),
+        currency_code:String(booking.currency_code || 'NAD'),
+        notes:'Auto-generated selling partner commission from booking confirmation/completion.'
+      },String(userId || ''))
+      latestInvoice=result.office_invoice || latestInvoice
+    }
+  }
+  return latestInvoice
 }
 
 const buildReports=({
@@ -3274,6 +3343,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     vouchers,
     agents,
     operators,
+    bookingAgents,
     bookingOperators,
     resources,
     resourceAllocations,
@@ -3307,6 +3377,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     safeTableSelect<Json>(adminClient.from('vouchers').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('agents').select('*').order('company_name',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('operators').select('*').order('company_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('booking_agents').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('booking_operators').select('*').order('created_at',{ascending:false})),
     safeTableSelect<Json>(adminClient.from('resources').select('*').order('name',{ascending:true})),
     safeTableSelect<Json>(adminClient.from('resource_allocations').select('*').order('allocation_date',{ascending:false})),
@@ -3382,6 +3453,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     vouchers:canSeeEngine ? vouchers : [],
     agents:(canSeeEngine || canSeeFinance) ? agents : [],
     operators:canSeeAssignments ? operators : [],
+    booking_agents:canSeeAssignments ? bookingAgents : [],
     booking_operators:canSeeAssignments ? bookingOperators : [],
     resources:canSeeEngine ? resources : [],
     resource_allocations:canSeeEngine ? resourceAllocations : [],
@@ -3796,6 +3868,11 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='booking-operators'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(200,await upsertBookingOperatorAssignment(requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='booking-agents'){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await upsertBookingAgentAssignment(requestBody,user.id))
       }
 
       if(request.method==='POST'&&id==='notes'){
