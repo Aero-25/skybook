@@ -49,6 +49,7 @@
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="reservations" type="button"><span class="admin-tab-icon">RV</span><span>Reservation Review</span></button>
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
+            <button class="admin-tab" data-admin-tab="booking-trash" type="button"><span class="admin-tab-icon">TR</span><span>Booking Trash</span></button>
             <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
             <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
           </div>
@@ -111,36 +112,33 @@
             <p class="toolbar-status" id="bookingAdminStatus">Ready.</p>
           </div>
           <div class="toolbar-actions">
+            <select id="globalBrandSwitch" class="toolbar-brand-switch" aria-label="Global brand filter">
+              <option value="">All brands</option>
+              <option value="true-travel">True Travel</option>
+              <option value="iventure">Iventure</option>
+            </select>
             <button type="button" id="quickCreateBooking">New Booking</button>
             <button type="button" id="exportBookingsCsv">Export CSV</button>
           </div>
         </div>
       </section>
 
+      <section class="booking-panel reservation-pipeline-panel" id="reservationPipeline"></section>
+
       <section class="admin-view is-active" data-admin-view="dashboard">
         <section class="executive-radar" aria-label="SkyBook executive operations radar">
           <div class="radar-card-grid" id="executiveRadarCards"></div>
         </section>
 
-        <div class="admin-command-grid">
-          <article class="booking-panel admin-command-lead">
-            <div class="widget-header">
-              <div>
-                <h3>Command Center</h3>
-              </div>
-              <div class="booking-chip">Live Operations</div>
+        <article class="booking-panel admin-command-lead">
+          <div class="widget-header">
+            <div>
+              <h3>Command Center</h3>
             </div>
-            <div class="admin-panel-grid admin-panel-grid-single" id="dashboardCards"></div>
-          </article>
-            <article class="booking-panel" id="engineAvailabilityPanel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Action Queue</h3>
-              </div>
-            </div>
-            <div id="dashboardActionQueue" class="admin-mini-stack"></div>
-          </article>
-        </div>
+            <div class="booking-chip">Live Operations</div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="dashboardCards"></div>
+        </article>
         <div class="admin-panel-grid admin-spacer">
             <article class="booking-panel" id="engineCommercialPanel">
             <h3>Today's arrivals</h3>
@@ -224,26 +222,21 @@
       </section>
 
       <section class="admin-view" data-admin-view="notifications">
-        <div class="admin-panel-grid">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Notification center</h3>
-              </div>
-              <div class="booking-chip">Live alerts</div>
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Alert queue</h3>
             </div>
-            <div class="admin-panel-grid admin-panel-grid-single" id="notificationCards"></div>
-          </article>
-          <article class="booking-panel">
-            <h3>Alert queue</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Category</th><th>Reference</th><th>Priority</th><th>Message</th><th>When</th></tr></thead>
-                <tbody id="notificationsTable"></tbody>
-              </table>
-            </div>
-          </article>
-        </div>
+            <div class="booking-chip">Live alerts</div>
+          </div>
+          <div class="crm-overview-cards notification-summary-cards" id="notificationCards"></div>
+          <div class="table-wrap admin-spacer">
+            <table>
+              <thead><tr><th>Category</th><th>Reference</th><th>Priority</th><th>Message</th><th>When</th></tr></thead>
+              <tbody id="notificationsTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="calendar">
@@ -256,6 +249,7 @@
               <button type="button" class="calendar-view-button is-active" data-calendar-view="day">Day</button>
               <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
               <button type="button" class="calendar-view-button" data-calendar-view="month">Month</button>
+              <button type="button" class="calendar-view-button" id="printArrivalsList">Print Arrivals</button>
               <input id="calendarFocusDate" type="date">
             </div>
           </div>
@@ -267,7 +261,16 @@
       <section class="admin-view" data-admin-view="reports">
         <div class="admin-panel-grid">
           <article class="booking-panel">
-            <h3>Reports Overview</h3>
+            <div class="panel-header-inline">
+              <div>
+                <h3>Reports Overview</h3>
+              </div>
+              <div class="toolbar-actions">
+                <button type="button" class="booking-button ghost" data-print-report="bookings">Print Booking Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="financial">Print Financial Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="commissions">Print Commission Report</button>
+              </div>
+            </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
           </article>
           <article class="booking-panel">
@@ -396,26 +399,43 @@
       </section>
 
       <section class="admin-view" data-admin-view="reservations">
-        <div class="admin-panel-grid">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Reservations waiting for review</h3>
-              </div>
-              <span class="booking-chip">Website Intake</span>
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Reservations waiting for review</h3>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Reference</th><th>Brand / Source</th><th>Guest</th><th>Tour</th><th>Date</th><th>Total</th><th>Review</th></tr></thead>
-                <tbody id="adminReservationsTable"></tbody>
-              </table>
-            </div>
-          </article>
+            <span class="booking-chip">Website Intake</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reference</th><th>Brand / Source</th><th>Guest</th><th>Tour</th><th>Date</th><th>Total</th><th>Review</th></tr></thead>
+              <tbody id="adminReservationsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
 
-          <article class="booking-panel booking-detail-panel">
-            <div id="adminReservationDetail"></div>
-          </article>
-        </div>
+      <section class="admin-view" data-admin-view="reservation-management">
+        <article class="booking-panel reservation-management-panel">
+          <div id="adminReservationDetail"></div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="booking-trash">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Booking trash</h3>
+            </div>
+            <span class="booking-chip">Permanent archive</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>Reason</th><th>Action</th></tr></thead>
+              <tbody id="adminBookingTrashTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="bookings">
@@ -466,6 +486,7 @@
                     <select id="bookingFilterStatus">
                       <option value="">All statuses</option>
                       <option value="pending">Pending</option>
+                      <option value="payment_request_sent">Payment request sent</option>
                       <option value="awaiting_payment">Awaiting payment</option>
                       <option value="confirmed">Confirmed</option>
                       <option value="completed">Completed</option>
@@ -572,6 +593,7 @@
               <span>Status</span>
               <select id="adminBookingStatusField">
                 <option value="pending">Pending</option>
+                <option value="payment_request_sent">Payment Request Sent</option>
                 <option value="awaiting_payment">Awaiting Payment</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="completed">Completed</option>
@@ -620,33 +642,32 @@
       </div>
 
       <section class="admin-view" data-admin-view="services">
-          <div class="admin-panel-grid">
-            <article class="booking-panel">
-              <div class="panel-header-inline">
-                <div>
-                  <h3>Service catalog</h3>
-                </div>
-                <button class="booking-button" id="openServiceModalButton" type="button">Create Service</button>
-              </div>
-              <div class="crm-overview-cards" id="serviceOverviewCards"></div>
-              <div class="booking-form-grid admin-spacer">
-                <label class="booking-field">
-                  <span>Visibility Filter</span>
-                  <select id="serviceFilterBrand">
-                    <option value="">All tours</option>
-                    <option value="true-travel">True Travel only</option>
-                    <option value="iventure">Iventure only</option>
-                    <option value="shared">Shared across both</option>
-                  </select>
-                </label>
-              </div>
-              <div class="table-wrap">
-                <table>
-                  <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
-                  <tbody id="adminServicesTable"></tbody>
-                </table>
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Service catalog</h3>
             </div>
-          </article>
+            <button class="booking-button" id="openServiceModalButton" type="button">Create Service</button>
+          </div>
+          <div class="crm-overview-cards" id="serviceOverviewCards"></div>
+          <div class="booking-form-grid admin-spacer">
+            <label class="booking-field">
+              <span>Visibility Filter</span>
+              <select id="serviceFilterBrand">
+                <option value="">All tours</option>
+                <option value="true-travel">True Travel only</option>
+                <option value="iventure">Iventure only</option>
+                <option value="shared">Shared across both</option>
+              </select>
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
+              <tbody id="adminServicesTable"></tbody>
+            </table>
+          </div>
+        </article>
         <div class="admin-modal-shell" id="serviceModal" hidden aria-hidden="true">
           <div class="admin-modal-backdrop" aria-hidden="true"></div>
           <article class="booking-panel admin-modal-panel admin-service-modal" role="dialog" aria-modal="true" aria-labelledby="serviceModalTitle">
@@ -741,53 +762,36 @@
             </form>
           </article>
         </div>
-        </div>
       </section>
 
       <section class="admin-view" data-admin-view="customers">
-        <div class="customer-workspace">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Customers & CRM</h3>
-              </div>
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Customers</h3>
             </div>
-            <div class="booking-form-grid customer-filters">
-              <div class="booking-field-full">
-                <label for="customerFilterSearch">Search customer or booking reference</label>
-                <input id="customerFilterSearch" type="text" placeholder="Name, email, phone, reference">
-              </div>
-              <div class="booking-field">
-                <label for="customerFilterBrand">Brand</label>
-                <select id="customerFilterBrand">
-                  <option value="">All brands</option>
-                </select>
-              </div>
-              <div class="booking-field">
-                <label for="customerFilterSource">Source</label>
-                <select id="customerFilterSource">
-                  <option value="">All sources</option>
-                </select>
-              </div>
-            </div>
-            <div class="crm-overview-cards" id="crmOverviewCards"></div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Guest</th><th>Contact</th><th>Brands</th><th>Sources</th><th>Activity</th><th>Latest Reference</th></tr></thead>
-                <tbody id="adminCustomersTable"></tbody>
-              </table>
-            </div>
-          </article>
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Customer Detail</h3>
-              </div>
-            </div>
-            <div id="adminCustomerDetail" class="crm-customer-detail"></div>
-          </article>
-        </div>
+            <span class="booking-chip">Guest directory</span>
+          </div>
+          <div class="table-wrap admin-spacer">
+            <table>
+              <thead><tr><th>Guest</th><th>Contact</th><th>Brands</th><th>Sources</th><th>Activity</th><th>Latest Reference</th></tr></thead>
+              <tbody id="adminCustomersTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
+      <div class="admin-modal-shell" id="customerModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel admin-customer-modal" role="dialog" aria-modal="true" aria-labelledby="customerModalTitle">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3 id="customerModalTitle">Customer details</h3>
+            </div>
+            <button class="admin-modal-close" id="closeCustomerModalButton" type="button" aria-label="Close customer details">X</button>
+          </div>
+          <div id="adminCustomerDetail" class="crm-customer-detail"></div>
+        </article>
+      </div>
 
       <section class="admin-view" data-admin-view="payments">
         <article class="booking-panel">

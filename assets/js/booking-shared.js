@@ -63,6 +63,10 @@ window.TrueTravelBooking=(()=>{
       subject:'We received your booking request {{booking_reference}}',
       body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
     },
+    payment_request:{
+      subject:'Payment request for {{booking_reference}}',
+      body:'Hi {{customer_name}},\n\nYour reservation for {{service_name}} has been reviewed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal due: {{total_amount}}\n\nPlease use your booking reference when making payment. Reply to this message if you need help.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
+    },
     booking_confirmed:{
       subject:'Your booking {{booking_reference}} is confirmed',
       body:'Hi {{customer_name}},\n\nYour booking for {{service_name}} is confirmed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe look forward to welcoming you.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
@@ -83,7 +87,7 @@ window.TrueTravelBooking=(()=>{
 
   const ADDON_TYPES=['per_booking','per_person']
   const DATE_REQUIREMENT_TYPES=['optional','required','hidden']
-  const BOOKING_STATUSES=['draft','pending','awaiting_payment','confirmed','cancelled','completed','refunded','failed']
+  const BOOKING_STATUSES=['draft','pending','payment_request_sent','awaiting_payment','confirmed','cancelled','completed','refunded','failed']
   const PAYMENT_STATUSES=['unpaid','pending','authorized','paid','partially_paid','failed','refunded','cancelled']
   const PAYMENT_PROVIDERS=['manual_eft','stripe','apple_pay','google_pay','dpo','custom']
   const SKYBOOK_PERMISSION_CATALOG=[
@@ -772,6 +776,19 @@ window.TrueTravelBooking=(()=>{
     if(method==='PATCH'&&parts[0]==='admin'&&parts[1]==='users'&&parts[2]){
       return localApiRequest('admin/users',{method:'POST',body:{...body,id:parts[2]}})
     }
+    if(method==='POST'&&normalizedPath==='admin/notes'){
+      const booking=db.bookings.find(item=>item.id===safeText(body?.booking_id))
+      db.notes.unshift({
+        id:uid('note'),
+        booking_id:booking?.id||safeText(body?.booking_id)||null,
+        customer_id:booking?.customer_id||null,
+        note:safeText(body?.note),
+        is_private:body?.is_private!==false,
+        created_at:nowIso()
+      })
+      writeDemoDb(db)
+      return {success:true,note:db.notes[0]}
+    }
     if(method==='POST'&&normalizedPath==='admin/bookings'){
       return localApiRequest('bookings',{method:'POST',body:{...body,accept_terms:true}})
     }
@@ -823,6 +840,69 @@ window.TrueTravelBooking=(()=>{
           created_at:nowIso()
         })
       }
+      writeDemoDb(db)
+      return {success:true,booking}
+    }
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='payment-request'){
+      const booking=db.bookings.find(item=>item.id===parts[2])
+      if(!booking)throw new Error('Booking not found.')
+      const previousStatus=booking.status
+      booking.status=['draft','pending','awaiting_payment'].includes(booking.status) ? 'payment_request_sent' : booking.status
+      if(!['paid','partially_paid'].includes(booking.payment_status))booking.payment_status='pending'
+      booking.metadata={...(booking.metadata||{}),payment_request:{sent_at:nowIso(),sent_by:'demo'}}
+      booking.updated_at=nowIso()
+      db.email_logs.unshift({
+        id:uid('email'),
+        booking_id:booking.id,
+        customer_id:booking.customer_id,
+        template_key:'payment_request',
+        recipient_email:booking.customer_email,
+        subject:safeText(body?.subject)||`Payment request for ${booking.reference}`,
+        rendered_body:safeText(body?.body)||`Payment request for ${booking.reference}.`,
+        status:'queued',
+        created_at:nowIso()
+      })
+      db.status_history.unshift({
+        id:uid('hist'),
+        booking_id:booking.id,
+        from_status:previousStatus,
+        to_status:booking.status,
+        reason:'Payment request sent to guest.',
+        actor_label:'admin',
+        created_at:nowIso()
+      })
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:'Payment request sent to guest.',is_private:true,created_at:nowIso()})
+      writeDemoDb(db)
+      return {success:true,booking}
+    }
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='trash'){
+      const booking=db.bookings.find(item=>item.id===parts[2])
+      if(!booking)throw new Error('Booking not found.')
+      const previousStatus=booking.status
+      const reason=safeText(body?.reason)||'Booking moved to trash.'
+      booking.status='cancelled'
+      booking.payment_status='cancelled'
+      booking.cancellation_reason=reason
+      booking.metadata={...(booking.metadata||{}),trash:{archived_at:nowIso(),reason,archived_by:'demo'}}
+      booking.updated_at=nowIso()
+      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:'cancelled',reason:`Booking moved to trash: ${reason}`,actor_label:'admin',created_at:nowIso()})
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:`Booking moved to trash: ${reason}`,is_private:true,created_at:nowIso()})
+      writeDemoDb(db)
+      return {success:true,booking}
+    }
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='restore'){
+      const booking=db.bookings.find(item=>item.id===parts[2])
+      if(!booking)throw new Error('Booking not found.')
+      const previousStatus=booking.status
+      booking.metadata={...(booking.metadata||{})}
+      delete booking.metadata.trash
+      delete booking.metadata.deleted_at
+      booking.status=booking.payment_status==='paid' ? 'confirmed' : 'awaiting_payment'
+      if(booking.payment_status==='cancelled')booking.payment_status='pending'
+      booking.cancellation_reason=''
+      booking.updated_at=nowIso()
+      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:booking.status,reason:'Booking restored from trash.',actor_label:'admin',created_at:nowIso()})
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:'Booking restored from trash.',is_private:true,created_at:nowIso()})
       writeDemoDb(db)
       return {success:true,booking}
     }

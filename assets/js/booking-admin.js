@@ -12,6 +12,7 @@ const state={
   user:null,
   profile:null,
   activeTab:'dashboard',
+  activeBrandFilter:'',
   lastSyncedAt:'',
   staffDirectory:[],
   adminUsers:[],
@@ -95,6 +96,7 @@ const state={
     showOutstandingCommissions:true,
     showRefundExposure:true
   },
+  panelSelections:{},
   reports:{
     overview:{},
     status_breakdown:[],
@@ -109,7 +111,8 @@ const state={
   selectedCustomerId:'',
   selectedServiceId:'',
   isServiceModalOpen:false,
-  isBookingModalOpen:false
+  isBookingModalOpen:false,
+  isCustomerModalOpen:false
 }
 
 const getAdminRouteState=()=>{
@@ -135,7 +138,7 @@ const syncAdminRouteState=({tab='',serviceId='',bookingId='',reservationId=''}={
     else currentUrl.searchParams.delete('service')
     if(tab==='bookings'&&bookingId)currentUrl.searchParams.set('booking',bookingId)
     else currentUrl.searchParams.delete('booking')
-    if(tab==='reservations'&&reservationId)currentUrl.searchParams.set('reservation',reservationId)
+    if((tab==='reservations'||tab==='reservation-management')&&reservationId)currentUrl.searchParams.set('reservation',reservationId)
     else currentUrl.searchParams.delete('reservation')
     history.replaceState(null,'',`${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`)
   }catch{}
@@ -154,6 +157,8 @@ const nodes={
   sessionLabel:document.getElementById('sessionLabel'),
   topSessionLabel:document.getElementById('topSessionLabel'),
   adminStatus:document.getElementById('bookingAdminStatus'),
+  globalBrandSwitch:document.getElementById('globalBrandSwitch'),
+  reservationPipeline:document.getElementById('reservationPipeline'),
   moduleBreadcrumb:document.getElementById('moduleBreadcrumb'),
   moduleEyebrow:document.getElementById('moduleEyebrow'),
   moduleTitle:document.getElementById('moduleTitle'),
@@ -177,6 +182,7 @@ const nodes={
   calendarFocusDate:document.getElementById('calendarFocusDate'),
   calendarSummaryCards:document.getElementById('calendarSummaryCards'),
   calendarCanvas:document.getElementById('calendarCanvas'),
+  printArrivalsList:document.getElementById('printArrivalsList'),
   reportsOverviewCards:document.getElementById('reportsOverviewCards'),
   reportsStatusTable:document.getElementById('reportsStatusTable'),
   reportsGuestInvoicesTable:document.getElementById('reportsGuestInvoicesTable'),
@@ -204,6 +210,7 @@ const nodes={
   toggleBookingFilters:document.getElementById('toggleBookingFilters'),
   bookingFiltersPanel:document.getElementById('bookingFiltersPanel'),
   bookingsTable:document.getElementById('adminBookingsTable'),
+  bookingTrashTable:document.getElementById('adminBookingTrashTable'),
   bookingDetail:document.getElementById('adminBookingDetail'),
   bookingForm:document.getElementById('adminBookingForm'),
   bookingModal:document.getElementById('bookingModal'),
@@ -256,6 +263,9 @@ const nodes={
   customerFilterSource:document.getElementById('customerFilterSource'),
   crmOverviewCards:document.getElementById('crmOverviewCards'),
   customerDetail:document.getElementById('adminCustomerDetail'),
+  customerModal:document.getElementById('customerModal'),
+  customerModalTitle:document.getElementById('customerModalTitle'),
+  closeCustomerModalButton:document.getElementById('closeCustomerModalButton'),
   paymentsTable:document.getElementById('adminPaymentsTable'),
   refundsTable:document.getElementById('adminRefundsTable'),
   adminUsersTable:document.getElementById('adminUsersTable'),
@@ -415,11 +425,23 @@ const MODULE_META={
     title:'Reservations',
     subtitle:'Website submissions from True Travel and Iventure wait here for review before they become payable bookings.'
   },
+  'reservation-management':{
+    group:'Reservations',
+    eyebrow:'Reservation Management',
+    title:'Reservation Management',
+    subtitle:'Open one reservation at a time to review details, add missing information, and decide whether to accept or decline it.'
+  },
   bookings:{
     group:'Reservations',
     eyebrow:'Booking Workspace',
     title:'Bookings',
     subtitle:'Accepted reservations and admin-created bookings that now need payment, documents, operators, notes, and guest communication.'
+  },
+  'booking-trash':{
+    group:'Reservations',
+    eyebrow:'Permanent Archive',
+    title:'Booking Trash',
+    subtitle:'Soft-deleted booking records stay here permanently for audit, recovery, and financial traceability.'
   },
   customers:{
     group:'Reservations',
@@ -696,10 +718,7 @@ const applyRequestedRoute=()=>{
   if(requestedReservationId){
     const requestedReservation=state.bookings.find(item=>item.id===requestedReservationId)
     if(requestedReservation){
-      state.selectedBookingId=requestedReservation.id
-      switchTab('reservations')
-      renderReservations()
-      renderReservationDetail()
+      openReservationManagementScreen(requestedReservation,{scroll:false})
     }
   }
   const requestedBookingId=routeState.bookingId||''
@@ -749,9 +768,14 @@ const renderBrandPill=brandCode=>{
   const brandClass=normalizeBrandClass(brandCode)
   return `<span class="brand-pill is-${bookingAdminShared.escapeHtml(brandClass)}">${bookingAdminShared.escapeHtml(getBrandName(brandCode))}</span>`
 }
+const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
+const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
 const isReviewReservation=booking=>['draft','pending'].includes(normalizeText(booking?.status))
-const getReviewReservations=()=>state.bookings.filter(isReviewReservation)
-const getOperationalBookings=()=>state.bookings.filter(booking=>!isReviewReservation(booking))
+const getVisibleBookings=()=>state.bookings.filter(booking=>matchesGlobalBrand(booking))
+const getReviewReservations=()=>getVisibleBookings().filter(booking=>isReviewReservation(booking)&&!isTrashedBooking(booking))
+const getOperationalBookings=()=>getVisibleBookings().filter(booking=>!isReviewReservation(booking)&&!isTrashedBooking(booking))
+const getTrashedBookings=()=>getVisibleBookings().filter(isTrashedBooking)
+const getBookingById=bookingId=>state.bookings.find(item=>String(item.id)===String(bookingId))
 const getResourceName=resourceId=>state.resources.find(item=>item.id===resourceId)?.name||resourceId
 const isResourceAbundant=resource=>Boolean(resource?.metadata?.abundant_resources)
 const getResourceCapacityLabel=resource=>{
@@ -1354,7 +1378,9 @@ const VIEW_PERMISSION_MAP={
   audit:'bookings',
   health:'health',
   reservations:'bookings',
+  'reservation-management':'bookings',
   bookings:'bookings',
+  'booking-trash':'bookings',
   payments:'payments',
   refunds:'finance',
   customers:'customers',
@@ -1374,7 +1400,9 @@ const TAB_ROUTE_MAP={
   audit:{view:'audit',permission:'bookings'},
   health:{view:'health',permission:'health'},
   reservations:{view:'reservations',permission:'bookings'},
+  'reservation-management':{view:'reservation-management',permission:'bookings'},
   bookings:{view:'bookings',permission:'bookings'},
+  'booking-trash':{view:'booking-trash',permission:'bookings'},
   payments:{view:'payments',permission:'payments'},
   refunds:{view:'refunds',permission:'finance'},
   customers:{view:'customers',permission:'customers'},
@@ -1406,6 +1434,87 @@ const canAccess=permissionKey=>{
   if(!permissionKey)return true
   if(permissionKey==='admin_users')return String(state.profile?.role||'')==='super_admin'
   return Boolean(getEffectivePermissions(state.profile)[permissionKey])
+}
+
+const collapseOtherSidebarSections=openSection=>{
+  document.querySelectorAll('.admin-menu-section').forEach(section=>{
+    if(section!==openSection)section.open=false
+  })
+}
+
+const getPanelSwitcherTitle=(panel,index)=>{
+  const explicit=String(panel.dataset.panelTitle||'').trim()
+  if(explicit)return explicit
+  const heading=panel.querySelector('h3')
+  if(heading?.textContent?.trim())return heading.textContent.trim()
+  if(panel.classList.contains('booking-list-panel'))return 'Booking List'
+  if(panel.classList.contains('booking-detail-panel'))return 'Booking Detail'
+  return `Panel ${index+1}`
+}
+
+const renderPanelSwitcherGroup=container=>{
+  if(!container)return
+  const panels=[...container.children].filter(child=>child.classList?.contains('booking-panel'))
+  if(panels.length!==2)return
+  const groupId=container.dataset.switcherGroupId||''
+  const switcher=container.querySelector('.panel-switcher')
+  const requestedIndex=Number(state.panelSelections[groupId]??0)
+  const activeIndex=requestedIndex>=0&&requestedIndex<panels.length ? requestedIndex : 0
+  state.panelSelections[groupId]=activeIndex
+  if(switcher){
+    switcher.innerHTML=panels.map((panel,index)=>`
+      <button
+        class="panel-switcher-button${index===activeIndex ? ' is-active' : ''}"
+        type="button"
+        data-switcher-group="${bookingAdminShared.escapeHtml(groupId)}"
+        data-switcher-index="${bookingAdminShared.escapeHtml(String(index))}"
+        aria-pressed="${index===activeIndex ? 'true' : 'false'}"
+      >
+        ${bookingAdminShared.escapeHtml(getPanelSwitcherTitle(panel,index))}
+      </button>
+    `).join('')
+  }
+  panels.forEach((panel,index)=>{
+    const isActive=index===activeIndex
+    panel.hidden=!isActive
+    panel.classList.toggle('is-active-switch-panel',isActive)
+  })
+}
+
+const ensurePanelSwitchers=()=>{
+  const groups=[...document.querySelectorAll('.admin-panel-grid, .booking-workspace')]
+  groups.forEach((container,index)=>{
+    if(container.classList.contains('admin-panel-grid-single'))return
+    const panels=[...container.children].filter(child=>child.classList?.contains('booking-panel'))
+    if(panels.length!==2)return
+    if(!container.dataset.switcherGroupId){
+      container.dataset.switcherGroupId=`panel-group-${index}`
+    }
+    container.classList.add('panel-switcher-group')
+    let switcher=container.querySelector('.panel-switcher')
+    if(!switcher){
+      switcher=document.createElement('div')
+      switcher.className='panel-switcher'
+      switcher.setAttribute('role','tablist')
+      switcher.setAttribute('aria-label','Panel switcher')
+      switcher.addEventListener('click',event=>{
+        const button=event.target.closest('[data-switcher-index]')
+        if(!button)return
+        state.panelSelections[container.dataset.switcherGroupId]=Number(button.dataset.switcherIndex||0)
+        renderPanelSwitcherGroup(container)
+      })
+      container.prepend(switcher)
+    }
+    renderPanelSwitcherGroup(container)
+  })
+}
+
+const showSwitcherPanel=(panel,index=0)=>{
+  const container=panel?.closest('.panel-switcher-group')
+  const groupId=container?.dataset.switcherGroupId||''
+  if(!container||!groupId)return
+  state.panelSelections[groupId]=index
+  renderPanelSwitcherGroup(container)
 }
 
 const applySidebarVisibility=()=>{
@@ -1458,9 +1567,10 @@ const switchTab=tab=>{
   if(nextTab!=='services'&&state.isServiceModalOpen)closeServiceModal()
   state.activeTab=nextTab
   const route=getTabRoute(nextTab)
-  nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab))
+  const isReservationManagement=nextTab==='reservation-management'
+  nodes.tabs.forEach(node=>node.classList.toggle('is-active',node.dataset.adminTab===nextTab || (isReservationManagement&&node.dataset.adminTab==='reservations')))
   nodes.views.forEach(node=>node.classList.toggle('is-active',node.dataset.adminView===route.view))
-  const activeMenuItem=nodes.tabs.find(node=>node.dataset.adminTab===nextTab&&!node.hidden)
+  const activeMenuItem=nodes.tabs.find(node=>(node.dataset.adminTab===nextTab || (isReservationManagement&&node.dataset.adminTab==='reservations'))&&!node.hidden)
   const activeSection=activeMenuItem?.closest('details')
   document.querySelectorAll('.admin-menu-section').forEach(section=>{
     section.open=section===activeSection
@@ -1469,11 +1579,12 @@ const switchTab=tab=>{
     tab:nextTab,
     serviceId:nextTab==='services' ? state.selectedServiceId : '',
     bookingId:nextTab==='bookings' ? state.selectedBookingId : '',
-    reservationId:nextTab==='reservations' ? state.selectedBookingId : ''
+    reservationId:(nextTab==='reservations'||nextTab==='reservation-management') ? state.selectedBookingId : ''
   })
   renderModuleChrome(nextTab)
   renderEngineWorkbench()
   renderPlatformWorkbench()
+  ensurePanelSwitchers()
   closeMobileSidebar()
   if(route.focusId){
     window.setTimeout(()=>document.getElementById(route.focusId)?.scrollIntoView?.({behavior:'smooth',block:'start'}),90)
@@ -1546,24 +1657,55 @@ const getFilteredBookings=()=>{
   })
 }
 
+const renderReservationPipeline=()=>{
+  if(!nodes.reservationPipeline)return
+  const visible=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
+  const stages=[
+    {key:'new',label:'New Reservation',count:visible.filter(booking=>isReviewReservation(booking)).length,tone:'review'},
+    {key:'reviewed',label:'Reviewed',count:visible.filter(booking=>normalizeText(booking.status)==='payment_request_sent').length,tone:'request'},
+    {key:'awaiting',label:'Awaiting Payment',count:visible.filter(booking=>normalizeText(booking.status)==='awaiting_payment').length,tone:'warn'},
+    {key:'paid',label:'Paid',count:visible.filter(booking=>normalizeText(booking.payment_status)==='paid'&&!['confirmed','completed'].includes(normalizeText(booking.status))).length,tone:'paid'},
+    {key:'confirmed',label:'Confirmed',count:visible.filter(booking=>normalizeText(booking.status)==='confirmed').length,tone:'good'},
+    {key:'completed',label:'Completed',count:visible.filter(booking=>normalizeText(booking.status)==='completed').length,tone:'done'}
+  ]
+  nodes.reservationPipeline.innerHTML=`
+    <div class="pipeline-heading">
+      <div>
+        <span class="booking-chip">${state.activeBrandFilter ? getBrandName(state.activeBrandFilter) : 'All brands'}</span>
+        <h3>Reservation Pipeline</h3>
+      </div>
+      <small>New Reservation -> Reviewed -> Awaiting Payment -> Paid -> Confirmed -> Completed</small>
+    </div>
+    <div class="pipeline-track">
+      ${stages.map(stage=>`
+        <button class="pipeline-stage is-${bookingAdminShared.escapeHtml(stage.tone)}" type="button" data-pipeline-stage="${bookingAdminShared.escapeHtml(stage.key)}">
+          <span>${bookingAdminShared.escapeHtml(stage.label)}</span>
+          <strong>${bookingAdminShared.escapeHtml(String(stage.count))}</strong>
+        </button>
+      `).join('')}
+    </div>
+  `
+}
+
 const renderDashboard=()=>{
   const todayKey=getTodayKey()
   const tomorrowDate=new Date(`${todayKey}T00:00:00`)
   tomorrowDate.setDate(tomorrowDate.getDate()+1)
   const tomorrowKey=tomorrowDate.toISOString().slice(0,10)
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
-  const totalRevenue=state.bookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
-  const todayArrivals=state.bookings.filter(booking=>sameDate(booking.preferred_date,todayKey))
-  const tomorrowPrep=state.bookings.filter(booking=>sameDate(booking.preferred_date,tomorrowKey))
-  const pendingConfirmations=state.bookings.filter(item=>item.status==='pending')
-  const unpaidBookings=state.bookings.filter(item=>['pending','unpaid','partially_paid','authorized'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
+  const dashboardBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
+  const totalRevenue=dashboardBookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
+  const todayArrivals=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,todayKey))
+  const tomorrowPrep=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,tomorrowKey))
+  const pendingConfirmations=dashboardBookings.filter(item=>item.status==='pending')
+  const unpaidBookings=dashboardBookings.filter(item=>['pending','unpaid','partially_paid','authorized'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
   const unpaidExposure=unpaidBookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
   const refundExposure=sumAmounts(state.refunds,'amount')
   const operatorPayoutsDue=state.officeInvoices.filter(invoice=>!['paid','settled','cancelled'].includes(String(invoice.status||'').toLowerCase()))
   const payoutExposure=sumAmounts(operatorPayoutsDue,'total_amount')
   const openTasks=state.bookingTasks.filter(task=>String(task.status||'')==='open')
   const alerts=buildOperationalAlerts()
-  const unassignedOperators=state.bookings.filter(booking=>{
+  const unassignedOperators=dashboardBookings.filter(booking=>{
     const status=String(booking.status||'').toLowerCase()
     return ['pending','awaiting_payment','confirmed'].includes(status) && getBookingOperatorName(booking)==='Unassigned'
   })
@@ -1622,7 +1764,7 @@ const renderDashboard=()=>{
   ].slice(0,8)
   const brandMetrics=state.brands.map(brand=>({
     label:`${brand.name} volume`,
-    value:String(state.bookings.filter(item=>item.brand_code===brand.code).length),
+    value:String(dashboardBookings.filter(item=>item.brand_code===brand.code).length),
     meta:'Brand-specific booking volume',
     tone:'neutral'
   }))
@@ -1655,15 +1797,17 @@ const renderDashboard=()=>{
       ${metric.meta ? `<small>${bookingAdminShared.escapeHtml(metric.meta)}</small>` : ''}
     </article>
   `).join('')
-  nodes.dashboardActionQueue.innerHTML=actionQueue.map(item=>`
-    <article class="queue-card is-${bookingAdminShared.escapeHtml(item.tone||'neutral')}">
-      <div>
-        <strong>${bookingAdminShared.escapeHtml(String(item.value))}</strong>
-        <span>${bookingAdminShared.escapeHtml(item.label)}</span>
-      </div>
-      <p>${bookingAdminShared.escapeHtml(item.meta)}</p>
-    </article>
-  `).join('')
+  if(nodes.dashboardActionQueue){
+    nodes.dashboardActionQueue.innerHTML=actionQueue.map(item=>`
+      <article class="queue-card is-${bookingAdminShared.escapeHtml(item.tone||'neutral')}">
+        <div>
+          <strong>${bookingAdminShared.escapeHtml(String(item.value))}</strong>
+          <span>${bookingAdminShared.escapeHtml(item.label)}</span>
+        </div>
+        <p>${bookingAdminShared.escapeHtml(item.meta)}</p>
+      </article>
+    `).join('')
+  }
   nodes.dashboardArrivalsTable.innerHTML=todayArrivals.length ? todayArrivals.map(booking=>`
     <tr>
       <td>${bookingAdminShared.escapeHtml(booking.reference)}</td>
@@ -1968,48 +2112,174 @@ const renderReservations=()=>{
 
 const renderReservationDetail=()=>{
   if(!nodes.reservationDetail)return
-  const booking=state.bookings.find(item=>item.id===state.selectedBookingId&&isReviewReservation(item))
+  const booking=getBookingById(state.selectedBookingId)
   if(!booking){
-    nodes.reservationDetail.innerHTML='<p class="muted-copy">Choose a reservation to review, amend, accept, or decline.</p>'
+    nodes.reservationDetail.innerHTML='<div class="empty-state"><strong>Select a reservation</strong><span>Open a reservation from the review table to inspect guest details, add missing information, and decide what happens next.</span></div>'
     return
   }
-  nodes.reservationDetail.innerHTML=`
-    <div class="reservation-review-card">
-      <div class="panel-header-inline">
-        <div>
-          <span class="booking-chip">Reservation screen</span>
-          <h3>${bookingAdminShared.escapeHtml(booking.reference)} - ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+  if(!isReviewReservation(booking)){
+    nodes.reservationDetail.innerHTML=`
+      <div class="empty-state">
+        <strong>This reservation is no longer waiting for review.</strong>
+        <span>It has already moved forward in the booking lifecycle. Open the booking workspace to continue managing it.</span>
+        <div class="detail-actions">
+          <button type="button" data-reservation-nav="back">Back to reservations</button>
+          <button type="button" data-reservation-nav="booking-workspace">Open booking workspace</button>
         </div>
-        ${renderBrandPill(booking.brand_code)}
       </div>
-      <div class="detail-overview-grid">
-        <article class="detail-card">
-          <span>Tour</span>
-          <strong>${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</strong>
-        </article>
-        <article class="detail-card">
-          <span>Preferred date</span>
-          <strong>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</strong>
-        </article>
-        <article class="detail-card">
-          <span>Guests</span>
-          <strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong>
-        </article>
-        <article class="detail-card">
-          <span>Total</span>
-          <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
-        </article>
+    `
+    return
+  }
+  const qualityChecks=[
+    {label:'Guest name',done:Boolean(booking.customer_name)},
+    {label:'Phone',done:Boolean(booking.customer_phone)},
+    {label:'Email',done:Boolean(booking.customer_email)},
+    {label:'Tour',done:Boolean(booking.service_name)},
+    {label:'Date',done:Boolean(booking.preferred_date)},
+    {label:'Pax',done:Number(booking.quantity||0)>0},
+    {label:'Pickup / notes',done:Boolean(booking.customer_notes||booking.notes||booking.metadata?.pickup_location)},
+    {label:'Price',done:Number(booking.total_amount||0)>0}
+  ]
+  const history=sortByDateDesc(getBookingHistory(booking.id),'created_at').slice(0,6)
+  const notes=sortByDateDesc(getBookingNotes(booking.id),'created_at').slice(0,4)
+  const latestHistory=history[0]
+  const latestNote=notes[0]
+  const declineReasons=['Fully booked','Wrong date','Duplicate request','Guest unreachable','Invalid contact details']
+  nodes.reservationDetail.innerHTML=`
+    <div class="booking-detail-shell reservation-management-shell">
+      <div class="booking-detail-main">
+        <section class="booking-management-hero reservation-screen-shell">
+          <div>
+            <span class="booking-chip">Reservation management</span>
+            <h3>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+            <p>Review the guest request, complete any missing information, and decide whether this reservation should move into the live booking workspace.</p>
+          </div>
+          <nav class="booking-management-nav" aria-label="Reservation management navigation">
+            <button type="button" data-reservation-nav="back">Back to reservations</button>
+            <button type="button" data-reservation-action="edit">Edit details</button>
+            <button type="button" data-reservation-action="accept-with-changes">Accept with changes</button>
+          </nav>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Reservation overview</h4>
+              <p class="muted-copy">The core guest and trip information captured from the intake form.</p>
+            </div>
+            <div class="badge-stack">
+              ${renderBrandPill(booking.brand_code)}
+              ${renderStatusBadge(booking.status,'Needs review')}
+            </div>
+          </div>
+          <div class="detail-overview-grid">
+            <article class="detail-card">
+              <span>Tour</span>
+              <strong>${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</strong>
+            </article>
+            <article class="detail-card">
+              <span>Preferred date</span>
+              <strong>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</strong>
+            </article>
+            <article class="detail-card">
+              <span>Guests</span>
+              <strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong>
+            </article>
+            <article class="detail-card">
+              <span>Total</span>
+              <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Guest details</h4>
+              <p class="muted-copy">Captured guest identity, contact data, notes, and booking source.</p>
+            </div>
+          </div>
+          <div class="detail-grid detail-grid-strong">
+            <div><span>Guest</span><strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong></div>
+            <div><span>Email</span><strong>${bookingAdminShared.escapeHtml(booking.customer_email||'No email captured')}</strong></div>
+            <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'No phone captured')}</strong></div>
+            <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</strong></div>
+            <div><span>Submitted</span><strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.created_at))}</strong></div>
+            <div><span>Payment state</span><strong>${bookingAdminShared.escapeHtml(formatDisplayLabel(booking.payment_status||'pending'))}</strong></div>
+          </div>
+          <p class="admin-inline-copy">${bookingAdminShared.escapeHtml(booking.customer_notes||booking.notes||'No guest notes or pickup instructions were captured yet.')}</p>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Reservation quality check</h4>
+              <p class="muted-copy">Anything marked missing should ideally be resolved before acceptance.</p>
+            </div>
+          </div>
+          <div class="quality-check-grid">
+            ${qualityChecks.map(check=>`
+              <span class="quality-check ${check.done ? 'is-done' : 'is-missing'}">${bookingAdminShared.escapeHtml(check.done ? 'OK' : 'Missing')} ${bookingAdminShared.escapeHtml(check.label)}</span>
+            `).join('')}
+          </div>
+        </section>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Review trail</h4>
+              <p class="muted-copy">A quick audit of what has already happened on this reservation.</p>
+            </div>
+          </div>
+          <div class="table-wrap detail-table">
+            <table>
+              <thead><tr><th>When</th><th>Change</th><th>Reason</th></tr></thead>
+              <tbody>
+                ${history.map(entry=>`
+                  <tr>
+                    <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(entry.created_at))}</td>
+                    <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(entry.to_status||entry.from_status||'reviewed'))}</td>
+                    <td>${bookingAdminShared.escapeHtml(entry.reason||'Reservation captured in SkyBook.')}</td>
+                  </tr>
+                `).join('') || renderEmptyRow(3,'No review actions have been logged yet.')}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-      <div class="detail-section">
-        <h4>Guest details</h4>
-        <p class="muted-copy">${bookingAdminShared.escapeHtml(booking.customer_email||'No email')} - ${bookingAdminShared.escapeHtml(booking.customer_phone||'No phone')}</p>
-        <p>${bookingAdminShared.escapeHtml(booking.customer_notes||booking.notes||'No notes captured.')}</p>
-      </div>
-      <div class="reservation-review-actions">
-        <button class="booking-button" type="button" data-reservation-action="accept">Accept reservation</button>
-        <button class="booking-button ghost" type="button" data-reservation-action="edit">Amend reservation</button>
-        <button class="booking-button ghost" type="button" data-reservation-action="decline">Decline</button>
-      </div>
+
+      <aside class="booking-detail-rail">
+        <div class="sticky-actions reservation-side-actions">
+          <span class="booking-chip">Decision desk</span>
+          <button class="booking-button" type="button" data-reservation-action="accept">Accept reservation</button>
+          <button class="booking-button ghost" type="button" data-reservation-action="edit">Edit details</button>
+          <button class="booking-button ghost" type="button" data-reservation-action="accept-with-changes">Accept with changes</button>
+          <button class="booking-button ghost" type="button" data-reservation-action="decline">Decline reservation</button>
+          <div class="template-chip-row">
+            ${declineReasons.map(reason=>`<button class="booking-button ghost compact-button" type="button" data-reservation-action="decline-template" data-decline-reason="${bookingAdminShared.escapeHtml(reason)}">${bookingAdminShared.escapeHtml(reason)}</button>`).join('')}
+          </div>
+        </div>
+
+        <section class="detail-section">
+          <div class="section-heading">
+            <div>
+              <h4>Quick context</h4>
+            </div>
+          </div>
+          <div class="detail-subgrid">
+            <article class="detail-card">
+              <span>Latest activity</span>
+              <strong>${bookingAdminShared.escapeHtml(latestHistory ? formatDateTimeLabel(latestHistory.created_at) : 'No activity yet')}</strong>
+              <p>${bookingAdminShared.escapeHtml(latestHistory?.reason||'No status changes have been recorded on this reservation yet.')}</p>
+            </article>
+            <article class="detail-card">
+              <span>Latest note</span>
+              <strong>${bookingAdminShared.escapeHtml(latestNote ? formatDateTimeLabel(latestNote.created_at) : 'No note yet')}</strong>
+              <p>${bookingAdminShared.escapeHtml(latestNote?.note||'No internal notes have been written yet.')}</p>
+            </article>
+          </div>
+        </section>
+      </aside>
     </div>
   `
 }
@@ -2045,6 +2315,28 @@ const renderBookings=()=>{
       <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
     </tr>
   `).join('') || renderEmptyRow(7,'No bookings match the current filters.')
+}
+
+const renderBookingTrash=()=>{
+  if(!nodes.bookingTrashTable)return
+  const trashed=getTrashedBookings().sort((left,right)=>(parseDateValue(right.metadata?.trash?.archived_at||right.metadata?.deleted_at)?.getTime()||0)-(parseDateValue(left.metadata?.trash?.archived_at||left.metadata?.deleted_at)?.getTime()||0))
+  nodes.bookingTrashTable.innerHTML=trashed.map(booking=>`
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}" data-trash-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+        <div class="table-subline">${renderStatusBadge(booking.status)}</div>
+      </td>
+      <td>${renderBrandPill(booking.brand_code)}</td>
+      <td>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
+      </td>
+      <td>${bookingAdminShared.escapeHtml(booking.service_name||'')}</td>
+      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.metadata?.trash?.archived_at||booking.metadata?.deleted_at||booking.updated_at))}</td>
+      <td>${bookingAdminShared.escapeHtml(booking.metadata?.trash?.reason||booking.cancellation_reason||'Archived by admin')}</td>
+      <td><button class="booking-button ghost compact-button" type="button" data-trash-action="restore" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">Restore</button></td>
+    </tr>
+  `).join('') || renderEmptyRow(7,'No bookings are in trash. Nothing is physically deleted from SkyBook.')
 }
 
 const renderBookingDetail=()=>{
@@ -2086,7 +2378,7 @@ const renderBookingDetail=()=>{
   const noteTemplates=(state.opsTemplates?.internalNoteTemplates||[]).slice(0,3)
   const bookingAlerts=buildOperationalAlerts().filter(alert=>alert.booking_id===booking.id || alert.reference===booking.reference)
   nodes.bookingDetail.innerHTML=`
-    <div class="booking-detail-shell">
+    <div class="booking-detail-shell booking-screen-shell">
       <div class="booking-detail-main">
         <section class="booking-management-hero">
           <div>
@@ -2430,6 +2722,8 @@ const renderBookingDetail=()=>{
 
       <aside class="booking-detail-rail">
         <div class="detail-actions sticky-actions">
+          <button type="button" data-booking-action="payment_request_sent">Payment Request Sent</button>
+          <button type="button" data-booking-inline-action="send-payment-request">Send Payment Request</button>
           <button type="button" data-booking-action="confirmed">Confirm</button>
           <button type="button" data-booking-action="paid">Mark Paid</button>
           <button type="button" data-booking-action="awaiting_payment">Awaiting Payment</button>
@@ -2439,6 +2733,7 @@ const renderBookingDetail=()=>{
           <button type="button" data-booking-inline-action="duplicate">Duplicate</button>
           <button type="button" data-booking-inline-action="reschedule">Reschedule</button>
           <button type="button" data-booking-inline-action="portal-access">Create Portal Link</button>
+          <button type="button" data-booking-inline-action="trash-booking">Move To Trash</button>
         </div>
         <section class="detail-section">
           <h4>Finance</h4>
@@ -2613,6 +2908,10 @@ const renderBrandOptions=()=>{
   const currentCustomerBrandFilter=nodes.customerFilterBrand?.value||''
   const currentBookingBrand=nodes.bookingBrand?.value||''
   const brandOptions=state.brands.map(brand=>`<option value="${bookingAdminShared.escapeHtml(brand.code)}">${bookingAdminShared.escapeHtml(brand.name)}</option>`).join('')
+  if(nodes.globalBrandSwitch){
+    nodes.globalBrandSwitch.innerHTML=`<option value="">All brands</option>${brandOptions}`
+    nodes.globalBrandSwitch.value=state.activeBrandFilter
+  }
   nodes.bookingFilterBrand.innerHTML=`<option value="">All brands</option>${brandOptions}`
   nodes.bookingFilterBrand.value=currentBrandFilter
   if(nodes.customerFilterBrand){
@@ -2681,6 +2980,18 @@ const closeBookingModal=()=>{
   setBookingModalState(false)
 }
 
+const openReservationManagementScreen=(booking,{scroll=true}={})=>{
+  if(!booking)return
+  state.selectedBookingId=booking.id
+  switchTab('reservation-management')
+  renderReservations()
+  renderReservationDetail()
+  const detailPanel=nodes.reservationDetail?.closest('.reservation-management-panel')
+  if(scroll){
+    window.setTimeout(()=>detailPanel?.scrollIntoView?.({behavior:'smooth',block:'start'}),80)
+  }
+}
+
 const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   if(!booking)return
   state.selectedBookingId=booking.id
@@ -2688,6 +2999,7 @@ const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   fillBookingForm(booking)
   renderBookings()
   renderBookingDetail()
+  showSwitcherPanel(nodes.bookingDetail?.closest('.booking-detail-panel'),1)
   const detailPanel=nodes.bookingDetail?.closest('.booking-detail-panel')
   detailPanel?.classList.add('is-management-open')
   if(scroll){
@@ -2747,7 +3059,7 @@ const renderServices=()=>{
 }
 
 const syncModalBodyState=()=>{
-  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen)
+  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen||state.isCustomerModalOpen)
 }
 
 const setServiceModalState=isOpen=>{
@@ -2763,6 +3075,14 @@ const setBookingModalState=isOpen=>{
   state.isBookingModalOpen=Boolean(isOpen)
   nodes.bookingModal.hidden=!state.isBookingModalOpen
   nodes.bookingModal.setAttribute('aria-hidden',String(!state.isBookingModalOpen))
+  syncModalBodyState()
+}
+
+const setCustomerModalState=isOpen=>{
+  if(!nodes.customerModal)return
+  state.isCustomerModalOpen=Boolean(isOpen)
+  nodes.customerModal.hidden=!state.isCustomerModalOpen
+  nodes.customerModal.setAttribute('aria-hidden',String(!state.isCustomerModalOpen))
   syncModalBodyState()
 }
 
@@ -2806,6 +3126,21 @@ const closeServiceModal=()=>{
   syncAdminRouteState({tab:'services',serviceId:''})
 }
 
+const openCustomerModal=customer=>{
+  if(!customer)return
+  state.selectedCustomerId=customer.id
+  renderCustomers()
+  renderCustomerDetail()
+  if(nodes.customerModalTitle)nodes.customerModalTitle.textContent=customer.full_name||'Customer details'
+  setCustomerModalState(true)
+  window.setTimeout(()=>nodes.closeCustomerModalButton?.focus(),60)
+}
+
+const closeCustomerModal=()=>{
+  if(!state.isCustomerModalOpen && !nodes.customerModal)return
+  setCustomerModalState(false)
+}
+
 const getFilteredCustomers=()=>{
   const search=(nodes.customerFilterSearch?.value||'').trim().toLowerCase()
   const brand=(nodes.customerFilterBrand?.value||'').trim()
@@ -2833,7 +3168,8 @@ const renderCustomerDetail=()=>{
   if(!nodes.customerDetail)return
   const customer=state.customers.find(item=>item.id===state.selectedCustomerId)
   if(!customer){
-    nodes.customerDetail.innerHTML='<div class="empty-state"><strong>Select a customer</strong><span>Choose a CRM record to review booking history, communication, source history, and portal activity.</span></div>'
+    if(nodes.customerModalTitle)nodes.customerModalTitle.textContent='Customer details'
+    nodes.customerDetail.innerHTML='<div class="empty-state"><strong>Select a customer</strong><span>Choose a guest from the customer table to open their full profile and booking context.</span></div>'
     return
   }
   const bookings=sortByDateDesc(getCustomerBookings(customer),'created_at')
@@ -2842,6 +3178,7 @@ const renderCustomerDetail=()=>{
   const portalSessions=sortByDateDesc(getCustomerPortalSessions(customer),'created_at')
   const totalRevenue=bookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
   const outstandingExposure=bookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
+  if(nodes.customerModalTitle)nodes.customerModalTitle.textContent=customer.full_name||'Customer details'
   nodes.customerDetail.innerHTML=`
     <div class="crm-profile-grid">
       <article class="metric-card">
@@ -2870,34 +3207,37 @@ const renderCustomerDetail=()=>{
       <div class="section-heading">
         <div>
           <h4>Booking history</h4>
+          <p class="muted-copy">Recent reservations and bookings linked to this guest profile.</p>
         </div>
       </div>
-      <div class="crm-booking-list">
-        ${bookings.map(booking=>`
-          <button class="crm-booking-item" type="button" data-customer-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
-            <div class="crm-booking-item-top">
-              <strong>${bookingAdminShared.escapeHtml(booking.reference||'Draft booking')}</strong>
-              <span>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date||booking.created_at))}</span>
-            </div>
-            <div class="crm-booking-item-meta">
-              <span>${bookingAdminShared.escapeHtml(formatBrandLabel(booking.brand_code||''))}</span>
-              <span>${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</span>
-              <span>${bookingAdminShared.escapeHtml(booking.service_name||'Service pending')}</span>
-              <span>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</span>
-              <span>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</span>
-            </div>
-            <div class="badge-stack">
-              ${renderStatusBadge(booking.status)}
-              ${renderStatusBadge(booking.payment_status,`Payment ${String(booking.payment_status||'').replace(/_/g,' ')}`)}
-            </div>
-          </button>
-        `).join('') || '<div class="empty-state"><strong>No bookings yet</strong><span>This customer exists in CRM but has no linked bookings yet.</span></div>'}
+      <div class="table-wrap detail-table">
+        <table>
+          <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody>
+            ${bookings.map(booking=>`
+              <tr>
+                <td>${bookingAdminShared.escapeHtml(booking.reference||'Draft booking')}</td>
+                <td>${bookingAdminShared.escapeHtml(formatBrandLabel(booking.brand_code||''))}</td>
+                <td>${bookingAdminShared.escapeHtml(booking.service_name||'Service pending')}</td>
+                <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date||booking.created_at))}</td>
+                <td>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</td>
+                <td>
+                  <div class="badge-stack">
+                    ${renderStatusBadge(booking.status)}
+                    ${renderStatusBadge(booking.payment_status,`Payment ${String(booking.payment_status||'').replace(/_/g,' ')}`)}
+                  </div>
+                </td>
+              </tr>
+            `).join('') || renderEmptyRow(6,'This customer does not have any linked bookings yet.')}
+          </tbody>
+        </table>
       </div>
     </section>
     <section class="detail-section">
       <div class="section-heading">
         <div>
           <h4>Communication & portal</h4>
+          <p class="muted-copy">Recent digital touchpoints and internal context attached to this guest.</p>
         </div>
       </div>
       <div class="crm-profile-grid">
@@ -2929,29 +3269,8 @@ const renderCustomerDetail=()=>{
 const renderCustomers=()=>{
   if(!nodes.customersTable)return
   const filteredCustomers=getFilteredCustomers()
-  if(filteredCustomers.length && !filteredCustomers.some(customer=>customer.id===state.selectedCustomerId)){
-    state.selectedCustomerId=filteredCustomers[0].id
-  }
-  if(!filteredCustomers.length){
+  if(state.selectedCustomerId && !filteredCustomers.some(customer=>customer.id===state.selectedCustomerId)){
     state.selectedCustomerId=''
-  }
-  if(nodes.crmOverviewCards){
-    const totalCustomers=filteredCustomers.length
-    const websiteCustomers=filteredCustomers.filter(customer=>normalizeCodeList(customer.booking_sources).includes('website') || normalizeText(customer.last_source)==='website').length
-    const sharedCustomers=filteredCustomers.filter(customer=>normalizeCodeList(customer.brand_codes).length>1).length
-    const activeCustomers=filteredCustomers.filter(customer=>Number(customer.booking_count||0)>0).length
-    nodes.crmOverviewCards.innerHTML=[
-      {label:'Visible in CRM',value:String(totalCustomers),meta:'Customer records loaded across both brands.'},
-      {label:'Website-sourced',value:String(websiteCustomers),meta:'Guests captured directly from True Travel or Iventure.'},
-      {label:'Shared between brands',value:String(sharedCustomers),meta:'Guests with booking history across both storefronts.'},
-      {label:'With live bookings',value:String(activeCustomers),meta:'Customers that already have at least one booking.'}
-    ].map(card=>`
-      <article class="metric-card">
-        <span class="metric-label">${bookingAdminShared.escapeHtml(card.label)}</span>
-        <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(card.meta)}</div>
-      </article>
-    `).join('')
   }
   nodes.customersTable.innerHTML=filteredCustomers.map(customer=>`
     <tr class="customer-row${customer.id===state.selectedCustomerId ? ' is-active' : ''}" data-customer-id="${bookingAdminShared.escapeHtml(customer.id)}">
@@ -3136,28 +3455,45 @@ const buildAutomationRulesPayload=()=>({
 const renderReportsWorkbench=()=>{
   const overview=state.reports?.overview||{}
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
-  const byBrand=state.bookings.reduce((accumulator,booking)=>{
+  const reportBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
+  const byBrand=reportBookings.reduce((accumulator,booking)=>{
     const key=booking.brand_code||'unassigned'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
     accumulator[key].count+=1
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  const byService=state.bookings.reduce((accumulator,booking)=>{
+  const byService=reportBookings.reduce((accumulator,booking)=>{
     const key=booking.service_name||'Unknown service'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
     accumulator[key].count+=1
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  const bySource=state.bookings.reduce((accumulator,booking)=>{
+  const bySource=reportBookings.reduce((accumulator,booking)=>{
     const key=booking.source||booking.metadata?.source||'website'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
     accumulator[key].count+=1
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  const cancelledBookings=state.bookings.filter(booking=>String(booking.status||'').toLowerCase()==='cancelled')
+  const cancelledBookings=reportBookings.filter(booking=>String(booking.status||'').toLowerCase()==='cancelled')
+  const acceptedBookings=reportBookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status)))
+  const paidBookings=reportBookings.filter(booking=>['paid','partially_paid'].includes(normalizeText(booking.payment_status)))
+  const cancellationReasons=cancelledBookings.reduce((accumulator,booking)=>{
+    const reason=booking.cancellation_reason||booking.metadata?.trash?.reason||booking.customer_notes||'No reason captured'
+    accumulator[reason]=(accumulator[reason]||0)+1
+    return accumulator
+  },{})
+  const topAgents=state.officeInvoices.reduce((accumulator,invoice)=>{
+    const booking=getBookingById(invoice.booking_id)
+    if(state.activeBrandFilter&&booking?.brand_code!==state.activeBrandFilter)return accumulator
+    const agent=invoice.agent_name||invoice.payee_name||invoice.operator_name||'Unassigned'
+    accumulator[agent]=accumulator[agent]||{count:0,revenue:0}
+    accumulator[agent].count+=1
+    accumulator[agent].revenue+=Number(invoice.total_amount||invoice.commission_amount||0)
+    return accumulator
+  },{})
   const unpaidInvoices=state.invoices.filter(invoice=>Number(invoice.balance_amount||0)>0)
   const commissionDue=sumAmounts(state.officeInvoices.filter(invoice=>!['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'commission_amount')
   const operatorPayoutsDue=sumAmounts(state.officeInvoices.filter(invoice=>String(invoice.payee_type||'').toLowerCase()==='operator' && !['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'total_amount')
@@ -3170,7 +3506,9 @@ const renderReportsWorkbench=()=>{
     {label:'Refund Exposure',value:bookingAdminShared.formatMoney(overview.refund_exposure||0,state.settings.currency||'NAD')},
     {label:'Commission Due',value:bookingAdminShared.formatMoney(commissionDue,state.settings.currency||'NAD')},
     {label:'Operator Payouts',value:bookingAdminShared.formatMoney(operatorPayoutsDue,state.settings.currency||'NAD')},
-    {label:'Unpaid Invoices',value:String(unpaidInvoices.length)}
+    {label:'Unpaid Invoices',value:String(unpaidInvoices.length)},
+    {label:'Conversion',value:`${reportBookings.length ? Math.round((acceptedBookings.length/reportBookings.length)*100) : 0}% accepted`},
+    {label:'Paid Pipeline',value:`${paidBookings.length}/${reportBookings.length}`}
   ]
   nodes.reportsOverviewCards.innerHTML=cards.map(card=>`
     <article class="metric-card">
@@ -3231,7 +3569,15 @@ const renderReportsWorkbench=()=>{
           </div>
           <div>
             <strong>Total bookings</strong>
-            <span>${bookingAdminShared.escapeHtml(String(overview.total_bookings||state.bookings.length))}</span>
+            <span>${bookingAdminShared.escapeHtml(String(reportBookings.length))}</span>
+          </div>
+          <div>
+            <strong>Cancellation reasons</strong>
+            <span>${Object.entries(cancellationReasons).map(([reason,count])=>`${bookingAdminShared.escapeHtml(reason)} (${bookingAdminShared.escapeHtml(String(count))})`).join(', ')||'No cancellations logged'}</span>
+          </div>
+          <div>
+            <strong>Top agents / hotels</strong>
+            <span>${Object.entries(topAgents).sort((left,right)=>right[1].count-left[1].count).slice(0,3).map(([agent,metrics])=>`${bookingAdminShared.escapeHtml(agent)} (${bookingAdminShared.escapeHtml(String(metrics.count))})`).join(', ')||'No commission sources yet'}</span>
           </div>
         </div>
       </article>
@@ -3516,11 +3862,14 @@ const renderAll=()=>{
   fillBookingForm(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
   fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
   fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
+  renderReservationPipeline()
   renderDashboard()
   renderNotifications()
   renderCalendar()
   renderReservations()
+  renderReservationDetail()
   renderBookings()
+  renderBookingTrash()
   renderBookingDetail()
   renderServices()
   renderCustomers()
@@ -3535,6 +3884,7 @@ const renderAll=()=>{
   renderHealthWorkbench()
   renderEngineWorkbench()
   renderPlatformWorkbench()
+  ensurePanelSwitchers()
 }
 
 const loadAdminData=async()=>{
@@ -3735,6 +4085,155 @@ const openDocumentPrintWindow=(title,markup)=>{
   nextWindow.document.close()
   nextWindow.focus()
   nextWindow.print()
+}
+
+const printableMoney=(amount,currency)=>bookingAdminShared.formatMoney(Number(amount||0),currency||state.settings.currency||'NAD')
+
+const printableBookingRows=bookings=>bookings.map(booking=>`
+  <tr>
+    <td><strong>${bookingAdminShared.escapeHtml(booking.reference||'')}</strong></td>
+    <td>${bookingAdminShared.escapeHtml(getBrandName(booking.brand_code))}</td>
+    <td>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</td>
+    <td>${bookingAdminShared.escapeHtml(booking.service_name||'Tour pending')}</td>
+    <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+    <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td>
+    <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(booking.status||''))}</td>
+    <td>${printableMoney(booking.total_amount,booking.currency||booking.currency_code)}</td>
+  </tr>
+`).join('')
+
+const openSkyBookPrintWindow=(title,markup)=>{
+  openDocumentPrintWindow(title,`
+    <header>
+      <span class="pill">SkyBook</span>
+      <h1>${bookingAdminShared.escapeHtml(title)}</h1>
+      <small>${bookingAdminShared.escapeHtml(state.activeBrandFilter ? getBrandName(state.activeBrandFilter) : 'All brands')} - Printed ${bookingAdminShared.escapeHtml(formatDateTimeLabel(new Date().toISOString()))}</small>
+    </header>
+    ${markup}
+  `)
+}
+
+const printArrivalsForDate=()=>{
+  const dateKey=nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey()
+  const arrivals=getVisibleBookings()
+    .filter(booking=>!isTrashedBooking(booking))
+    .filter(booking=>sameDate(booking.preferred_date,dateKey))
+    .filter(booking=>!['cancelled','refunded','failed'].includes(normalizeText(booking.status)))
+    .sort((left,right)=>String(left.service_name||'').localeCompare(String(right.service_name||'')))
+  openSkyBookPrintWindow(`Arrivals List - ${formatDateLabel(dateKey)}`,`
+    <section>
+      <h2>Arrivals</h2>
+      <table>
+        <thead><tr><th>Reference</th><th>Brand</th><th>Guest</th><th>Tour</th><th>Date</th><th>Pax</th><th>Status</th><th>Total</th></tr></thead>
+        <tbody>${printableBookingRows(arrivals) || '<tr><td colspan="8">No arrivals for this date.</td></tr>'}</tbody>
+      </table>
+    </section>
+  `)
+}
+
+const resolveReportPeriod=()=>{
+  const choice=window.prompt('Print which period? Use day, week, month, or all.','month')
+  if(choice===null)return null
+  const normalized=normalizeText(choice).toLowerCase()
+  return ['day','week','month','all'].includes(normalized) ? normalized : 'month'
+}
+
+const getReportDateRange=period=>{
+  if(period==='all')return {label:'All time',start:null,end:null}
+  const focus=parseDateValue(nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey())||new Date()
+  const start=new Date(focus)
+  const end=new Date(focus)
+  if(period==='day'){
+    start.setHours(0,0,0,0)
+    end.setHours(23,59,59,999)
+    return {label:formatDateLabel(start.toISOString()),start,end}
+  }
+  if(period==='week'){
+    const day=start.getDay()||7
+    start.setDate(start.getDate()-day+1)
+    start.setHours(0,0,0,0)
+    end.setTime(start.getTime())
+    end.setDate(start.getDate()+6)
+    end.setHours(23,59,59,999)
+    return {label:`Week of ${formatDateLabel(start.toISOString())}`,start,end}
+  }
+  start.setDate(1)
+  start.setHours(0,0,0,0)
+  end.setMonth(start.getMonth()+1,0)
+  end.setHours(23,59,59,999)
+  return {label:start.toLocaleDateString('en-NA',{month:'long',year:'numeric'}),start,end}
+}
+
+const groupReportRows=(bookings,keyGetter)=>{
+  const grouped=bookings.reduce((accumulator,booking)=>{
+    const key=keyGetter(booking)||'Unassigned'
+    accumulator[key]=accumulator[key]||{count:0,revenue:0}
+    accumulator[key].count+=1
+    accumulator[key].revenue+=Number(booking.total_amount||0)
+    return accumulator
+  },{})
+  return Object.entries(grouped).sort((left,right)=>right[1].revenue-left[1].revenue).map(([label,metrics])=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(label)}</td>
+      <td>${bookingAdminShared.escapeHtml(String(metrics.count))}</td>
+      <td>${printableMoney(metrics.revenue)}</td>
+    </tr>
+  `).join('')
+}
+
+const printSkyBookReport=type=>{
+  const period=resolveReportPeriod()
+  if(!period)return
+  const range=getReportDateRange(period)
+  const bookings=getVisibleBookings()
+    .filter(booking=>!isTrashedBooking(booking))
+    .filter(booking=>{
+      if(!range.start||!range.end)return true
+      const date=parseDateValue(booking.preferred_date||booking.created_at)
+      return Boolean(date&&date>=range.start&&date<=range.end)
+    })
+  const accepted=bookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status))).length
+  const declined=bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
+  const paid=bookings.filter(booking=>['paid','partially_paid'].includes(normalizeText(booking.payment_status))).length
+  const gross=sumAmounts(bookings,'total_amount')
+  const commissionRows=state.officeInvoices
+    .filter(invoice=>!state.activeBrandFilter || getBookingById(invoice.booking_id)?.brand_code===state.activeBrandFilter)
+    .map(invoice=>`
+      <tr>
+        <td>${bookingAdminShared.escapeHtml(invoice.invoice_number||'')}</td>
+        <td>${bookingAdminShared.escapeHtml(invoice.payee_name||invoice.operator_name||invoice.agent_name||'Payee')}</td>
+        <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(invoice.payee_type||invoice.invoice_type||'commission'))}</td>
+        <td>${printableMoney(invoice.commission_amount||invoice.total_amount,invoice.currency_code)}</td>
+      </tr>
+    `).join('')
+  const titleMap={bookings:'Booking Report',financial:'Financial Report',commissions:'Commission Report'}
+  openSkyBookPrintWindow(`${titleMap[type]||'SkyBook Report'} - ${range.label}`,`
+    <section>
+      <h2>Summary</h2>
+      <div class="meta">
+        <div class="card"><strong>Total bookings</strong><div>${bookingAdminShared.escapeHtml(String(bookings.length))}</div></div>
+        <div class="card"><strong>Gross revenue</strong><div>${printableMoney(gross)}</div></div>
+        <div class="card"><strong>Accepted</strong><div>${bookingAdminShared.escapeHtml(String(accepted))}</div></div>
+        <div class="card"><strong>Declined</strong><div>${bookingAdminShared.escapeHtml(String(declined))}</div></div>
+        <div class="card"><strong>Paid</strong><div>${bookingAdminShared.escapeHtml(String(paid))}</div></div>
+        <div class="card"><strong>Conversion</strong><div>${bookings.length ? Math.round((accepted/bookings.length)*100) : 0}% accepted</div></div>
+      </div>
+    </section>
+    <section>
+      <h2>Revenue by brand</h2>
+      <table><thead><tr><th>Brand</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(bookings,booking=>getBrandName(booking.brand_code)) || '<tr><td colspan="3">No brand revenue yet.</td></tr>'}</tbody></table>
+    </section>
+    <section>
+      <h2>Revenue by tour</h2>
+      <table><thead><tr><th>Tour</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(bookings,booking=>booking.service_name) || '<tr><td colspan="3">No tour revenue yet.</td></tr>'}</tbody></table>
+    </section>
+    <section>
+      <h2>Revenue by source</h2>
+      <table><thead><tr><th>Source</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(bookings,booking=>formatSourceLabel(booking.source||booking.metadata?.source||'website')) || '<tr><td colspan="3">No source revenue yet.</td></tr>'}</tbody></table>
+    </section>
+    ${type==='commissions' ? `<section><h2>Commission detail</h2><table><thead><tr><th>Invoice</th><th>Payee</th><th>Type</th><th>Commission</th></tr></thead><tbody>${commissionRows || '<tr><td colspan="4">No commission records yet.</td></tr>'}</tbody></table></section>` : ''}
+    ${type==='bookings' ? `<section><h2>Booking detail</h2><table><thead><tr><th>Reference</th><th>Brand</th><th>Guest</th><th>Tour</th><th>Date</th><th>Pax</th><th>Status</th><th>Total</th></tr></thead><tbody>${printableBookingRows(bookings) || '<tr><td colspan="8">No bookings in this period.</td></tr>'}</tbody></table></section>` : ''}
+  `)
 }
 
 const buildDocumentMarkup=(documentType,booking)=>{
@@ -3938,14 +4437,14 @@ const handleCommandNavigation=(action,bookingId='',customerId='')=>{
   if(bookingId){
     const booking=state.bookings.find(item=>item.id===bookingId)
     if(booking){
-      openBookingManagementScreen(booking,{scroll:true})
+      if(action==='reservations'&&isReviewReservation(booking))openReservationManagementScreen(booking,{scroll:true})
+      else openBookingManagementScreen(booking,{scroll:true})
     }
   }
   if(customerId){
     const customer=state.customers.find(item=>item.id===customerId)
     if(customer){
-      state.selectedCustomerId=customer.id
-      renderCustomers()
+      openCustomerModal(customer)
     }
   }
   closeCommandPalette()
@@ -4005,6 +4504,46 @@ const handleBookingReschedule=async()=>{
   await refreshAdmin('Booking rescheduled.')
 }
 
+const createActivityNote=async(bookingId,note,{isPrivate=true}={})=>{
+  if(!bookingId||!note)return
+  await bookingAdminShared.apiRequest('admin/notes',{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{ booking_id:bookingId, note, is_private:isPrivate }
+  })
+}
+
+const buildPaymentRequestMessage=booking=>{
+  const brandName=getBrandName(booking.brand_code)
+  const amount=bookingAdminShared.formatMoney(Number(booking.amount_due_now||booking.total_amount||0),booking.currency||state.settings.currency)
+  return {
+    subject:`Payment request for ${booking.reference}`,
+    body:[
+      `Hi ${booking.customer_name||'there'},`,
+      '',
+      `Your ${brandName} reservation has been reviewed and accepted.`,
+      `Reference: ${booking.reference}`,
+      `Tour: ${booking.service_name||'Your selected tour'}`,
+      `Date: ${formatDateLabel(booking.preferred_date)}`,
+      `Amount due: ${amount}`,
+      '',
+      'Please use your booking reference when making payment. Reply to this message if you need help.',
+      '',
+      brandName
+    ].join('\n')
+  }
+}
+
+const sendPaymentRequest=async booking=>{
+  if(!booking?.id)return
+  const message=buildPaymentRequestMessage(booking)
+  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/payment-request`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{...message,template_key:'payment_request'}
+  })
+}
+
 const handleAuthCacheReset=async()=>{
   try{
     const client=await requireClient()
@@ -4062,6 +4601,7 @@ const handleLogout=async()=>{
 
 const handleBookingSave=async event=>{
   event.preventDefault()
+  const returnToReservationManagement=state.activeTab==='reservation-management'
   const wasEditing=Boolean(state.selectedBookingId)
   const previousSelectedId=state.selectedBookingId
   const payload={
@@ -4094,6 +4634,11 @@ const handleBookingSave=async event=>{
     || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
   if(savedBooking){
     closeBookingModal()
+    if(returnToReservationManagement && isReviewReservation(savedBooking)){
+      openReservationManagementScreen(savedBooking,{scroll:true})
+      setAdminStatus(wasEditing ? 'Reservation updated.' : 'Reservation created.')
+      return
+    }
     openBookingManagementScreen(savedBooking,{scroll:true})
     setAdminStatus(wasEditing ? 'Booking updated and management screen opened.' : 'Booking created and management screen opened.')
     return
@@ -4520,11 +5065,32 @@ const toggleBookingFiltersPanel=()=>{
 }
 
 nodes.tabs.forEach(node=>node.addEventListener('click',()=>switchTab(node.dataset.adminTab)))
+document.querySelectorAll('.admin-menu-section').forEach(section=>section.addEventListener('toggle',()=>{
+  if(section.open)collapseOtherSidebarSections(section)
+}))
 nodes.loginForm?.addEventListener('submit',handleLogin)
 nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
 nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.quickCreateBooking?.addEventListener('click',openNewBookingWorkspace)
+nodes.globalBrandSwitch?.addEventListener('change',()=>{
+  state.activeBrandFilter=nodes.globalBrandSwitch.value||''
+  if(nodes.bookingFilterBrand)nodes.bookingFilterBrand.value=state.activeBrandFilter
+  if(nodes.customerFilterBrand)nodes.customerFilterBrand.value=state.activeBrandFilter
+  renderAll()
+})
+nodes.reservationPipeline?.addEventListener('click',event=>{
+  const stage=event.target.closest('[data-pipeline-stage]')?.dataset.pipelineStage
+  if(!stage)return
+  if(stage==='new')switchTab('reservations')
+  else switchTab('bookings')
+  if(stage==='reviewed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='payment_request_sent'
+  if(stage==='awaiting'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='awaiting_payment'
+  if(stage==='confirmed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='confirmed'
+  if(stage==='completed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='completed'
+  if(stage==='paid'&&nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value='paid'
+  renderBookings()
+})
 nodes.toggleTableDensity?.addEventListener('click',toggleTableDensity)
 nodes.toggleBookingFilters?.addEventListener('click',toggleBookingFiltersPanel)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
@@ -4567,9 +5133,16 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
   state.calendarFocusDate=nodes.calendarFocusDate.value||bookingAdminShared.currentDate()
   renderCalendar()
 })
+nodes.printArrivalsList?.addEventListener('click',()=>{
+  try{ printArrivalsForDate() }catch(error){ setAdminStatus(error.message||'Could not print arrivals list.',true) }
+})
+document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>{
+  try{ printSkyBookReport(button.dataset.printReport||'bookings') }catch(error){ setAdminStatus(error.message||'Could not print report.',true) }
+}))
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
 nodes.closeBookingModalButton?.addEventListener('click',closeBookingModal)
+nodes.closeCustomerModalButton?.addEventListener('click',closeCustomerModal)
 nodes.serviceFilterBrand?.addEventListener('change',renderServices)
 nodes.openServiceModalButton?.addEventListener('click',()=>openServiceModal())
 nodes.closeServiceModalButton?.addEventListener('click',closeServiceModal)
@@ -4608,7 +5181,19 @@ nodes.reservationsTable?.addEventListener('click',event=>{
   const reservationId=event.target.closest('[data-reservation-open]')?.dataset.reservationOpen
     || event.target.closest('[data-reservation-id]')?.dataset.reservationId
   if(!reservationId)return
-  openRecordInNewTab('reservations',reservationId)
+  const reservation=state.bookings.find(item=>item.id===reservationId)
+  if(reservation)openReservationManagementScreen(reservation,{scroll:true})
+})
+
+nodes.bookingTrashTable?.addEventListener('click',event=>{
+  const action=event.target.dataset.trashAction
+  const bookingId=event.target.dataset.bookingId||event.target.closest('[data-trash-booking-id]')?.dataset.trashBookingId
+  if(action!=='restore'||!bookingId)return
+  void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  }).then(()=>refreshAdmin('Booking restored from trash.')).catch(error=>setAdminStatus(error.message||'Booking restore failed.',true))
 })
 
 nodes.customersTable?.addEventListener('click',event=>{
@@ -4616,8 +5201,7 @@ nodes.customersTable?.addEventListener('click',event=>{
   if(!row)return
   const customer=state.customers.find(item=>item.id===row.dataset.customerId)
   if(!customer)return
-  state.selectedCustomerId=customer.id
-  renderCustomers()
+  openCustomerModal(customer)
 })
 
 nodes.customerDetail?.addEventListener('click',event=>{
@@ -4635,30 +5219,49 @@ nodes.notificationsTable?.addEventListener('click',event=>{
 })
 
 nodes.reservationDetail?.addEventListener('click',event=>{
-  const action=event.target.dataset.reservationAction
+  const navigationAction=event.target.closest('[data-reservation-nav]')?.dataset.reservationNav
+  if(navigationAction==='back'){
+    switchTab('reservations')
+    return
+  }
+  if(navigationAction==='booking-workspace'){
+    const reservationBooking=state.bookings.find(item=>item.id===state.selectedBookingId)
+    if(reservationBooking)openBookingManagementScreen(reservationBooking,{scroll:true})
+    return
+  }
+  const actionButton=event.target.closest('[data-reservation-action]')
+  const action=actionButton?.dataset.reservationAction
   if(!action||!state.selectedBookingId)return
   const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
   if(!booking)return
-  if(action==='edit'){
-    openBookingModal(booking)
+  if(action==='edit'||action==='accept-with-changes'){
+    const modalBooking=action==='accept-with-changes'
+      ? {...booking,status:'payment_request_sent',payment_status:booking.payment_status||'pending'}
+      : booking
+    openBookingModal(modalBooking)
     return
   }
-  if(action==='decline'){
-    const reason=window.prompt('Enter a decline reason.','Reservation declined after review.')
+  if(action==='decline'||action==='decline-template'){
+    const defaultReason=actionButton?.dataset.declineReason||'Reservation declined after review.'
+    const reason=action==='decline-template' ? defaultReason : window.prompt('Enter a decline reason.',defaultReason)
     if(reason===null)return
     void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{ status:'cancelled', payment_status:'cancelled', reason, notes:reason }
-    }).then(()=>refreshAdmin('Reservation declined.')).catch(error=>setAdminStatus(error.message||'Reservation update failed.',true))
+    }).then(async()=>{
+      await createActivityNote(state.selectedBookingId,`Reservation declined: ${reason}`)
+      await refreshAdmin('Reservation declined.')
+    }).catch(error=>setAdminStatus(error.message||'Reservation update failed.',true))
     return
   }
   if(action==='accept'){
     void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{ status:'awaiting_payment', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
+      body:{ status:'payment_request_sent', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
     }).then(async()=>{
+      await createActivityNote(state.selectedBookingId,'Reservation accepted and moved to bookings.')
       await refreshAdmin('Reservation accepted and moved to bookings.')
       const acceptedBooking=state.bookings.find(item=>item.id===state.selectedBookingId)
       if(acceptedBooking)openBookingManagementScreen(acceptedBooking,{scroll:true})
@@ -4688,6 +5291,26 @@ nodes.bookingDetail.addEventListener('click',event=>{
   if(inlineAction==='edit-booking'){
     const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
     if(booking)openBookingModal(booking)
+    return
+  }
+  if(inlineAction==='send-payment-request'){
+    const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+    if(booking){
+      void sendPaymentRequest(booking).then(()=>refreshAdmin('Payment request sent.')).catch(error=>setAdminStatus(error.message||'Payment request failed.',true))
+    }
+    return
+  }
+  if(inlineAction==='trash-booking'){
+    const reason=window.prompt('Why should this booking move to trash?','Duplicate or invalid booking.')
+    if(reason===null)return
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/trash`,{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ reason }
+    }).then(async()=>{
+      await refreshAdmin('Booking moved to trash.')
+      switchTab('booking-trash')
+    }).catch(error=>setAdminStatus(error.message||'Booking trash update failed.',true))
     return
   }
   if(inlineAction==='reschedule'){
@@ -4748,6 +5371,8 @@ nodes.bookingDetail.addEventListener('click',event=>{
     ? {status:activeBooking?.status==='completed' ? 'completed' : 'confirmed',payment_status:'paid'}
     : action==='awaiting_payment'
       ? {status:'awaiting_payment',payment_status:'pending'}
+      : action==='payment_request_sent'
+        ? {status:'payment_request_sent',payment_status:'pending'}
       : {status:action}
   void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
     method:'PATCH',

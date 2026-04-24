@@ -130,9 +130,10 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 }
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
-  draft:['pending','awaiting_payment','cancelled','failed'],
-  pending:['awaiting_payment','confirmed','cancelled','failed'],
-  awaiting_payment:['confirmed','cancelled','failed'],
+  draft:['pending','payment_request_sent','awaiting_payment','cancelled','failed'],
+  pending:['payment_request_sent','awaiting_payment','confirmed','cancelled','failed'],
+  payment_request_sent:['awaiting_payment','confirmed','cancelled','failed'],
+  awaiting_payment:['payment_request_sent','confirmed','cancelled','failed'],
   confirmed:['completed','cancelled','refunded'],
   completed:['refunded'],
   cancelled:[],
@@ -189,6 +190,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     code:'true-travel',
     name:'True Travel',
     booking_prefix:'TT',
+    invoice_prefix:'TTN',
     logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png',
     support_email:BRAND_SUPPORT_EMAILS['true-travel'],
     support_phone:'+264813224270',
@@ -202,6 +204,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     code:'iventure',
     name:'Iventure',
     booking_prefix:'IV',
+    invoice_prefix:'IVT',
     logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png',
     support_email:BRAND_SUPPORT_EMAILS.iventure,
     support_phone:'+264813224270',
@@ -236,6 +239,7 @@ const mergeBrandProfile=(brand:Json={})=>{
     code:normalizeText(brand.code || fallback.code) || normalizeText(fallback.code),
     name:normalizeText(brand.name || metadata.name || fallback.name) || normalizeText(fallback.name),
     booking_prefix:normalizeText(brand.booking_prefix || metadata.booking_prefix || fallback.booking_prefix) || normalizeText(fallback.booking_prefix),
+    invoice_prefix:normalizeText(brand.invoice_prefix || metadata.invoice_prefix || fallback.invoice_prefix) || normalizeText(fallback.invoice_prefix || fallback.booking_prefix),
     logo_url:normalizeText(brand.logo_url || metadata.logo_url || fallback.logo_url) || normalizeText(fallback.logo_url),
     support_email:normalizeText(brand.support_email || metadata.support_email || fallback.support_email) || normalizeText(fallback.support_email),
     support_phone:normalizeText(brand.support_phone || metadata.support_phone || fallback.support_phone) || normalizeText(fallback.support_phone),
@@ -360,6 +364,10 @@ const defaultEmailTemplates={
   booking_received:{
     subject:'We received your booking request {{booking_reference}}',
     body:'Hi {{customer_name}},\n\nWe received your booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\nTotal: {{total_amount}}\nPayment status: {{payment_status}}\n\nWe will confirm the next steps shortly.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
+  },
+  payment_request:{
+    subject:'Payment request for {{booking_reference}}',
+    body:'Hi {{customer_name}},\n\nYour reservation for {{service_name}} has been reviewed.\nReference: {{booking_reference}}\nDate: {{booking_date}}\nTotal due: {{total_amount}}\n\nPlease use your booking reference when making payment. Reply to this message if you need help.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   booking_confirmed:{
     subject:'Your booking {{booking_reference}} is confirmed',
@@ -2331,14 +2339,16 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,status,payment_status,preferred_date,subtotal_amount,tax_amount,total_amount,currency_code,amount_due_now,amount_due_later,service_id,quantity')
+      .select('id,reference,brand_code,status,payment_status,preferred_date,subtotal_amount,tax_amount,total_amount,currency_code,amount_due_now,amount_due_later,service_id,quantity')
       .eq('id',bookingId)
       .maybeSingle()
   )
   if(!booking)return
   const service=await safeMaybeSingle<Json>(adminClient.from('services').select('name').eq('id',booking.service_id).maybeSingle())
   const existingInvoice=await safeMaybeSingle<{ invoice_number:string }>(adminClient.from('invoices').select('invoice_number').eq('booking_id',bookingId).maybeSingle())
-  const invoiceNumber=normalizeText(existingInvoice?.invoice_number) || `INV-${normalizeText(booking.reference).replace(/[^A-Z0-9-]/gi,'').toUpperCase()}`
+  const brandProfile=mergeBrandProfile(getDefaultBrandProfile(booking.brand_code))
+  const invoicePrefix=normalizeText(brandProfile.invoice_prefix || brandProfile.booking_prefix || 'SB').replace(/[^A-Z0-9-]/gi,'').toUpperCase()
+  const invoiceNumber=normalizeText(existingInvoice?.invoice_number) || `${invoicePrefix}-INV-${normalizeText(booking.reference).replace(/[^A-Z0-9-]/gi,'').toUpperCase()}`
   const invoiceStatus=String(booking.payment_status)==='paid'
     ? 'paid'
     : String(booking.payment_status)==='partially_paid'
@@ -2359,7 +2369,7 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
     balance_amount:String(booking.payment_status)==='paid'
       ? 0
       : Number((Number(booking.amount_due_now || 0) + Number(booking.amount_due_later || 0) || Number(booking.total_amount || 0))),
-    metadata:{ source:'booking-api' }
+    metadata:{ source:'booking-api', brand_code:booking.brand_code, invoice_prefix:invoicePrefix }
   }
   const { data:invoice,error:invoiceError }=await adminClient.from('invoices').upsert(invoicePayload,{ onConflict:'booking_id' }).select().single()
   if(invoiceError && !['42P01','PGRST205'].includes(String(invoiceError.code || '')))throw invoiceError
@@ -2559,7 +2569,7 @@ const buildReports=({
   const officePayables=officeInvoices
     .filter(invoice=>!['paid','cancelled'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.total_amount || 0),0)
-  const statusBreakdown=['pending','awaiting_payment','confirmed','completed','cancelled','refunded','failed'].map(status=>({
+  const statusBreakdown=['pending','payment_request_sent','awaiting_payment','confirmed','completed','cancelled','refunded','failed'].map(status=>({
     status,
     count:bookings.filter(booking=>String(booking.status || '')===status).length
   }))
@@ -2908,6 +2918,56 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   }
   await processDueSystemJobs()
   return {success:true,id,service_slug:serviceSlug}
+}
+
+const archiveBooking=async(bookingId:string,payload:Json,userId:string)=>{
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
+  if(!booking)throw new Error('Booking not found.')
+  const existingMetadata=normalizeJsonRecord(booking.metadata)
+  const reason=normalizeText(payload.reason) || 'Booking moved to trash.'
+  const archivedAt=nowIso()
+  const nextMetadata={
+    ...existingMetadata,
+    trash:{
+      archived_at:archivedAt,
+      reason,
+      archived_by:userId
+    }
+  }
+  const { error }=await adminClient.from('bookings').update({
+    status:'cancelled',
+    payment_status:'cancelled',
+    cancellation_reason:reason,
+    metadata:nextMetadata,
+    updated_by:userId
+  }).eq('id',bookingId)
+  if(error)throw error
+  await insertStatusHistory(bookingId,String(booking.status || ''),'cancelled',`Booking moved to trash: ${reason}`,`admin:${userId}`,userId)
+  await createAdminNote({ booking_id:bookingId, note:`Booking moved to trash: ${reason}`, is_private:true },userId)
+  await syncInvoiceForBooking(bookingId)
+  return { success:true, id:bookingId, archived_at:archivedAt }
+}
+
+const restoreBooking=async(bookingId:string,userId:string)=>{
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
+  if(!booking)throw new Error('Booking not found.')
+  const metadata=normalizeJsonRecord(booking.metadata)
+  delete metadata.trash
+  delete metadata.deleted_at
+  const nextStatus=normalizeText(booking.payment_status)==='paid' ? 'confirmed' : 'awaiting_payment'
+  const nextPaymentStatus=normalizeText(booking.payment_status)==='cancelled' ? 'pending' : normalizeText(booking.payment_status) || 'pending'
+  const { error }=await adminClient.from('bookings').update({
+    status:nextStatus,
+    payment_status:nextPaymentStatus,
+    cancellation_reason:null,
+    metadata,
+    updated_by:userId
+  }).eq('id',bookingId)
+  if(error)throw error
+  await insertStatusHistory(bookingId,String(booking.status || ''),nextStatus,'Booking restored from trash.',`admin:${userId}`,userId)
+  await createAdminNote({ booking_id:bookingId, note:'Booking restored from trash.', is_private:true },userId)
+  await syncInvoiceForBooking(bookingId)
+  return { success:true, id:bookingId }
 }
 
 const duplicateBooking=async(bookingId:string,payload:Json,userId:string)=>{
@@ -3384,6 +3444,40 @@ const sendBookingCustomEmail=async(bookingId:string,payload:Json,userId:string)=
   return {success:true,delivery_status:delivery.status,email_log_id:emailLog.id}
 }
 
+const sendBookingPaymentRequest=async(bookingId:string,payload:Json,userId:string)=>{
+  const emailResult=await sendBookingCustomEmail(bookingId,{
+    ...payload,
+    template_key:normalizeText(payload.template_key) || 'payment_request'
+  },userId)
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
+  if(!booking)throw new Error('Booking not found.')
+  const currentStatus=normalizeText(booking.status)
+  const currentPaymentStatus=normalizeText(booking.payment_status)
+  const nextStatus=['draft','pending','awaiting_payment'].includes(currentStatus) ? 'payment_request_sent' : currentStatus
+  const nextPaymentStatus=['paid','partially_paid'].includes(currentPaymentStatus) ? currentPaymentStatus : 'pending'
+  const metadata=normalizeJsonRecord(booking.metadata)
+  const { error }=await adminClient.from('bookings').update({
+    status:nextStatus,
+    payment_status:nextPaymentStatus,
+    metadata:{
+      ...metadata,
+      payment_request:{
+        sent_at:nowIso(),
+        sent_by:userId,
+        delivery_status:emailResult.delivery_status
+      }
+    },
+    updated_by:userId
+  }).eq('id',bookingId)
+  if(error)throw error
+  if(nextStatus!==currentStatus){
+    await insertStatusHistory(bookingId,currentStatus,nextStatus,'Payment request sent to guest.',`admin:${userId}`,userId)
+  }
+  await createAdminNote({ booking_id:bookingId, note:'Payment request sent to guest.', is_private:true },userId)
+  await syncInvoiceForBooking(bookingId)
+  return { success:true, ...emailResult, status:nextStatus, payment_status:nextPaymentStatus }
+}
+
 Deno.serve(async request=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
@@ -3493,6 +3587,21 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='reschedule'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(200,await rescheduleBooking(subresource,requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='payment-request'){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await sendBookingPaymentRequest(subresource,requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='trash'){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await archiveBooking(subresource,requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='restore'){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await restoreBooking(subresource,user.id))
       }
 
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='documents'){
