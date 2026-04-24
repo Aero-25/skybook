@@ -743,6 +743,10 @@ body.skybook-auth-page{
   display:grid;
   gap:10px;
 }
+.reservation-side-actions,
+.booking-detail-rail > .detail-actions.sticky-actions{
+  display:none;
+}
 .reservation-side-actions .booking-chip{
   justify-self:start;
 }
@@ -1093,6 +1097,73 @@ tbody tr:hover td{background:#f8fbfe}
   display:grid;
   grid-template-columns:minmax(0,1.5fr) minmax(300px,.85fr);
   gap:18px;
+}
+.management-scroll-header{
+  position:sticky;
+  top:10px;
+  z-index:30;
+  grid-column:1 / -1;
+  max-height:0;
+  margin:0;
+  overflow:hidden;
+  opacity:0;
+  transform:translateY(-10px);
+  pointer-events:none;
+  transition:opacity .18s ease,transform .18s ease,max-height .18s ease,margin .18s ease;
+}
+.management-scroll-header.is-visible{
+  max-height:80px;
+  margin-bottom:10px;
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+.management-scroll-header-inner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:46px;
+  padding:6px 12px;
+  border:1px solid rgba(35,70,102,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 10px 24px rgba(20,52,83,.12);
+  backdrop-filter:blur(14px);
+}
+.management-scroll-header-inner strong{
+  display:block;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  letter-spacing:.02em;
+}
+.management-scroll-header-actions{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+.management-scroll-header-actions button{
+  min-height:32px;
+  padding:0 12px;
+  border:1px solid var(--booking-line);
+  border-radius:999px;
+  background:#fff;
+  color:var(--booking-ocean);
+  font:inherit;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.management-scroll-header-actions button:last-child{
+  background:var(--booking-ocean);
+  border-color:var(--booking-ocean);
+  color:#fff;
 }
 .booking-detail-main,
 .booking-detail-rail{
@@ -2992,6 +3063,20 @@ body.is-compact-tables .status-badge{
 }
 
 @media (max-width:980px){
+  .management-scroll-header.is-visible{
+    max-height:140px;
+  }
+
+  .management-scroll-header-inner{
+    align-items:flex-start;
+    flex-direction:column;
+    border-radius:22px;
+  }
+
+  .management-scroll-header-actions{
+    justify-content:flex-start;
+  }
+
   body.skybook-sidebar-locked{
     overflow:hidden;
   }

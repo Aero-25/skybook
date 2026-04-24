@@ -49,7 +49,6 @@
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="reservations" type="button"><span class="admin-tab-icon">RV</span><span>Reservation Review</span></button>
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
-            <button class="admin-tab" data-admin-tab="booking-trash" type="button"><span class="admin-tab-icon">TR</span><span>Booking Trash</span></button>
             <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
             <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
           </div>
@@ -84,6 +83,8 @@
           <summary><span>06</span> Administration</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="settings" type="button"><span class="admin-tab-icon">ST</span><span>Settings</span></button>
+            <button class="admin-tab" data-admin-tab="reservation-trash" type="button"><span class="admin-tab-icon">RT</span><span>Reservation Trash</span></button>
+            <button class="admin-tab" data-admin-tab="booking-trash" type="button"><span class="admin-tab-icon">TR</span><span>Booking Trash</span></button>
             <button class="admin-tab" data-admin-tab="admin-users" type="button"><span class="admin-tab-icon">UR</span><span>Users & Roles</span></button>
             <a class="admin-tab admin-tab-link" data-admin-permission="admin_users" href="admin.html"><span class="admin-tab-icon">GW</span><span>Admin Gateway</span></a>
           </div>
@@ -123,9 +124,9 @@
         </div>
       </section>
 
-      <section class="booking-panel reservation-pipeline-panel" id="reservationPipeline"></section>
-
       <section class="admin-view is-active" data-admin-view="dashboard">
+        <section class="booking-panel reservation-pipeline-panel" id="reservationPipeline"></section>
+
         <section class="executive-radar" aria-label="SkyBook executive operations radar">
           <div class="radar-card-grid" id="executiveRadarCards"></div>
         </section>
@@ -418,6 +419,23 @@
       <section class="admin-view" data-admin-view="reservation-management">
         <article class="booking-panel reservation-management-panel">
           <div id="adminReservationDetail"></div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="reservation-trash">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Reservation trash</h3>
+            </div>
+            <span class="booking-chip">Permanent archive</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Reference</th><th>Brand</th><th>Customer</th><th>Tour</th><th>Archived</th><th>Reason</th><th>Action</th></tr></thead>
+              <tbody id="adminReservationTrashTable"></tbody>
+            </table>
+          </div>
         </article>
       </section>
 

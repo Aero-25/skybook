@@ -2924,14 +2924,20 @@ const archiveBooking=async(bookingId:string,payload:Json,userId:string)=>{
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found.')
   const existingMetadata=normalizeJsonRecord(booking.metadata)
+  const recordScope=['draft','pending'].includes(normalizeText(booking.status)) ? 'reservation' : 'booking'
+  const recordLabel=recordScope==='reservation' ? 'Reservation' : 'Booking'
   const reason=normalizeText(payload.reason) || 'Booking moved to trash.'
   const archivedAt=nowIso()
   const nextMetadata={
     ...existingMetadata,
     trash:{
+      ...normalizeJsonRecord(existingMetadata.trash),
       archived_at:archivedAt,
       reason,
-      archived_by:userId
+      archived_by:userId,
+      scope:recordScope,
+      original_status:normalizeText(booking.status) || '',
+      original_payment_status:normalizeText(booking.payment_status) || ''
     }
   }
   const { error }=await adminClient.from('bookings').update({
@@ -2942,8 +2948,8 @@ const archiveBooking=async(bookingId:string,payload:Json,userId:string)=>{
     updated_by:userId
   }).eq('id',bookingId)
   if(error)throw error
-  await insertStatusHistory(bookingId,String(booking.status || ''),'cancelled',`Booking moved to trash: ${reason}`,`admin:${userId}`,userId)
-  await createAdminNote({ booking_id:bookingId, note:`Booking moved to trash: ${reason}`, is_private:true },userId)
+  await insertStatusHistory(bookingId,String(booking.status || ''),'cancelled',`${recordLabel} moved to trash: ${reason}`,`admin:${userId}`,userId)
+  await createAdminNote({ booking_id:bookingId, note:`${recordLabel} moved to trash: ${reason}`, is_private:true },userId)
   await syncInvoiceForBooking(bookingId)
   return { success:true, id:bookingId, archived_at:archivedAt }
 }
@@ -2952,10 +2958,17 @@ const restoreBooking=async(bookingId:string,userId:string)=>{
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found.')
   const metadata=normalizeJsonRecord(booking.metadata)
+  const originalStatus=normalizeText(metadata.trash?.original_status)
+  const originalPaymentStatus=normalizeText(metadata.trash?.original_payment_status)
+  const fallbackPaymentStatus=normalizeText(booking.payment_status)==='cancelled' ? 'pending' : normalizeText(booking.payment_status) || 'pending'
+  const nextStatus=originalStatus && originalStatus!=='cancelled'
+    ? originalStatus
+    : (fallbackPaymentStatus==='paid' ? 'confirmed' : 'awaiting_payment')
+  const nextPaymentStatus=originalPaymentStatus || fallbackPaymentStatus
+  const recordScope=normalizeText(metadata.trash?.scope) || (['draft','pending'].includes(nextStatus) ? 'reservation' : 'booking')
+  const recordLabel=recordScope==='reservation' ? 'Reservation' : 'Booking'
   delete metadata.trash
   delete metadata.deleted_at
-  const nextStatus=normalizeText(booking.payment_status)==='paid' ? 'confirmed' : 'awaiting_payment'
-  const nextPaymentStatus=normalizeText(booking.payment_status)==='cancelled' ? 'pending' : normalizeText(booking.payment_status) || 'pending'
   const { error }=await adminClient.from('bookings').update({
     status:nextStatus,
     payment_status:nextPaymentStatus,
@@ -2964,8 +2977,8 @@ const restoreBooking=async(bookingId:string,userId:string)=>{
     updated_by:userId
   }).eq('id',bookingId)
   if(error)throw error
-  await insertStatusHistory(bookingId,String(booking.status || ''),nextStatus,'Booking restored from trash.',`admin:${userId}`,userId)
-  await createAdminNote({ booking_id:bookingId, note:'Booking restored from trash.', is_private:true },userId)
+  await insertStatusHistory(bookingId,String(booking.status || ''),nextStatus,`${recordLabel} restored from trash.`,`admin:${userId}`,userId)
+  await createAdminNote({ booking_id:bookingId, note:`${recordLabel} restored from trash.`, is_private:true },userId)
   await syncInvoiceForBooking(bookingId)
   return { success:true, id:bookingId }
 }

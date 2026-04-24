@@ -879,14 +879,28 @@ window.TrueTravelBooking=(()=>{
       const booking=db.bookings.find(item=>item.id===parts[2])
       if(!booking)throw new Error('Booking not found.')
       const previousStatus=booking.status
+      const previousPaymentStatus=booking.payment_status
+      const recordScope=['draft','pending'].includes(safeText(booking.status).toLowerCase()) ? 'reservation' : 'booking'
+      const recordLabel=recordScope==='reservation' ? 'Reservation' : 'Booking'
       const reason=safeText(body?.reason)||'Booking moved to trash.'
       booking.status='cancelled'
       booking.payment_status='cancelled'
       booking.cancellation_reason=reason
-      booking.metadata={...(booking.metadata||{}),trash:{archived_at:nowIso(),reason,archived_by:'demo'}}
+      booking.metadata={
+        ...(booking.metadata||{}),
+        trash:{
+          ...(((booking.metadata&&typeof booking.metadata==='object'&&!Array.isArray(booking.metadata)&&booking.metadata.trash&&typeof booking.metadata.trash==='object'&&!Array.isArray(booking.metadata.trash)) ? booking.metadata.trash : {})),
+          archived_at:nowIso(),
+          reason,
+          archived_by:'demo',
+          scope:recordScope,
+          original_status:safeText(previousStatus).toLowerCase(),
+          original_payment_status:safeText(previousPaymentStatus).toLowerCase()
+        }
+      }
       booking.updated_at=nowIso()
-      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:'cancelled',reason:`Booking moved to trash: ${reason}`,actor_label:'admin',created_at:nowIso()})
-      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:`Booking moved to trash: ${reason}`,is_private:true,created_at:nowIso()})
+      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:'cancelled',reason:`${recordLabel} moved to trash: ${reason}`,actor_label:'admin',created_at:nowIso()})
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:`${recordLabel} moved to trash: ${reason}`,is_private:true,created_at:nowIso()})
       writeDemoDb(db)
       return {success:true,booking}
     }
@@ -895,14 +909,20 @@ window.TrueTravelBooking=(()=>{
       if(!booking)throw new Error('Booking not found.')
       const previousStatus=booking.status
       booking.metadata={...(booking.metadata||{})}
+      const trashMeta=booking.metadata&&typeof booking.metadata==='object'&&!Array.isArray(booking.metadata)&&booking.metadata.trash&&typeof booking.metadata.trash==='object'&&!Array.isArray(booking.metadata.trash) ? booking.metadata.trash : {}
+      const originalStatus=safeText(trashMeta.original_status).toLowerCase()
+      const originalPaymentStatus=safeText(trashMeta.original_payment_status).toLowerCase()
+      const fallbackPaymentStatus=safeText(booking.payment_status).toLowerCase()==='cancelled' ? 'pending' : safeText(booking.payment_status).toLowerCase() || 'pending'
+      const recordScope=safeText(trashMeta.scope).toLowerCase() || (['draft','pending'].includes(originalStatus) ? 'reservation' : 'booking')
+      const recordLabel=recordScope==='reservation' ? 'Reservation' : 'Booking'
       delete booking.metadata.trash
       delete booking.metadata.deleted_at
-      booking.status=booking.payment_status==='paid' ? 'confirmed' : 'awaiting_payment'
-      if(booking.payment_status==='cancelled')booking.payment_status='pending'
+      booking.status=originalStatus && originalStatus!=='cancelled' ? originalStatus : (fallbackPaymentStatus==='paid' ? 'confirmed' : 'awaiting_payment')
+      booking.payment_status=originalPaymentStatus || fallbackPaymentStatus
       booking.cancellation_reason=''
       booking.updated_at=nowIso()
-      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:booking.status,reason:'Booking restored from trash.',actor_label:'admin',created_at:nowIso()})
-      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:'Booking restored from trash.',is_private:true,created_at:nowIso()})
+      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:booking.status,reason:`${recordLabel} restored from trash.`,actor_label:'admin',created_at:nowIso()})
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:`${recordLabel} restored from trash.`,is_private:true,created_at:nowIso()})
       writeDemoDb(db)
       return {success:true,booking}
     }

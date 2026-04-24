@@ -232,6 +232,7 @@ const nodes={
   bookingNewButton:document.getElementById('adminBookingNewButton'),
   reservationsTable:document.getElementById('adminReservationsTable'),
   reservationDetail:document.getElementById('adminReservationDetail'),
+  reservationTrashTable:document.getElementById('adminReservationTrashTable'),
   servicesTable:document.getElementById('adminServicesTable'),
   serviceOverviewCards:document.getElementById('serviceOverviewCards'),
   serviceFilterBrand:document.getElementById('serviceFilterBrand'),
@@ -425,6 +426,12 @@ const MODULE_META={
     title:'Reservations',
     subtitle:'Website submissions from True Travel and Iventure wait here for review before they become payable bookings.'
   },
+  'reservation-trash':{
+    group:'Administration',
+    eyebrow:'Permanent Archive',
+    title:'Reservation Trash',
+    subtitle:'Soft-deleted reservation requests stay here for audit, recovery, and intake traceability.'
+  },
   'reservation-management':{
     group:'Reservations',
     eyebrow:'Reservation Management',
@@ -438,7 +445,7 @@ const MODULE_META={
     subtitle:'Accepted reservations and admin-created bookings that now need payment, documents, operators, notes, and guest communication.'
   },
   'booking-trash':{
-    group:'Reservations',
+    group:'Administration',
     eyebrow:'Permanent Archive',
     title:'Booking Trash',
     subtitle:'Soft-deleted booking records stay here permanently for audit, recovery, and financial traceability.'
@@ -771,10 +778,25 @@ const renderBrandPill=brandCode=>{
 const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
 const isReviewReservation=booking=>['draft','pending'].includes(normalizeText(booking?.status))
+const getTrashHistoryEntry=bookingId=>sortByDateDesc(
+  state.statusHistory.filter(item=>item.booking_id===bookingId && normalizeText(item.to_status)==='cancelled' && /trash/i.test(String(item.reason||''))),
+  'created_at'
+)[0]
+const getTrashScope=booking=>{
+  const explicitScope=normalizeText(booking?.metadata?.trash?.scope || booking?.metadata?.trash?.record_type)
+  if(explicitScope)return explicitScope
+  const originalStatus=normalizeText(booking?.metadata?.trash?.original_status)
+  if(['draft','pending'].includes(originalStatus))return 'reservation'
+  if(originalStatus)return 'booking'
+  const historyEntry=getTrashHistoryEntry(booking?.id)
+  if(['draft','pending'].includes(normalizeText(historyEntry?.from_status)))return 'reservation'
+  return 'booking'
+}
 const getVisibleBookings=()=>state.bookings.filter(booking=>matchesGlobalBrand(booking))
 const getReviewReservations=()=>getVisibleBookings().filter(booking=>isReviewReservation(booking)&&!isTrashedBooking(booking))
 const getOperationalBookings=()=>getVisibleBookings().filter(booking=>!isReviewReservation(booking)&&!isTrashedBooking(booking))
-const getTrashedBookings=()=>getVisibleBookings().filter(isTrashedBooking)
+const getTrashedReservations=()=>getVisibleBookings().filter(booking=>isTrashedBooking(booking)&&getTrashScope(booking)==='reservation')
+const getTrashedOperationalBookings=()=>getVisibleBookings().filter(booking=>isTrashedBooking(booking)&&getTrashScope(booking)!=='reservation')
 const getBookingById=bookingId=>state.bookings.find(item=>String(item.id)===String(bookingId))
 const getResourceName=resourceId=>state.resources.find(item=>item.id===resourceId)?.name||resourceId
 const isResourceAbundant=resource=>Boolean(resource?.metadata?.abundant_resources)
@@ -1378,6 +1400,7 @@ const VIEW_PERMISSION_MAP={
   audit:'bookings',
   health:'health',
   reservations:'bookings',
+  'reservation-trash':'bookings',
   'reservation-management':'bookings',
   bookings:'bookings',
   'booking-trash':'bookings',
@@ -1400,6 +1423,7 @@ const TAB_ROUTE_MAP={
   audit:{view:'audit',permission:'bookings'},
   health:{view:'health',permission:'health'},
   reservations:{view:'reservations',permission:'bookings'},
+  'reservation-trash':{view:'reservation-trash',permission:'bookings'},
   'reservation-management':{view:'reservation-management',permission:'bookings'},
   bookings:{view:'bookings',permission:'bookings'},
   'booking-trash':{view:'booking-trash',permission:'bookings'},
@@ -1439,6 +1463,14 @@ const canAccess=permissionKey=>{
 const collapseOtherSidebarSections=openSection=>{
   document.querySelectorAll('.admin-menu-section').forEach(section=>{
     if(section!==openSection)section.open=false
+  })
+}
+
+const syncManagementActionHeaders=()=>{
+  const shouldShow=window.scrollY>140
+  document.querySelectorAll('.management-scroll-header').forEach(header=>{
+    const view=String(header.dataset.managementView||'').trim()
+    header.classList.toggle('is-visible',shouldShow && state.activeTab===view)
   })
 }
 
@@ -1585,6 +1617,7 @@ const switchTab=tab=>{
   renderEngineWorkbench()
   renderPlatformWorkbench()
   ensurePanelSwitchers()
+  syncManagementActionHeaders()
   closeMobileSidebar()
   if(route.focusId){
     window.setTimeout(()=>document.getElementById(route.focusId)?.scrollIntoView?.({behavior:'smooth',block:'start'}),90)
@@ -2115,6 +2148,7 @@ const renderReservationDetail=()=>{
   const booking=getBookingById(state.selectedBookingId)
   if(!booking){
     nodes.reservationDetail.innerHTML='<div class="empty-state"><strong>Select a reservation</strong><span>Open a reservation from the review table to inspect guest details, add missing information, and decide what happens next.</span></div>'
+    syncManagementActionHeaders()
     return
   }
   if(!isReviewReservation(booking)){
@@ -2128,6 +2162,7 @@ const renderReservationDetail=()=>{
         </div>
       </div>
     `
+    syncManagementActionHeaders()
     return
   }
   const qualityChecks=[
@@ -2147,6 +2182,18 @@ const renderReservationDetail=()=>{
   const declineReasons=['Fully booked','Wrong date','Duplicate request','Guest unreachable','Invalid contact details']
   nodes.reservationDetail.innerHTML=`
     <div class="booking-detail-shell reservation-management-shell">
+      <div class="management-scroll-header" data-management-view="reservation-management">
+        <div class="management-scroll-header-inner">
+          <strong>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+          <div class="management-scroll-header-actions">
+            <button type="button" data-reservation-nav="back">Back</button>
+            <button type="button" data-reservation-action="edit">Edit</button>
+            <button type="button" data-reservation-action="trash">Move To Trash</button>
+            <button type="button" data-reservation-action="accept-with-changes">Accept With Changes</button>
+            <button type="button" data-reservation-action="accept">Accept</button>
+          </div>
+        </div>
+      </div>
       <div class="booking-detail-main">
         <section class="booking-management-hero reservation-screen-shell">
           <div>
@@ -2156,8 +2203,6 @@ const renderReservationDetail=()=>{
           </div>
           <nav class="booking-management-nav" aria-label="Reservation management navigation">
             <button type="button" data-reservation-nav="back">Back to reservations</button>
-            <button type="button" data-reservation-action="edit">Edit details</button>
-            <button type="button" data-reservation-action="accept-with-changes">Accept with changes</button>
           </nav>
         </section>
 
@@ -2253,6 +2298,7 @@ const renderReservationDetail=()=>{
           <span class="booking-chip">Decision desk</span>
           <button class="booking-button" type="button" data-reservation-action="accept">Accept reservation</button>
           <button class="booking-button ghost" type="button" data-reservation-action="edit">Edit details</button>
+          <button class="booking-button ghost" type="button" data-reservation-action="trash">Move To Trash</button>
           <button class="booking-button ghost" type="button" data-reservation-action="accept-with-changes">Accept with changes</button>
           <button class="booking-button ghost" type="button" data-reservation-action="decline">Decline reservation</button>
           <div class="template-chip-row">
@@ -2282,6 +2328,7 @@ const renderReservationDetail=()=>{
       </aside>
     </div>
   `
+  syncManagementActionHeaders()
 }
 
 const renderBookings=()=>{
@@ -2317,26 +2364,34 @@ const renderBookings=()=>{
   `).join('') || renderEmptyRow(7,'No bookings match the current filters.')
 }
 
+const renderTrashRows=(rows,emptyMessage)=>rows.map(booking=>`
+  <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}" data-trash-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <td>
+      <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+      <div class="table-subline">${renderStatusBadge(booking.status)}</div>
+    </td>
+    <td>${renderBrandPill(booking.brand_code)}</td>
+    <td>
+      <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+      <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
+    </td>
+    <td>${bookingAdminShared.escapeHtml(booking.service_name||'')}</td>
+    <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.metadata?.trash?.archived_at||booking.metadata?.deleted_at||booking.updated_at))}</td>
+    <td>${bookingAdminShared.escapeHtml(booking.metadata?.trash?.reason||booking.cancellation_reason||'Archived by admin')}</td>
+    <td><button class="booking-button ghost compact-button" type="button" data-trash-action="restore" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">Restore</button></td>
+  </tr>
+`).join('') || renderEmptyRow(7,emptyMessage)
+
+const renderReservationTrash=()=>{
+  if(!nodes.reservationTrashTable)return
+  const trashed=getTrashedReservations().sort((left,right)=>(parseDateValue(right.metadata?.trash?.archived_at||right.metadata?.deleted_at)?.getTime()||0)-(parseDateValue(left.metadata?.trash?.archived_at||left.metadata?.deleted_at)?.getTime()||0))
+  nodes.reservationTrashTable.innerHTML=renderTrashRows(trashed,'No reservations are in trash. Nothing is physically deleted from SkyBook.')
+}
+
 const renderBookingTrash=()=>{
   if(!nodes.bookingTrashTable)return
-  const trashed=getTrashedBookings().sort((left,right)=>(parseDateValue(right.metadata?.trash?.archived_at||right.metadata?.deleted_at)?.getTime()||0)-(parseDateValue(left.metadata?.trash?.archived_at||left.metadata?.deleted_at)?.getTime()||0))
-  nodes.bookingTrashTable.innerHTML=trashed.map(booking=>`
-    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}" data-trash-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
-        <div class="table-subline">${renderStatusBadge(booking.status)}</div>
-      </td>
-      <td>${renderBrandPill(booking.brand_code)}</td>
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
-      </td>
-      <td>${bookingAdminShared.escapeHtml(booking.service_name||'')}</td>
-      <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.metadata?.trash?.archived_at||booking.metadata?.deleted_at||booking.updated_at))}</td>
-      <td>${bookingAdminShared.escapeHtml(booking.metadata?.trash?.reason||booking.cancellation_reason||'Archived by admin')}</td>
-      <td><button class="booking-button ghost compact-button" type="button" data-trash-action="restore" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">Restore</button></td>
-    </tr>
-  `).join('') || renderEmptyRow(7,'No bookings are in trash. Nothing is physically deleted from SkyBook.')
+  const trashed=getTrashedOperationalBookings().sort((left,right)=>(parseDateValue(right.metadata?.trash?.archived_at||right.metadata?.deleted_at)?.getTime()||0)-(parseDateValue(left.metadata?.trash?.archived_at||left.metadata?.deleted_at)?.getTime()||0))
+  nodes.bookingTrashTable.innerHTML=renderTrashRows(trashed,'No bookings are in trash. Nothing is physically deleted from SkyBook.')
 }
 
 const renderBookingDetail=()=>{
@@ -2348,6 +2403,7 @@ const renderBookingDetail=()=>{
   const manualEmailDraft=buildManualEmailDraft(booking,brandName)
   if(!booking){
     nodes.bookingDetail.innerHTML='<p class="muted-copy">Choose a booking to review, edit, or change status.</p>'
+    syncManagementActionHeaders()
     return
   }
   const invoice=getBookingInvoices(booking.id)[0]
@@ -2379,6 +2435,18 @@ const renderBookingDetail=()=>{
   const bookingAlerts=buildOperationalAlerts().filter(alert=>alert.booking_id===booking.id || alert.reference===booking.reference)
   nodes.bookingDetail.innerHTML=`
     <div class="booking-detail-shell booking-screen-shell">
+      <div class="management-scroll-header" data-management-view="bookings">
+        <div class="management-scroll-header-inner">
+          <strong>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+          <div class="management-scroll-header-actions">
+            <button type="button" data-booking-inline-action="edit-booking">Edit</button>
+            <button type="button" data-booking-inline-action="send-payment-request">Payment Request</button>
+            <button type="button" data-booking-action="confirmed">Confirm</button>
+            <button type="button" data-booking-action="paid">Mark Paid</button>
+            <button type="button" data-booking-action="completed">Complete</button>
+          </div>
+        </div>
+      </div>
       <div class="booking-detail-main">
         <section class="booking-management-hero">
           <div>
@@ -2872,6 +2940,7 @@ const renderBookingDetail=()=>{
       </aside>
     </div>
   `
+  syncManagementActionHeaders()
 }
 
 const renderServiceOptions=()=>{
@@ -3868,6 +3937,7 @@ const renderAll=()=>{
   renderCalendar()
   renderReservations()
   renderReservationDetail()
+  renderReservationTrash()
   renderBookings()
   renderBookingTrash()
   renderBookingDetail()
@@ -3885,6 +3955,7 @@ const renderAll=()=>{
   renderEngineWorkbench()
   renderPlatformWorkbench()
   ensurePanelSwitchers()
+  syncManagementActionHeaders()
 }
 
 const loadAdminData=async()=>{
@@ -5196,6 +5267,17 @@ nodes.bookingTrashTable?.addEventListener('click',event=>{
   }).then(()=>refreshAdmin('Booking restored from trash.')).catch(error=>setAdminStatus(error.message||'Booking restore failed.',true))
 })
 
+nodes.reservationTrashTable?.addEventListener('click',event=>{
+  const action=event.target.dataset.trashAction
+  const bookingId=event.target.dataset.bookingId||event.target.closest('[data-trash-booking-id]')?.dataset.trashBookingId
+  if(action!=='restore'||!bookingId)return
+  void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  }).then(()=>refreshAdmin('Reservation restored from trash.')).catch(error=>setAdminStatus(error.message||'Reservation restore failed.',true))
+})
+
 nodes.customersTable?.addEventListener('click',event=>{
   const row=event.target.closest('[data-customer-id]')
   if(!row)return
@@ -5253,6 +5335,19 @@ nodes.reservationDetail?.addEventListener('click',event=>{
       await createActivityNote(state.selectedBookingId,`Reservation declined: ${reason}`)
       await refreshAdmin('Reservation declined.')
     }).catch(error=>setAdminStatus(error.message||'Reservation update failed.',true))
+    return
+  }
+  if(action==='trash'){
+    const reason=window.prompt('Why should this reservation move to trash?','Duplicate or invalid reservation request.')
+    if(reason===null)return
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/trash`,{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{ reason }
+    }).then(async()=>{
+      await refreshAdmin('Reservation moved to trash.')
+      switchTab('reservation-trash')
+    }).catch(error=>setAdminStatus(error.message||'Reservation trash update failed.',true))
     return
   }
   if(action==='accept'){
@@ -5503,8 +5598,11 @@ document.addEventListener('keydown',event=>{
 })
 
 window.addEventListener('resize',()=>{
+  syncManagementActionHeaders()
   if(!isMobileSidebarViewport())closeMobileSidebar()
 })
+
+window.addEventListener('scroll',syncManagementActionHeaders,{passive:true})
 
 setBookingFiltersCollapsed(true)
 syncResourceCapacityState()
