@@ -80,7 +80,7 @@ const storedBrandCode=(window.localStorage.getItem(DESIGNER_BRAND_STORAGE_KEY)||
 const isValidBrandCode=brandCode=>Boolean(brandCode)&&Object.prototype.hasOwnProperty.call(DESIGNER_BRANDS,brandCode)
 const getBrandConfig=brandCode=>DESIGNER_BRANDS[brandCode]||DESIGNER_BRANDS['true-travel']
 const getBrandPages=brand=>Array.isArray(brand?.pages)&&brand.pages.length ? brand.pages : [{key:'index',label:'Homepage',path:brand?.homePath||'index.html',description:'Public homepage workspace.'}]
-const isStudioPanel=value=>['pages','gallery'].includes(String(value||'').trim())
+const isStudioPanel=value=>['pages','catalog','gallery'].includes(String(value||'').trim())
 
 const toSlug=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
 const safeText=value=>String(value??'').trim()
@@ -520,6 +520,13 @@ const updateBrandChrome=()=>{
     openGalleryPageLink.href=buildSiteUrl(brand,getGalleryPagePath(brand))
     openGalleryPageLink.textContent=activeBrandCode==='true-travel' ? 'Open Gallery Page' : 'Open Brand Site'
   }
+  if(openCatalogAdminLink){
+    openCatalogAdminLink.href='booking-admin.html?tab=services'
+  }
+  if(openToursPageLink){
+    openToursPageLink.href=buildSiteUrl(brand,brand.toursPath||brand.homePath||'index.html')
+    openToursPageLink.textContent=`Open ${brand.toursLabel||'Catalog'} Page`
+  }
 
   brandSelectButtons.forEach(button=>button.classList.toggle('is-active',button.dataset.brandSelect===activeBrandCode))
   brandSwitchButtons.forEach(button=>button.classList.toggle('is-current',button.dataset.brandSwitch===activeBrandCode))
@@ -552,6 +559,14 @@ const updateActivePanel=(panel,{updateHash=true,refreshPreview=true}={})=>{
   if(nextPanel==='pages'&&refreshPreview){
     reloadPreview()
     setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded.`)
+  }
+  if(nextPanel==='catalog'){
+    if(!catalogLoaded){
+      setStatus(`Loading the ${getActiveBrand().label} catalog preview from SkyBook...`)
+      void loadCatalog()
+    }else{
+      setStatus(`${getActiveBrand().label} catalog preview loaded.`)
+    }
   }
   if(nextPanel==='gallery'&&galleryLoadedBrandCode!==activeBrandCode){
     setGalleryStatus(`Loading the ${getActiveBrand().label} gallery library from Supabase...`)
@@ -760,6 +775,8 @@ const setActiveBrand=brandCode=>{
 
   if(activePanel==='pages'){
     updateActivePanel('pages',{updateHash:false})
+  }else if(activePanel==='catalog'){
+    updateActivePanel('catalog',{updateHash:false})
   }else if(activePanel==='gallery'){
     setGalleryStatus(`Loading the ${brand.label} gallery library from Supabase...`)
     void loadGalleryLibrary()
@@ -848,6 +865,8 @@ if(shouldPromptForBrand){
     setStatus(`${getActiveBrand().label} design workspace loaded.`)
     setGalleryStatus(`Loading the ${getActiveBrand().label} gallery library from Supabase...`)
     void loadGalleryLibrary()
+  }else if(activePanel==='catalog'){
+    setStatus(`Loading the ${getActiveBrand().label} catalog preview from SkyBook...`)
   }else{
     setStatus(`${getActiveBrand().label} ${getPageConfig(getActiveBrand(),activePageKey).label} workspace loaded.`)
   }

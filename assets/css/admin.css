@@ -171,6 +171,35 @@ body.has-site-picker{
   display:grid;
   gap:10px;
 }
+.sidebar-utility-links{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:18px;
+}
+.sidebar-utility-links a{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:42px;
+  padding:0 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);
+  color:var(--text);
+  text-decoration:none;
+  font-size:10px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:700;
+  text-align:center;
+  transition:transform .2s,background .2s,border-color .2s;
+}
+.sidebar-utility-links a:hover{
+  transform:translateY(-1px);
+  border-color:rgba(244,186,24,.36);
+  background:rgba(244,186,24,.1);
+}
 .panel-link{
   width:100%;
   appearance:none;
@@ -1284,8 +1313,9 @@ body.has-site-picker{
   .tour-editor-actions button{width:100%}
 }
 @media(max-width:560px){
-  .panel-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .panel-nav{grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
   .panel-link{padding:14px 12px;font-size:10px;letter-spacing:.1em;text-align:center}
+  .sidebar-utility-links{grid-template-columns:1fr}
   .site-picker-dialog{padding:18px}
   .site-picker-copy h1{font-size:28px}
   .site-picker-card{padding:18px}

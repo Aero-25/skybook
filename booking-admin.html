@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260422-management">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260507-navigation">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen">
@@ -34,6 +34,11 @@
         <strong id="sessionLabel">Not signed in</strong>
         <button class="booking-button ghost" type="button" id="openCommandPalette">Search / Ctrl K</button>
         <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
+      </div>
+      <div class="admin-side-links" aria-label="SkyBook workspace links">
+        <a href="admin.html">Gateway</a>
+        <a href="design-admin.html">Design Studio</a>
+        <a href="portal.html">Guest Portal</a>
       </div>
       <nav class="admin-menu" aria-label="SkyBook primary navigation">
         <details class="admin-menu-section">
@@ -118,10 +123,19 @@
               <option value="true-travel">True Travel</option>
               <option value="iventure">Iventure</option>
             </select>
+            <button type="button" id="toolbarCommandPalette">Search</button>
             <button type="button" id="quickCreateBooking">New Booking</button>
             <button type="button" id="exportBookingsCsv">Export CSV</button>
           </div>
         </div>
+        <nav class="toolbar-quick-nav" aria-label="Quick navigation">
+          <button class="toolbar-quick-link is-active" data-admin-tab="dashboard" type="button">Command</button>
+          <button class="toolbar-quick-link" data-admin-tab="reservations" type="button">Reservations</button>
+          <button class="toolbar-quick-link" data-admin-tab="bookings" type="button">Bookings</button>
+          <button class="toolbar-quick-link" data-admin-tab="calendar" type="button">Calendar</button>
+          <button class="toolbar-quick-link" data-admin-tab="services" type="button">Services</button>
+          <button class="toolbar-quick-link" data-admin-tab="reports" type="button">Reports</button>
+        </nav>
       </section>
 
       <section class="admin-view is-active" data-admin-view="dashboard">
@@ -1483,6 +1497,6 @@
   <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
   <script src="assets/js/admin-modules/reports.js?v=20260424"></script>
-  <script src="assets/js/booking-admin.js?v=20260422-management"></script>
+  <script src="assets/js/booking-admin.js?v=20260507-navigation"></script>
 </body>
 </html>

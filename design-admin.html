@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/admin.css?v=20260422-livedomains">
+<link rel="stylesheet" href="assets/css/admin.css?v=20260507-navigation">
 </head>
 <body class="design-admin-page">
   <script>
@@ -105,7 +105,13 @@
 
       <div class="panel-nav">
         <button class="panel-link is-active" type="button" data-page="pages">Pages</button>
+        <button class="panel-link" type="button" data-page="catalog">Catalog Preview</button>
         <button class="panel-link" type="button" data-page="gallery">Gallery Uploads</button>
+      </div>
+
+      <div class="sidebar-utility-links" aria-label="SkyBook workspace links">
+        <a href="admin.html">Gateway</a>
+        <a href="login.html?next=booking-admin.html">Booking Admin</a>
       </div>
     </aside>
 
@@ -139,7 +145,7 @@
         </div>
       </section>
 
-      <section class="panel-view" data-panel-view="catalog" hidden>
+      <section class="panel-view" data-panel-view="catalog">
         <div class="tours-shell">
           <div class="workspace-top">
             <div>
@@ -240,6 +246,6 @@
 
   <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
   <script src="assets/js/booking-shared.js?v=20260421-centralcatalog" defer></script>
-  <script src="assets/js/admin.js?v=20260423-tt-testdomain" defer></script>
+  <script src="assets/js/admin.js?v=20260507-navigation" defer></script>
 </body>
 </html>
