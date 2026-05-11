@@ -179,6 +179,9 @@ const DEFAULT_AUTOMATION_RULES={
   sendOnPaymentReceived:true,
   sendOnCancellationRefund:true
 }
+const DEFAULT_BOOKING_FORM_FIELDS:Json[]=[]
+const BOOKING_FORM_FIELD_TYPES=new Set(['text','textarea','select','checkbox','number','date','email','tel'])
+const MANUAL_PAYMENT_TYPES=new Set(['cash','eft','bank_transfer','card','voucher','other'])
 const BRAND_SUPPORT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
   iventure:'info@aerodigital.space'
@@ -458,6 +461,94 @@ const upsertBookingSetting=async(settingKey:string,value:unknown,isPublic=false)
     is_public:isPublic
   },{onConflict:'setting_group,setting_key'})
   if(error)throw error
+}
+
+const normalizeFieldId=(value:unknown,fallback='')=>{
+  const normalized=normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g,'_')
+    .replace(/^_+|_+$/g,'')
+  return normalized || fallback
+}
+
+const normalizeBookingFieldOptions=(value:unknown)=>{
+  const source=Array.isArray(value)
+    ? value
+    : normalizeText(value).split(/\r?\n|,/)
+  return source.map((option,index)=>{
+    const raw=typeof option==='object' && option ? option as Json : { label:option, value:option }
+    const label=normalizeText(raw.label || raw.value)
+    const optionValue=normalizeText(raw.value || label)
+    return {
+      value:normalizeFieldId(optionValue,`option_${index+1}`),
+      label:label || optionValue || `Option ${index+1}`
+    }
+  }).filter(option=>option.value&&option.label)
+}
+
+const normalizeBookingFieldDefinitions=(input:unknown)=>{
+  const source=Array.isArray(input)
+    ? input
+    : (typeof input==='object' && input && Array.isArray((input as Json).fields) ? (input as Json).fields as unknown[] : [])
+  const seen=new Set<string>()
+  return source.map((item,index)=>{
+    const field=typeof item==='object' && item ? item as Json : {}
+    const label=normalizeText(field.label)
+    const id=normalizeFieldId(field.id || field.key || label,`field_${index+1}`)
+    const type=BOOKING_FORM_FIELD_TYPES.has(normalizeText(field.type).toLowerCase())
+      ? normalizeText(field.type).toLowerCase()
+      : 'text'
+    const brandCodes=Array.isArray(field.brand_codes)
+      ? field.brand_codes.map(value=>normalizeFieldId(value)).filter(Boolean)
+      : []
+    const options=type==='select' ? normalizeBookingFieldOptions(field.options) : []
+    return {
+      id,
+      label:label || displayLabel(id),
+      type,
+      required:Boolean(field.required),
+      placeholder:normalizeText(field.placeholder),
+      help_text:normalizeText(field.help_text || field.helper),
+      brand_codes:brandCodes,
+      options,
+      sort_order:Number(field.sort_order ?? index),
+      is_active:field.is_active===undefined ? true : Boolean(field.is_active)
+    }
+  }).filter(field=>{
+    if(!field.id||!field.label||seen.has(field.id))return false
+    seen.add(field.id)
+    return true
+  }).sort((left,right)=>Number(left.sort_order||0)-Number(right.sort_order||0))
+}
+
+const bookingFieldAppliesToBrand=(field:Json,brandCode:string)=>{
+  const brandCodes=Array.isArray(field.brand_codes) ? field.brand_codes.map(value=>normalizeFieldId(value)).filter(Boolean) : []
+  return !brandCodes.length || brandCodes.includes(normalizeFieldId(brandCode))
+}
+
+const getBookingFormFields=async(brandCode='',{publicOnly=true}={})=>{
+  const fields=normalizeBookingFieldDefinitions(await getSettingValue('booking_fields',DEFAULT_BOOKING_FORM_FIELDS))
+  return fields.filter(field=>{
+    if(publicOnly && field.is_active===false)return false
+    return bookingFieldAppliesToBrand(field,brandCode)
+  })
+}
+
+const isEmptyCustomFieldValue=(value:unknown)=>{
+  if(typeof value==='boolean')return value!==true
+  if(Array.isArray(value))return value.length===0
+  return normalizeText(value)===''
+}
+
+const validateCustomBookingFields=async(brandCode:string,metadata:Json,shouldValidate=false)=>{
+  if(!shouldValidate)return
+  const fields=await getBookingFormFields(brandCode,{publicOnly:true})
+  const customValues=normalizeJsonRecord(metadata.custom_fields)
+  for(const field of fields){
+    if(field.required && isEmptyCustomFieldValue(customValues[field.id as string])){
+      throw new Error(`${field.label} is required.`)
+    }
+  }
 }
 
 const safeTableSelect=async<T>(query:Promise<any>,fallback:T[]=[] as T[])=>{
@@ -832,7 +923,7 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,amount_due_now,amount_due_later,customers(full_name,email,phone),services(name,slug)')
+      .select('id,reference,brand_code,status,payment_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,amount_due_now,amount_due_later,metadata,customers(full_name,email,phone),services(name,slug)')
       .eq('id',bookingId)
       .maybeSingle()
   )
@@ -903,6 +994,15 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
   const nextVersion=(Number(existingVersions[0]?.version_number || 0) + 1)
   const fileName=`${normalizeText(booking.reference).replace(/[^A-Z0-9-]/gi,'').toUpperCase()}-${documentType}-v${String(nextVersion).padStart(2,'0')}.pdf`
   const storagePath=`bookings/${bookingId}/${documentType}/v${nextVersion}/${fileName}`
+  const bookingMetadata=normalizeJsonRecord(booking.metadata)
+  const customValues=normalizeJsonRecord(bookingMetadata.custom_fields)
+  const customFieldLines=(await getBookingFormFields(normalizeText(brand.code || booking.brand_code),{publicOnly:true}))
+    .map(field=>{
+      const value=customValues[field.id as string]
+      if(value===undefined||value===''||value===false)return ''
+      return `${field.label}: ${value===true ? 'Yes' : value}`
+    })
+    .filter(Boolean)
   const pdfBytes=await buildDocumentPdfBytes(booking,documentType,{
     brand_code:normalizeText(brand.code || booking.brand_code) || 'true-travel',
     brand,
@@ -912,7 +1012,7 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
     service_name,
     document_number:documentNumber,
     summary:normalizeText(payload.summary) || `${displayLabel(documentType)} prepared for ${normalizeText(brand.name)} booking operations.`,
-    notes:normalizeText(payload.notes) || normalizeText(payload.metadata?.notes)
+    notes:[normalizeText(payload.notes) || normalizeText(payload.metadata?.notes),...customFieldLines].filter(Boolean).join('\n')
   })
   const uploadResult=await adminClient.storage.from(DOCUMENT_BUCKET).upload(storagePath,pdfBytes,{
     contentType:'application/pdf',
@@ -1911,6 +2011,140 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
   if(error)throw error
 }
 
+const normalizeManualPaymentType=(value:unknown)=>{
+  const normalized=normalizeFieldId(value)
+  return MANUAL_PAYMENT_TYPES.has(normalized) ? normalized : 'eft'
+}
+
+const getProviderForManualPaymentType=(paymentType:string)=>['eft','bank_transfer'].includes(paymentType) ? 'manual_eft' : 'custom'
+
+const createManualBookingPayment=async(bookingId:string,payload:Json,userId:string)=>{
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
+  if(!booking)throw new Error('Booking not found.')
+  const amount=Number(payload.amount || payload.amount_received || 0)
+  if(!Number.isFinite(amount)||amount<=0)throw new Error('Payment amount must be greater than zero.')
+  const paymentType=normalizeManualPaymentType(payload.payment_type || payload.type)
+  const terminalSerialNumber=normalizeText(payload.terminal_serial_number || payload.serial_number)
+  const batchNumber=normalizeText(payload.batch_number)
+  if(paymentType==='card' && (!terminalSerialNumber||!batchNumber)){
+    throw new Error('Card payments require terminal serial number and batch number.')
+  }
+  const provider=getProviderForManualPaymentType(paymentType)
+  const existingPayment=await safeMaybeSingle<Json>(
+    adminClient.from('payments').select('*').eq('booking_id',bookingId).order('created_at',{ascending:true}).limit(1).maybeSingle()
+  )
+  const previousReceived=Number(existingPayment?.amount_received || 0)
+  const nextReceived=Number((previousReceived+amount).toFixed(2))
+  const totalAmount=Number(booking.total_amount || existingPayment?.amount || nextReceived || 0)
+  const nextPaymentStatus=nextReceived>0 && nextReceived+0.01>=totalAmount ? 'paid' : 'partially_paid'
+  const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
+  const providerReference=normalizeText(payload.provider_reference || payload.reference) || `MAN-${Date.now()}`
+  const manualPaymentMeta={
+    payment_type:paymentType,
+    provider_reference:providerReference,
+    terminal_serial_number:terminalSerialNumber,
+    batch_number:batchNumber,
+    received_at:nowIso(),
+    received_by:userId,
+    notes:normalizeText(payload.notes)
+  }
+  const paymentPayload={
+    booking_id:bookingId,
+    provider,
+    status:nextPaymentStatus,
+    currency_code:normalizeText(payload.currency_code || booking.currency_code) || 'NAD',
+    amount:totalAmount || nextReceived,
+    amount_received:nextReceived,
+    provider_reference:providerReference,
+    paid_at:nextPaymentStatus==='paid' ? nowIso() : (existingPayment?.paid_at || null),
+    metadata:{
+      ...normalizeJsonRecord(existingPayment?.metadata),
+      source:'manual_admin_payment',
+      latest_manual_payment:manualPaymentMeta
+    }
+  }
+  const payment=existingPayment?.id
+    ? await safeMaybeSingle<Json>(adminClient.from('payments').update(paymentPayload).eq('id',String(existingPayment.id)).select().single())
+    : await safeMaybeSingle<Json>(adminClient.from('payments').insert(paymentPayload).select().single())
+  if(!payment?.id)throw new Error('Unable to record payment.')
+  const transaction=await safeMaybeSingle<Json>(
+    adminClient
+      .from('payment_transactions')
+      .insert({
+        payment_id:String(payment.id),
+        provider,
+        transaction_reference:providerReference,
+        transaction_type:'manual_payment',
+        status:'paid',
+        amount,
+        currency_code:normalizeText(payload.currency_code || booking.currency_code) || 'NAD',
+        raw_payload:{
+          ...manualPaymentMeta,
+          booking_reference:booking.reference
+        },
+        reconciled_at:nowIso()
+      })
+      .select()
+      .single()
+  )
+  const currentStatus=normalizeText(booking.status)
+  const nextBookingStatus=nextPaymentStatus==='paid' && ['draft','pending','awaiting_payment','payment_request_sent','rescheduled'].includes(currentStatus)
+    ? 'confirmed'
+    : currentStatus
+  const existingMetadata=normalizeJsonRecord(booking.metadata)
+  const { error:bookingUpdateError }=await adminClient.from('bookings').update({
+    status:nextBookingStatus,
+    payment_status:nextPaymentStatus,
+    amount_due_now:outstandingAmount,
+    amount_due_later:0,
+    metadata:{
+      ...existingMetadata,
+      latest_manual_payment:manualPaymentMeta
+    },
+    updated_by:safeUuid(userId)
+  }).eq('id',bookingId)
+  if(bookingUpdateError)throw bookingUpdateError
+  await insertStatusHistory(
+    bookingId,
+    String(booking.status),
+    nextBookingStatus,
+    `Manual ${displayLabel(paymentType)} payment recorded: ${amount.toFixed(2)} ${normalizeText(payload.currency_code || booking.currency_code) || 'NAD'}`,
+    `admin:${userId}`,
+    userId
+  )
+  await createAdminNote({
+    booking_id:bookingId,
+    note:`Manual ${displayLabel(paymentType)} payment recorded for ${amount.toFixed(2)} ${normalizeText(payload.currency_code || booking.currency_code) || 'NAD'}.${paymentType==='card' ? ` Serial ${terminalSerialNumber}, batch ${batchNumber}.` : ''}`,
+    is_private:true
+  },userId)
+  await syncInvoiceForBooking(bookingId)
+  await syncLifecycleTasks(bookingId,userId)
+  await syncReconciliationRecordForBooking(bookingId,userId)
+  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
+  const paymentJustReceived=!['paid','partially_paid'].includes(normalizeText(booking.payment_status)) && ['paid','partially_paid'].includes(nextPaymentStatus)
+  if(paymentJustReceived && shouldSendAutomationEmail(automationRules as Json,'paymentReceived')){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:String(booking.customer_id || ''),
+      templateKey:'payment_received',
+      priority:'high',
+      createdBy:userId
+    })
+  }
+  await enqueueSystemJob({
+    job_type:'payment_reconciliation',
+    job_group:'finance',
+    priority:'high',
+    booking_id:bookingId,
+    related_table:'payments',
+    related_id:String(payment.id),
+    created_by:userId,
+    payload:{ payment_type:paymentType, provider_reference:providerReference }
+  })
+  await processDueSystemJobs()
+  return { success:true, payment, transaction, payment_status:nextPaymentStatus, amount_received:nextReceived, balance_amount:outstandingAmount }
+}
+
 const resolveOutstandingAmounts=(pricing:{
   amountDueNow:number
   amountDueLater:number
@@ -2415,6 +2649,24 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
   if(insertResult.error && !['42P01','PGRST205'].includes(String(insertResult.error.code || '')))throw insertResult.error
 }
 
+const issueClientInvoice=async(bookingId:string,userId:string)=>{
+  await syncInvoiceForBooking(bookingId)
+  const invoice=await safeMaybeSingle<Json>(adminClient.from('invoices').select('*').eq('booking_id',bookingId).maybeSingle())
+  if(!invoice)throw new Error('Unable to create client invoice for this booking.')
+  const documentResult=await createStoredBookingDocument({
+    booking_id:bookingId,
+    document_type:'guest_invoice',
+    title:'Client Invoice',
+    document_number:normalizeText(invoice.invoice_number),
+    summary:'Client invoice issued from SkyBook.',
+    metadata:{
+      invoice_id:invoice.id,
+      generated_in:'client_invoice_action'
+    }
+  },userId)
+  return { success:true, invoice, ...documentResult }
+}
+
 const maybeAllocateResources=async(bookingId:string,serviceId:string,preferredDate:string,quantity:number)=>{
   if(!preferredDate)return
   const links=await safeTableSelect<Json>(
@@ -2674,6 +2926,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const promotionState=await applyPromotions(service as unknown as Json,payload,basePricing)
   const pricing=calculatePricing(service,payload,settings as Json,promotionState.totalDiscountAmount)
   const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
+  await validateCustomBookingFields(String(brand.code || brandCode),requestMetadata,true)
   const requestSource=normalizeText(payload.source) || normalizeText(requestMetadata.source)
   const bookingSource=requestSource || (isAdmin ? 'admin' : 'website')
   const customer=await upsertCustomer(payload.customer as Json||{},{
@@ -2841,6 +3094,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const incomingCustomer=(payload.customer as Json)||{}
   const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
   const nextBrandCode=normalizeText(payload.brand_code)||normalizeText(existing.brand_code)
+  await validateCustomBookingFields(nextBrandCode,requestMetadata,Object.prototype.hasOwnProperty.call(requestMetadata,'custom_fields'))
   const nextSource=(Object.prototype.hasOwnProperty.call(payload,'source') ? normalizeText(payload.source) : '') || normalizeText(requestMetadata.source) || normalizeText(existing.source) || 'admin'
   const nextCustomerPayload={
     full_name:normalizeText(incomingCustomer.full_name ?? payload.customer_name ?? currentCustomer.data?.full_name),
@@ -3189,13 +3443,13 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     await processDueSystemJobs()
   }
   await syncAllReconciliationRecords(String(user.id || ''))
-  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,brands]=await Promise.all([
+  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands]=await Promise.all([
     adminClient
       .from('bookings')
       .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
       .order('created_at',{ascending:false}),
     adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}),
-    adminClient.from('payments').select('id,booking_id,provider,status,amount,amount_received,currency_code,provider_reference,external_checkout_url,paid_at,created_at').order('created_at',{ascending:false}),
+    adminClient.from('payments').select('id,booking_id,provider,status,amount,amount_received,currency_code,provider_reference,external_checkout_url,paid_at,metadata,created_at').order('created_at',{ascending:false}),
     fetchServices({includeInactive:true}),
     getSettingValue('config',{
       currency:'NAD',
@@ -3233,6 +3487,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       showRefundExposure:true
     }),
     getSettingValue('ops_templates',DEFAULT_OPS_TEMPLATES),
+    getSettingValue('booking_fields',DEFAULT_BOOKING_FORM_FIELDS),
     listBrands()
   ])
   if(bookingsResult.error)throw bookingsResult.error
@@ -3319,11 +3574,14 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   })
   const payments=(paymentsResult.data||[]).map(payment=>{
     const booking=bookings.find(row=>row.id===payment.booking_id)
+    const metadata=normalizeJsonRecord(payment.metadata)
+    const latestManualPayment=normalizeJsonRecord(metadata.latest_manual_payment)
     return {
       id:payment.id,
       booking_id:payment.booking_id,
       reference:booking?.reference||'',
       provider:payment.provider,
+      payment_type:normalizeText(latestManualPayment.payment_type) || normalizeText(metadata.payment_type),
       status:payment.status,
       amount:Number(payment.amount||0),
       amount_received:Number(payment.amount_received||0),
@@ -3332,6 +3590,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       provider_reference:payment.provider_reference || null,
       external_checkout_url:payment.external_checkout_url || null,
       paid_at:payment.paid_at || null,
+      metadata,
       created_at:payment.created_at
     }
   })
@@ -3439,6 +3698,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     payments:canSeePayments ? payments : [],
     services:canSeeServices ? services : [],
     settings:permissions.settings ? settings : {},
+    booking_form_fields:canSeeBookings ? normalizeBookingFieldDefinitions(bookingFields) : [],
     email_templates:permissions.emails ? emailTemplates : {},
     ops_templates:canSeeBookings ? opsTemplates : DEFAULT_OPS_TEMPLATES,
     automation_rules:automationRules,
@@ -3579,6 +3839,10 @@ Deno.serve(async request=>{
       return json(200,{service:await getServiceBySlug(id,false,brandCode)})
     }
 
+    if(request.method==='GET'&&resource==='booking-fields'&&!id){
+      return json(200,{fields:await getBookingFormFields(brandCode,{publicOnly:true})})
+    }
+
     if(request.method==='POST'&&resource==='bookings'&&!id){
       return json(201,{booking:await createBooking(requestBody,{brandCode})})
     }
@@ -3677,6 +3941,16 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='payment-request'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(200,await sendBookingPaymentRequest(subresource,requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='payments'){
+        requireSkybookPermission(adminProfile,'payments')
+        return json(201,await createManualBookingPayment(subresource,requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='bookings'&&parts[3]==='client-invoice'){
+        requireSkybookPermission(adminProfile,'finance')
+        return json(201,await issueClientInvoice(subresource,user.id))
       }
 
       if(request.method==='POST'&&id==='bookings'&&parts[3]==='trash'){
@@ -3922,6 +4196,13 @@ Deno.serve(async request=>{
         requireSkybookPermission(adminProfile,'settings')
         await upsertBookingSetting('portal',requestBody,true)
         return json(200,{success:true})
+      }
+
+      if(request.method==='PATCH'&&id==='booking-fields'){
+        requireSuperAdmin(adminProfile)
+        const fields=normalizeBookingFieldDefinitions(requestBody.fields ?? requestBody)
+        await upsertBookingSetting('booking_fields',fields,true)
+        return json(200,{success:true,fields})
       }
 
       if(request.method==='PATCH'&&id==='integrations'){

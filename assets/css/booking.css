@@ -227,6 +227,11 @@ body.skybook-auth-page{
 .booking-field-full{grid-column:1 / -1}
 .booking-field label,.booking-field-full label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--booking-ocean)}
 .field-hint{font-size:12px;line-height:1.5;color:var(--booking-muted)}
+.booking-custom-field-list{display:grid;gap:14px}
+.booking-custom-field-row{padding:14px;border:1px solid var(--booking-line);border-radius:8px;background:rgba(255,255,255,.72)}
+.booking-custom-field-flags{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.booking-custom-field-flags .inline-check{min-height:38px}
+.booking-custom-field-flags .booking-button{margin-left:auto}
 .booking-field input,.booking-field select,.booking-field textarea,.booking-field-full input,.booking-field-full select,.booking-field-full textarea{
   width:100%;min-height:50px;padding:14px 16px;border-radius:18px;border:1px solid var(--booking-line);background:#fbfdff;color:var(--booking-ink);font:inherit;
 }
@@ -835,7 +840,17 @@ tbody tr:hover td{background:#f8fbfe}
 .status-badge.is-warn{background:#fff4df;color:#9b6b08;border-color:#f4dfb4}
 .status-badge.is-bad{background:#fee9e9;color:#a33a3a;border-color:#f5caca}
 .status-badge.is-neutral{background:#edf2f7;color:#5f6f80;border-color:#dde7f1}
+.booking-row{cursor:pointer}
 .booking-row:hover{background:#f6fbff}
+.table-primary-link{
+  color:inherit;
+  text-decoration:none;
+}
+.table-primary-link:hover{
+  color:var(--booking-ocean);
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
 .permission-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -2693,16 +2708,36 @@ tbody tr:hover td{
 }
 
 .reservation-management-shell{
-  grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);
+  grid-template-columns:minmax(0,1fr) minmax(340px,380px);
+  column-gap:28px;
 }
 
 .reservation-management-shell .booking-management-hero{
   align-items:start;
+  grid-template-columns:minmax(0,1fr);
+  z-index:0;
 }
 
 .reservation-management-shell .booking-management-nav{
   align-self:start;
+  justify-content:flex-start;
   max-width:100%;
+}
+
+.reservation-management-shell .booking-detail-rail{
+  position:relative;
+  z-index:1;
+}
+
+@media (max-width:1100px){
+  .booking-detail-shell,
+  .reservation-management-shell{
+    grid-template-columns:1fr;
+  }
+
+  .reservation-management-shell{
+    column-gap:0;
+  }
 }
 
 .command-palette-panel{

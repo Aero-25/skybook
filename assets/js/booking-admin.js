@@ -10,6 +10,7 @@ const EMAIL_TEMPLATE_META={
   cancellation_refund:{label:'Cancellation / Refund',description:'Sent when a booking is cancelled or refunded.'},
   status_changed:{label:'Status Update',description:'Used for broader booking updates and reminders.'}
 }
+const BOOKING_EDITOR_DRAFT_KEY='skybook-booking-editor-draft-v1'
 
 const state={
   session:null,
@@ -24,6 +25,7 @@ const state={
   roleDefaults:bookingAdminShared.clone(bookingAdminShared.SKYBOOK_ROLE_DEFAULTS||{}),
   brands:[],
   bookings:[],
+  bookingFormFields:[],
   customers:[],
   payments:[],
   services:[],
@@ -114,12 +116,23 @@ const state={
   bookingQuickFilter:'',
   selectedBookingId:'',
   selectedCustomerId:'',
+  selectedPartnerId:'',
+  selectedPartnerType:'',
   selectedServiceId:'',
   isServiceModalOpen:false,
   isBookingModalOpen:false,
   isCustomerModalOpen:false,
+  isPartnerModalOpen:false,
   isWorkflowModalOpen:false,
-  workflowModalConfig:null
+  workflowModalConfig:null,
+  bookingEditor:{
+    draftKey:'',
+    baseline:'',
+    isDirty:false,
+    restoredDraft:false,
+    lastAutosavedAt:'',
+    autosaveTimer:null
+  }
 }
 
 const getAdminRouteState=()=>{
@@ -226,6 +239,7 @@ const nodes={
   bookingForm:document.getElementById('adminBookingForm'),
   bookingModal:document.getElementById('bookingModal'),
   bookingModalTitle:document.getElementById('bookingModalTitle'),
+  bookingDraftStatus:document.getElementById('bookingDraftStatus'),
   closeBookingModalButton:document.getElementById('closeBookingModalButton'),
   bookingReference:document.getElementById('adminBookingReference'),
   bookingBrand:document.getElementById('adminBookingBrand'),
@@ -238,6 +252,7 @@ const nodes={
   bookingCustomerName:document.getElementById('adminBookingCustomerName'),
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
+  bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
@@ -278,6 +293,12 @@ const nodes={
   customerModal:document.getElementById('customerModal'),
   customerModalTitle:document.getElementById('customerModalTitle'),
   closeCustomerModalButton:document.getElementById('closeCustomerModalButton'),
+  partnerModal:document.getElementById('partnerModal'),
+  partnerModalTitle:document.getElementById('partnerModalTitle'),
+  partnerModalDescription:document.getElementById('partnerModalDescription'),
+  partnerDetail:document.getElementById('adminPartnerDetail'),
+  closePartnerModalButton:document.getElementById('closePartnerModalButton'),
+  printPartnerStatementButton:document.getElementById('printPartnerStatementButton'),
   workflowModal:document.getElementById('workflowModal'),
   workflowModalTitle:document.getElementById('workflowModalTitle'),
   workflowModalDescription:document.getElementById('workflowModalDescription'),
@@ -303,6 +324,10 @@ const nodes={
   adminUserPermissions:document.getElementById('adminUserPermissions'),
   adminUserSaveButton:document.getElementById('adminUserSaveButton'),
   settingsForm:document.getElementById('bookingSettingsForm'),
+  bookingCustomFieldsPanel:document.getElementById('bookingCustomFieldsPanel'),
+  bookingFieldsForm:document.getElementById('bookingFieldsForm'),
+  bookingFieldsList:document.getElementById('bookingFieldsList'),
+  addBookingFieldButton:document.getElementById('addBookingFieldButton'),
   emailAutomationForm:document.getElementById('emailAutomationForm'),
   emailTriggerBookingMade:document.getElementById('emailTriggerBookingMade'),
   emailTriggerBookingConfirmed:document.getElementById('emailTriggerBookingConfirmed'),
@@ -525,9 +550,9 @@ const MODULE_META={
   },
   platform:{
     group:'Revenue',
-    eyebrow:'Finance Control',
-    title:'Debtors And Creditors',
-    subtitle:'Track who owes us, who we owe, and the receivables and payables tied to every booking.'
+    eyebrow:'Partner Operations',
+    title:'Partner Center',
+    subtitle:'Manage selling partners and operating partners with statements, outstanding balances, and commercial context in one workspace.'
   },
   invoices:{
     group:'Revenue',
@@ -592,6 +617,7 @@ const renderModuleChrome=tab=>{
   if(nodes.moduleEyebrow)nodes.moduleEyebrow.textContent=meta.eyebrow
   if(nodes.moduleTitle)nodes.moduleTitle.textContent=meta.title
   if(nodes.moduleSubtitle)nodes.moduleSubtitle.textContent=meta.subtitle
+  document.body.classList.toggle('is-compact-admin-toolbar',['reservation-management','bookings'].includes(tab))
 }
 
 const getDashboardUrl=()=>{
@@ -710,6 +736,300 @@ const formatDateTimeLabel=value=>{
 }
 
 const htmlAttribute=value=>bookingAdminShared.escapeHtml(String(value ?? ''))
+const BOOKING_FIELD_TYPES=[
+  {value:'text',label:'Text'},
+  {value:'textarea',label:'Long Text'},
+  {value:'select',label:'Dropdown'},
+  {value:'checkbox',label:'Checkbox'},
+  {value:'number',label:'Number'},
+  {value:'date',label:'Date'},
+  {value:'email',label:'Email'},
+  {value:'tel',label:'Phone'}
+]
+const isSuperAdmin=()=>String(state.profile?.role||'')==='super_admin'
+const normalizeFieldId=value=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')
+const normalizeBookingFieldOptions=value=>(Array.isArray(value) ? value : String(value||'').split(/\r?\n|,/)).map((option,index)=>{
+  const raw=option&&typeof option==='object' ? option : {label:option,value:option}
+  const label=String(raw.label||raw.value||'').trim()
+  const optionValue=normalizeFieldId(raw.value||label)||`option_${index+1}`
+  return {value:optionValue,label:label||formatDisplayLabel(optionValue)}
+}).filter(option=>option.value&&option.label)
+const normalizeBookingFieldDefinitions=fields=>{
+  const seen=new Set()
+  return (Array.isArray(fields) ? fields : []).map((field,index)=>{
+    const label=String(field?.label||'').trim()
+    const id=normalizeFieldId(field?.id||field?.key||label)||`field_${index+1}`
+    const type=BOOKING_FIELD_TYPES.some(item=>item.value===field?.type) ? field.type : 'text'
+    const brandCodes=Array.isArray(field?.brand_codes) ? field.brand_codes.map(normalizeFieldId).filter(Boolean) : []
+    return {
+      id,
+      label:label||formatDisplayLabel(id),
+      type,
+      required:Boolean(field?.required),
+      placeholder:String(field?.placeholder||'').trim(),
+      help_text:String(field?.help_text||field?.helper||'').trim(),
+      brand_codes:brandCodes,
+      options:type==='select' ? normalizeBookingFieldOptions(field?.options) : [],
+      sort_order:Number(field?.sort_order ?? index),
+      is_active:field?.is_active===undefined ? true : Boolean(field.is_active)
+    }
+  }).filter(field=>{
+    if(!field.id||!field.label||seen.has(field.id))return false
+    seen.add(field.id)
+    return true
+  }).sort((left,right)=>Number(left.sort_order||0)-Number(right.sort_order||0))
+}
+const bookingFieldAppliesToBrand=(field,brandCode)=>{
+  const brandCodes=Array.isArray(field?.brand_codes) ? field.brand_codes.map(normalizeFieldId).filter(Boolean) : []
+  return !brandCodes.length || brandCodes.includes(normalizeFieldId(brandCode))
+}
+const getActiveBookingFormFields=brandCode=>normalizeBookingFieldDefinitions(state.bookingFormFields)
+  .filter(field=>field.is_active!==false&&bookingFieldAppliesToBrand(field,brandCode))
+const getBookingCustomFieldValues=booking=>normalizeJsonRecord(normalizeJsonRecord(booking?.metadata).custom_fields)
+const getCustomFieldInputName=field=>`custom_${normalizeFieldId(field.id)}`
+const renderCustomFieldControl=(field,value='')=>{
+  const inputName=htmlAttribute(getCustomFieldInputName(field))
+  const label=bookingAdminShared.escapeHtml(field.label)
+  const required=field.required ? 'required' : ''
+  const helper=field.help_text ? `<small class="field-hint">${bookingAdminShared.escapeHtml(field.help_text)}</small>` : ''
+  const baseClass=field.type==='textarea'||field.type==='checkbox' ? 'booking-field-full' : 'booking-field'
+  if(field.type==='textarea'){
+    return `
+      <label class="${baseClass}" data-booking-custom-field="${htmlAttribute(field.id)}">
+        <span>${label}${field.required ? ' *' : ''}</span>
+        <textarea name="${inputName}" rows="3" placeholder="${htmlAttribute(field.placeholder||'')}" ${required}>${bookingAdminShared.escapeHtml(value||'')}</textarea>
+        ${helper}
+      </label>
+    `
+  }
+  if(field.type==='select'){
+    return `
+      <label class="${baseClass}" data-booking-custom-field="${htmlAttribute(field.id)}">
+        <span>${label}${field.required ? ' *' : ''}</span>
+        <select name="${inputName}" ${required}>
+          <option value="">Choose ${bookingAdminShared.escapeHtml(field.label)}</option>
+          ${(field.options||[]).map(option=>`<option value="${htmlAttribute(option.value)}" ${String(option.value)===String(value||'') ? 'selected' : ''}>${bookingAdminShared.escapeHtml(option.label)}</option>`).join('')}
+        </select>
+        ${helper}
+      </label>
+    `
+  }
+  if(field.type==='checkbox'){
+    return `
+      <label class="${baseClass} inline-check" data-booking-custom-field="${htmlAttribute(field.id)}">
+        <input name="${inputName}" type="checkbox" ${value===true||String(value)==='true' ? 'checked' : ''} ${required}>
+        <span>${label}${field.required ? ' *' : ''}</span>
+      </label>
+    `
+  }
+  return `
+    <label class="${baseClass}" data-booking-custom-field="${htmlAttribute(field.id)}">
+      <span>${label}${field.required ? ' *' : ''}</span>
+      <input name="${inputName}" type="${htmlAttribute(field.type||'text')}" value="${htmlAttribute(value||'')}" placeholder="${htmlAttribute(field.placeholder||'')}" ${required}>
+      ${helper}
+    </label>
+  `
+}
+const renderAdminBookingCustomFields=(booking=null,existingValues=null)=>{
+  if(!nodes.bookingCustomFields)return
+  const brandCode=nodes.bookingBrand?.value||booking?.brand_code||state.brands[0]?.code||bookingAdminShared.readConfig().brandCode
+  const values=existingValues||getBookingCustomFieldValues(booking)
+  const fields=getActiveBookingFormFields(brandCode)
+  nodes.bookingCustomFields.innerHTML=fields.map(field=>renderCustomFieldControl(field,values[field.id])).join('')
+  setNodeVisibility(nodes.bookingCustomFields,fields.length>0)
+}
+const collectBookingCustomFieldValues=()=>{
+  const values={}
+  nodes.bookingCustomFields?.querySelectorAll('[data-booking-custom-field]').forEach(wrapper=>{
+    const fieldId=wrapper.dataset.bookingCustomField
+    const input=wrapper.querySelector('input, select, textarea')
+    if(!fieldId||!input)return
+    values[fieldId]=input.type==='checkbox' ? input.checked : input.value.trim()
+  })
+  return values
+}
+const createEmptyBookingField=()=>({
+  id:`custom_${Date.now().toString(36)}`,
+  label:'New field',
+  type:'text',
+  required:false,
+  placeholder:'',
+  help_text:'',
+  brand_codes:[],
+  options:[],
+  sort_order:normalizeBookingFieldDefinitions(state.bookingFormFields).length,
+  is_active:true
+})
+const renderBookingFieldManager=()=>{
+  const canEdit=isSuperAdmin()
+  setNodeVisibility(nodes.bookingCustomFieldsPanel,canEdit)
+  if(!canEdit||!nodes.bookingFieldsList)return
+  const fields=normalizeBookingFieldDefinitions(state.bookingFormFields)
+  nodes.bookingFieldsList.innerHTML=fields.map((field,index)=>`
+    <article class="booking-custom-field-row" data-booking-field-index="${index}">
+      <div class="booking-form-grid">
+        <label class="booking-field">
+          <span>Field Label</span>
+          <input data-field-prop="label" type="text" value="${htmlAttribute(field.label)}" required>
+        </label>
+        <label class="booking-field">
+          <span>Field Key</span>
+          <input data-field-prop="id" type="text" value="${htmlAttribute(field.id)}" required>
+        </label>
+        <label class="booking-field">
+          <span>Type</span>
+          <select data-field-prop="type">
+            ${BOOKING_FIELD_TYPES.map(type=>`<option value="${htmlAttribute(type.value)}" ${type.value===field.type ? 'selected' : ''}>${bookingAdminShared.escapeHtml(type.label)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="booking-field">
+          <span>Placeholder</span>
+          <input data-field-prop="placeholder" type="text" value="${htmlAttribute(field.placeholder)}">
+        </label>
+        <label class="booking-field-full">
+          <span>Help Text</span>
+          <input data-field-prop="help_text" type="text" value="${htmlAttribute(field.help_text)}">
+        </label>
+        <label class="booking-field-full">
+          <span>Dropdown Options</span>
+          <textarea data-field-prop="options" rows="3" placeholder="One option per line">${bookingAdminShared.escapeHtml((field.options||[]).map(option=>option.label).join('\n'))}</textarea>
+        </label>
+        <div class="booking-field-full booking-custom-field-flags">
+          <label class="inline-check"><input data-field-prop="required" type="checkbox" ${field.required ? 'checked' : ''}><span>Required</span></label>
+          <label class="inline-check"><input data-field-prop="is_active" type="checkbox" ${field.is_active!==false ? 'checked' : ''}><span>Active</span></label>
+          <label class="inline-check"><input data-field-brand="true-travel" type="checkbox" ${!field.brand_codes?.length||field.brand_codes.includes('true-travel') ? 'checked' : ''}><span>True Travel</span></label>
+          <label class="inline-check"><input data-field-brand="iventure" type="checkbox" ${!field.brand_codes?.length||field.brand_codes.includes('iventure') ? 'checked' : ''}><span>Iventure</span></label>
+          <button class="booking-button ghost compact-button" type="button" data-remove-booking-field="${index}">Remove</button>
+        </div>
+      </div>
+    </article>
+  `).join('') || '<p class="muted-copy">No custom booking form fields yet.</p>'
+}
+const collectBookingFieldManagerValues=()=>[...(nodes.bookingFieldsList?.querySelectorAll('[data-booking-field-index]')||[])].map((row,index)=>{
+  const prop=value=>row.querySelector(`[data-field-prop="${value}"]`)
+  const selectedBrands=[...row.querySelectorAll('[data-field-brand]:checked')].map(node=>node.dataset.fieldBrand).filter(Boolean)
+  const allBrandsSelected=selectedBrands.includes('true-travel')&&selectedBrands.includes('iventure')
+  return {
+    id:normalizeFieldId(prop('id')?.value||prop('label')?.value)||`field_${index+1}`,
+    label:prop('label')?.value?.trim()||`Field ${index+1}`,
+    type:prop('type')?.value||'text',
+    required:prop('required')?.checked===true,
+    is_active:prop('is_active')?.checked!==false,
+    placeholder:prop('placeholder')?.value?.trim()||'',
+    help_text:prop('help_text')?.value?.trim()||'',
+    brand_codes:allBrandsSelected ? [] : selectedBrands,
+    options:normalizeBookingFieldOptions(prop('options')?.value||''),
+    sort_order:index
+  }
+})
+const collectBookingFormValues=()=>({
+  reference:nodes.bookingReference?.value||'',
+  brand_code:nodes.bookingBrand?.value||'',
+  source:nodes.bookingSource?.value||'',
+  service_slug:nodes.bookingService?.value||'',
+  status:nodes.bookingStatus?.value||'',
+  payment_status:nodes.bookingPaymentStatus?.value||'',
+  preferred_date:nodes.bookingDate?.value||'',
+  quantity:nodes.bookingQuantity?.value||'',
+  customer_name:nodes.bookingCustomerName?.value||'',
+  customer_email:nodes.bookingCustomerEmail?.value||'',
+  customer_phone:nodes.bookingCustomerPhone?.value||'',
+  custom_fields:collectBookingCustomFieldValues(),
+  notes:nodes.bookingNotes?.value||''
+})
+const applyBookingFormValues=values=>{
+  if(!values)return
+  if(nodes.bookingReference)nodes.bookingReference.value=String(values.reference||'')
+  if(nodes.bookingBrand)nodes.bookingBrand.value=String(values.brand_code||nodes.bookingBrand.value||'')
+  if(nodes.bookingSource)nodes.bookingSource.value=String(values.source||nodes.bookingSource.value||'admin')
+  if(nodes.bookingService)nodes.bookingService.value=String(values.service_slug||'')
+  if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'awaiting_payment')
+  if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
+  if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
+  if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
+  if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
+  if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
+  if(nodes.bookingCustomerPhone)nodes.bookingCustomerPhone.value=String(values.customer_phone||'')
+  if(values.custom_fields)renderAdminBookingCustomFields(null,normalizeJsonRecord(values.custom_fields))
+  if(nodes.bookingNotes)nodes.bookingNotes.value=String(values.notes||'')
+}
+const createBookingFormSnapshot=()=>JSON.stringify(collectBookingFormValues())
+const getBookingEditorDraftKey=()=>`${BOOKING_EDITOR_DRAFT_KEY}:${state.selectedBookingId||'new'}`
+const renderBookingDraftStatus=()=>{
+  if(!nodes.bookingDraftStatus)return
+  let label='Changes save locally while you edit.'
+  if(state.bookingEditor.isDirty){
+    label=state.bookingEditor.lastAutosavedAt
+      ? `Local draft saved ${formatDateTimeLabel(state.bookingEditor.lastAutosavedAt)}.`
+      : 'Unsaved changes are still local to this browser.'
+  }else if(state.bookingEditor.restoredDraft){
+    label=state.bookingEditor.lastAutosavedAt
+      ? `Local draft restored ${formatDateTimeLabel(state.bookingEditor.lastAutosavedAt)}.`
+      : 'Local draft restored for this record.'
+  }
+  nodes.bookingDraftStatus.textContent=label
+  nodes.bookingDraftStatus.classList.toggle('is-dirty',state.bookingEditor.isDirty)
+  nodes.bookingDraftStatus.classList.toggle('is-restored',!state.bookingEditor.isDirty && state.bookingEditor.restoredDraft)
+}
+const resetBookingEditorState=()=>{
+  window.clearTimeout(state.bookingEditor.autosaveTimer)
+  state.bookingEditor={
+    draftKey:'',
+    baseline:'',
+    isDirty:false,
+    restoredDraft:false,
+    lastAutosavedAt:'',
+    autosaveTimer:null
+  }
+  renderBookingDraftStatus()
+}
+const clearBookingEditorDraft=()=>{
+  if(state.bookingEditor.draftKey)localStorage.removeItem(state.bookingEditor.draftKey)
+  resetBookingEditorState()
+}
+const syncBookingEditorDirtyState=()=>{
+  state.bookingEditor.isDirty=Boolean(state.bookingEditor.baseline) && createBookingFormSnapshot()!==state.bookingEditor.baseline
+  renderBookingDraftStatus()
+}
+const autosaveBookingEditorDraft=()=>{
+  if(!state.isBookingModalOpen||!state.bookingEditor.draftKey)return
+  const record={
+    savedAt:new Date().toISOString(),
+    values:collectBookingFormValues()
+  }
+  localStorage.setItem(state.bookingEditor.draftKey,JSON.stringify(record))
+  state.bookingEditor.lastAutosavedAt=record.savedAt
+  syncBookingEditorDirtyState()
+}
+const scheduleBookingEditorAutosave=()=>{
+  window.clearTimeout(state.bookingEditor.autosaveTimer)
+  state.bookingEditor.autosaveTimer=window.setTimeout(autosaveBookingEditorDraft,260)
+}
+const restoreBookingEditorDraftIfAvailable=()=>{
+  if(!state.bookingEditor.draftKey)return false
+  try{
+    const raw=localStorage.getItem(state.bookingEditor.draftKey)
+    if(!raw)return false
+    const draftRecord=JSON.parse(raw)
+    if(!draftRecord||typeof draftRecord!=='object'||!draftRecord.values)return false
+    applyBookingFormValues(draftRecord.values)
+    state.bookingEditor.restoredDraft=true
+    state.bookingEditor.lastAutosavedAt=String(draftRecord.savedAt||'')
+    return true
+  }catch{
+    localStorage.removeItem(state.bookingEditor.draftKey)
+    return false
+  }
+}
+const initialiseBookingEditorSession=()=>{
+  state.bookingEditor.draftKey=getBookingEditorDraftKey()
+  state.bookingEditor.baseline=createBookingFormSnapshot()
+  state.bookingEditor.isDirty=false
+  state.bookingEditor.restoredDraft=false
+  state.bookingEditor.lastAutosavedAt=''
+  restoreBookingEditorDraftIfAvailable()
+  syncBookingEditorDirtyState()
+}
 
 const getTodayKey=()=>bookingAdminShared.currentDate()
 const normalizeDateKey=value=>parseDateValue(value)?.toISOString().slice(0,10)||''
@@ -717,9 +1037,10 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
-  if(['ready','confirmed','completed','paid','active','default'].includes(normalized))return 'is-good'
-  if(['attention','pending','awaiting_payment','partially_paid','queued','issued','investigating','processing','normal','high','needs_review','payment_request_sent','rescheduled'].includes(normalized))return 'is-warn'
+  if(['ready','confirmed','completed','paid','settled','approved','successful'].includes(normalized))return 'is-good'
+  if(['attention','pending','awaiting_payment','partially_paid','queued','under_review','needs_review','payment_request_sent','rescheduled','draft'].includes(normalized))return 'is-warn'
   if(['blocked','cancelled','failed','refunded','inactive','critical','error','no_show'].includes(normalized))return 'is-bad'
+  if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
 }
 
@@ -800,6 +1121,70 @@ const getCustomerBookings=customer=>{
 const getCustomerEmails=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingEmails(booking.id))
 const getCustomerPortalRequests=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalRequests(booking.id))
 const getCustomerPortalSessions=customer=>getCustomerBookings(customer).flatMap(booking=>getBookingPortalSessions(booking.id))
+const getCustomerTimelineNotes=customer=>{
+  const bookingNotes=getCustomerBookings(customer).flatMap(booking=>[
+    ...getBookingNotes(booking.id).map(note=>({
+      created_at:note.created_at,
+      booking_reference:booking.reference,
+      note:note.note,
+      source:'Internal note'
+    })),
+    ...[
+      booking.customer_notes||booking.notes
+    ].filter(Boolean).map(note=>({
+      created_at:booking.updated_at||booking.created_at,
+      booking_reference:booking.reference,
+      note,
+      source:'Booking note'
+    }))
+  ])
+  return sortByDateDesc(bookingNotes,'created_at')
+}
+const getPartnerRecord=(partnerType,partnerId)=>{
+  const source=partnerType==='agent' ? state.agents : state.operators
+  return source.find(item=>item.id===partnerId)||null
+}
+const getPartnerBookings=(partnerType,partnerId)=>{
+  const matches=state.bookings.filter(booking=>{
+    if(partnerType==='agent'){
+      return String(getBookingAgentAssignment(booking.id)?.agent_id||'')===String(partnerId)
+        || getBookingOfficeInvoices(booking.id).some(invoice=>String(invoice.agent_id||'')===String(partnerId))
+    }
+    return String(getBookingOperatorAssignment(booking.id)?.operator_id||'')===String(partnerId)
+      || getBookingOfficeInvoices(booking.id).some(invoice=>String(invoice.operator_id||'')===String(partnerId))
+  })
+  return sortByDateDesc(matches,'preferred_date')
+}
+const getPartnerStatements=(partnerType,partnerId)=>sortByDateDesc(
+  state.officeInvoices.filter(invoice=>String(partnerType==='agent' ? invoice.agent_id : invoice.operator_id||'')===String(partnerId)),
+  'issued_at'
+)
+const getPartnerTypeLabel=partnerType=>partnerType==='agent' ? 'Selling Partner' : 'Operating Partner'
+const getPartnerStatementLabel=(partnerType,invoice)=>{
+  const invoiceType=normalizeText(invoice?.invoice_type||invoice?.payee_type||'statement')
+  if(partnerType==='agent'){
+    return invoiceType==='agent_commission' ? 'Agent commission statement' : formatDisplayLabel(invoice?.invoice_type||'statement')
+  }
+  return invoiceType==='supplier_payable' ? 'Supplier payable statement' : formatDisplayLabel(invoice?.invoice_type||'statement')
+}
+const buildPartnerSummary=(partnerType,partner)=>{
+  const bookings=getPartnerBookings(partnerType,partner?.id)
+  const statements=getPartnerStatements(partnerType,partner?.id)
+  const outstandingStatements=statements.filter(invoice=>!['paid','settled','cancelled'].includes(normalizeText(invoice.status)))
+  const outstandingAmount=sumAmounts(outstandingStatements,'total_amount')
+  const settledAmount=sumAmounts(statements.filter(invoice=>['paid','settled'].includes(normalizeText(invoice.status))),'total_amount')
+  return {
+    bookings,
+    statements,
+    outstandingStatements,
+    outstandingAmount,
+    settledAmount,
+    bookingRevenue:sumAmounts(bookings,'total_amount'),
+    latestStatement:statements[0]||null,
+    noShows:bookings.filter(booking=>normalizeText(booking.status)==='no_show').length,
+    cancellations:bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
+  }
+}
 const normalizeBrandClass=brandCode=>{
   const code=normalizeText(brandCode)
   if(code==='true-travel')return 'true-travel'
@@ -2500,13 +2885,29 @@ const renderReservationDetail=()=>{
   syncManagementActionHeaders()
 }
 
+const getRecordPageUrl=(tab,recordId)=>{
+  const url=new URL(window.location.href)
+  url.searchParams.set('tab',tab)
+  url.searchParams.delete('service')
+  if(tab==='reservations'){
+    url.searchParams.set('reservation',recordId)
+    url.searchParams.delete('booking')
+  }else{
+    url.searchParams.set('booking',recordId)
+    url.searchParams.delete('reservation')
+  }
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   updateBookingQuickFilterBar()
-  nodes.bookingsTable.innerHTML=filtered.map(booking=>`
+  nodes.bookingsTable.innerHTML=filtered.map(booking=>{
+    const bookingUrl=getRecordPageUrl('bookings',booking.id)
+    return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+        <strong><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||'')}</div>
       </td>
       <td>
@@ -2530,7 +2931,8 @@ const renderBookings=()=>{
       <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
       <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
     </tr>
-  `).join('') || renderEmptyRow(7,'No bookings match the current filters.')
+  `
+  }).join('') || renderEmptyRow(7,'No bookings match the current filters.')
 }
 
 const filterTrashRows=(rows,{search='',archivedBy=''})=>{
@@ -2658,6 +3060,15 @@ const renderBookingDetail=()=>{
   const lastChangedBy=(booking.updated_by ? getStaffName(booking.updated_by) : '') || 'System'
   const noteTemplates=(state.opsTemplates?.internalNoteTemplates||[]).slice(0,3)
   const bookingAlerts=buildOperationalAlerts().filter(alert=>alert.booking_id===booking.id || alert.reference===booking.reference)
+  const customFieldValues=getBookingCustomFieldValues(booking)
+  const customFieldRows=getActiveBookingFormFields(booking.brand_code).map(field=>({
+    label:field.label,
+    value:field.type==='checkbox'
+      ? (customFieldValues[field.id] ? 'Yes' : 'No')
+      : String(customFieldValues[field.id] ?? '').trim()
+  })).filter(item=>item.value)
+  const canRecordPayments=canAccess('payments')
+  const canIssueClientInvoices=canAccess('finance')
   nodes.bookingDetail.innerHTML=`
     <div class="booking-detail-shell booking-screen-shell">
       <div class="management-scroll-header" data-management-view="bookings">
@@ -2666,8 +3077,9 @@ const renderBookingDetail=()=>{
           <div class="management-scroll-header-actions">
             <button type="button" data-booking-inline-action="edit-booking">Edit</button>
             <button type="button" data-booking-inline-action="send-payment-request">Payment Request</button>
+            ${canRecordPayments ? '<button type="button" data-booking-inline-action="load-payment">Load Payment</button>' : ''}
+            ${canIssueClientInvoices ? '<button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>' : ''}
             <button type="button" data-booking-action="confirmed">Confirm</button>
-            <button type="button" data-booking-action="paid">Mark Paid</button>
             <button type="button" data-booking-action="no_show">No-show</button>
             <button type="button" data-booking-action="completed">Complete</button>
           </div>
@@ -2758,6 +3170,11 @@ const renderBookingDetail=()=>{
             <div><span>Capture page</span><strong>${bookingAdminShared.escapeHtml(capturePage)}</strong></div>
             <div><span>Created via</span><strong>${bookingAdminShared.escapeHtml(createdVia)}</strong></div>
           </div>
+          ${customFieldRows.length ? `
+            <div class="detail-grid detail-grid-strong admin-spacer">
+              ${customFieldRows.map(item=>`<div><span>${bookingAdminShared.escapeHtml(item.label)}</span><strong>${bookingAdminShared.escapeHtml(item.value)}</strong></div>`).join('')}
+            </div>
+          ` : ''}
         </section>
 
         <section class="detail-section">
@@ -3121,8 +3538,9 @@ const renderBookingDetail=()=>{
         <div class="detail-actions sticky-actions">
           <button type="button" data-booking-action="payment_request_sent">Payment Request Sent</button>
           <button type="button" data-booking-inline-action="send-payment-request">Send Payment Request</button>
+          ${canRecordPayments ? '<button type="button" data-booking-inline-action="load-payment">Load Manual Payment</button>' : ''}
+          ${canIssueClientInvoices ? '<button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>' : ''}
           <button type="button" data-booking-action="confirmed">Confirm</button>
-          <button type="button" data-booking-action="paid">Mark Paid</button>
           <button type="button" data-booking-action="awaiting_payment">Awaiting Payment</button>
           <button type="button" data-booking-action="no_show">No-show</button>
           <button type="button" data-booking-action="completed">Complete</button>
@@ -3167,6 +3585,44 @@ const renderBookingDetail=()=>{
               <p>${bookingAdminShared.escapeHtml(reconciliationRecord?.summary||'Waiting for finance review.')}</p>
             </article>
           </div>
+          ${canRecordPayments ? `
+            <form class="booking-inline-form booking-inline-form-wide admin-spacer" data-inline-form="manual-payment">
+              <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+              <label class="booking-field">
+                <span>Payment Type</span>
+                <select name="payment_type" required>
+                  <option value="eft">EFT / Bank Transfer</option>
+                  <option value="card">Card Machine</option>
+                  <option value="cash">Cash</option>
+                  <option value="voucher">Voucher</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Amount Received</span>
+                <input name="amount" type="number" min="0.01" step="0.01" value="${bookingAdminShared.escapeHtml(String(Math.max(0,guestBalance||booking.amount_due_now||booking.total_amount||0)))}" required>
+              </label>
+              <label class="booking-field">
+                <span>Reference</span>
+                <input name="provider_reference" type="text" placeholder="EFT ref, receipt, or slip number">
+              </label>
+              <label class="booking-field" data-card-payment-field>
+                <span>Terminal Serial</span>
+                <input name="terminal_serial_number" type="text" placeholder="Required for card">
+              </label>
+              <label class="booking-field" data-card-payment-field>
+                <span>Batch Number</span>
+                <input name="batch_number" type="text" placeholder="Required for card">
+              </label>
+              <label class="booking-field-full">
+                <span>Payment Note</span>
+                <input name="notes" type="text" placeholder="Optional finance note">
+              </label>
+              <div class="detail-inline-actions">
+                <button class="booking-button" type="submit">Load Payment</button>
+              </div>
+            </form>
+          ` : ''}
         </section>
         <section class="detail-section">
           <h4>Commercials</h4>
@@ -3369,6 +3825,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
+  renderAdminBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   nodes.bookingSaveButton.textContent=booking ? 'Save Booking' : 'Create Booking'
 }
@@ -3379,6 +3836,7 @@ const openBookingModal=(booking=null)=>{
   fillBookingForm(requestedBooking)
   if(nodes.bookingModalTitle)nodes.bookingModalTitle.textContent=requestedBooking ? 'Edit booking' : 'Create booking'
   setBookingModalState(true)
+  initialiseBookingEditorSession()
   window.setTimeout(()=>nodes.bookingCustomerName?.focus(),60)
 }
 
@@ -3468,7 +3926,7 @@ const renderServices=()=>{
 }
 
 const syncModalBodyState=()=>{
-  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen||state.isCustomerModalOpen||state.isWorkflowModalOpen)
+  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen||state.isCustomerModalOpen||state.isPartnerModalOpen||state.isWorkflowModalOpen)
 }
 
 const setServiceModalState=isOpen=>{
@@ -3492,6 +3950,14 @@ const setCustomerModalState=isOpen=>{
   state.isCustomerModalOpen=Boolean(isOpen)
   nodes.customerModal.hidden=!state.isCustomerModalOpen
   nodes.customerModal.setAttribute('aria-hidden',String(!state.isCustomerModalOpen))
+  syncModalBodyState()
+}
+
+const setPartnerModalState=isOpen=>{
+  if(!nodes.partnerModal)return
+  state.isPartnerModalOpen=Boolean(isOpen)
+  nodes.partnerModal.hidden=!state.isPartnerModalOpen
+  nodes.partnerModal.setAttribute('aria-hidden',String(!state.isPartnerModalOpen))
   syncModalBodyState()
 }
 
@@ -3601,6 +4067,183 @@ const closeCustomerModal=()=>{
   setCustomerModalState(false)
 }
 
+const renderPartnerDetail=()=>{
+  if(!nodes.partnerDetail)return
+  const partner=getPartnerRecord(state.selectedPartnerType,state.selectedPartnerId)
+  if(!partner){
+    if(nodes.partnerModalTitle)nodes.partnerModalTitle.textContent='Partner profile'
+    if(nodes.partnerModalDescription)nodes.partnerModalDescription.textContent='Review partner exposure, outstanding balances, and statement history.'
+    nodes.partnerDetail.innerHTML='<div class="empty-state"><strong>Select a partner</strong><span>Open a selling partner or operating partner from Partner Center to inspect their profile and statements.</span></div>'
+    return
+  }
+  const summary=buildPartnerSummary(state.selectedPartnerType,partner)
+  const kindLabel=getPartnerTypeLabel(state.selectedPartnerType)
+  const rateLabel=partner.commission_type&&partner.commission_value!==undefined
+    ? `${formatDisplayLabel(partner.commission_type)} ${partner.commission_value}`
+    : 'Commercial model not configured'
+  if(nodes.partnerModalTitle)nodes.partnerModalTitle.textContent=partner.company_name||'Partner profile'
+  if(nodes.partnerModalDescription)nodes.partnerModalDescription.textContent=`${kindLabel} profile with statement history, outstanding balances, and linked bookings.`
+  nodes.partnerDetail.innerHTML=`
+    <div class="profile-summary-grid">
+      <article class="metric-card is-info">
+        <span class="metric-label">${bookingAdminShared.escapeHtml(kindLabel)}</span>
+        <strong>${bookingAdminShared.escapeHtml(partner.company_name||'Unnamed partner')}</strong>
+        <small>${bookingAdminShared.escapeHtml(partner.code||'No partner code')}</small>
+      </article>
+      <article class="metric-card ${summary.outstandingAmount>0 ? 'is-warn' : 'is-good'}">
+        <span class="metric-label">Outstanding balance</span>
+        <strong>${bookingAdminShared.formatMoney(summary.outstandingAmount,state.settings.currency||'NAD')}</strong>
+        <small>${bookingAdminShared.escapeHtml(`${summary.outstandingStatements.length} open statement${summary.outstandingStatements.length===1 ? '' : 's'}`)}</small>
+      </article>
+      <article class="metric-card is-good">
+        <span class="metric-label">Settled</span>
+        <strong>${bookingAdminShared.formatMoney(summary.settledAmount,state.settings.currency||'NAD')}</strong>
+        <small>${bookingAdminShared.escapeHtml(`${summary.statements.length} total statement${summary.statements.length===1 ? '' : 's'}`)}</small>
+      </article>
+      <article class="metric-card ${summary.noShows||summary.cancellations ? 'is-risk' : 'is-info'}">
+        <span class="metric-label">Linked trips</span>
+        <strong>${bookingAdminShared.escapeHtml(String(summary.bookings.length))}</strong>
+        <small>${bookingAdminShared.escapeHtml(`${summary.noShows} no-show / ${summary.cancellations} cancelled`)}</small>
+      </article>
+    </div>
+    <section class="detail-section">
+      <div class="section-heading">
+        <div>
+          <h4>Partner profile</h4>
+          <p class="muted-copy">Core commercial settings, contact preference, and operating coverage.</p>
+        </div>
+      </div>
+      <div class="detail-grid detail-grid-strong">
+        <div><span>Code</span><strong>${bookingAdminShared.escapeHtml(partner.code||'Not set')}</strong></div>
+        <div><span>Commercial model</span><strong>${bookingAdminShared.escapeHtml(rateLabel)}</strong></div>
+        <div><span>Preferred contact</span><strong>${bookingAdminShared.escapeHtml(partner.preferred_contact_method||'Not set')}</strong></div>
+        <div><span>Contact name</span><strong>${bookingAdminShared.escapeHtml(partner.contact_name||'Not captured')}</strong></div>
+        <div><span>Email</span><strong>${bookingAdminShared.escapeHtml(partner.email||'Not captured')}</strong></div>
+        <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(partner.phone||'Not captured')}</strong></div>
+      </div>
+      <p class="admin-inline-copy">${bookingAdminShared.escapeHtml(partner.payout_terms||partner.settlement_metadata?.summary||partner.banking_details?.summary||'No settlement notes captured for this partner yet.')}</p>
+    </section>
+    <section class="detail-section">
+      <div class="section-heading">
+        <div>
+          <h4>${bookingAdminShared.escapeHtml(state.selectedPartnerType==='agent' ? 'Agent commission statement' : 'Supplier payable statement')}</h4>
+          <p class="muted-copy">Statement history and outstanding exposure linked to this partner.</p>
+        </div>
+      </div>
+      <div class="table-wrap detail-table">
+        <table>
+          <thead><tr><th>Statement</th><th>Booking</th><th>Status</th><th>Amount</th><th>When</th></tr></thead>
+          <tbody>
+            ${summary.statements.map(invoice=>{
+              const booking=getBookingById(invoice.booking_id)
+              return `
+                <tr${booking?.id ? ` class="booking-row" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}"` : ''}>
+                  <td>
+                    <strong>${bookingAdminShared.escapeHtml(getPartnerStatementLabel(state.selectedPartnerType,invoice))}</strong>
+                    <div class="table-subline">${bookingAdminShared.escapeHtml(invoice.invoice_number||'Pending statement number')}</div>
+                  </td>
+                  <td>
+                    <strong>${bookingAdminShared.escapeHtml(booking?.reference||'No linked booking')}</strong>
+                    <div class="table-subline">${bookingAdminShared.escapeHtml(booking?.customer_name||'')}</div>
+                  </td>
+                  <td>
+                    ${renderStatusBadge(invoice.status||'issued')}
+                    <div class="table-subline">${bookingAdminShared.escapeHtml(invoice.notes||'Awaiting settlement')}</div>
+                  </td>
+                  <td>${bookingAdminShared.formatMoney(invoice.total_amount||invoice.commission_amount||0,invoice.currency_code||state.settings.currency)}</td>
+                  <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(invoice.due_at||invoice.issued_at||invoice.created_at))}</td>
+                </tr>
+              `
+            }).join('') || renderEmptyRow(5,'No partner statements have been logged yet.')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="detail-section">
+      <div class="section-heading">
+        <div>
+          <h4>Linked bookings</h4>
+          <p class="muted-copy">Trips currently associated with this partner relationship.</p>
+        </div>
+      </div>
+      <div class="table-wrap detail-table">
+        <table>
+          <thead><tr><th>Reference</th><th>Guest</th><th>Service</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+          <tbody>
+            ${summary.bookings.map(booking=>`
+              <tr class="booking-row" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+                <td>${bookingAdminShared.escapeHtml(booking.reference||'Draft booking')}</td>
+                <td>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</td>
+                <td>${bookingAdminShared.escapeHtml(booking.service_name||'Service pending')}</td>
+                <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date||booking.created_at))}</td>
+                <td>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</td>
+                <td>${renderStatusBadge(booking.status)}</td>
+              </tr>
+            `).join('') || renderEmptyRow(6,'No bookings are currently linked to this partner.')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `
+}
+
+const openPartnerModal=(partnerType,partnerId)=>{
+  if(!partnerType||!partnerId)return
+  state.selectedPartnerType=partnerType
+  state.selectedPartnerId=partnerId
+  renderPartnerDetail()
+  setPartnerModalState(true)
+  window.setTimeout(()=>nodes.closePartnerModalButton?.focus(),60)
+}
+
+const closePartnerModal=()=>{
+  if(!state.isPartnerModalOpen && !nodes.partnerModal)return
+  setPartnerModalState(false)
+}
+
+const printPartnerStatement=()=>{
+  const partner=getPartnerRecord(state.selectedPartnerType,state.selectedPartnerId)
+  if(!partner)throw new Error('Choose a partner first.')
+  const summary=buildPartnerSummary(state.selectedPartnerType,partner)
+  const title=`${partner.company_name} - ${state.selectedPartnerType==='agent' ? 'Agent Commission Statement' : 'Supplier Payable Statement'}`
+  const statementRows=summary.statements.map(invoice=>{
+    const booking=getBookingById(invoice.booking_id)
+    return `
+      <tr>
+        <td>${bookingAdminShared.escapeHtml(invoice.invoice_number||'Pending statement')}</td>
+        <td>${bookingAdminShared.escapeHtml(booking?.reference||'No linked booking')}</td>
+        <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(invoice.status||'issued'))}</td>
+        <td>${bookingAdminShared.formatMoney(invoice.total_amount||invoice.commission_amount||0,invoice.currency_code||state.settings.currency)}</td>
+        <td>${bookingAdminShared.escapeHtml(formatDateLabel(invoice.due_at||invoice.issued_at||invoice.created_at))}</td>
+      </tr>
+    `}).join('') || '<tr><td colspan="5">No statements logged yet.</td></tr>'
+  const printWindow=window.open('','_blank','noopener,noreferrer,width=1180,height=820')
+  if(!printWindow)throw new Error('Pop-up blocked while opening the statement.')
+  printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>
+    body{font-family:Arial,sans-serif;padding:28px;color:#132433}
+    h1{margin:0 0 12px;font-size:28px}
+    p{margin:0 0 8px;color:#546a7c}
+    .summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:24px 0}
+    .card{padding:16px;border:1px solid #dbe7f2;border-radius:14px}
+    table{width:100%;border-collapse:collapse;margin-top:20px}
+    th,td{padding:10px;border-bottom:1px solid #dbe7f2;text-align:left}
+    th{text-transform:uppercase;font-size:11px;letter-spacing:.14em;color:#5a7082}
+  </style></head><body>
+    <h1>${bookingAdminShared.escapeHtml(title)}</h1>
+    <p>${bookingAdminShared.escapeHtml(getPartnerTypeLabel(state.selectedPartnerType))} code: ${bookingAdminShared.escapeHtml(partner.code||'Not set')}</p>
+    <p>Printed ${bookingAdminShared.escapeHtml(formatDateTimeLabel(new Date().toISOString()))}</p>
+    <div class="summary">
+      <div class="card"><strong>Outstanding</strong><p>${bookingAdminShared.formatMoney(summary.outstandingAmount,state.settings.currency||'NAD')}</p></div>
+      <div class="card"><strong>Settled</strong><p>${bookingAdminShared.formatMoney(summary.settledAmount,state.settings.currency||'NAD')}</p></div>
+      <div class="card"><strong>Linked bookings</strong><p>${bookingAdminShared.escapeHtml(String(summary.bookings.length))}</p></div>
+    </div>
+    <table><thead><tr><th>Statement</th><th>Booking</th><th>Status</th><th>Amount</th><th>When</th></tr></thead><tbody>${statementRows}</tbody></table>
+  </body></html>`)
+  printWindow.document.close()
+  printWindow.focus()
+  window.setTimeout(()=>printWindow.print(),120)
+}
+
 const getFilteredCustomers=()=>{
   const search=(nodes.customerFilterSearch?.value||'').trim().toLowerCase()
   const brand=(nodes.customerFilterBrand?.value||'').trim()
@@ -3636,38 +4279,75 @@ const renderCustomerDetail=()=>{
   const emails=sortByDateDesc(getCustomerEmails(customer),'created_at')
   const portalRequests=sortByDateDesc(getCustomerPortalRequests(customer),'created_at')
   const portalSessions=sortByDateDesc(getCustomerPortalSessions(customer),'created_at')
+  const timelineNotes=getCustomerTimelineNotes(customer)
+  const activeTrips=bookings.filter(booking=>!['cancelled','failed','no_show'].includes(normalizeText(booking.status)))
+  const upcomingTrips=activeTrips
+    .filter(booking=>{
+      const serviceDate=parseDateValue(booking.preferred_date||booking.created_at)
+      const today=parseDateValue(getTodayKey())
+      return serviceDate&&today&&serviceDate.getTime()>=today.getTime()
+    })
+    .sort((left,right)=>(parseDateValue(left.preferred_date||left.created_at)?.getTime()||0)-(parseDateValue(right.preferred_date||right.created_at)?.getTime()||0))
+  const nextTrip=upcomingTrips[0]||null
+  const lastTrip=sortByDateDesc(bookings,'preferred_date')[0]||null
+  const noShows=bookings.filter(booking=>normalizeText(booking.status)==='no_show').length
+  const cancellations=bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
+  const completedTrips=bookings.filter(booking=>normalizeText(booking.status)==='completed').length
   const totalRevenue=bookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
-  const outstandingExposure=bookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
+  const outstandingExposure=bookings.reduce((sum,booking)=>{
+    const invoice=getBookingInvoices(booking.id)[0]
+    return sum+getInvoiceOutstandingAmount(invoice||{total_amount:Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)})
+  },0)
+  const averageBookingValue=bookings.length ? totalRevenue/bookings.length : 0
   if(nodes.customerModalTitle)nodes.customerModalTitle.textContent=customer.full_name||'Customer details'
   nodes.customerDetail.innerHTML=`
-    <div class="crm-profile-grid">
-      <article class="metric-card">
+    <div class="profile-summary-grid">
+      <article class="metric-card is-info">
         <span class="metric-label">Guest</span>
         <strong>${bookingAdminShared.escapeHtml(customer.full_name||'Unnamed customer')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(customer.email||'No email captured')}</div>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(customer.phone||'No phone captured')}</div>
+        <small>${bookingAdminShared.escapeHtml(customer.email||'No email captured')}</small>
       </article>
-      <article class="metric-card">
-        <span class="metric-label">Brand footprint</span>
-        <strong>${bookingAdminShared.escapeHtml(formatBrandLabel(customer.last_brand_code||''))}</strong>
-        ${renderChipGroup(customer.brand_codes,{formatter:formatBrandLabel,fallback:'No brand history yet'})}
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Source footprint</span>
-        <strong>${bookingAdminShared.escapeHtml(formatSourceLabel(customer.last_source||'website'))}</strong>
-        ${renderChipGroup(customer.booking_sources,{formatter:formatSourceLabel,fallback:'No source history yet'})}
-      </article>
-      <article class="metric-card">
-        <span class="metric-label">Commercials</span>
+      <article class="metric-card is-good">
+        <span class="metric-label">Lifetime value</span>
         <strong>${bookingAdminShared.formatMoney(totalRevenue,state.settings.currency||'NAD')}</strong>
-        <div class="table-subline">Outstanding ${bookingAdminShared.formatMoney(outstandingExposure,state.settings.currency||'NAD')}</div>
+        <small>${bookingAdminShared.escapeHtml(`${bookings.length} trip${bookings.length===1 ? '' : 's'} / avg ${bookingAdminShared.formatMoney(averageBookingValue,state.settings.currency||'NAD')}`)}</small>
+      </article>
+      <article class="metric-card ${outstandingExposure>0 ? 'is-warn' : 'is-info'}">
+        <span class="metric-label">Outstanding</span>
+        <strong>${bookingAdminShared.formatMoney(outstandingExposure,state.settings.currency||'NAD')}</strong>
+        <small>${bookingAdminShared.escapeHtml(nextTrip ? `Next trip ${formatDateLabel(nextTrip.preferred_date)}` : 'No future trip booked')}</small>
+      </article>
+      <article class="metric-card ${noShows||cancellations ? 'is-risk' : 'is-good'}">
+        <span class="metric-label">Risk pattern</span>
+        <strong>${bookingAdminShared.escapeHtml(`${noShows} no-show / ${cancellations} cancelled`)}</strong>
+        <small>${bookingAdminShared.escapeHtml(completedTrips ? `${completedTrips} completed trip${completedTrips===1 ? '' : 's'}` : 'No completed trips yet')}</small>
       </article>
     </div>
     <section class="detail-section">
       <div class="section-heading">
         <div>
-          <h4>Booking history</h4>
-          <p class="muted-copy">Recent reservations and bookings linked to this guest profile.</p>
+          <h4>Customer profile</h4>
+          <p class="muted-copy">Guest identity, brand footprint, next trip context, and latest customer behavior.</p>
+        </div>
+      </div>
+      <div class="detail-grid detail-grid-strong">
+        <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(customer.phone||'No phone captured')}</strong></div>
+        <div><span>Latest brand</span><strong>${bookingAdminShared.escapeHtml(formatBrandLabel(customer.last_brand_code||''))}</strong></div>
+        <div><span>Latest source</span><strong>${bookingAdminShared.escapeHtml(formatSourceLabel(customer.last_source||'website'))}</strong></div>
+        <div><span>Created</span><strong>${bookingAdminShared.escapeHtml(formatDateLabel(customer.created_at))}</strong></div>
+        <div><span>Next trip</span><strong>${bookingAdminShared.escapeHtml(nextTrip ? `${nextTrip.reference} - ${formatDateLabel(nextTrip.preferred_date)}` : 'No upcoming trip')}</strong></div>
+        <div><span>Last trip</span><strong>${bookingAdminShared.escapeHtml(lastTrip ? `${lastTrip.reference} - ${formatDateLabel(lastTrip.preferred_date||lastTrip.created_at)}` : 'No previous trip')}</strong></div>
+      </div>
+      <div class="badge-stack admin-spacer">
+        ${renderChipGroup(customer.brand_codes,{formatter:formatBrandLabel,fallback:'No brand history yet'})}
+        ${renderChipGroup(customer.booking_sources,{formatter:formatSourceLabel,fallback:'No source history yet'})}
+      </div>
+    </section>
+    <section class="detail-section">
+      <div class="section-heading">
+        <div>
+          <h4>Trip history</h4>
+          <p class="muted-copy">Reservations and bookings linked to this guest profile. Click a row to open the live record.</p>
         </div>
       </div>
       <div class="table-wrap detail-table">
@@ -3675,7 +4355,7 @@ const renderCustomerDetail=()=>{
           <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
           <tbody>
             ${bookings.map(booking=>`
-              <tr>
+              <tr class="booking-row" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
                 <td>${bookingAdminShared.escapeHtml(booking.reference||'Draft booking')}</td>
                 <td>${bookingAdminShared.escapeHtml(formatBrandLabel(booking.brand_code||''))}</td>
                 <td>${bookingAdminShared.escapeHtml(booking.service_name||'Service pending')}</td>
@@ -3696,31 +4376,43 @@ const renderCustomerDetail=()=>{
     <section class="detail-section">
       <div class="section-heading">
         <div>
-          <h4>Communication & portal</h4>
-          <p class="muted-copy">Recent digital touchpoints and internal context attached to this guest.</p>
+          <h4>Operations & notes</h4>
+          <p class="muted-copy">Recent communication, portal activity, and internal notes attached to this customer journey.</p>
         </div>
       </div>
       <div class="crm-profile-grid">
-        <article class="metric-card">
+        <article class="metric-card is-info">
           <span class="metric-label">Emails sent</span>
           <strong>${bookingAdminShared.escapeHtml(String(emails.length))}</strong>
           <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateTimeLabel(emails[0]?.created_at))}</div>
         </article>
-        <article class="metric-card">
+        <article class="metric-card is-warn">
           <span class="metric-label">Portal requests</span>
           <strong>${bookingAdminShared.escapeHtml(String(portalRequests.length))}</strong>
           <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateTimeLabel(portalRequests[0]?.created_at))}</div>
         </article>
-        <article class="metric-card">
+        <article class="metric-card is-info">
           <span class="metric-label">Portal sessions</span>
           <strong>${bookingAdminShared.escapeHtml(String(portalSessions.length))}</strong>
           <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateTimeLabel(portalSessions[0]?.created_at))}</div>
         </article>
-        <article class="metric-card">
+        <article class="metric-card ${timelineNotes.length ? 'is-good' : 'is-info'}">
           <span class="metric-label">Latest note</span>
-          <strong>${bookingAdminShared.escapeHtml(customer.latest_customer_note||'No note captured')}</strong>
-          <div class="table-subline">Created ${bookingAdminShared.escapeHtml(formatDateLabel(customer.created_at))}</div>
+          <strong>${bookingAdminShared.escapeHtml(timelineNotes[0]?.note||customer.latest_customer_note||'No note captured')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(timelineNotes[0]?.created_at ? formatDateTimeLabel(timelineNotes[0].created_at) : `Created ${formatDateLabel(customer.created_at)}`)}</div>
         </article>
+      </div>
+      <div class="profile-note-list">
+        ${timelineNotes.slice(0,8).map(entry=>`
+          <article class="profile-note-item">
+            <div>
+              <strong>${bookingAdminShared.escapeHtml(entry.booking_reference||'Customer note')}</strong>
+              <span>${bookingAdminShared.escapeHtml(entry.source||'Note')}</span>
+            </div>
+            <p>${bookingAdminShared.escapeHtml(entry.note||'No note captured')}</p>
+            <small>${bookingAdminShared.escapeHtml(formatDateTimeLabel(entry.created_at))}</small>
+          </article>
+        `).join('') || '<div class="detail-helper-copy">No internal notes or customer notes have been captured yet.</div>'}
       </div>
     </section>
   `
@@ -3778,6 +4470,7 @@ const renderSettings=()=>{
   nodes.settingsForm.serviceFee.value=state.settings.serviceFee||0
   if(nodes.portalBaseUrl)nodes.portalBaseUrl.value=state.portalSettings.portalBaseUrl||'/portal.html'
   if(nodes.portalSessionDurationHours)nodes.portalSessionDurationHours.value=state.portalSettings.sessionDurationHours||72
+  renderBookingFieldManager()
 }
 
 const renderEmailTemplates=()=>{
@@ -4202,7 +4895,7 @@ const renderPaymentsWorkbench=()=>{
     <tr>
       <td>
         <strong>${bookingAdminShared.escapeHtml(payment.reference||'')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(payment.provider||'manual')}</div>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(formatDisplayLabel(payment.payment_type||payment.provider||'manual'))}</div>
       </td>
       <td>${renderStatusBadge(payment.status)}</td>
       <td>
@@ -4289,7 +4982,7 @@ const renderEngineWorkbench=()=>{
   setNodeVisibility(nodes.blackoutForm,scopedTab==='engine')
   setNodeVisibility(nodes.couponForm,scopedTab==='rates')
   setNodeVisibility(nodes.voucherForm,scopedTab==='rates')
-  setNodeVisibility(nodes.agentForm,scopedTab==='rates')
+  setNodeVisibility(nodes.agentForm,false)
   const serviceNameById=new Map(state.services.map(service=>[service.id,service.name]))
   const rows=[
     ...state.schedules.map(schedule=>({
@@ -4344,25 +5037,26 @@ const renderPlatformWorkbench=()=>{
     ? 'Resources & Capacity'
     : showFinance
       ? 'Debtors Ledger'
-      : 'Finance Controls'
+      : 'Selling Partners'
   if(nodes.platformSecondaryTitle)nodes.platformSecondaryTitle.textContent=showResources
     ? 'Supporting Inventory Overview'
     : showFinance
       ? 'Creditors Ledger'
-      : 'Settlements & Integrations'
+      : 'Operating Partners'
   if(nodes.platformOperationsHead)nodes.platformOperationsHead.innerHTML=showResources
     ? '<tr><th>Resource</th><th>Type</th><th>Status</th><th>Capacity</th></tr>'
     : showFinance
       ? '<tr><th>Debtor</th><th>Reference</th><th>Status</th><th>Exposure</th></tr>'
-      : '<tr><th>Record</th><th>Type</th><th>Status</th><th>Value</th></tr>'
+      : '<tr><th>Partner</th><th>Model</th><th>Outstanding</th><th>Statement</th></tr>'
   if(nodes.platformConfigHead)nodes.platformConfigHead.innerHTML=showResources
     ? '<tr><th>Category</th><th>Name</th><th>Status</th><th>Value</th></tr>'
     : showFinance
       ? '<tr><th>Creditor</th><th>Payable</th><th>Status</th><th>Amount</th></tr>'
-      : '<tr><th>Category</th><th>Name</th><th>Status</th><th>Value</th></tr>'
+      : '<tr><th>Partner</th><th>Services</th><th>Outstanding</th><th>Statement</th></tr>'
   setNodeVisibility(nodes.resourceForm,showResources)
-  setNodeVisibility(nodes.operatorForm,!showResources)
-  setNodeVisibility(nodes.officeInvoiceForm,!showResources)
+  setNodeVisibility(nodes.agentForm,showPlatformAdmin)
+  setNodeVisibility(nodes.operatorForm,showFinance||showPlatformAdmin)
+  setNodeVisibility(nodes.officeInvoiceForm,showFinance||showPlatformAdmin)
   setNodeVisibility(nodes.automationRulesForm,showPlatformAdmin)
   setNodeVisibility(nodes.portalSettingsForm,showPlatformAdmin)
   setNodeVisibility(nodes.webhookForm,showPlatformAdmin)
@@ -4470,32 +5164,54 @@ const renderPlatformWorkbench=()=>{
     return
   }
 
-  const opRows=[
-    ...state.invoices.slice(0,10).map(invoice=>({label:invoice.invoice_number,type:'Debtor record',status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
-    ...state.refunds.slice(0,10).map(refund=>({label:refund.booking_id,type:'Refund',status:refund.status,value:bookingAdminShared.formatMoney(refund.amount||0,refund.currency_code||state.settings.currency)}))
-  ]
-  nodes.platformOperationsTable.innerHTML=opRows.map(row=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(String(row.label||''))}</td>
-      <td>${bookingAdminShared.escapeHtml(String(row.type||''))}</td>
-      <td>${renderStatusBadge(String(row.status||''))}</td>
-      <td>${bookingAdminShared.escapeHtml(String(row.value||''))}</td>
-    </tr>
-  `).join('') || renderEmptyRow(4,'No finance control records loaded yet.')
+  nodes.platformOperationsTable.innerHTML=state.agents.map(agent=>{
+    const summary=buildPartnerSummary('agent',agent)
+    return `
+      <tr class="booking-row" data-partner-type="agent" data-partner-id="${bookingAdminShared.escapeHtml(agent.id)}">
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(agent.company_name||'Unnamed partner')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(agent.code||'No agent code')}</div>
+        </td>
+        <td>
+          ${renderStatusBadge(agent.is_active===false ? 'inactive' : 'active',agent.is_active===false ? 'Inactive' : 'Active')}
+          <div class="table-subline">${bookingAdminShared.escapeHtml(`${formatDisplayLabel(agent.commission_type||'percentage')} ${agent.commission_value||0}`)}</div>
+        </td>
+        <td>
+          <strong>${bookingAdminShared.formatMoney(summary.outstandingAmount,state.settings.currency||'NAD')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(`${summary.outstandingStatements.length} open statement${summary.outstandingStatements.length===1 ? '' : 's'}`)}</div>
+        </td>
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(summary.latestStatement?.invoice_number||'No statement yet')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(summary.latestStatement ? formatDateLabel(summary.latestStatement.issued_at||summary.latestStatement.created_at) : `${summary.bookings.length} linked booking${summary.bookings.length===1 ? '' : 's'}`)}</div>
+        </td>
+      </tr>
+    `
+  }).join('') || renderEmptyRow(4,'No selling partners have been configured yet.')
 
-  const configRows=[
-    ...state.operators.map(operator=>({category:'Operator',name:operator.company_name,status:operator.is_active===false ? 'Inactive' : 'Active',value:`${operator.commission_type} ${operator.commission_value}`})),
-    ...state.officeInvoices.map(invoice=>({category:'Office Invoice',name:invoice.invoice_number,status:invoice.status,value:bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)})),
-    ...state.webhookEndpoints.map(webhook=>({category:'Webhook',name:webhook.name,status:webhook.is_active===false ? 'Inactive' : 'Active',value:webhook.target_url}))
-  ]
-  nodes.platformConfigTable.innerHTML=configRows.map(row=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(String(row.category||''))}</td>
-      <td>${bookingAdminShared.escapeHtml(String(row.name||''))}</td>
-      <td>${renderStatusBadge(String(row.status||''))}</td>
-      <td>${bookingAdminShared.escapeHtml(String(row.value||''))}</td>
-    </tr>
-  `).join('') || renderEmptyRow(4,'No settlement or integration records loaded yet.')
+  nodes.platformConfigTable.innerHTML=state.operators.map(operator=>{
+    const summary=buildPartnerSummary('operator',operator)
+    const servicesHandled=Array.isArray(operator.services_handled) ? operator.services_handled.join(', ') : String(operator.services_handled||'').trim()
+    return `
+      <tr class="booking-row" data-partner-type="operator" data-partner-id="${bookingAdminShared.escapeHtml(operator.id)}">
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(operator.company_name||'Unnamed operator')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(operator.code||'No operator code')}</div>
+        </td>
+        <td>
+          ${renderStatusBadge(operator.is_active===false ? 'inactive' : 'active',operator.is_active===false ? 'Inactive' : 'Active')}
+          <div class="table-subline">${bookingAdminShared.escapeHtml(servicesHandled||operator.preferred_contact_method||'Services not listed')}</div>
+        </td>
+        <td>
+          <strong>${bookingAdminShared.formatMoney(summary.outstandingAmount,state.settings.currency||'NAD')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(`${summary.outstandingStatements.length} open statement${summary.outstandingStatements.length===1 ? '' : 's'}`)}</div>
+        </td>
+        <td>
+          <strong>${bookingAdminShared.escapeHtml(summary.latestStatement?.invoice_number||'No statement yet')}</strong>
+          <div class="table-subline">${bookingAdminShared.escapeHtml(summary.latestStatement ? formatDateLabel(summary.latestStatement.issued_at||summary.latestStatement.created_at) : `${summary.bookings.length} linked booking${summary.bookings.length===1 ? '' : 's'}`)}</div>
+        </td>
+      </tr>
+    `
+  }).join('') || renderEmptyRow(4,'No operating partners have been configured yet.')
 }
 
 const renderAll=()=>{
@@ -4551,6 +5267,7 @@ const loadAdminData=async()=>{
   state.roleDefaults=payload.role_defaults||state.roleDefaults
   state.brands=payload.brands||[]
   state.bookings=payload.bookings||[]
+  state.bookingFormFields=normalizeBookingFieldDefinitions(payload.booking_form_fields||[])
   state.customers=payload.customers||[]
   state.payments=payload.payments||[]
   state.services=(payload.services||[]).map(bookingAdminShared.normalizeService)
@@ -5511,6 +6228,52 @@ const sendPaymentRequest=async booking=>{
   })
 }
 
+const handleManualPaymentSave=async form=>{
+  const data=new FormData(form)
+  const bookingId=String(data.get('booking_id')||state.selectedBookingId||'').trim()
+  const paymentType=String(data.get('payment_type')||'eft').trim()
+  const body={
+    payment_type:paymentType,
+    amount:Number(data.get('amount')||0),
+    provider_reference:String(data.get('provider_reference')||'').trim(),
+    terminal_serial_number:String(data.get('terminal_serial_number')||'').trim(),
+    batch_number:String(data.get('batch_number')||'').trim(),
+    notes:String(data.get('notes')||'').trim()
+  }
+  if(paymentType==='card'&&(!body.terminal_serial_number||!body.batch_number)){
+    throw new Error('Card payments require terminal serial number and batch number.')
+  }
+  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body
+  })
+  await refreshAdmin('Manual payment loaded on the booking.')
+}
+
+const issueClientInvoice=async booking=>{
+  if(!booking?.id)return
+  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/client-invoice`,{
+    method:'POST',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{}
+  })
+  if(response?.version?.signed_url){
+    window.open(response.version.signed_url,'_blank','noopener,noreferrer')
+  }
+  await refreshAdmin('Client invoice generated.')
+}
+
+const syncManualPaymentCardRequirements=form=>{
+  if(!form)return
+  const requiresCardDetails=form.querySelector('[name="payment_type"]')?.value==='card'
+  form.querySelectorAll('[data-card-payment-field]').forEach(wrapper=>{
+    const input=wrapper.querySelector('input')
+    if(input)input.required=requiresCardDetails
+    wrapper.classList.toggle('is-required',requiresCardDetails)
+  })
+}
+
 const handleAuthCacheReset=async()=>{
   try{
     const client=await requireClient()
@@ -5581,6 +6344,10 @@ const handleBookingSave=async event=>{
     preferred_date:nodes.bookingDate.value,
     quantity:Number(nodes.bookingQuantity.value||1),
     notes:nodes.bookingNotes.value.trim(),
+    metadata:{
+      ...(state.bookings.find(item=>item.id===previousSelectedId)?.metadata||{}),
+      custom_fields:collectBookingCustomFieldValues()
+    },
     customer:{
       full_name:nodes.bookingCustomerName.value.trim(),
       email:nodes.bookingCustomerEmail.value.trim(),
@@ -5600,6 +6367,7 @@ const handleBookingSave=async event=>{
     || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
     || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
   if(savedBooking){
+    clearBookingEditorDraft()
     closeBookingModal()
     if(returnToReservationManagement && isReviewReservation(savedBooking)){
       openReservationManagementScreen(savedBooking,{scroll:true})
@@ -5611,6 +6379,7 @@ const handleBookingSave=async event=>{
     return
   }
   closeBookingModal()
+  clearBookingEditorDraft()
   renderAll()
   setAdminStatus(wasEditing ? 'Booking updated.' : 'Booking created.')
 }
@@ -5700,6 +6469,24 @@ const handleSettingsSave=async event=>{
     body:payload
   })
   await refreshAdmin('Settings saved.')
+}
+
+const handleBookingFieldsSave=async event=>{
+  event.preventDefault()
+  if(!isSuperAdmin()){
+    setAdminStatus('Only super admins can edit booking form fields.',true)
+    return
+  }
+  const fields=normalizeBookingFieldDefinitions(collectBookingFieldManagerValues())
+  const response=await bookingAdminShared.apiRequest('admin/booking-fields',{
+    method:'PATCH',
+    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+    body:{fields}
+  })
+  state.bookingFormFields=normalizeBookingFieldDefinitions(response?.fields||fields)
+  renderBookingFieldManager()
+  renderAdminBookingCustomFields(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
+  await refreshAdmin('Booking form fields saved.')
 }
 
 const handleTemplateSave=async()=>{
@@ -5955,13 +6742,18 @@ const handleOfficeInvoiceSave=async event=>{
 }
 
 const exportBookingsCsv=()=>{
+  const customFields=normalizeBookingFieldDefinitions(state.bookingFormFields).filter(field=>field.is_active!==false)
   const filtered=getFilteredBookings().map(booking=>({
     ...booking,
     operator_name:getBookingOperatorName(booking),
     agent_name:getBookingAgentName(booking),
     booking_source:booking.source||booking.metadata?.source||'website',
     amount_due_now:Number(booking.amount_due_now||0),
-    amount_due_later:Number(booking.amount_due_later||0)
+    amount_due_later:Number(booking.amount_due_later||0),
+    ...Object.fromEntries(customFields.map(field=>{
+      const values=getBookingCustomFieldValues(booking)
+      return [`custom_${field.id}`,field.type==='checkbox' ? (values[field.id] ? 'Yes' : 'No') : (values[field.id]||'')]
+    }))
   }))
   const csv=bookingAdminShared.toCsv(filtered,[
     {key:'reference',label:'Reference'},
@@ -5977,7 +6769,8 @@ const exportBookingsCsv=()=>{
     {key:'preferred_date',label:'Preferred Date'},
     {key:'amount_due_now',label:'Due Now'},
     {key:'amount_due_later',label:'Due Later'},
-    {key:'total_amount',label:'Total Amount'}
+    {key:'total_amount',label:'Total Amount'},
+    ...customFields.map(field=>({key:`custom_${field.id}`,label:field.label}))
   ])
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'})
   const url=URL.createObjectURL(blob)
@@ -5990,17 +6783,7 @@ const exportBookingsCsv=()=>{
 
 const openRecordInNewTab=(tab,recordId)=>{
   if(!recordId)return
-  const url=new URL(window.location.href)
-  url.searchParams.set('tab',tab)
-  url.searchParams.delete('service')
-  if(tab==='reservations'){
-    url.searchParams.set('reservation',recordId)
-    url.searchParams.delete('booking')
-  }else{
-    url.searchParams.set('booking',recordId)
-    url.searchParams.delete('reservation')
-  }
-  window.open(`${url.pathname}${url.search}${url.hash}`,'_blank','noopener')
+  window.open(getRecordPageUrl(tab,recordId),'_blank','noopener')
 }
 
 const openNewBookingWorkspace=()=>{
@@ -6111,6 +6894,14 @@ nodes.printReportArrivals?.addEventListener('click',()=>{
   try{ printArrivalsForDate(nodes.reportsArrivalsDate?.value||getTodayKey()) }catch(error){ setAdminStatus(error.message||'Could not print arrivals list.',true) }
 })
 nodes.bookingForm.addEventListener('submit',event=>{void handleBookingSave(event)})
+nodes.bookingForm.addEventListener('input',scheduleBookingEditorAutosave)
+nodes.bookingForm.addEventListener('change',event=>{
+  if(event.target===nodes.bookingBrand){
+    const currentValues=collectBookingCustomFieldValues()
+    renderAdminBookingCustomFields(null,currentValues)
+  }
+  scheduleBookingEditorAutosave()
+})
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
 nodes.closeBookingModalButton?.addEventListener('click',closeBookingModal)
 nodes.closeCustomerModalButton?.addEventListener('click',closeCustomerModal)
@@ -6139,6 +6930,17 @@ nodes.serviceForm.addEventListener('submit',event=>{void handleServiceSave(event
 nodes.adminUserForm?.addEventListener('submit',event=>{void handleAdminUserSave(event)})
 nodes.adminUserRole?.addEventListener('change',()=>renderAdminUserPermissionEditor(collectPermissionOverrides(),nodes.adminUserRole.value))
 nodes.settingsForm.addEventListener('submit',event=>{void handleSettingsSave(event)})
+nodes.bookingFieldsForm?.addEventListener('submit',event=>{void handleBookingFieldsSave(event)})
+nodes.addBookingFieldButton?.addEventListener('click',()=>{
+  state.bookingFormFields=normalizeBookingFieldDefinitions([...collectBookingFieldManagerValues(),createEmptyBookingField()])
+  renderBookingFieldManager()
+})
+nodes.bookingFieldsList?.addEventListener('click',event=>{
+  const removeButton=event.target.closest('[data-remove-booking-field]')
+  if(!removeButton)return
+  state.bookingFormFields=normalizeBookingFieldDefinitions(collectBookingFieldManagerValues()).filter((_,index)=>index!==Number(removeButton.dataset.removeBookingField))
+  renderBookingFieldManager()
+})
 nodes.emailAutomationForm?.addEventListener('submit',event=>{void handleEmailAutomationSave(event)})
 nodes.emailTemplatesForm.addEventListener('submit',event=>{
   event.preventDefault()
@@ -6159,6 +6961,7 @@ nodes.operatorForm.addEventListener('submit',event=>{void handleOperatorSave(eve
 nodes.officeInvoiceForm.addEventListener('submit',event=>{void handleOfficeInvoiceSave(event)})
 
 nodes.bookingsTable.addEventListener('click',event=>{
+  if(event.target.closest('a,button,input,select,textarea,label,[role="button"]'))return
   const row=event.target.closest('[data-booking-id]')
   if(!row)return
   const booking=state.bookings.find(item=>item.id===row.dataset.bookingId)
@@ -6248,7 +7051,7 @@ nodes.reservationDetail?.addEventListener('click',event=>{
   if(!booking)return
   if(action==='edit'||action==='accept-with-changes'){
     const modalBooking=action==='accept-with-changes'
-      ? {...booking,status:'payment_request_sent',payment_status:booking.payment_status||'pending'}
+      ? {...booking,status:'awaiting_payment',payment_status:booking.payment_status||'pending'}
       : booking
     openBookingModal(modalBooking)
     return
@@ -6271,7 +7074,7 @@ nodes.reservationDetail?.addEventListener('click',event=>{
     void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{ status:'payment_request_sent', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
+      body:{ status:'awaiting_payment', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
     }).then(async()=>{
       await createActivityNote(state.selectedBookingId,'Reservation accepted and moved to bookings.')
       await refreshAdmin('Reservation accepted and moved to bookings.')
@@ -6309,6 +7112,19 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
     if(booking){
       void sendPaymentRequest(booking).then(()=>refreshAdmin('Payment request sent.')).catch(error=>setAdminStatus(error.message||'Payment request failed.',true))
+    }
+    return
+  }
+  if(inlineAction==='load-payment'){
+    const paymentForm=nodes.bookingDetail.querySelector('form[data-inline-form="manual-payment"]')
+    paymentForm?.scrollIntoView?.({behavior:'smooth',block:'center'})
+    window.setTimeout(()=>paymentForm?.querySelector('[name="amount"]')?.focus?.(),180)
+    return
+  }
+  if(inlineAction==='issue-client-invoice'){
+    const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+    if(booking){
+      void issueClientInvoice(booking).catch(error=>setAdminStatus(error.message||'Client invoice failed.',true))
     }
     return
   }
@@ -6373,6 +7189,15 @@ nodes.bookingDetail.addEventListener('click',event=>{
     openNoShowWorkflowModal()
     return
   }
+  if(action==='paid'){
+    const paymentForm=nodes.bookingDetail.querySelector('form[data-inline-form="manual-payment"]')
+    if(paymentForm){
+      paymentForm.scrollIntoView?.({behavior:'smooth',block:'center'})
+      window.setTimeout(()=>paymentForm.querySelector('[name="amount"]')?.focus?.(),180)
+      setAdminStatus('Load the payment details before marking a booking paid.')
+      return
+    }
+  }
   const payload=action==='paid'
     ? {status:activeBooking?.status==='completed' ? 'completed' : 'confirmed',payment_status:'paid'}
     : action==='awaiting_payment'
@@ -6404,6 +7229,10 @@ nodes.bookingDetail.addEventListener('submit',event=>{
     void handleBookingOwnershipSave(form).catch(error=>setAdminStatus(error.message||'Ownership update failed.',true))
     return
   }
+  if(formType==='manual-payment'){
+    void handleManualPaymentSave(form).catch(error=>setAdminStatus(error.message||'Payment could not be loaded.',true))
+    return
+  }
   if(formType==='note'){
     void handleBookingNoteSave(form).catch(error=>setAdminStatus(error.message||'Note could not be saved.',true))
     return
@@ -6419,6 +7248,11 @@ nodes.bookingDetail.addEventListener('submit',event=>{
   if(formType==='email'){
     void handleBookingEmailSave(form).catch(error=>setAdminStatus(error.message||'Email could not be sent.',true))
   }
+})
+
+nodes.bookingDetail.addEventListener('change',event=>{
+  const form=event.target.closest('form[data-inline-form="manual-payment"]')
+  if(form)syncManualPaymentCardRequirements(form)
 })
 
 nodes.platformOperationsTable?.addEventListener('click',event=>{

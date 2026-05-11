@@ -73,6 +73,7 @@
             <button class="admin-tab" data-admin-tab="refunds" type="button"><span class="admin-tab-icon">RF</span><span>Refunds</span></button>
             <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
             <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Debtors & Creditors</span></button>
+            <button class="admin-tab" data-admin-tab="platform" type="button"><span class="admin-tab-icon">PT</span><span>Partner Center</span></button>
             <button class="admin-tab" data-admin-tab="reports" type="button"><span class="admin-tab-icon">RP</span><span>Reports & Analytics</span></button>
           </div>
         </details>
@@ -649,6 +650,7 @@
           <div class="panel-header-inline admin-modal-header">
             <div>
               <h3 id="bookingModalTitle">Create booking</h3>
+              <p class="field-hint booking-draft-status" id="bookingDraftStatus">Changes save locally while you edit.</p>
             </div>
             <button class="admin-modal-close" id="closeBookingModalButton" type="button" aria-label="Close booking editor">X</button>
           </div>
@@ -723,6 +725,7 @@
               <span>Customer Phone</span>
               <input id="adminBookingCustomerPhone" type="tel" required>
             </label>
+            <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
               <span>Notes</span>
               <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
@@ -886,6 +889,23 @@
         </article>
       </div>
 
+      <div class="admin-modal-shell" id="partnerModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel admin-customer-modal" role="dialog" aria-modal="true" aria-labelledby="partnerModalTitle">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3 id="partnerModalTitle">Partner profile</h3>
+              <p class="field-hint" id="partnerModalDescription">Review partner exposure, outstanding balances, and statement history.</p>
+            </div>
+            <div class="admin-modal-actions">
+              <button class="booking-button ghost compact-button" id="printPartnerStatementButton" type="button">Print Statement</button>
+              <button class="admin-modal-close" id="closePartnerModalButton" type="button" aria-label="Close partner details">X</button>
+            </div>
+          </div>
+          <div id="adminPartnerDetail" class="crm-customer-detail"></div>
+        </article>
+      </div>
+
       <div class="admin-modal-shell" id="workflowModal" hidden aria-hidden="true">
         <div class="admin-modal-backdrop" aria-hidden="true"></div>
         <article class="booking-panel admin-modal-panel admin-workflow-modal" role="dialog" aria-modal="true" aria-labelledby="workflowModalTitle">
@@ -958,39 +978,56 @@
       </section>
 
       <section class="admin-view" data-admin-view="settings">
-        <article class="booking-panel">
-          <h3>Booking settings</h3>
-          <form id="bookingSettingsForm" class="booking-form-grid">
-            <label class="booking-field">
-              <span>Currency Code</span>
-              <input id="settingCurrency" name="currency" type="text" value="NAD" placeholder="NAD">
-              <small class="field-hint">Namibian Dollar displays as N$ across SkyBook.</small>
-            </label>
-            <label class="booking-field">
-              <span>Support Email</span>
-              <input id="settingSupportEmail" name="supportEmail" type="email">
-            </label>
-            <label class="booking-field">
-              <span>Support Phone</span>
-              <input id="settingSupportPhone" name="supportPhone" type="tel">
-            </label>
-            <label class="booking-field">
-              <span>Default Deposit %</span>
-              <input id="settingDeposit" name="defaultDepositValue" type="number" min="0" max="100">
-            </label>
-            <label class="booking-field">
-              <span>Tax Rate %</span>
-              <input id="settingTax" name="taxRate" type="number" min="0" step="0.01">
-            </label>
-            <label class="booking-field">
-              <span>Service Fee</span>
-              <input id="settingServiceFee" name="serviceFee" type="number" min="0" step="0.01">
-            </label>
-            <div class="booking-field-full">
-              <button class="booking-button" type="submit">Save Settings</button>
+        <div class="admin-panel-grid">
+          <article class="booking-panel">
+            <h3>Booking settings</h3>
+            <form id="bookingSettingsForm" class="booking-form-grid">
+              <label class="booking-field">
+                <span>Currency Code</span>
+                <input id="settingCurrency" name="currency" type="text" value="NAD" placeholder="NAD">
+                <small class="field-hint">Namibian Dollar displays as N$ across SkyBook.</small>
+              </label>
+              <label class="booking-field">
+                <span>Support Email</span>
+                <input id="settingSupportEmail" name="supportEmail" type="email">
+              </label>
+              <label class="booking-field">
+                <span>Support Phone</span>
+                <input id="settingSupportPhone" name="supportPhone" type="tel">
+              </label>
+              <label class="booking-field">
+                <span>Default Deposit %</span>
+                <input id="settingDeposit" name="defaultDepositValue" type="number" min="0" max="100">
+              </label>
+              <label class="booking-field">
+                <span>Tax Rate %</span>
+                <input id="settingTax" name="taxRate" type="number" min="0" step="0.01">
+              </label>
+              <label class="booking-field">
+                <span>Service Fee</span>
+                <input id="settingServiceFee" name="serviceFee" type="number" min="0" step="0.01">
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button" type="submit">Save Settings</button>
+              </div>
+            </form>
+          </article>
+          <article class="booking-panel" id="bookingCustomFieldsPanel">
+            <div class="panel-header-inline">
+              <div>
+                <h3>Booking form fields</h3>
+                <p class="field-hint">Super admins can add, remove, and brand-scope fields for SkyBook, True Travel, and Iventure booking forms.</p>
+              </div>
+              <button class="booking-button ghost compact-button" id="addBookingFieldButton" type="button">Add Field</button>
             </div>
-          </form>
-        </article>
+            <form id="bookingFieldsForm" class="admin-spacer">
+              <div id="bookingFieldsList" class="booking-custom-field-list"></div>
+              <div class="booking-field-full admin-spacer">
+                <button class="booking-button" type="submit">Save Booking Fields</button>
+              </div>
+            </form>
+          </article>
+        </div>
       </section>
 
       <section class="admin-view" data-admin-view="emails">
@@ -1225,30 +1262,6 @@
                 <button class="booking-button ghost" type="submit">Save Voucher</button>
               </div>
             </form>
-            <form id="adminAgentForm" class="booking-form-grid admin-spacer">
-              <label class="booking-field">
-                <span>Agent Code</span>
-                <input id="adminAgentCode" type="text" required>
-              </label>
-              <label class="booking-field">
-                <span>Company</span>
-                <input id="adminAgentCompany" type="text" required>
-              </label>
-              <label class="booking-field">
-                <span>Commission Type</span>
-                <select id="adminAgentCommissionType">
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </select>
-              </label>
-              <label class="booking-field">
-                <span>Commission Value</span>
-                <input id="adminAgentCommissionValue" type="number" min="0" step="0.01" required>
-              </label>
-              <div class="booking-field-full">
-                <button class="booking-button ghost" type="submit">Save Agent / Reseller</button>
-              </div>
-            </form>
           </article>
         </div>
       </section>
@@ -1256,10 +1269,10 @@
       <section class="admin-view" data-admin-view="platform">
         <div class="admin-panel-grid">
           <article class="booking-panel" id="adminPlatformPrimaryPanel">
-            <h3 id="adminPlatformPrimaryTitle">Debtors Ledger</h3>
+            <h3 id="adminPlatformPrimaryTitle">Selling Partners</h3>
             <div class="table-wrap">
               <table>
-                <thead id="adminPlatformOperationsHead"><tr><th>Debtor</th><th>Reference</th><th>Status</th><th>Exposure</th></tr></thead>
+                <thead id="adminPlatformOperationsHead"><tr><th>Partner</th><th>Model</th><th>Outstanding</th><th>Statement</th></tr></thead>
                 <tbody id="adminPlatformOperationsTable"></tbody>
               </table>
             </div>
@@ -1291,13 +1304,37 @@
                 <button class="booking-button" type="submit">Save Resource</button>
               </div>
             </form>
+            <form id="adminAgentForm" class="booking-form-grid admin-spacer">
+              <label class="booking-field">
+                <span>Agent Code</span>
+                <input id="adminAgentCode" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Company</span>
+                <input id="adminAgentCompany" type="text" required>
+              </label>
+              <label class="booking-field">
+                <span>Commission Type</span>
+                <select id="adminAgentCommissionType">
+                  <option value="percentage">Percentage</option>
+                  <option value="fixed">Fixed</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Commission Value</span>
+                <input id="adminAgentCommissionValue" type="number" min="0" step="0.01" required>
+              </label>
+              <div class="booking-field-full">
+                <button class="booking-button ghost" type="submit">Save Agent / Reseller</button>
+              </div>
+            </form>
           </article>
 
           <article class="booking-panel" id="adminPlatformSecondaryPanel">
-            <h3 id="adminPlatformSecondaryTitle">Creditors Ledger</h3>
+            <h3 id="adminPlatformSecondaryTitle">Operating Partners</h3>
             <div class="table-wrap">
               <table>
-                <thead id="adminPlatformConfigHead"><tr><th>Creditor</th><th>Payable</th><th>Status</th><th>Amount</th></tr></thead>
+                <thead id="adminPlatformConfigHead"><tr><th>Partner</th><th>Services</th><th>Outstanding</th><th>Statement</th></tr></thead>
                 <tbody id="adminPlatformConfigTable"></tbody>
               </table>
             </div>
