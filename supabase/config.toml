@@ -1,0 +1,10 @@
+project_id = "zegfirgyhdjyehvhlrnh"
+
+[functions.booking-api]
+verify_jwt = false
+
+[functions.payment-initiate]
+verify_jwt = false
+
+[functions.payment-webhook]
+verify_jwt = false
