@@ -4918,13 +4918,11 @@ body.gateway-page{
 
 /* Cards */
 .gateway-page .admin-gateway-grid{
-  max-width:960px;
-  margin:22px auto 0;
-  justify-content:center;
+  margin-top:22px;
 }
 
 .gateway-page .admin-gateway-card{
-  padding:32px;
+  padding:28px 36px;
   border-radius:28px;
   border-top:3px solid transparent;
   transition:transform .22s ease,box-shadow .22s ease;
