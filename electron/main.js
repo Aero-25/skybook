@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell, Menu } = require('electron')
 const path = require('path')
 
-const SKYBOOK_URL = 'https://skybook.aerodigital.space'
+const SKYBOOK_URL = 'https://skybook-8rd.pages.dev'
 
 function createWindow () {
   const win = new BrowserWindow({
