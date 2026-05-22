@@ -6,7 +6,6 @@
   "main": "electron/main.js",
   "scripts": {
     "electron": "electron .",
-    "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
     "test:smoke": "playwright test",
@@ -17,27 +16,16 @@
   "build": {
     "appId": "space.aerodigital.skybook",
     "productName": "SkyBook",
-    "icon": "build/icon",
-    "artifactName": "${productName}-Setup.${ext}",
     "directories": {
       "output": "dist"
     },
     "files": [
-      "electron/**",
-      "build/icon.*",
-      "!node_modules/.cache/**",
-      "!supabase/**",
-      "!tests/**",
-      "!docs/**",
-      "!scripts/**",
-      "!*.html",
-      "!assets/**",
-      "!*.sql",
-      "!*.md"
+      "electron/main.js"
     ],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "requestedExecutionLevel": "asInvoker"
+      "icon": "build/icon.ico",
+      "artifactName": "SkyBook-Setup.exe"
     },
     "nsis": {
       "oneClick": false,
@@ -47,11 +35,10 @@
       "shortcutName": "SkyBook"
     },
     "mac": {
-      "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
-      ],
+      "target": [{ "target": "dmg", "arch": ["x64"] }],
+      "icon": "build/icon.icns",
       "category": "public.app-category.business",
-      "artifactName": "${productName}.${ext}"
+      "artifactName": "SkyBook.dmg"
     },
     "dmg": {
       "title": "Install SkyBook"
@@ -59,8 +46,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
-    "electron": "^35.0.0",
-    "electron-builder": "^25.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^24.13.3",
     "supabase": "^2.92.0"
   }
 }
