@@ -5027,3 +5027,88 @@ body.skybook-auth-page{
 .skybook-login-orb-one{animation:skybook-orb-float 9s ease-in-out infinite}
 .skybook-login-orb-two{animation:skybook-orb-float 12s ease-in-out infinite reverse}
 .skybook-login-orb-three{animation:skybook-orb-float 15s ease-in-out infinite 2s}
+
+/* ══════════════════════════════════════════════
+   SIDEBAR DESKTOP DOWNLOAD — v2026-05-22
+══════════════════════════════════════════════ */
+
+.sidebar-desktop-download{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:18px 0 4px;
+  padding:12px 14px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#0d2d4a,#123d60);
+  border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 12px 28px rgba(4,16,32,.22);
+}
+
+.sidebar-desktop-download-icon{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  background:rgba(43,143,216,.24);
+  color:rgba(164,210,248,.90);
+  border:1px solid rgba(43,143,216,.22);
+}
+
+.sidebar-desktop-download-copy{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+}
+
+.sidebar-desktop-download-copy strong{
+  display:block;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:-.01em;
+}
+
+.sidebar-desktop-download-copy span{
+  display:block;
+  color:rgba(164,210,248,.70);
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  margin-top:1px;
+}
+
+.sidebar-desktop-download-btn{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:30px;
+  padding:0 10px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.18);
+  color:#fff;
+  text-decoration:none;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.06em;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+
+.sidebar-desktop-download-btn:hover{
+  background:rgba(255,255,255,.20);
+  border-color:rgba(255,255,255,.28);
+  transform:translateY(-1px);
+}
+
+/* Hide in collapsed sidebar */
+.skybook-admin-page .admin-grid.is-sidebar-collapsed .sidebar-desktop-download{
+  display:none;
+}
