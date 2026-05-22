@@ -4844,3 +4844,186 @@ body.skybook-auth-page::after{
     padding-right:max(0px,env(safe-area-inset-right));
   }
 }
+
+/* ══════════════════════════════════════════════
+   GATEWAY PAGE — v2026-05-22
+══════════════════════════════════════════════ */
+
+body.gateway-page{
+  background:
+    radial-gradient(ellipse 60% 40% at 0% 0%,rgba(23,105,170,.12),transparent 50%),
+    radial-gradient(ellipse 50% 40% at 100% 100%,rgba(12,117,144,.08),transparent 50%),
+    linear-gradient(180deg,#f2f8fd 0%,#eaf4fb 100%);
+}
+
+/* Dark atmospheric hero */
+.gateway-page .booking-hero{
+  position:relative;
+  overflow:hidden;
+  padding:52px 44px 56px;
+  background:
+    radial-gradient(ellipse 60% 100% at 92% -15%,rgba(43,143,216,.38),transparent 55%),
+    radial-gradient(ellipse 50% 70% at 4% 115%,rgba(244,186,24,.16),transparent 50%),
+    linear-gradient(145deg,#071828 0%,#0d2d4a 55%,#091f38 100%);
+  color:#fff;
+  box-shadow:0 48px 120px rgba(4,16,32,.40),0 8px 24px rgba(4,16,32,.16);
+}
+
+.gateway-page .booking-hero::before{
+  content:'';
+  position:absolute;
+  right:-140px;
+  top:-120px;
+  width:520px;
+  height:520px;
+  border:64px solid rgba(255,255,255,.035);
+  border-radius:50%;
+  pointer-events:none;
+}
+
+.gateway-page .booking-hero::after{
+  content:'';
+  position:absolute;
+  left:-60px;
+  bottom:-160px;
+  width:360px;
+  height:360px;
+  border:44px solid rgba(43,143,216,.08);
+  border-radius:50%;
+  pointer-events:none;
+}
+
+.gateway-page .booking-hero h1{
+  color:#fff;
+  font-size:clamp(44px,6.5vw,76px);
+  letter-spacing:-.06em;
+  margin-top:8px;
+  line-height:.94;
+}
+
+.gateway-page .booking-summary{
+  color:rgba(164,210,248,.82);
+  letter-spacing:.18em;
+}
+
+.gateway-page .skybook-gateway-logo{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 12px 28px rgba(0,0,0,.28);
+}
+
+.gateway-page .skybook-gateway-brand span{
+  color:rgba(255,255,255,.68);
+}
+
+/* Cards */
+.gateway-page .admin-gateway-grid{
+  margin-top:22px;
+}
+
+.gateway-page .admin-gateway-card{
+  padding:32px;
+  border-radius:28px;
+  border-top:3px solid transparent;
+  transition:transform .22s ease,box-shadow .22s ease;
+  cursor:default;
+}
+
+.gateway-page .admin-gateway-card:hover{
+  transform:translateY(-5px);
+  box-shadow:0 36px 80px rgba(20,52,83,.16);
+}
+
+.gateway-page .admin-gateway-card:first-child{
+  border-top-color:var(--sky-blue,#1769aa);
+  background:linear-gradient(160deg,#ffffff 0%,#f2f8ff 100%);
+}
+
+.gateway-page .admin-gateway-card:last-child{
+  border-top-color:#0b7490;
+  background:linear-gradient(160deg,#ffffff 0%,#effafe 100%);
+}
+
+.gateway-card-icon{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:52px;
+  height:52px;
+  margin-bottom:20px;
+  border-radius:18px;
+  color:#fff;
+}
+
+.gateway-page .admin-gateway-card:first-child .gateway-card-icon{
+  background:linear-gradient(135deg,#1769aa,#2b8fd8);
+  box-shadow:0 14px 30px rgba(23,105,170,.26);
+}
+
+.gateway-page .admin-gateway-card:last-child .gateway-card-icon{
+  background:linear-gradient(135deg,#0b7490,#0ea5c9);
+  box-shadow:0 14px 30px rgba(12,108,134,.26);
+}
+
+.gateway-page .admin-gateway-card h3{
+  margin:0 0 10px;
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:-.04em;
+  color:var(--sky-text,#101820);
+}
+
+.gateway-page .booking-chip{
+  margin-bottom:16px;
+}
+
+/* ══════════════════════════════════════════════
+   LOGIN PAGE — v2026-05-22
+══════════════════════════════════════════════ */
+
+body.skybook-auth-page{
+  background:
+    radial-gradient(ellipse 70% 60% at 8% 92%,rgba(23,105,170,.18),transparent 50%),
+    radial-gradient(ellipse 65% 55% at 92% 8%,rgba(43,143,216,.22),transparent 45%),
+    linear-gradient(160deg,#eef6fc 0%,#e6f1fb 100%);
+}
+
+.skybook-login-card.skybook-login-card-solo{
+  background:
+    radial-gradient(ellipse at 92% 0%,rgba(52,145,216,.20),transparent 42%),
+    radial-gradient(ellipse at 8% 100%,rgba(23,105,170,.12),transparent 42%),
+    linear-gradient(145deg,rgba(255,255,255,.97),rgba(247,252,255,.95));
+  box-shadow:
+    0 56px 130px rgba(12,36,68,.15),
+    0 6px 20px rgba(12,36,68,.06),
+    inset 0 1px 0 rgba(255,255,255,.82);
+}
+
+.skybook-login-orb-one{
+  width:300px;
+  height:300px;
+  background:radial-gradient(circle,rgba(52,145,216,.30) 0%,rgba(52,145,216,0) 70%);
+  filter:blur(0);
+}
+
+.skybook-login-orb-two{
+  width:260px;
+  height:260px;
+  background:radial-gradient(circle,rgba(21,84,140,.22) 0%,rgba(21,84,140,0) 70%);
+}
+
+.skybook-login-orb-three{
+  width:340px;
+  height:340px;
+  border-width:48px;
+  border-color:rgba(34,113,180,.13);
+}
+
+@keyframes skybook-orb-float{
+  0%,100%{transform:translateY(0) scale(1)}
+  50%{transform:translateY(-14px) scale(1.05)}
+}
+
+.skybook-login-orb-one{animation:skybook-orb-float 9s ease-in-out infinite}
+.skybook-login-orb-two{animation:skybook-orb-float 12s ease-in-out infinite reverse}
+.skybook-login-orb-three{animation:skybook-orb-float 15s ease-in-out infinite 2s}
