@@ -4918,7 +4918,9 @@ body.gateway-page{
 
 /* Cards */
 .gateway-page .admin-gateway-grid{
-  margin-top:22px;
+  max-width:960px;
+  margin:22px auto 0;
+  justify-content:center;
 }
 
 .gateway-page .admin-gateway-card{
