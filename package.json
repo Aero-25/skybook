@@ -24,7 +24,7 @@
     ],
     "win": {
       "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "icon": "build/icon.ico",
+      "icon": "build/icon.png",
       "artifactName": "SkyBook-Setup.exe"
     },
     "nsis": {
@@ -36,7 +36,7 @@
     },
     "mac": {
       "target": [{ "target": "dmg", "arch": ["x64"] }],
-      "icon": "build/icon.icns",
+      "icon": "build/icon.png",
       "category": "public.app-category.business",
       "artifactName": "SkyBook.dmg"
     },
