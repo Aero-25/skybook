@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecting to True Travel Live Editor</title>
+<script>
+(()=>{
+  const pageMap={
+    index:'index.html',
+    tours:'tours.html',
+    gallery:'gallery.html',
+    contact:'contact.html',
+    booking:'booking.html',
+    services:'services.html',
+    'service-detail':'service.html?service=pelican-point-kayaking',
+    lookup:'booking-lookup.html',
+    success:'booking-success.html'
+  }
+  const params=new URLSearchParams(window.location.search)
+  const pageKey=String(params.get('page')||'index').trim()
+  const wantedPath=pageMap[pageKey]||pageMap.index
+  const [pathname,search='']=wantedPath.split('?')
+  const nextParams=new URLSearchParams(search)
+  nextParams.set('admin','1')
+  const target=`https://true-travel-site.pages.dev/${pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`
+  window.location.replace(target)
+})()
+</script>
+</head>
+<body></body>
+</html>
