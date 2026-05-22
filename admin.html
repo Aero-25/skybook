@@ -193,5 +193,10 @@
       }
     </style>
   </main>
+  <script>
+    if (navigator.userAgent.includes('Electron')) {
+      document.querySelector('.admin-download-section').hidden = true;
+    }
+  </script>
 </body>
 </html>
