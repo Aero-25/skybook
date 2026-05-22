@@ -23,21 +23,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm install
 
-      # Windows: convert PNG → ICO using ImageMagick (pre-installed on GitHub runners)
-      - name: Create icon.ico (Windows)
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: |
-          magick convert build/icon.png `
-            -define icon:auto-resize=256,128,64,48,32,16 `
-            build/icon.ico
-
-      # macOS: convert PNG → ICNS using sips + iconutil (built into macOS)
+      # macOS: convert PNG → ICNS using sips + iconutil (always available on macOS)
       - name: Create icon.icns (macOS)
         if: matrix.platform == 'mac'
         run: |
@@ -53,6 +44,11 @@ jobs:
           cp build/icon.png build/icon.iconset/icon_512x512.png
           cp build/icon.png build/icon.iconset/icon_512x512@2x.png
           iconutil -c icns build/icon.iconset -o build/icon.icns
+
+      # Windows: use png-to-ico npm package (no system tools needed)
+      - name: Create icon.ico (Windows)
+        if: matrix.platform == 'win'
+        run: npx png-to-ico build/icon.png > build/icon.ico
 
       - name: Build (${{ matrix.platform }})
         run: npm run dist:${{ matrix.platform }}
