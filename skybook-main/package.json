@@ -1,0 +1,66 @@
+{
+  "name": "skybook",
+  "version": "1.0.0",
+  "description": "SkyBook — Tour Operations & Booking Admin",
+  "author": "Aero Digital <info@aerodigital.space>",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "test:smoke": "playwright test",
+    "test:smoke:headed": "playwright test --headed",
+    "test:smoke:list": "playwright test --list",
+    "test:smoke:install-browsers": "playwright install chromium"
+  },
+  "build": {
+    "appId": "space.aerodigital.skybook",
+    "productName": "SkyBook",
+    "icon": "build/icon",
+    "artifactName": "${productName}-Setup.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**",
+      "build/icon.*",
+      "!node_modules/.cache/**",
+      "!supabase/**",
+      "!tests/**",
+      "!docs/**",
+      "!scripts/**",
+      "!*.html",
+      "!assets/**",
+      "!*.sql",
+      "!*.md"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SkyBook"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "category": "public.app-category.business",
+      "artifactName": "${productName}.${ext}"
+    },
+    "dmg": {
+      "title": "Install SkyBook"
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0",
+    "supabase": "^2.92.0"
+  }
+}

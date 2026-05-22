@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecting to Iventure Live Editor</title>
+<script>
+(()=>{
+  const pageMap={
+    index:'index.html',
+    services:'services.html',
+    'service-detail':'service.html?service=sandwich-harbour-dune-drive',
+    booking:'booking.html',
+    lookup:'booking-lookup.html',
+    success:'booking-success.html'
+  }
+  const params=new URLSearchParams(window.location.search)
+  const pageKey=String(params.get('page')||'index').trim()
+  const wantedPath=pageMap[pageKey]||pageMap.index
+  const [pathname,search='']=wantedPath.split('?')
+  const nextParams=new URLSearchParams(search)
+  nextParams.set('admin','1')
+  const target=`https://iventuretours.net/${pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ''}`
+  window.location.replace(target)
+})()
+</script>
+</head>
+<body></body>
+</html>
