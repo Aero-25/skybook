@@ -713,9 +713,17 @@
               <span>Preferred Date</span>
               <input id="adminBookingDate" type="date">
             </label>
-            <label class="booking-field">
-              <span>Quantity</span>
+            <label class="booking-field" id="adminBookingQuantityWrap">
+              <span>Guests</span>
               <input id="adminBookingQuantity" type="number" min="1" value="2" required>
+            </label>
+            <label class="booking-field" id="adminBookingAdultWrap" hidden>
+              <span>Adults</span>
+              <input id="adminBookingAdultQuantity" type="number" min="0" value="1">
+            </label>
+            <label class="booking-field" id="adminBookingChildWrap" hidden>
+              <span>Children</span>
+              <input id="adminBookingChildQuantity" type="number" min="0" value="0">
             </label>
             <label class="booking-field-full">
               <span>Customer Name</span>

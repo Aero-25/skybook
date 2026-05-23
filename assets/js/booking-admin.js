@@ -366,6 +366,11 @@ const nodes={
   bookingPaymentStatus:document.getElementById('adminBookingPaymentStatusField'),
   bookingDate:document.getElementById('adminBookingDate'),
   bookingQuantity:document.getElementById('adminBookingQuantity'),
+  bookingQuantityWrap:document.getElementById('adminBookingQuantityWrap'),
+  bookingAdultQuantity:document.getElementById('adminBookingAdultQuantity'),
+  bookingAdultWrap:document.getElementById('adminBookingAdultWrap'),
+  bookingChildQuantity:document.getElementById('adminBookingChildQuantity'),
+  bookingChildWrap:document.getElementById('adminBookingChildWrap'),
   bookingCustomerName:document.getElementById('adminBookingCustomerName'),
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
@@ -1054,7 +1059,10 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Guest phone',booking?.customer_phone)
   addRow('Tour',booking?.service_name)
   addRow('Preferred date',formatDateLabel(booking?.preferred_date))
-  addRow('Guests',booking?.quantity)
+  const adultQty=Number(booking?.adult_quantity||0)
+  const childQty=Number(booking?.child_quantity||0)
+  const guestLabel=adultQty+childQty>0 ? `${booking?.quantity||adultQty+childQty} (${adultQty} adult${adultQty!==1?'s':''}, ${childQty} child${childQty!==1?'ren':''})` : String(booking?.quantity||1)
+  addRow('Guests',guestLabel)
   addRow('Total',bookingAdminShared.formatMoney(booking?.total_amount||0,booking?.currency||state.settings.currency))
   addRow('Guest notes',booking?.customer_notes||booking?.notes)
   ;[
@@ -1246,6 +1254,8 @@ const collectBookingFormValues=()=>({
   payment_status:nodes.bookingPaymentStatus?.value||'',
   preferred_date:nodes.bookingDate?.value||'',
   quantity:nodes.bookingQuantity?.value||'',
+  adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
+  child_quantity:Number(nodes.bookingChildQuantity?.value||0),
   guide_name:nodes.bookingGuideName?.value||'',
   customer_name:nodes.bookingCustomerName?.value||'',
   customer_email:nodes.bookingCustomerEmail?.value||'',
@@ -1267,12 +1277,15 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(values.adult_quantity||0)
+  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(values.child_quantity||0)
   if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||'')
   if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
   if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
   if(nodes.bookingCustomerPhone)nodes.bookingCustomerPhone.value=String(values.customer_phone||'')
   if(values.custom_fields)renderAdminBookingCustomFields(null,normalizeJsonRecord(values.custom_fields))
   if(nodes.bookingNotes)nodes.bookingNotes.value=String(values.notes||'')
+  syncBookingQuantityMode()
 }
 const createBookingFormSnapshot=()=>JSON.stringify(collectBookingFormValues())
 const getBookingEditorDraftKey=()=>`${BOOKING_EDITOR_DRAFT_KEY}:${state.selectedBookingId||'new'}`
@@ -3162,7 +3175,7 @@ const renderReservationDetail=()=>{
             </article>
             <article class="detail-card">
               <span>Guests</span>
-              <strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong>
+              <strong>${(()=>{const a=Number(booking.adult_quantity||0);const c=Number(booking.child_quantity||0);return bookingAdminShared.escapeHtml(a+c>0?`${booking.quantity||a+c} (${a}A / ${c}C)`:String(booking.quantity||1))})()}</strong>
             </article>
             <article class="detail-card">
               <span>Total</span>
@@ -3537,7 +3550,7 @@ const renderBookingDetail=()=>{
             <div><span>Service</span><strong>${bookingAdminShared.escapeHtml(booking.service_name)}</strong></div>
             <div><span>Email</span><strong>${bookingAdminShared.escapeHtml(booking.customer_email)}</strong></div>
             <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</strong></div>
-            <div><span>Guests</span><strong>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</strong></div>
+            <div><span>Guests</span><strong>${(()=>{const a=Number(booking.adult_quantity||0);const c=Number(booking.child_quantity||0);return bookingAdminShared.escapeHtml(a+c>0?`${booking.quantity||a+c} (${a}A / ${c}C)`:String(booking.quantity||1))})()}</strong></div>
             <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(sourceLabel)}</strong></div>
             <div><span>Capture page</span><strong>${bookingAdminShared.escapeHtml(capturePage)}</strong></div>
             <div><span>Created via</span><strong>${bookingAdminShared.escapeHtml(createdVia)}</strong></div>
@@ -6259,7 +6272,7 @@ const buildDocumentMarkup=(documentType,booking)=>{
       <table>
         <thead><tr><th>Item</th><th>Details</th></tr></thead>
         <tbody>
-          <tr><td>Guests</td><td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td></tr>
+          <tr><td>Guests</td><td>${(()=>{const a=Number(booking.adult_quantity||0);const c=Number(booking.child_quantity||0);return bookingAdminShared.escapeHtml(a+c>0?`${booking.quantity||a+c} (${a} adult${a!==1?'s':''}, ${c} child${c!==1?'ren':''})`:String(booking.quantity||1))})()}</td></tr>
           <tr><td>Pickup resources</td><td>${bookingAdminShared.escapeHtml(allocations.map(item=>getResourceName(item.resource_id)).join(', ')||'Not assigned')}</td></tr>
           <tr><td>Notes</td><td>${bookingAdminShared.escapeHtml(booking.customer_notes||booking.cancellation_reason||'No additional notes')}</td></tr>
         </tbody>
@@ -6858,6 +6871,15 @@ const handleLogout=async()=>{
   window.location.replace('login.html')
 }
 
+const syncBookingQuantityMode=()=>{
+  const service=state.services.find(s=>s.slug===nodes.bookingService?.value)
+  const hasAdultChild=service?.adult_price!=null&&Number(service.adult_price)>0
+  if(nodes.bookingQuantityWrap)nodes.bookingQuantityWrap.hidden=hasAdultChild
+  if(nodes.bookingQuantity)nodes.bookingQuantity.required=!hasAdultChild
+  if(nodes.bookingAdultWrap)nodes.bookingAdultWrap.hidden=!hasAdultChild
+  if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=!hasAdultChild
+}
+
 const handleBookingSave=async event=>{
   event.preventDefault()
   const returnToReservationManagement=state.activeTab==='reservation-management'
@@ -6875,7 +6897,9 @@ const handleBookingSave=async event=>{
     status:(!wasEditing||isReservationAcceptanceWorkflow) ? requestedStatus : (existingBooking?.status||requestedStatus),
     payment_status:(!wasEditing||isReservationAcceptanceWorkflow) ? requestedPaymentStatus : (existingBooking?.payment_status||requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
-    quantity:Number(nodes.bookingQuantity.value||1),
+    adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
+    child_quantity:Number(nodes.bookingChildQuantity?.value||0),
+    quantity:(()=>{const a=Number(nodes.bookingAdultQuantity?.value||0);const c=Number(nodes.bookingChildQuantity?.value||0);return(a+c)>0?a+c:Number(nodes.bookingQuantity.value||1)})(),
     guide_name:nodes.bookingGuideName?.value.trim()||'',
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
@@ -7596,6 +7620,7 @@ nodes.bookingForm.addEventListener('change',event=>{
       syncBookingReferenceField({brandCode:nodes.bookingBrand?.value||'',forceNew:true})
     }
   }
+  if(event.target===nodes.bookingService)syncBookingQuantityMode()
   scheduleBookingEditorAutosave()
 })
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
