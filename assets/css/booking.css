@@ -5112,3 +5112,809 @@ body.skybook-auth-page{
 .skybook-admin-page .admin-grid.is-sidebar-collapsed .sidebar-desktop-download{
   display:none;
 }
+
+/* ================================================================
+   SKYBOOK EXPEDITION DARK THEME — Warm Dark
+   Ink navy surfaces · Desert amber accents · DM Serif Display
+   Scope: body.skybook-admin-page, body.gateway-page, body.skybook-auth-page
+   Public booking forms (iVenture / True Travel) are untouched.
+   ================================================================ */
+
+body.skybook-admin-page,
+body.gateway-page,
+body.skybook-auth-page{
+  --sb-bg:#0c1825;
+  --sb-surface:#111e2e;
+  --sb-surface-2:#131f2e;
+  --sb-surface-3:#172234;
+  --sb-surface-4:#1c2a3d;
+  --sb-line:rgba(255,255,255,.08);
+  --sb-line-m:rgba(255,255,255,.12);
+  --sb-line-strong:rgba(255,255,255,.18);
+  --sb-text:#dce8f5;
+  --sb-text-soft:#b4c8df;
+  --sb-muted:#637d97;
+  --sb-amber:#c98630;
+  --sb-amber-bright:#e8a84a;
+  --sb-amber-dim:rgba(201,134,48,.15);
+  --sb-amber-glow:0 0 0 4px rgba(201,134,48,.18);
+  --sb-red:#c85c5c;
+  --sb-red-dim:rgba(200,92,92,.14);
+  --sb-green:#4da874;
+  --sb-green-dim:rgba(77,168,116,.14);
+  --sb-shadow:0 28px 70px rgba(0,0,0,.46);
+  --sb-shadow-soft:0 14px 36px rgba(0,0,0,.28);
+  /* Remap shared tokens so existing rules auto-switch */
+  --booking-bg:var(--sb-bg);
+  --booking-paper:var(--sb-surface-2);
+  --booking-ink:var(--sb-text);
+  --booking-muted:var(--sb-muted);
+  --booking-line:var(--sb-line);
+  --booking-ocean:var(--sb-amber-bright);
+  --booking-shadow:var(--sb-shadow-soft);
+  --sky-bg:var(--sb-bg);
+  --sky-surface:var(--sb-surface-2);
+  --sky-surface-2:var(--sb-surface-3);
+  --sky-line:var(--sb-line);
+  --sky-line-strong:var(--sb-line-m);
+  --sky-text:var(--sb-text);
+  --sky-muted:var(--sb-muted);
+  --sky-blue:var(--sb-amber-bright);
+  --sky-blue-2:var(--sb-amber);
+  --sky-blue-soft:var(--sb-amber-dim);
+  --sky-blue-softer:rgba(201,134,48,.08);
+  --sky-good:var(--sb-green);
+  --sky-warn:#d89220;
+  --sky-bad:var(--sb-red);
+  --sky-shadow:var(--sb-shadow);
+  --sky-shadow-soft:var(--sb-shadow-soft);
+  background:var(--sb-bg);
+  color:var(--sb-text);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Focus rings */
+body.skybook-admin-page button:focus-visible,
+body.skybook-admin-page a:focus-visible,
+body.skybook-admin-page input:focus-visible,
+body.skybook-admin-page select:focus-visible,
+body.skybook-admin-page textarea:focus-visible,
+body.skybook-auth-page button:focus-visible,
+body.skybook-auth-page input:focus-visible{
+  outline:3px solid rgba(232,168,74,.3);
+  outline-offset:2px;
+}
+
+/* ── Body backgrounds ───────────────────────────────────────── */
+body.gateway-page{
+  background:
+    radial-gradient(circle at 14% 0%,rgba(201,134,48,.08),transparent 28%),
+    radial-gradient(circle at 88% 18%,rgba(232,168,74,.05),transparent 26%),
+    var(--sb-bg);
+}
+body.skybook-auth-page{
+  background:
+    radial-gradient(circle at 18% 18%,rgba(201,134,48,.09),transparent 30%),
+    var(--sb-bg);
+}
+body.skybook-admin-page{
+  background:var(--sb-bg);
+}
+
+/* ── Admin grid ─────────────────────────────────────────────── */
+.skybook-admin-page .admin-grid{
+  background:linear-gradient(90deg,var(--sb-surface) 0 312px,transparent 312px),transparent;
+}
+.skybook-admin-page.is-booking-record-page,
+.skybook-admin-page.is-booking-record-page .admin-grid{
+  background:var(--sb-bg);
+}
+
+/* ── Sidebar ────────────────────────────────────────────────── */
+.skybook-admin-page .admin-sidebar-booking{
+  background:var(--sb-surface);
+  border-right-color:var(--sb-line);
+  box-shadow:none;
+}
+.skybook-admin-page .admin-sidebar-booking::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08)}
+.skybook-admin-page .admin-brand-lockup{border-bottom-color:var(--sb-line)}
+.skybook-admin-page .admin-sidebar-booking h1{color:var(--sb-text)}
+.skybook-admin-page .admin-product-subtitle{color:var(--sb-muted)}
+.skybook-admin-page .admin-brand-mark:not(.admin-brand-mark-image){
+  background:linear-gradient(135deg,var(--sb-amber),var(--sb-amber-bright));
+  box-shadow:0 16px 28px rgba(201,134,48,.28);
+}
+.skybook-admin-page .admin-sidebar-collapse-toggle{
+  background:transparent;
+  border-color:var(--sb-line);
+  color:var(--sb-amber-bright);
+}
+.skybook-admin-page .admin-sidebar-collapse-toggle:hover{
+  background:var(--sb-amber-dim);
+  border-color:rgba(232,168,74,.22);
+}
+.skybook-admin-page .admin-session{
+  background:var(--sb-surface-3);
+  border-color:var(--sb-line);
+  box-shadow:none;
+}
+.skybook-admin-page .admin-session strong{color:var(--sb-text)}
+.skybook-admin-page .admin-environment-chip,
+.skybook-admin-page .booking-chip{
+  background:var(--sb-amber-dim);
+  border-color:rgba(232,168,74,.22);
+  color:var(--sb-amber-bright);
+  box-shadow:none;
+}
+.skybook-admin-page .booking-chip.is-danger{
+  background:var(--sb-red-dim);color:var(--sb-red);border-color:rgba(200,92,92,.22);
+}
+.skybook-admin-page .booking-chip.is-warning{
+  background:rgba(216,146,32,.14);color:#d89220;border-color:rgba(216,146,32,.22);
+}
+.skybook-admin-page .admin-content .booking-chip,
+.skybook-admin-page .admin-toolbar .booking-chip{
+  background:var(--sb-amber-dim);color:var(--sb-amber-bright);
+}
+.skybook-admin-page .admin-side-health div{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .admin-side-health span{color:var(--sb-muted)}
+.skybook-admin-page .admin-side-health strong{color:var(--sb-text)}
+.skybook-admin-page .admin-nav-group{border-top-color:var(--sb-line)}
+.skybook-admin-page .admin-nav-group > span{color:var(--sb-muted)}
+.skybook-admin-page .admin-menu-section{
+  background:var(--sb-surface-3);border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .admin-menu-section summary{color:var(--sb-text-soft)}
+.skybook-admin-page .admin-menu-section summary:after{color:var(--sb-amber-bright)}
+.skybook-admin-page .admin-menu-section summary span{
+  background:var(--sb-amber-dim);color:var(--sb-amber-bright);
+}
+/* Sidebar desktop download widget — restyle for dark sidebar */
+.skybook-admin-page .sidebar-desktop-download{
+  background:linear-gradient(135deg,rgba(201,134,48,.18),rgba(201,134,48,.08));
+  border-color:rgba(232,168,74,.18);
+  box-shadow:0 10px 24px rgba(0,0,0,.22);
+}
+.skybook-admin-page .sidebar-desktop-download-icon{
+  background:rgba(232,168,74,.16);
+  border-color:rgba(232,168,74,.2);
+  color:var(--sb-amber-bright);
+}
+.skybook-admin-page .sidebar-desktop-download-copy span{color:rgba(232,168,74,.72)}
+
+/* ── Admin tabs ─────────────────────────────────────────────── */
+.skybook-admin-page .admin-tab{
+  background:transparent;border-color:transparent;color:var(--sb-muted);
+}
+.skybook-admin-page .admin-tab:hover{
+  border-color:var(--sb-line);background:var(--sb-surface-4);color:var(--sb-text);
+}
+.skybook-admin-page .admin-tab.is-active{
+  background:linear-gradient(135deg,var(--sb-amber),#a86e20);
+  border-color:transparent;color:#fff;
+  box-shadow:0 12px 28px rgba(201,134,48,.28);
+}
+.skybook-admin-page .admin-tab-icon{background:var(--sb-surface-4);color:var(--sb-muted)}
+.skybook-admin-page .admin-tab.is-active .admin-tab-icon{
+  background:rgba(255,255,255,.18);color:#fff;
+}
+
+/* ── Topbar ─────────────────────────────────────────────────── */
+.skybook-admin-page .skybook-topbar{
+  background:rgba(10,19,30,.94);
+  border-bottom:1px solid var(--sb-line);
+  box-shadow:0 1px 0 var(--sb-amber),0 16px 40px rgba(0,0,0,.32);
+  backdrop-filter:blur(20px);
+  color:var(--sb-text);
+}
+.skybook-admin-page .skybook-topbar-title strong{color:var(--sb-text)}
+.skybook-admin-page .skybook-topbar-title span{color:var(--sb-muted)}
+.skybook-admin-page .skybook-topnav{border-left-color:var(--sb-line)}
+.skybook-admin-page .skybook-topnav-link,.skybook-admin-page .skybook-topbar-search{color:var(--sb-text-soft)}
+.skybook-admin-page .skybook-topnav-link:hover,
+.skybook-admin-page .skybook-topnav-link.is-active{
+  background:var(--sb-amber-dim);border-color:rgba(232,168,74,.22);color:var(--sb-amber-bright);
+}
+.skybook-admin-page .skybook-topbar-mark{
+  background:linear-gradient(135deg,var(--sb-amber),var(--sb-amber-bright));
+  box-shadow:0 8px 20px rgba(201,134,48,.24);
+}
+.skybook-admin-page .skybook-topbar-pill{
+  background:var(--sb-green-dim);color:var(--sb-green);border-color:rgba(77,168,116,.22);
+}
+.skybook-admin-page .skybook-topbar-user{color:var(--sb-text)}
+.skybook-admin-page .skybook-topbar-search{
+  background:var(--sb-surface-4);color:var(--sb-text);border-radius:999px;box-shadow:none;
+}
+.skybook-admin-page .skybook-topbar-search:hover{
+  background:var(--sb-surface-3);color:var(--sb-text);transform:translateY(-1px);
+}
+
+/* ── Admin toolbar ──────────────────────────────────────────── */
+.skybook-admin-page .admin-toolbar{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .admin-toolbar:after{border-color:rgba(232,168,74,.06)}
+.skybook-admin-page .toolbar-eyebrow{color:var(--sb-amber-bright)}
+.skybook-admin-page .admin-toolbar h2{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;
+  font-weight:400;letter-spacing:-.02em;
+}
+.skybook-admin-page .toolbar-subtitle{color:var(--sb-muted)}
+.skybook-admin-page .module-breadcrumb{color:var(--sb-muted)}
+.skybook-admin-page .toolbar-status{color:var(--sb-muted)}
+.skybook-admin-page .toolbar-brand-switch{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+  color:var(--sb-text);box-shadow:none;
+}
+
+/* ── Panels / Cards ─────────────────────────────────────────── */
+.skybook-admin-page .booking-panel,
+.skybook-admin-page .result-card,
+.skybook-admin-page .metric-card,
+.skybook-admin-page .template-card{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .booking-panel h3,
+.skybook-admin-page .booking-card h3,
+.skybook-admin-page .detail-section h4,
+.skybook-admin-page .report-split-grid h4,
+.skybook-admin-page .template-card h3{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;
+  font-size:22px;font-weight:400;letter-spacing:-.01em;
+}
+.skybook-admin-page .booking-panel p,.skybook-admin-page .muted-copy{color:var(--sb-muted)}
+.skybook-admin-page .admin-command-lead{background:var(--sb-surface-2)}
+.skybook-admin-page .metric-card{background:var(--sb-surface-2)}
+.skybook-admin-page .metric-card:after{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .metric-card span{color:var(--sb-muted)}
+.skybook-admin-page .metric-card strong{color:var(--sb-text)}
+.skybook-admin-page .metric-card small{color:var(--sb-muted)}
+.skybook-admin-page .metric-card:before,.skybook-admin-page .queue-card:before{background:rgba(255,255,255,.07)}
+.skybook-admin-page .metric-card.is-blue:before,.skybook-admin-page .queue-card.is-blue:before{
+  background:linear-gradient(180deg,var(--sb-amber),var(--sb-amber-bright));
+}
+.skybook-admin-page .metric-card.is-good:before,.skybook-admin-page .queue-card.is-good:before{background:var(--sb-green)}
+.skybook-admin-page .metric-card.is-warn:before,.skybook-admin-page .queue-card.is-warn:before{background:#d89220}
+.skybook-admin-page .metric-card.is-risk:before,.skybook-admin-page .queue-card.is-risk:before{background:var(--sb-red)}
+.skybook-admin-page .queue-card{background:var(--sb-surface-2)}
+.skybook-admin-page .queue-card strong{color:var(--sb-text)}
+.skybook-admin-page .queue-card span{color:var(--sb-amber-bright)}
+.skybook-admin-page .queue-card p{color:var(--sb-muted)}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.skybook-admin-page .booking-button,
+.skybook-admin-page .toolbar-actions button,
+.skybook-admin-page .detail-actions button{
+  background:var(--sb-amber);color:#fff;
+  box-shadow:0 10px 24px rgba(201,134,48,.22);
+}
+.skybook-admin-page .booking-button:hover,
+.skybook-admin-page .toolbar-actions button:hover{
+  background:var(--sb-amber-bright);transform:translateY(-1px);
+}
+.skybook-admin-page .booking-button.ghost,
+.skybook-admin-page .toolbar-actions .booking-button.ghost{
+  background:var(--sb-surface-3);color:var(--sb-text-soft);
+  border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .booking-button.ghost:hover{
+  background:var(--sb-surface-4);border-color:var(--sb-line-m);color:var(--sb-text);
+}
+.skybook-admin-page .booking-button.danger{background:var(--sb-red)}
+.skybook-admin-page .booking-button.ghost.danger{
+  background:var(--sb-red-dim);color:var(--sb-red);border-color:rgba(200,92,92,.22);
+}
+.skybook-admin-page .booking-button.ghost.danger:hover{
+  background:rgba(200,92,92,.22);border-color:rgba(200,92,92,.3);
+}
+.skybook-admin-page .booking-button.is-loading::after,
+.skybook-admin-page button.is-loading::after{
+  border-color:rgba(255,255,255,.34);border-top-color:#fff;
+}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button.is-loading::after,
+.skybook-admin-page .booking-button.ghost.is-loading::after{
+  border-color:rgba(232,168,74,.24);border-top-color:var(--sb-amber-bright);
+}
+.skybook-admin-page .panel-switcher-button{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.skybook-admin-page .panel-switcher-button.is-active{
+  background:linear-gradient(135deg,var(--sb-amber),#a86e20);
+  border-color:var(--sb-amber);color:#fff;
+  box-shadow:0 14px 28px rgba(201,134,48,.22);
+}
+.skybook-admin-page .calendar-view-button{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.skybook-admin-page .calendar-view-button.is-active{
+  background:var(--sb-amber);border-color:var(--sb-amber);color:#fff;
+}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+  color:var(--sb-text-soft);box-shadow:none;
+}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button::before{background:var(--sb-amber)}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button:hover{
+  background:var(--sb-surface-4);border-color:rgba(232,168,74,.22);color:var(--sb-amber-bright);
+}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button.is-danger-action{
+  background:var(--sb-red-dim);border-color:rgba(200,92,92,.22);color:var(--sb-red);
+}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button.is-danger-action::before{background:var(--sb-red)}
+.skybook-admin-page .booking-function-sidebar .booking-function-group button.is-danger-action:hover{
+  background:rgba(200,92,92,.22);border-color:rgba(200,92,92,.3);
+}
+
+/* ── Form inputs ────────────────────────────────────────────── */
+.skybook-admin-page .booking-field input,
+.skybook-admin-page .booking-field select,
+.skybook-admin-page .booking-field textarea,
+.skybook-admin-page .booking-field-full input,
+.skybook-admin-page .booking-field-full select,
+.skybook-admin-page .booking-field-full textarea{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text);
+}
+.skybook-admin-page .booking-field input:focus,
+.skybook-admin-page .booking-field select:focus,
+.skybook-admin-page .booking-field textarea:focus,
+.skybook-admin-page .booking-field-full input:focus,
+.skybook-admin-page .booking-field-full select:focus,
+.skybook-admin-page .booking-field-full textarea:focus{
+  border-color:var(--sb-amber);box-shadow:var(--sb-amber-glow);
+}
+.skybook-admin-page .booking-field input[readonly],
+.skybook-admin-page .booking-field-full input[readonly]{
+  background:var(--sb-surface-2);color:var(--sb-muted);
+}
+.skybook-admin-page .booking-field label,
+.skybook-admin-page .booking-field-full label{color:var(--sb-amber-bright)}
+.skybook-admin-page .field-hint,.skybook-admin-page .booking-inline-note{color:var(--sb-muted)}
+.skybook-admin-page .check-card,.skybook-admin-page .inline-check{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .booking-stat,
+.skybook-admin-page .detail-grid div{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .booking-stat span,.skybook-admin-page .detail-grid span{color:var(--sb-muted)}
+.skybook-admin-page .booking-stat strong,.skybook-admin-page .detail-grid strong{color:var(--sb-text)}
+.skybook-admin-page .status-banner{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-muted);
+}
+.skybook-admin-page .status-banner.is-error{
+  background:var(--sb-red-dim);border-color:rgba(200,92,92,.22);color:var(--sb-red);
+}
+.skybook-admin-page .booking-custom-field-row{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .is-system-managed-field select{
+  background:var(--sb-surface-2);color:var(--sb-muted);
+}
+.skybook-admin-page .payment-link-display{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-muted);
+}
+.skybook-admin-page .email-automation-card{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .email-automation-card strong{color:var(--sb-text)}
+.skybook-admin-page .email-token-title{color:var(--sb-amber-bright)}
+.skybook-admin-page .admin-inline-copy{color:var(--sb-muted)}
+.skybook-admin-page .email-token-chip{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+
+/* ── Tables ─────────────────────────────────────────────────── */
+.skybook-admin-page .table-wrap{
+  background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page th{
+  background:var(--sb-surface-3);color:var(--sb-muted);border-bottom-color:var(--sb-line);
+}
+.skybook-admin-page td{color:var(--sb-text-soft);border-bottom-color:var(--sb-line)}
+.skybook-admin-page tbody tr:hover td{background:var(--sb-surface-3)}
+.skybook-admin-page .table-subline{color:var(--sb-muted)}
+.skybook-admin-page .booking-row.is-selected td{
+  background:var(--sb-amber-dim);outline-color:rgba(232,168,74,.28);
+}
+.skybook-admin-page .booking-row:hover,
+.skybook-admin-page .customer-row:hover td,
+.skybook-admin-page .reservation-row:hover td{background:var(--sb-surface-3)}
+.skybook-admin-page .customer-row.is-active td{background:var(--sb-amber-dim)}
+.skybook-admin-page .table-primary-link:hover{color:var(--sb-amber-bright)}
+
+/* ── Status badges ──────────────────────────────────────────── */
+.skybook-admin-page .status-badge.is-good{
+  background:var(--sb-green-dim);color:#5fcb90;border-color:rgba(77,168,116,.22);
+}
+.skybook-admin-page .status-badge.is-warn{
+  background:rgba(216,146,32,.14);color:#d89220;border-color:rgba(216,146,32,.22);
+}
+.skybook-admin-page .status-badge.is-bad{
+  background:var(--sb-red-dim);color:var(--sb-red);border-color:rgba(200,92,92,.22);
+}
+.skybook-admin-page .status-badge.is-neutral{
+  background:var(--sb-surface-3);color:var(--sb-muted);border-color:var(--sb-line);
+}
+
+/* ── Pipeline stages ────────────────────────────────────────── */
+.skybook-admin-page .reservation-pipeline-panel{background:var(--sb-surface-2)}
+.skybook-admin-page .pipeline-stage{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text);
+}
+.skybook-admin-page .pipeline-stage:hover{
+  box-shadow:0 16px 34px rgba(0,0,0,.32);border-color:var(--sb-line-m);
+}
+.skybook-admin-page .pipeline-stage.is-review{background:rgba(12,108,134,.16);border-color:rgba(12,108,134,.26)}
+.skybook-admin-page .pipeline-stage.is-request{background:rgba(255,176,0,.11);border-color:rgba(255,176,0,.22)}
+.skybook-admin-page .pipeline-stage.is-warn{background:rgba(216,146,32,.11);border-color:rgba(216,146,32,.22)}
+.skybook-admin-page .pipeline-stage.is-paid{background:rgba(77,168,116,.12);border-color:rgba(77,168,116,.22)}
+.skybook-admin-page .pipeline-stage.is-good{background:rgba(77,168,116,.14);border-color:rgba(77,168,116,.24)}
+.skybook-admin-page .pipeline-stage.is-done{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .pipeline-heading small{color:var(--sb-muted)}
+
+/* ── Modals & command palette ───────────────────────────────── */
+.skybook-admin-page .admin-modal-backdrop{background:rgba(4,10,18,.65)}
+.skybook-admin-page .admin-modal-header{
+  background:var(--sb-surface-2);border-bottom-color:var(--sb-line);
+}
+.skybook-admin-page .admin-modal-close{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-muted);
+}
+.skybook-admin-page .admin-modal-close:hover{background:var(--sb-surface-4);color:var(--sb-text)}
+.skybook-admin-page .command-palette-backdrop{background:rgba(4,10,18,.55)}
+.skybook-admin-page .command-palette-panel{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:0 40px 100px rgba(0,0,0,.56);
+}
+.skybook-admin-page .command-palette-header strong{color:var(--sb-text)}
+.skybook-admin-page .command-palette-header span{color:var(--sb-muted)}
+
+/* ── Loading screen ─────────────────────────────────────────── */
+.skybook-admin-page .admin-loading-screen,
+.skybook-auth-page .admin-loading-screen{background:var(--sb-bg)}
+.skybook-admin-page .admin-loading-card,
+.skybook-auth-page .admin-loading-card{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:0 30px 80px rgba(0,0,0,.46);
+}
+.skybook-admin-page .admin-loading-card h1,
+.skybook-auth-page .admin-loading-card h1{color:var(--sb-text)}
+.skybook-admin-page .admin-loading-card p,
+.skybook-auth-page .admin-loading-card p{color:var(--sb-muted)}
+.skybook-admin-page .admin-loading-spinner,
+.skybook-auth-page .admin-loading-spinner{
+  border-color:rgba(232,168,74,.18);border-top-color:var(--sb-amber-bright);
+}
+
+/* ── Login / Auth page ──────────────────────────────────────── */
+.skybook-auth-page .skybook-login-card{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:0 30px 80px rgba(0,0,0,.46);
+}
+.skybook-auth-page .skybook-auth-brand h1{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;font-weight:400;
+}
+.skybook-auth-page .skybook-auth-brand p{color:var(--sb-muted)}
+.skybook-auth-page .skybook-auth-aside{
+  background:
+    radial-gradient(circle at 78% 20%,rgba(201,134,48,.14),transparent 30%),
+    linear-gradient(145deg,var(--sb-surface-2) 0%,var(--sb-surface) 100%);
+  border-color:var(--sb-line);box-shadow:0 30px 80px rgba(0,0,0,.46);
+}
+.skybook-auth-page .skybook-auth-aside:after{border-color:rgba(232,168,74,.06)}
+.skybook-auth-page .skybook-auth-aside h2{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;font-weight:400;
+}
+.skybook-auth-page .skybook-auth-aside p{color:var(--sb-muted)}
+.skybook-auth-page .skybook-auth-checks div{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-auth-page .skybook-auth-checks strong{color:var(--sb-text)}
+.skybook-auth-page .skybook-auth-checks span{color:var(--sb-muted)}
+.skybook-auth-page .skybook-login-form input{background:var(--sb-surface-3)}
+.skybook-auth-page .booking-button{
+  background:var(--sb-amber);box-shadow:0 12px 28px rgba(201,134,48,.24);
+}
+.skybook-auth-page .booking-button:hover{background:var(--sb-amber-bright)}
+.skybook-auth-page .booking-button.ghost{
+  background:var(--sb-surface-3);color:var(--sb-text-soft);border-color:var(--sb-line);
+}
+.skybook-auth-page .auth-environment-meta,.skybook-auth-page .status-banner{
+  color:var(--sb-muted);background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+/* Login orbs — restyle for dark bg */
+.skybook-auth-page .skybook-login-orb{
+  border-color:rgba(201,134,48,.1);
+}
+
+/* ── Gateway page ───────────────────────────────────────────── */
+.gateway-page .booking-hero{
+  background:
+    radial-gradient(circle at 88% 0%,rgba(201,134,48,.18),transparent 34%),
+    linear-gradient(135deg,var(--sb-surface) 0%,var(--sb-surface-2) 100%);
+  border:1px solid var(--sb-line);box-shadow:var(--sb-shadow-soft);
+}
+.gateway-page .booking-hero h1{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;
+  font-weight:400;letter-spacing:-.02em;
+}
+.gateway-page .booking-summary{color:var(--sb-amber-bright)}
+.gateway-page .booking-panel{
+  background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:var(--sb-shadow-soft);
+}
+.gateway-page .booking-panel h3{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;font-weight:400;
+}
+.gateway-page .booking-panel p{color:var(--sb-muted)}
+.gateway-page .booking-chip{
+  background:var(--sb-amber-dim);border-color:rgba(232,168,74,.22);color:var(--sb-amber-bright);
+}
+.gateway-page .booking-highlight-list{color:var(--sb-muted)}
+.gateway-page .booking-button{
+  background:var(--sb-amber);box-shadow:0 12px 28px rgba(201,134,48,.24);
+}
+.gateway-page .booking-button:hover{background:var(--sb-amber-bright)}
+.gateway-page .gateway-card-icon{color:var(--sb-amber-bright)}
+.gateway-page .skybook-gateway-brand span{color:var(--sb-amber-bright)}
+.gateway-page .skybook-gateway-logo{
+  background:var(--sb-surface-3);box-shadow:0 10px 24px rgba(0,0,0,.28);
+}
+.gateway-page .gateway-route-strip{
+  background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:none;
+}
+.gateway-page .gateway-route-strip a{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.gateway-page .gateway-route-strip a:hover{
+  background:var(--sb-surface-4);border-color:rgba(232,168,74,.22);color:var(--sb-amber-bright);
+  transform:translateY(-1px);
+}
+
+/* ── Detail sections ────────────────────────────────────────── */
+.skybook-admin-page .detail-section,
+.skybook-admin-page .detail-callout,
+.skybook-admin-page .sticky-actions,
+.skybook-admin-page .report-stat-list div,
+.skybook-admin-page .permission-card{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .detail-section-toggle{color:var(--sb-text)}
+.skybook-admin-page .detail-section-toggle-action{
+  background:var(--sb-surface-4);border-color:var(--sb-line);color:var(--sb-text-soft);box-shadow:none;
+}
+.skybook-admin-page .detail-card{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .detail-card span{color:var(--sb-muted)}
+.skybook-admin-page .detail-card strong{color:var(--sb-text)}
+.skybook-admin-page .detail-card p{color:var(--sb-muted)}
+.skybook-admin-page .detail-card.checklist-card.is-complete{
+  background:var(--sb-green-dim);border-color:rgba(77,168,116,.22);
+}
+.skybook-admin-page .detail-card.checklist-card.is-open{
+  background:rgba(216,146,32,.12);border-color:rgba(216,146,32,.22);
+}
+.skybook-admin-page .detail-grid-strong div{background:var(--sb-surface-4)}
+.skybook-admin-page .detail-callout strong{color:var(--sb-text)}
+.skybook-admin-page .detail-helper-copy{color:var(--sb-muted)}
+.skybook-admin-page .report-stat-list strong{color:var(--sb-text)}
+.skybook-admin-page .report-stat-list span{color:var(--sb-muted)}
+.skybook-admin-page .permission-card label{color:var(--sb-text)}
+.skybook-admin-page .permission-card small{color:var(--sb-muted)}
+.skybook-admin-page .section-heading p{color:var(--sb-muted)}
+.skybook-admin-page .template-card pre{color:var(--sb-muted)}
+
+/* Management hero */
+.skybook-admin-page .booking-management-hero{
+  background:
+    radial-gradient(circle at 6% 0%,rgba(201,134,48,.12),transparent 28%),
+    linear-gradient(135deg,var(--sb-surface-2),var(--sb-surface-3));
+  border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .booking-management-hero h3{
+  color:var(--sb-text);
+  font-family:'DM Serif Display','Playfair Display',serif;font-weight:400;
+}
+.skybook-admin-page .booking-management-hero p{color:var(--sb-muted)}
+.skybook-admin-page .booking-management-nav a,
+.skybook-admin-page .booking-management-nav button{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.skybook-admin-page .booking-management-nav a:hover,
+.skybook-admin-page .booking-management-nav button:hover{
+  background:var(--sb-amber-dim);border-color:rgba(232,168,74,.22);color:var(--sb-amber-bright);
+}
+
+/* Scroll header */
+.skybook-admin-page .management-scroll-header-inner{
+  background:rgba(12,22,34,.94);border-color:var(--sb-line);
+  box-shadow:0 10px 28px rgba(0,0,0,.38);
+}
+.skybook-admin-page .management-scroll-header-inner strong{color:var(--sb-text)}
+.skybook-admin-page .management-scroll-header-actions button{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.skybook-admin-page .management-scroll-header-actions button:last-child,
+.skybook-admin-page .management-scroll-header-actions .is-primary-action{
+  background:var(--sb-amber);border-color:var(--sb-amber);color:#fff;
+}
+
+/* Record page buttons */
+.skybook-admin-page.is-booking-record-page .booking-button,
+.skybook-admin-page.is-booking-record-page .detail-actions button,
+.skybook-admin-page.is-booking-record-page .toolbar-actions button{
+  background:var(--sb-amber);
+}
+
+/* Screen shells */
+.skybook-admin-page .reservation-screen-shell{
+  background:linear-gradient(135deg,rgba(12,108,134,.12),rgba(255,255,255,0));
+}
+.skybook-admin-page .booking-screen-shell .booking-management-hero{
+  border-color:var(--sb-line);
+  background:linear-gradient(135deg,var(--sb-surface-2),var(--sb-surface-3));
+}
+
+/* Booking function sidebar */
+.skybook-admin-page .booking-function-sidebar{
+  background:var(--sb-surface-2);border-color:var(--sb-line);
+  box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .booking-function-sidebar-toggle{
+  background:linear-gradient(135deg,rgba(12,22,36,.8),rgba(201,134,48,.22));
+  border-color:rgba(232,168,74,.18);
+  box-shadow:0 20px 42px rgba(0,0,0,.32);
+}
+.skybook-admin-page .booking-function-toggle-copy{
+  background:rgba(255,255,255,.12);color:var(--sb-amber-bright);
+}
+.skybook-admin-page .booking-function-note{color:var(--sb-muted)}
+
+/* ── Filter & search ────────────────────────────────────────── */
+.skybook-admin-page .booking-quick-filter-bar{
+  background:var(--sb-surface-3);border-color:var(--sb-line);
+}
+.skybook-admin-page .booking-quick-filter{
+  background:var(--sb-surface-4);border-color:var(--sb-line);color:var(--sb-text-soft);box-shadow:none;
+}
+.skybook-admin-page .booking-quick-filter span{
+  background:var(--sb-surface-2);color:var(--sb-muted);
+}
+.skybook-admin-page .booking-quick-filter.is-active{
+  background:linear-gradient(135deg,var(--sb-amber),#a86e20);border-color:transparent;color:#fff;
+}
+.skybook-admin-page .booking-quick-filter.is-active span{background:rgba(255,255,255,.16);color:#fff}
+.skybook-admin-page .booking-filters-panel{background:var(--sb-surface-3);border-color:var(--sb-line)}
+
+/* ── Calendar ───────────────────────────────────────────────── */
+.skybook-admin-page .calendar-canvas{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .calendar-cell{background:var(--sb-surface-2);border-color:var(--sb-line)}
+.skybook-admin-page .calendar-cell header span{color:var(--sb-muted)}
+.skybook-admin-page .calendar-entry-card,
+.skybook-admin-page .timeline-item,
+.skybook-admin-page .calendar-mini-card{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .calendar-entry-top p,.skybook-admin-page .calendar-entry-meta{color:var(--sb-muted)}
+.skybook-admin-page .calendar-mini-card strong{color:var(--sb-text)}
+.skybook-admin-page .calendar-mini-card span{color:var(--sb-muted)}
+.skybook-admin-page .timeline-content p,.skybook-admin-page .timeline-content small{color:var(--sb-muted)}
+
+/* ── Ops switchboard & capability map ───────────────────────── */
+.skybook-admin-page .ops-switchboard button{
+  background:var(--sb-surface-2);border-color:var(--sb-line);color:var(--sb-text);box-shadow:none;
+}
+.skybook-admin-page .ops-switchboard button:hover,
+.skybook-admin-page .ops-switchboard button.is-active{
+  background:var(--sb-surface-3);border-color:rgba(232,168,74,.22);box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .ops-switchboard span{color:var(--sb-amber-bright)}
+.skybook-admin-page .ops-switchboard strong{color:var(--sb-text)}
+.skybook-admin-page .radar-card{background:var(--sb-surface-2);border-color:var(--sb-line)}
+.skybook-admin-page .radar-card:before{background:var(--sb-line-m)}
+.skybook-admin-page .radar-card.is-good:before{background:var(--sb-green)}
+.skybook-admin-page .radar-card.is-warn:before{background:#d89220}
+.skybook-admin-page .radar-card.is-risk:before{background:var(--sb-red)}
+.skybook-admin-page .radar-card span{color:var(--sb-amber-bright)}
+.skybook-admin-page .radar-card strong{color:var(--sb-text)}
+.skybook-admin-page .radar-card p{color:var(--sb-muted)}
+.skybook-admin-page .capability-map{background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:none}
+.skybook-admin-page .capability-map-header span,.skybook-admin-page .capability-grid span{color:var(--sb-amber-bright)}
+.skybook-admin-page .capability-map-header h3{color:var(--sb-text)}
+.skybook-admin-page .capability-map-header p{color:var(--sb-muted)}
+.skybook-admin-page .capability-grid button{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .capability-grid button:hover{
+  background:var(--sb-surface-4);border-color:rgba(232,168,74,.22);box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .capability-grid strong{color:var(--sb-text-soft)}
+
+/* ── Misc quality / alert cards ─────────────────────────────── */
+.skybook-admin-page .quality-check{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text-soft);
+}
+.skybook-admin-page .quality-check.is-done{
+  background:var(--sb-green-dim);border-color:rgba(77,168,116,.22);color:var(--sb-green);
+}
+.skybook-admin-page .quality-check.is-missing{
+  background:var(--sb-red-dim);border-color:rgba(200,92,92,.22);color:var(--sb-red);
+}
+.skybook-admin-page .booking-alert-card{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .booking-alert-card span{color:var(--sb-muted)}
+.skybook-admin-page .booking-alert-card strong{color:var(--sb-text)}
+.skybook-admin-page .booking-alert-card small{color:var(--sb-muted)}
+.skybook-admin-page .booking-alert-card.is-critical{background:var(--sb-red-dim);border-color:rgba(200,92,92,.22)}
+.skybook-admin-page .booking-alert-card.is-high{background:rgba(216,146,32,.12);border-color:rgba(216,146,32,.22)}
+.skybook-admin-page .booking-alert-card.is-clear{background:var(--sb-green-dim);border-color:rgba(77,168,116,.22)}
+.skybook-admin-page .crm-booking-item{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-text);box-shadow:none;
+}
+.skybook-admin-page .crm-booking-item:hover{background:var(--sb-surface-4);border-color:rgba(232,168,74,.22)}
+.skybook-admin-page .crm-booking-item-top span{color:var(--sb-muted)}
+.skybook-admin-page .crm-booking-item-meta{color:var(--sb-muted)}
+.skybook-admin-page .reservation-acceptance-loader{
+  background:linear-gradient(135deg,var(--sb-surface-3),var(--sb-surface-2));
+  border-color:var(--sb-line);box-shadow:var(--sb-shadow-soft);
+}
+.skybook-admin-page .reservation-acceptance-loader strong{color:var(--sb-text)}
+.skybook-admin-page .reservation-acceptance-loader p{color:var(--sb-muted)}
+
+/* ── Brand pills ────────────────────────────────────────────── */
+.skybook-admin-page .brand-pill{border-color:var(--sb-line)}
+.skybook-admin-page .brand-pill.is-true-travel{
+  background:rgba(12,108,134,.18);border-color:rgba(12,108,134,.28);color:#3dbdda;
+}
+.skybook-admin-page .brand-pill.is-iventure{
+  background:rgba(255,176,0,.13);border-color:rgba(255,176,0,.26);color:var(--sb-amber-bright);
+}
+.skybook-admin-page .brand-pill.is-neutral{
+  background:var(--sb-surface-3);border-color:var(--sb-line);color:var(--sb-muted);
+}
+.skybook-admin-page .booking-row.is-true-travel td:first-child,
+.skybook-admin-page .reservation-row.is-true-travel td:first-child{
+  box-shadow:inset 4px 0 0 #3dbdda;
+}
+.skybook-admin-page .booking-row.is-iventure td:first-child,
+.skybook-admin-page .reservation-row.is-iventure td:first-child{
+  box-shadow:inset 4px 0 0 var(--sb-amber-bright);
+}
+
+/* ── Danger actions in reservation nav ──────────────────────── */
+.skybook-admin-page .reservation-management-shell .booking-management-nav .is-danger-action,
+.skybook-admin-page .management-scroll-header-actions .is-danger-action{
+  background:var(--sb-red-dim);border-color:rgba(200,92,92,.22);color:var(--sb-red);
+}
+.skybook-admin-page .reservation-management-shell .booking-management-nav .is-danger-action:hover,
+.skybook-admin-page .management-scroll-header-actions .is-danger-action:hover{
+  background:rgba(200,92,92,.22);border-color:rgba(200,92,92,.3);
+}
+
+/* ── Changelog ──────────────────────────────────────────────── */
+.skybook-admin-page .booking-changelog-hero{
+  background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .booking-changelog-hero h1{color:var(--sb-text)}
+.skybook-admin-page .booking-changelog-hero p{color:var(--sb-muted)}
+.skybook-admin-page .booking-changelog-date{background:var(--sb-surface-3);border-color:var(--sb-line)}
+.skybook-admin-page .booking-changelog-date span{color:var(--sb-muted)}
+.skybook-admin-page .booking-changelog-date strong{color:var(--sb-amber-bright)}
+.skybook-admin-page .booking-changelog-card{
+  background:var(--sb-surface-2);border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .booking-changelog-card h2{color:var(--sb-text)}
+.skybook-admin-page .booking-changelog-card p{color:var(--sb-muted)}
+
+/* ── Memory admin panel ─────────────────────────────────────── */
+.skybook-admin-page .memory-admin-panel{
+  background:
+    radial-gradient(circle at 100% 0%,rgba(201,134,48,.18),transparent 30%),
+    linear-gradient(135deg,var(--sb-surface-2),var(--sb-surface-3));
+  border-color:var(--sb-line);box-shadow:none;
+}
+.skybook-admin-page .memory-admin-panel h5{color:var(--sb-text)}
