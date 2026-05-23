@@ -369,6 +369,7 @@ const nodes={
   bookingCustomerName:document.getElementById('adminBookingCustomerName'),
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
+  bookingGuideName:document.getElementById('adminBookingGuideName'),
   bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
@@ -388,7 +389,10 @@ const nodes={
   serviceName:document.getElementById('adminServiceName'),
   serviceSlug:document.getElementById('adminServiceSlug'),
   serviceCategory:document.getElementById('adminServiceCategory'),
+  servicePricingMode:document.getElementById('adminServicePricingMode'),
   servicePrice:document.getElementById('adminServicePrice'),
+  serviceAdultPrice:document.getElementById('adminServiceAdultPrice'),
+  serviceChildPrice:document.getElementById('adminServiceChildPrice'),
   serviceDateRule:document.getElementById('adminServiceDateRule'),
   serviceDuration:document.getElementById('adminServiceDuration'),
   serviceMinPax:document.getElementById('adminServiceMinPax'),
@@ -499,6 +503,7 @@ const nodes={
   resourceType:document.getElementById('adminResourceType'),
   resourceCapacity:document.getElementById('adminResourceCapacity'),
   resourceAbundant:document.getElementById('adminResourceAbundant'),
+  resourceNotes:document.getElementById('adminResourceNotes'),
   refundForm:document.getElementById('adminRefundForm'),
   refundBookingId:document.getElementById('adminRefundBookingId'),
   refundAmount:document.getElementById('adminRefundAmount'),
@@ -1241,6 +1246,7 @@ const collectBookingFormValues=()=>({
   payment_status:nodes.bookingPaymentStatus?.value||'',
   preferred_date:nodes.bookingDate?.value||'',
   quantity:nodes.bookingQuantity?.value||'',
+  guide_name:nodes.bookingGuideName?.value||'',
   customer_name:nodes.bookingCustomerName?.value||'',
   customer_email:nodes.bookingCustomerEmail?.value||'',
   customer_phone:nodes.bookingCustomerPhone?.value||'',
@@ -1261,6 +1267,7 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
+  if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||'')
   if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
   if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
   if(nodes.bookingCustomerPhone)nodes.bookingCustomerPhone.value=String(values.customer_phone||'')
@@ -3098,6 +3105,7 @@ const renderReservationDetail=()=>{
     {label:'Tour',done:Boolean(booking.service_name)},
     {label:'Date',done:Boolean(booking.preferred_date)},
     {label:'Pax',done:Number(booking.quantity||0)>0},
+    {label:'Guide assigned',done:Boolean(booking.guide_name||booking.metadata?.guide_name)},
     {label:'Pickup / notes',done:Boolean(booking.customer_notes||booking.notes||booking.metadata?.pickup_location)},
     {label:'Price',done:Number(booking.total_amount||0)>0}
   ]
@@ -4414,7 +4422,10 @@ const fillServiceForm=(service=null)=>{
   nodes.serviceName.value=service?.name||''
   nodes.serviceSlug.value=service?.slug||''
   nodes.serviceCategory.value=service?.category_slug||'coastal-tours'
+  if(nodes.servicePricingMode)nodes.servicePricingMode.value=service?.pricing_mode||'fixed'
   nodes.servicePrice.value=service?.base_price||''
+  if(nodes.serviceAdultPrice)nodes.serviceAdultPrice.value=service?.adult_price||''
+  if(nodes.serviceChildPrice)nodes.serviceChildPrice.value=service?.child_price||''
   nodes.serviceDateRule.value=service?.preferred_date_mode||'optional'
   nodes.serviceDuration.value=service?.duration_label||''
   if(nodes.serviceMinPax)nodes.serviceMinPax.value=service?.minimum_pax||1
@@ -6865,6 +6876,7 @@ const handleBookingSave=async event=>{
     payment_status:(!wasEditing||isReservationAcceptanceWorkflow) ? requestedPaymentStatus : (existingBooking?.payment_status||requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
     quantity:Number(nodes.bookingQuantity.value||1),
+    guide_name:nodes.bookingGuideName?.value.trim()||'',
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
@@ -6960,7 +6972,10 @@ const handleServiceSave=async event=>{
     slug:nodes.serviceSlug.value.trim(),
     name:nodes.serviceName.value.trim(),
     category_slug:nodes.serviceCategory.value,
+    pricing_mode:nodes.servicePricingMode?.value||'fixed',
     base_price:Number(nodes.servicePrice.value||0),
+    adult_price:nodes.serviceAdultPrice?.value ? Number(nodes.serviceAdultPrice.value) : null,
+    child_price:nodes.serviceChildPrice?.value ? Number(nodes.serviceChildPrice.value) : null,
     preferred_date_mode:nodes.serviceDateRule.value,
     duration_label:nodes.serviceDuration.value.trim(),
     minimum_pax:Math.max(1,Number(nodes.serviceMinPax?.value||1)||1),
@@ -7173,12 +7188,14 @@ const handleResourceSave=async event=>{
       is_active:true,
       metadata:{
         source:'admin-ui',
-        abundant_resources:Boolean(nodes.resourceAbundant.checked)
+        abundant_resources:Boolean(nodes.resourceAbundant.checked),
+        notes:nodes.resourceNotes?.value.trim()||''
       }
     }
   })
   nodes.resourceForm.reset()
   if(nodes.resourceAbundant)nodes.resourceAbundant.checked=true
+  if(nodes.resourceNotes)nodes.resourceNotes.value=''
   syncResourceCapacityState()
   await refreshAdmin('Resource saved.')
 }
@@ -7751,6 +7768,10 @@ nodes.reservationDetail?.addEventListener('click',event=>{
   }
   if(action==='accept'){
     const reservationId=state.selectedBookingId
+    if(!booking.guide_name&&!booking.metadata?.guide_name){
+      setAdminStatus('A guide must be assigned before accepting this reservation. Edit the reservation and add the guide name.',true)
+      return
+    }
     const pendingWindow=openPendingBookingRecordWindow(booking)
     setReservationAcceptanceLoading(true,'Accepting this reservation and opening the full booking view in a new page.')
     setAdminStatus('Accepting reservation and preparing the full booking view...')

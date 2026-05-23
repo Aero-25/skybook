@@ -729,6 +729,10 @@
               <span>Customer Phone</span>
               <input id="adminBookingCustomerPhone" type="tel" required>
             </label>
+            <label class="booking-field-full">
+              <span>Assigned guide</span>
+              <input id="adminBookingGuideName" type="text" placeholder="Guide's full name — required before acceptance">
+            </label>
             <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
               <span>Notes</span>
@@ -796,8 +800,23 @@
                 </select>
               </label>
               <label class="booking-field">
-                <span>Base Price</span>
+                <span>Pricing mode</span>
+                <select id="adminServicePricingMode">
+                  <option value="fixed">Fixed price (show price on site)</option>
+                  <option value="quote">Ask for a quote (no price shown)</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Base Price (per person)</span>
                 <input id="adminServicePrice" type="number" min="0" step="0.01" required>
+              </label>
+              <label class="booking-field">
+                <span>Adult Price</span>
+                <input id="adminServiceAdultPrice" type="number" min="0" step="0.01" placeholder="Optional — overrides base price">
+              </label>
+              <label class="booking-field">
+                <span>Child Price</span>
+                <input id="adminServiceChildPrice" type="number" min="0" step="0.01" placeholder="Optional — requires adult price">
               </label>
               <label class="booking-field">
                 <span>Date Rule</span>
@@ -1283,7 +1302,14 @@
               </label>
               <label class="booking-field">
                 <span>Type</span>
-                <input id="adminResourceType" type="text" value="vehicle">
+                <select id="adminResourceType">
+                  <option value="vehicle">Vehicle</option>
+                  <option value="boat">Boat</option>
+                  <option value="guide">Guide</option>
+                  <option value="kayak">Kayak</option>
+                  <option value="equipment">Equipment</option>
+                  <option value="other">Other</option>
+                </select>
               </label>
               <label class="booking-field">
                 <span>Capacity</span>
@@ -1296,6 +1322,10 @@
               <div class="booking-field-full">
                 <small class="field-hint">Tick this when the resource should not be treated as operationally limited inside SkyBook, even if guests still book normally.</small>
               </div>
+              <label class="booking-field-full">
+                <span>Notes</span>
+                <textarea id="adminResourceNotes" rows="2" placeholder="Boat registration, vehicle licence plate, guide notes, etc."></textarea>
+              </label>
               <div class="booking-field-full">
                 <button class="booking-button" type="submit">Save Resource</button>
               </div>

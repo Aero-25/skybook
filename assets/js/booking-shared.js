@@ -295,7 +295,10 @@ window.TrueTravelBooking=(()=>{
       duration_label:safeText(service?.duration_label||service?.durationLabel||'Flexible'),
       unit_label:safeText(service?.unit_label||service?.unitLabel||'guest'),
       preferred_date_mode:DATE_REQUIREMENT_TYPES.includes(service?.preferred_date_mode) ? service.preferred_date_mode : 'optional',
+      pricing_mode:['fixed','quote'].includes(service?.pricing_mode) ? service.pricing_mode : 'fixed',
       base_price:Number(service?.base_price||service?.basePrice||0),
+      adult_price:service?.adult_price!=null ? Number(service.adult_price) : null,
+      child_price:service?.child_price!=null ? Number(service.child_price) : null,
       currency:normalizeCurrencyCode(service?.currency||'NAD'),
       is_active:service?.is_active!==false,
       requires_manual_confirmation:service?.requires_manual_confirmation!==false,
@@ -348,10 +351,16 @@ window.TrueTravelBooking=(()=>{
   const calculatePricing=(service,payload,config=readConfig())=>{
     const normalizedService=normalizeService(service)
     const minimumPax=Math.max(1,Number(normalizedService.minimum_pax||1)||1)
-    const quantity=Math.max(minimumPax,Number(payload?.quantity||payload?.persons||1)||1)
+    const adultQty=Math.max(0,Number(payload?.adult_quantity||0)||0)
+    const childQty=Math.max(0,Number(payload?.child_quantity||0)||0)
+    const splitQty=adultQty+childQty
+    const quantity=splitQty>0 ? Math.max(minimumPax,splitQty) : Math.max(minimumPax,Number(payload?.quantity||payload?.persons||1)||1)
     const selectedAddons=Array.isArray(payload?.addons) ? payload.addons : []
     const addonRows=normalizedService.addons.filter(addon=>selectedAddons.includes(addon.slug))
-    const baseSubtotal=normalizedService.base_price*quantity
+    const hasAdultChildPricing=normalizedService.adult_price!=null&&normalizedService.adult_price>0
+    const baseSubtotal=hasAdultChildPricing && splitQty>0
+      ? (adultQty*(normalizedService.adult_price||0))+(childQty*(normalizedService.child_price||0))
+      : normalizedService.base_price*quantity
     const addonsSubtotal=addonRows.reduce((sum,addon)=>sum+(
       addon.pricing_type==='per_person' ? addon.price*quantity : addon.price
     ),0)
