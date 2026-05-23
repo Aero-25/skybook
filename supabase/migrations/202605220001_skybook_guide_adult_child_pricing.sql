@@ -13,10 +13,19 @@ alter table public.services
   add column if not exists child_price numeric(12,2),
   add column if not exists pricing_mode varchar(32) not null default 'fixed';
 
--- Ensure pricing_mode only holds valid values
-alter table public.services
-  add constraint if not exists services_pricing_mode_check
-  check (pricing_mode in ('fixed','quote'));
+-- Ensure pricing_mode only holds valid values (skip if constraint already exists)
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'services_pricing_mode_check'
+      and conrelid = 'public.services'::regclass
+  ) then
+    alter table public.services
+      add constraint services_pricing_mode_check
+      check (pricing_mode in ('fixed','quote'));
+  end if;
+end$$;
 
 comment on column public.bookings.guide_name is 'Assigned tour guide name. Required before reservation acceptance.';
 comment on column public.bookings.adult_quantity is 'Number of adult guests in this booking.';
