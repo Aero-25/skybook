@@ -190,6 +190,9 @@ const BRAND_CONSULTANT_EMAILS={
   'true-travel':'info@aerodigital.space',
   iventure:'info@aerodigital.space'
 }
+const BRAND_RESEND_KEYS:Record<string,string>={
+  'true-travel':'re_E9x7NRje_96ygDBLPa1DZnorrbtYh3R99'
+}
 const BRAND_EMAIL_NAMES={
   'true-travel':'True Travel',
   iventure:'Iventure'
@@ -1730,9 +1733,10 @@ const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
   const configuredBrandMap=normalizeJsonRecord(emailConfig.from_email_by_brand)
   const configuredNameMap=normalizeJsonRecord(emailConfig.from_name_by_brand)
   const configuredSupportEmail=await getConfiguredBrandSupportEmail(normalizedBrand)
+  const brandResendKey=BRAND_RESEND_KEYS[normalizedBrand] || ''
   return {
-    provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || 'log_only'),
-    resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key),
+    provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || (brandResendKey ? 'resend' : 'log_only')),
+    resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key || brandResendKey),
     fromEmail:normalizeText(
       Deno.env.get('EMAIL_FROM')
       || configuredBrandMap[normalizedBrand]
