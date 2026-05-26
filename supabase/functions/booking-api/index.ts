@@ -184,9 +184,12 @@ const BOOKING_FORM_FIELD_TYPES=new Set(['text','textarea','select','checkbox','n
 const MANUAL_PAYMENT_TYPES=new Set(['cash','eft','bank_transfer','card','voucher','other'])
 const BRAND_SUPPORT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
+  iventure:'info@iventuretours.net'
+}
+const BRAND_CONSULTANT_EMAILS={
+  'true-travel':'info@aerodigital.space',
   iventure:'info@aerodigital.space'
 }
-const TRUE_TRAVEL_CONSULTANT_EMAIL='info@aerodigital.space'
 const BRAND_EMAIL_NAMES={
   'true-travel':'True Travel',
   iventure:'Iventure'
@@ -218,7 +221,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     website_url:'https://iventuretours.net',
     document_company_line:'Iventure desert-coast expedition desk',
     document_footer:'Walvis Bay, Namibia',
-    document_support_line:'info@aerodigital.space · +264 81 322 4270'
+    document_support_line:'info@iventuretours.net · +264 81 322 4270'
   }
 }
 
@@ -1795,6 +1798,7 @@ const dispatchEmailLog=async(emailLog:Json)=>{
     body:JSON.stringify({
       from:fromAddress,
       to:[String(emailLog.recipient_email || '')],
+      cc:['gerritgrove@gmail.com'],
       subject:String(emailLog.subject || ''),
       text:String(emailLog.rendered_body || '')
     })
@@ -1826,6 +1830,41 @@ const dispatchEmailLog=async(emailLog:Json)=>{
     }
   }).eq('id',String(emailLog.id || ''))
   return { status:'sent', provider:'resend', provider_message_id:normalizeText(responseBody?.id) }
+}
+
+const readWhatsAppConfig=()=>({
+  provider:normalizeText(Deno.env.get('WHATSAPP_PROVIDER')) || 'log_only',
+  twilioAccountSid:normalizeText(Deno.env.get('TWILIO_ACCOUNT_SID')),
+  twilioAuthToken:normalizeText(Deno.env.get('TWILIO_AUTH_TOKEN')),
+  twilioFrom:normalizeText(Deno.env.get('TWILIO_WHATSAPP_FROM')),
+  ultraMsgInstanceId:normalizeText(Deno.env.get('ULTRAMSG_INSTANCE_ID')),
+  ultraMsgToken:normalizeText(Deno.env.get('ULTRAMSG_TOKEN'))
+})
+
+const sendWhatsAppMessage=async(to:string,body:string)=>{
+  const cfg=readWhatsAppConfig()
+  const normalizedTo=normalizeText(to).replace(/\s/g,'')
+  if(!normalizedTo||!body)return
+  if(cfg.provider==='twilio'&&cfg.twilioAccountSid&&cfg.twilioAuthToken&&cfg.twilioFrom){
+    const fromNumber=cfg.twilioFrom.startsWith('whatsapp:') ? cfg.twilioFrom : `whatsapp:${cfg.twilioFrom}`
+    const toNumber=normalizedTo.startsWith('whatsapp:') ? normalizedTo : `whatsapp:${normalizedTo}`
+    const credentials=btoa(`${cfg.twilioAccountSid}:${cfg.twilioAuthToken}`)
+    await fetch(`https://api.twilio.com/2010-04-01/Accounts/${cfg.twilioAccountSid}/Messages.json`,{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded',Authorization:`Basic ${credentials}`},
+      body:new URLSearchParams({From:fromNumber,To:toNumber,Body:body}).toString()
+    })
+    return
+  }
+  if(cfg.provider==='ultramsg'&&cfg.ultraMsgInstanceId&&cfg.ultraMsgToken){
+    await fetch(`https://api.ultramsg.com/${cfg.ultraMsgInstanceId}/messages/chat`,{
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:new URLSearchParams({token:cfg.ultraMsgToken,to:normalizedTo,body}).toString()
+    })
+    return
+  }
+  console.info(`[WhatsApp log_only] to=${normalizedTo} body=${body}`)
 }
 
 const loadBookingEmailContext=async(bookingId:string)=>{
@@ -1893,10 +1932,10 @@ const performQueuedEmailJob=async(job:Json)=>{
   const bookingId=normalizeText(job.booking_id)
   const templateKey=normalizeText(job.payload?.template_key) || 'status_changed'
   if(!bookingId)throw new Error('Queued email job is missing booking_id.')
-  if(!['booking_received','true_travel_consultant_alert'].includes(templateKey))return
+  if(!['booking_received','consultant_alert'].includes(templateKey))return
   const { booking, customer, service, brand }=await loadBookingEmailContext(bookingId)
-  const isConsultantAlert=templateKey==='true_travel_consultant_alert'
-  const recipientEmail=isConsultantAlert ? TRUE_TRAVEL_CONSULTANT_EMAIL : String(customer?.email || '')
+  const isConsultantAlert=templateKey==='consultant_alert'
+  const recipientEmail=isConsultantAlert ? (BRAND_CONSULTANT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_CONSULTANT_EMAILS] || BRAND_CONSULTANT_EMAILS['true-travel']) : String(customer?.email || '')
   if(!recipientEmail)throw new Error('Email recipient is missing for queued email delivery.')
   let subject=normalizeText(job.payload?.subject)
   let body=normalizeText(job.payload?.body)
@@ -3298,7 +3337,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await syncLifecycleTasks(bookingId,userId || null)
   await maybeCreateAutomatedOfficeSettlement(bookingId,userId || null)
   await syncReconciliationRecordForBooking(bookingId,userId || null)
-  if(!isAdmin && normalizeText(brand.code)==='true-travel'){
+  if(!isAdmin){
     await enqueueBookingEmailJob({
       bookingId,
       customerId:customer.id,
@@ -3309,10 +3348,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     await enqueueBookingEmailJob({
       bookingId,
       customerId:customer.id,
-      templateKey:'true_travel_consultant_alert',
+      templateKey:'consultant_alert',
       priority:'high',
       createdBy:userId || null
     })
+    const consultantWhatsApp=normalizeText(brand.support_whatsapp) || '+264813224270'
+    const waBody=`New ${normalizeText(brand.name)||'True Travel'} booking!\n\nCustomer: ${normalizeText(customer.full_name)||'Guest'}\nPhone: ${normalizeText(customer.phone)||'Not provided'}\nTour: ${normalizeText(service.name)||'Service'}\nDate: ${normalizeText(payload.preferred_date)||'TBC'}\nGuests: ${pricing.quantity}\nTotal: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}\nRef: ${reference}`
+    void sendWhatsAppMessage(consultantWhatsApp,waBody).catch(err=>console.error('WhatsApp alert failed:',err?.message))
   }
   await enqueueSystemJob({
     job_type:'status_automation',
