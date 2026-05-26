@@ -747,24 +747,21 @@ const fetchMemoryBookingByReference=async(referenceInput:unknown,brandCodeInput=
   return booking
 }
 
-const fetchMemoryBookingByDate=async(dateInput:unknown,emailInput:unknown,brandCodeInput='')=>{
+const fetchMemoryBookingByDate=async(dateInput:unknown,brandCodeInput='')=>{
   const date=normalizeText(dateInput)
-  const email=normalizeText(emailInput).toLowerCase()
   if(!date)throw new Error('Tour date is required.')
-  if(!email)throw new Error('Email address is required.')
   const {data,error}=await adminClient
     .from('bookings')
     .select('id,reference,brand_code,status,preferred_date,quantity,customers!inner(full_name,email),services(name,slug)')
     .eq('preferred_date',date)
-    .ilike('customers.email',email)
     .limit(1)
     .maybeSingle()
   if(error)throw error
   const booking=data as Json|null
-  if(!booking)throw new Error('No memories found for that tour date and email. Please check your details and try again.')
+  if(!booking)throw new Error('No memories found for that date. Please check the date and try again.')
   const requestedBrand=normalizeText(brandCodeInput)
   if(requestedBrand && normalizeText(booking.brand_code)!==requestedBrand){
-    throw new Error('No memories found for that tour date and email. Please check your details and try again.')
+    throw new Error('No memories found for that date. Please check the date and try again.')
   }
   return booking
 }
@@ -785,7 +782,7 @@ const decorateMemoryRows=async(rows:Json[])=>Promise.all(rows.map(async row=>({
 
 const listTourMemories=async(payload:Json,brandCode:string)=>{
   const booking=payload.date
-    ? await fetchMemoryBookingByDate(payload.date,payload.email,brandCode)
+    ? await fetchMemoryBookingByDate(payload.date,brandCode)
     : await fetchMemoryBookingByReference(payload.reference,brandCode)
   const rows=await safeTableSelect<Json>(
     adminClient
