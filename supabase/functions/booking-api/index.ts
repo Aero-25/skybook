@@ -190,9 +190,7 @@ const BRAND_CONSULTANT_EMAILS={
   'true-travel':'info@aerodigital.space',
   iventure:'info@aerodigital.space'
 }
-const BRAND_RESEND_KEYS:Record<string,string>={
-  'true-travel':'re_E9x7NRje_96ygDBLPa1DZnorrbtYh3R99'
-}
+const BRAND_RESEND_KEYS:Record<string,string>={}
 const BRAND_EMAIL_NAMES={
   'true-travel':'True Travel',
   iventure:'Iventure'
