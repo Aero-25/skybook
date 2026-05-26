@@ -187,8 +187,8 @@ const BRAND_SUPPORT_EMAILS={
   iventure:'info@iventuretours.net'
 }
 const BRAND_CONSULTANT_EMAILS={
-  'true-travel':'info@aerodigital.space',
-  iventure:'info@aerodigital.space'
+  'true-travel':'bookings@truetravelnam.net',
+  iventure:'info@iventuretours.net'
 }
 const BRAND_RESEND_KEYS:Record<string,string>={}
 const BRAND_EMAIL_NAMES={
