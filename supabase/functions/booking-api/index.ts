@@ -1799,7 +1799,8 @@ const dispatchEmailLog=async(emailLog:Json)=>{
       to:[String(emailLog.recipient_email || '')],
       cc:['gerritgrove@gmail.com'],
       subject:String(emailLog.subject || ''),
-      text:String(emailLog.rendered_body || '')
+      text:String(emailLog.rendered_body || ''),
+      ...(normalizeText(emailLog.metadata?.rendered_html) ? {html:String(emailLog.metadata?.rendered_html)} : {})
     })
   })
   const responseBody=await tryParseJson(response)
@@ -1938,6 +1939,59 @@ const enqueueBookingEmailJob=async({
   })
 }
 
+const renderBookingReceivedHtml=(vars:Record<string,string>,brandCode:string):string=>{
+  const isTT=brandCode==='true-travel'
+  const primary=isTT?'#0E3A52':'#17110d'
+  const accent=isTT?'#2B8BAD':'#f5a400'
+  const bg=isTT?'#F7F0E3':'#faf7f0'
+  const logo=isTT
+    ?'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png'
+    :'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png'
+  const brand=vars.brand_name||'True Travel'
+  const em=vars.brand_support_email||''
+  const ph=vars.brand_support_phone||''
+  const emailRow=em?`<p style="margin:4px 0;font-size:14px"><a href="mailto:${em}" style="color:${accent};text-decoration:none">${em}</a></p>`:''
+  const phoneRow=ph?`<p style="margin:4px 0;font-size:14px;color:#555">${ph}</p>`:''
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Booking Received – ${brand}</title></head>
+<body style="margin:0;padding:0;background:${bg};font-family:Arial,Helvetica,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+<tr><td style="background:${primary};padding:36px;text-align:center">
+<img src="${logo}" alt="${brand}" height="64" style="height:64px;max-width:180px;object-fit:contain;display:block;margin:0 auto">
+<p style="margin:16px 0 0;color:rgba(255,255,255,.75);font-size:12px;letter-spacing:3px;text-transform:uppercase">Booking Request Received</p>
+</td></tr>
+<tr><td style="padding:40px 40px 28px">
+<p style="margin:0 0 8px;color:#333;font-size:16px">Hi <strong>${vars.customer_name}</strong>,</p>
+<p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.65">Thank you for choosing <strong>${brand}</strong>! We have received your booking request and a consultant will be in touch shortly to confirm timing, pickup details, and payment.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px"><tr>
+<td style="background:${bg};border-radius:8px;padding:22px;text-align:center;border:2px solid ${accent}">
+<p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#888">Booking Reference</p>
+<p style="margin:0;font-size:30px;font-weight:700;color:${primary};letter-spacing:3px">${vars.booking_reference}</p>
+</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
+<tr style="background:${primary}"><td colspan="2" style="padding:12px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">Your Booking Details</td></tr>
+<tr><td style="padding:14px 18px;font-size:13px;color:#888;width:42%;border-bottom:1px solid #f0f0f0">Activity / Tour</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.service_name}</td></tr>
+<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Preferred Date</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.booking_date}</td></tr>
+<tr><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Guests</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.guest_count}</td></tr>
+<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888">Total Amount</td><td style="padding:14px 18px;font-size:15px;color:${primary};font-weight:700">${vars.total_amount}</td></tr>
+</table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;background:${bg};border-radius:8px;border-left:4px solid ${accent}">
+<tr><td style="padding:20px">
+<p style="margin:0 0 8px;font-size:12px;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase">What happens next</p>
+<p style="margin:0;font-size:14px;color:#555;line-height:1.7">A ${brand} consultant will contact you within a few hours to confirm your booking, arrange pickup, and share payment instructions. Please keep your reference number handy.</p>
+</td></tr></table>
+<p style="margin:0 0 6px;font-size:14px;color:#555">Questions? We are always here:</p>
+${emailRow}${phoneRow}
+</td></tr>
+<tr><td style="background:${primary};padding:24px 40px;text-align:center">
+<p style="margin:0 0 4px;font-size:13px;color:rgba(255,255,255,.6)">${brand} · Walvis Bay, Namibia</p>
+<p style="margin:0;font-size:12px;color:rgba(255,255,255,.35)">This is an automated booking confirmation. Please do not reply to this email.</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`
+}
+
 const performQueuedEmailJob=async(job:Json)=>{
   const bookingId=normalizeText(job.booking_id)
   const templateKey=normalizeText(job.payload?.template_key) || 'status_changed'
@@ -1986,6 +2040,10 @@ const performQueuedEmailJob=async(job:Json)=>{
     subject=renderTemplate(String(template.subject || fallbackTemplate.subject),templateVariables)
     body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
   }
+  const brandCodeForHtml=normalizeText(booking.brand_code) || 'true-travel'
+  const renderedHtml=!isConsultantAlert && templateKey==='booking_received'
+    ? renderBookingReceivedHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
+    : ''
   const emailLog=await queueEmailLog({
     bookingId,
     customerId:String(customer?.id || booking.customer_id || ''),
@@ -1995,10 +2053,11 @@ const performQueuedEmailJob=async(job:Json)=>{
     body,
     status:'queued',
     metadata:{
-      brand_code:normalizeText(booking.brand_code) || 'true-travel',
+      brand_code:brandCodeForHtml,
       source:'system_job',
       job_id:String(job.id || ''),
-      delivery_intent:isConsultantAlert ? 'consultant_alert' : 'automatic'
+      delivery_intent:isConsultantAlert ? 'consultant_alert' : 'automatic',
+      ...(renderedHtml ? {rendered_html:renderedHtml} : {})
     }
   })
   await dispatchEmailLog(emailLog)
