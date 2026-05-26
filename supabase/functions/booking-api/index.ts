@@ -1840,16 +1840,27 @@ const readWhatsAppConfig=()=>({
   twilioAuthToken:normalizeText(Deno.env.get('TWILIO_AUTH_TOKEN')),
   twilioFrom:normalizeText(Deno.env.get('TWILIO_WHATSAPP_FROM')),
   ultraMsgInstanceId:normalizeText(Deno.env.get('ULTRAMSG_INSTANCE_ID')),
-  ultraMsgToken:normalizeText(Deno.env.get('ULTRAMSG_TOKEN'))
+  ultraMsgToken:normalizeText(Deno.env.get('ULTRAMSG_TOKEN')),
+  greenApiInstanceId:normalizeText(Deno.env.get('GREENAPI_INSTANCE_ID')),
+  greenApiToken:normalizeText(Deno.env.get('GREENAPI_TOKEN'))
 })
 
 const sendWhatsAppMessage=async(to:string,body:string)=>{
   const cfg=readWhatsAppConfig()
-  const normalizedTo=normalizeText(to).replace(/\s/g,'')
+  const normalizedTo=normalizeText(to).replace(/\s/g,'').replace(/^\+/,'')
   if(!normalizedTo||!body)return
+  if(cfg.provider==='greenapi'&&cfg.greenApiInstanceId&&cfg.greenApiToken){
+    const chatId=`${normalizedTo}@c.us`
+    await fetch(`https://api.green-api.com/waInstance${cfg.greenApiInstanceId}/sendMessage/${cfg.greenApiToken}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chatId,message:body})
+    })
+    return
+  }
   if(cfg.provider==='twilio'&&cfg.twilioAccountSid&&cfg.twilioAuthToken&&cfg.twilioFrom){
     const fromNumber=cfg.twilioFrom.startsWith('whatsapp:') ? cfg.twilioFrom : `whatsapp:${cfg.twilioFrom}`
-    const toNumber=normalizedTo.startsWith('whatsapp:') ? normalizedTo : `whatsapp:${normalizedTo}`
+    const toNumber=`whatsapp:+${normalizedTo}`
     const credentials=btoa(`${cfg.twilioAccountSid}:${cfg.twilioAuthToken}`)
     await fetch(`https://api.twilio.com/2010-04-01/Accounts/${cfg.twilioAccountSid}/Messages.json`,{
       method:'POST',
@@ -1862,7 +1873,7 @@ const sendWhatsAppMessage=async(to:string,body:string)=>{
     await fetch(`https://api.ultramsg.com/${cfg.ultraMsgInstanceId}/messages/chat`,{
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({token:cfg.ultraMsgToken,to:normalizedTo,body}).toString()
+      body:new URLSearchParams({token:cfg.ultraMsgToken,to:`+${normalizedTo}`,body}).toString()
     })
     return
   }
