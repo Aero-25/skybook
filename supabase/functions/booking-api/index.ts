@@ -743,6 +743,28 @@ const fetchMemoryBookingByReference=async(referenceInput:unknown,brandCodeInput=
   return booking
 }
 
+const fetchMemoryBookingByDate=async(dateInput:unknown,emailInput:unknown,brandCodeInput='')=>{
+  const date=normalizeText(dateInput)
+  const email=normalizeText(emailInput).toLowerCase()
+  if(!date)throw new Error('Tour date is required.')
+  if(!email)throw new Error('Email address is required.')
+  const {data,error}=await adminClient
+    .from('bookings')
+    .select('id,reference,brand_code,status,preferred_date,quantity,customers!inner(full_name,email),services(name,slug)')
+    .eq('preferred_date',date)
+    .ilike('customers.email',email)
+    .limit(1)
+    .maybeSingle()
+  if(error)throw error
+  const booking=data as Json|null
+  if(!booking)throw new Error('No memories found for that tour date and email. Please check your details and try again.')
+  const requestedBrand=normalizeText(brandCodeInput)
+  if(requestedBrand && normalizeText(booking.brand_code)!==requestedBrand){
+    throw new Error('No memories found for that tour date and email. Please check your details and try again.')
+  }
+  return booking
+}
+
 const decorateMemoryRows=async(rows:Json[])=>Promise.all(rows.map(async row=>({
   id:row.id,
   booking_reference:row.booking_reference,
@@ -758,7 +780,9 @@ const decorateMemoryRows=async(rows:Json[])=>Promise.all(rows.map(async row=>({
 })))
 
 const listTourMemories=async(payload:Json,brandCode:string)=>{
-  const booking=await fetchMemoryBookingByReference(payload.reference,brandCode)
+  const booking=payload.date
+    ? await fetchMemoryBookingByDate(payload.date,payload.email,brandCode)
+    : await fetchMemoryBookingByReference(payload.reference,brandCode)
   const rows=await safeTableSelect<Json>(
     adminClient
       .from('booking_memories')
@@ -769,7 +793,7 @@ const listTourMemories=async(payload:Json,brandCode:string)=>{
       .order('created_at',{ascending:true}),
     []
   )
-  if(!rows.length)throw new Error('No memories found for that reference yet.')
+  if(!rows.length)throw new Error('No memories have been uploaded for your tour yet. Please check back soon or contact us.')
   return {
     booking:{
       reference:booking.reference,

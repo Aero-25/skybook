@@ -659,18 +659,52 @@ const buildGalleryStoragePath=file=>{
   return `${prefix}/${Date.now()}-${fileStem}.${extension}`
 }
 
+const applyGalleryWatermark=(file,brandLabel)=>new Promise((resolve,reject)=>{
+  if(!file||!file.type.startsWith('image/')){resolve(file);return}
+  if(file.type==='image/svg+xml'){resolve(file);return}
+  const reader=new FileReader()
+  reader.onerror=()=>reject(new Error('The image could not be read for watermarking.'))
+  reader.onload=()=>{
+    const img=new Image()
+    img.onerror=()=>reject(new Error('The image could not be processed for watermarking.'))
+    img.onload=()=>{
+      const canvas=document.createElement('canvas')
+      canvas.width=img.width
+      canvas.height=img.height
+      const ctx=canvas.getContext('2d')
+      if(!ctx){resolve(file);return}
+      ctx.drawImage(img,0,0)
+      const fontSize=Math.max(14,Math.round(img.width*0.025))
+      ctx.font=`bold ${fontSize}px sans-serif`
+      ctx.textAlign='right'
+      ctx.textBaseline='bottom'
+      const padding=Math.round(fontSize*0.8)
+      ctx.shadowColor='rgba(0,0,0,0.55)'
+      ctx.shadowBlur=5
+      ctx.fillStyle='rgba(255,255,255,0.52)'
+      ctx.fillText(String(brandLabel||'').toUpperCase(),img.width-padding,img.height-padding)
+      canvas.toBlob(blob=>{
+        if(!blob){resolve(file);return}
+        resolve(new File([blob],file.name,{type:'image/webp'}))
+      },'image/webp',.9)
+    }
+    img.src=String(reader.result)
+  }
+  reader.readAsDataURL(file)
+})
+
 const submitGalleryUpload=async event=>{
   event.preventDefault()
   if(isGalleryUploading)return
 
-  const file=galleryImageFileInput?.files?.[0]||null
+  const rawFile=galleryImageFileInput?.files?.[0]||null
   const title=safeText(galleryImageTitleInput?.value)
   const category=safeText(galleryImageCategoryInput?.value)||'Collection'
   const caption=safeText(galleryImageCaptionInput?.value)
   const sortOrder=Math.max(0,Number(galleryImageSortOrderInput?.value||0)||0)
   const isPublished=galleryImagePublishedInput?.checked!==false
 
-  if(!file){
+  if(!rawFile){
     setGalleryStatus('Choose an image file before uploading to the gallery.',true)
     return
   }
@@ -681,13 +715,22 @@ const submitGalleryUpload=async event=>{
 
   isGalleryUploading=true
   updateGalleryUploadState()
+  setGalleryStatus(`Preparing ${title} for upload...`)
+
+  let file=rawFile
+  try{
+    file=await applyGalleryWatermark(rawFile,getActiveBrand().label)
+  }catch{
+    file=rawFile
+  }
+
   setGalleryStatus(`Uploading ${title} into the ${getActiveBrand().label} gallery...`)
 
   try{
     const {client,session}=await requireGalleryClient()
     const brand=getActiveBrand()
     const bucket=getGalleryBucket(brand)
-    const storagePath=buildGalleryStoragePath(file)
+    const storagePath=buildGalleryStoragePath(rawFile)
     const uploadResult=await client.storage.from(bucket).upload(storagePath,file,{
       cacheControl:'3600',
       upsert:false,
@@ -713,9 +756,9 @@ const submitGalleryUpload=async event=>{
         sort_order:sortOrder,
         is_published:isPublished,
         metadata:{
-          fileName:file.name,
-          fileSize:file.size,
-          contentType:file.type||'application/octet-stream'
+          fileName:rawFile.name,
+          fileSize:rawFile.size,
+          contentType:rawFile.type||'application/octet-stream'
         },
         created_by:session.user.id
       })
