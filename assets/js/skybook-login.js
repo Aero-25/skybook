@@ -138,17 +138,23 @@ const handleChangePassword=async event=>{
     setLoginStatus('Updating password...')
     if(submitButton)submitButton.disabled=true
 
-    // Temporarily set the session so the change-password request is authenticated
+    // Use the access token from the pending session directly — avoids the shared
+    // client auth state not being set yet at this point in the flow.
+    const config=skybookShared.readConfig()
+    const apiBase=config.apiBase||'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api'
+    const res=await fetch(`${apiBase}/admin/change-password`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${pendingSession.access_token}`},
+      body:JSON.stringify({new_password:newPw})
+    })
+    const data=await res.json().catch(()=>({}))
+    if(!res.ok)throw new Error(data?.error||'Password change failed.')
+
+    // Session is valid — store it so the console opens authenticated
     const client=await requireClient()
-    const { error:sessionError }=await client.auth.setSession({
+    await client.auth.setSession({
       access_token:String(pendingSession.access_token),
       refresh_token:String(pendingSession.refresh_token)
-    })
-    if(sessionError)throw new Error(sessionError.message)
-
-    await skybookShared.apiRequest('admin/change-password',{
-      method:'POST',
-      body:{new_password:newPw}
     })
     setLoginStatus('Password updated. Opening SkyBook operations console...')
     setTimeout(redirectToConsole,800)
