@@ -1165,11 +1165,12 @@ window.TrueTravelBooking=(()=>{
   }
   const getLiveApiUnavailableError=()=>new Error('Live SkyBook API is unavailable. Demo fallback is disabled in production so no fake bookings or payments are created.')
 
-  const apiRequest=async(path,{method='GET',body,headers={}}={})=>{
+  const apiRequest=async(path,{method='GET',body,rawBody,headers={}}={})=>{
     const config=readConfig()
     try{
+      const isFormData=rawBody instanceof FormData
       const defaultHeaders={
-        'content-type':'application/json',
+        ...(isFormData ? {} : {'content-type':'application/json'}),
         'x-project-name':config.projectName,
         'x-brand-code':config.brandCode,
         ...(config.supabaseAnonKey ? { apikey:config.supabaseAnonKey } : {})
@@ -1177,7 +1178,7 @@ window.TrueTravelBooking=(()=>{
       const response=await fetch(getApiUrl(path),{
         method,
         headers:{...defaultHeaders,...headers},
-        body:body ? JSON.stringify(body) : undefined
+        body:isFormData ? rawBody : (body ? JSON.stringify(body) : undefined)
       })
       let payload=null
       try{payload=await response.json()}catch{}

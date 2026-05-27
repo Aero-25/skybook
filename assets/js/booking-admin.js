@@ -403,7 +403,7 @@ const nodes={
   servicePrice:document.getElementById('adminServicePrice'),
   serviceAdultPrice:document.getElementById('adminServiceAdultPrice'),
   serviceChildPrice:document.getElementById('adminServiceChildPrice'),
-  serviceDateRule:document.getElementById('adminServiceDateRule'),
+  serviceQuoteOnly:document.getElementById('adminServiceQuoteOnly'),
   serviceDuration:document.getElementById('adminServiceDuration'),
   serviceMinPax:document.getElementById('adminServiceMinPax'),
   serviceDepartureTimesList:document.getElementById('adminServiceDepartureTimesList'),
@@ -411,8 +411,10 @@ const nodes={
   servicePickupTime:document.getElementById('adminServicePickupTime'),
   serviceSummary:document.getElementById('adminServiceSummary'),
   serviceLearnMoreDescription:document.getElementById('adminServiceLearnMoreDescription'),
-  serviceHighlights:document.getElementById('adminServiceHighlights'),
   serviceLandscapeImages:document.getElementById('adminServiceLandscapeImages'),
+  serviceImageDropZone:document.getElementById('adminServiceImageDropZone'),
+  serviceImageInput:document.getElementById('adminServiceImageInput'),
+  serviceImagePreviews:document.getElementById('adminServiceImagePreviews'),
   serviceBrandTrueTravel:document.getElementById('adminServiceBrandTrueTravel'),
   serviceBrandIventure:document.getElementById('adminServiceBrandIventure'),
   serviceActive:document.getElementById('adminServiceActive'),
@@ -4502,7 +4504,7 @@ const fillServiceForm=(service=null)=>{
   nodes.servicePrice.value=service?.base_price||''
   if(nodes.serviceAdultPrice)nodes.serviceAdultPrice.value=service?.adult_price||''
   if(nodes.serviceChildPrice)nodes.serviceChildPrice.value=service?.child_price||''
-  nodes.serviceDateRule.value=service?.preferred_date_mode||'optional'
+  if(nodes.serviceQuoteOnly)nodes.serviceQuoteOnly.checked=Boolean(service?.metadata?.is_quote_only)
   nodes.serviceDuration.value=service?.duration_label||''
   if(nodes.serviceMinPax)nodes.serviceMinPax.value=service?.minimum_pax||1
   if(nodes.serviceDepartureTimesList){
@@ -4518,8 +4520,9 @@ const fillServiceForm=(service=null)=>{
   if(nodes.servicePickupTime)nodes.servicePickupTime.value=service?.pickup_time||''
   nodes.serviceSummary.value=service?.short_description||''
   if(nodes.serviceLearnMoreDescription)nodes.serviceLearnMoreDescription.value=service?.full_description||service?.short_description||''
-  nodes.serviceHighlights.value=(service?.highlight_points||[]).join(', ')
-  if(nodes.serviceLandscapeImages)nodes.serviceLandscapeImages.value=(service?.media_gallery||[]).map(item=>String(item?.url||'').trim()).filter(Boolean).join('\n')
+  const existingUrls=(service?.media_gallery||[]).map(item=>String(item?.url||'').trim()).filter(Boolean)
+  if(nodes.serviceLandscapeImages)nodes.serviceLandscapeImages.value=existingUrls.join('\n')
+  renderServiceImagePreviews(existingUrls)
   if(nodes.serviceBrandTrueTravel)nodes.serviceBrandTrueTravel.checked=brandCodes.includes('true-travel')
   if(nodes.serviceBrandIventure)nodes.serviceBrandIventure.checked=brandCodes.includes('iventure')
   nodes.serviceActive.checked=service?.is_active!==false
@@ -4887,6 +4890,57 @@ const renderCustomers=()=>{
   `).join('') || renderEmptyRow(6,'No customers are loaded yet.')
   renderCustomerDetail()
 }
+
+const getServiceImageUrls=()=>(nodes.serviceLandscapeImages?.value||'').split(/\r?\n/).map(s=>s.trim()).filter(Boolean)
+const setServiceImageUrls=urls=>{ if(nodes.serviceLandscapeImages)nodes.serviceLandscapeImages.value=urls.join('\n') }
+
+const renderServiceImagePreviews=(urls=[])=>{
+  if(!nodes.serviceImagePreviews)return
+  nodes.serviceImagePreviews.innerHTML=urls.map((url,i)=>`
+    <div style="position:relative;width:80px;height:60px;flex-shrink:0">
+      <img src="${bookingAdminShared.escapeHtml(url)}" style="width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0">
+      <button type="button" data-img-remove="${i}" style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>
+    </div>
+  `).join('')
+  nodes.serviceImagePreviews.querySelectorAll('[data-img-remove]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const idx=Number(btn.dataset.imgRemove)
+      const urls=getServiceImageUrls().filter((_,i)=>i!==idx)
+      setServiceImageUrls(urls)
+      renderServiceImagePreviews(urls)
+    })
+  })
+}
+
+const uploadServiceImages=async files=>{
+  const fileList=[...files].filter(f=>f.type.startsWith('image/'))
+  if(!fileList.length)return
+  const zone=nodes.serviceImageDropZone
+  if(zone)zone.style.opacity='.5'
+  try{
+    for(const file of fileList){
+      const form=new FormData()
+      form.append('file',file)
+      const result=await bookingAdminShared.apiRequest('admin/service-images',{
+        method:'POST',
+        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+        rawBody:form
+      })
+      if(result?.url){
+        const urls=getServiceImageUrls()
+        urls.push(result.url)
+        setServiceImageUrls(urls)
+        renderServiceImagePreviews(urls)
+      }
+    }
+  }catch(error){
+    setAdminStatus(error.message||'Image upload failed.',true)
+  }finally{
+    if(zone)zone.style.opacity='1'
+  }
+}
+
+window.handleServiceImageDrop=uploadServiceImages
 
 const STAR_ICONS=['★★★★★','★★★★☆','★★★☆☆','★★☆☆☆','★☆☆☆☆']
 const renderStars=rating=>`<span title="${rating} star${rating===1?'':'s'}" style="color:#f59e0b;letter-spacing:1px">${'★'.repeat(rating)}${'☆'.repeat(5-rating)}</span>`
@@ -7133,14 +7187,15 @@ const handleServiceSave=async event=>{
     base_price:Number(nodes.servicePrice.value||0),
     adult_price:nodes.serviceAdultPrice?.value ? Number(nodes.serviceAdultPrice.value) : null,
     child_price:nodes.serviceChildPrice?.value ? Number(nodes.serviceChildPrice.value) : null,
-    preferred_date_mode:nodes.serviceDateRule.value,
+    preferred_date_mode:'required',
+    is_quote_only:Boolean(nodes.serviceQuoteOnly?.checked),
     duration_label:nodes.serviceDuration.value.trim(),
     minimum_pax:Math.max(1,Number(nodes.serviceMinPax?.value||1)||1),
     departure_times:getDepartureTimes(),
     pickup_time:nodes.servicePickupTime?.value?.trim()||'',
     short_description:nodes.serviceSummary.value.trim(),
     full_description:nodes.serviceLearnMoreDescription?.value?.trim()||nodes.serviceSummary.value.trim(),
-    highlight_points:nodes.serviceHighlights.value.split(',').map(item=>item.trim()).filter(Boolean),
+    highlight_points:[],
     media_urls:(nodes.serviceLandscapeImages?.value||'').split(/\r?\n/).map(item=>item.trim()).filter(Boolean),
     brand_codes:brandCodes,
     is_active:nodes.serviceActive.checked
@@ -8265,6 +8320,8 @@ window.addEventListener('resize',()=>{
   syncDesktopSidebarCollapse()
 })
 
+nodes.serviceImageDropZone?.addEventListener('click',()=>nodes.serviceImageInput?.click())
+nodes.serviceImageInput?.addEventListener('change',e=>{ if(e.target.files?.length)void uploadServiceImages(e.target.files) })
 nodes.reviewsFilterStatus?.addEventListener('change',()=>{ void loadReviews() })
 nodes.reviewsFilterBrand?.addEventListener('change',renderReviews)
 nodes.reviewsTable?.addEventListener('click',event=>{

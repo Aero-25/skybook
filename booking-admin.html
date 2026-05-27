@@ -733,7 +733,7 @@
               <input id="adminBookingAdultQuantity" type="number" min="0" value="1">
             </label>
             <label class="booking-field" id="adminBookingChildWrap" hidden>
-              <span>Children</span>
+              <span>Children (ages 4+)</span>
               <input id="adminBookingChildQuantity" type="number" min="0" value="0">
             </label>
             <label class="booking-field-full">
@@ -806,10 +806,7 @@
                 <span>Name</span>
                 <input id="adminServiceName" type="text" required>
               </label>
-              <label class="booking-field">
-                <span>Slug</span>
-                <input id="adminServiceSlug" type="text" required>
-              </label>
+              <input id="adminServiceSlug" type="hidden">
               <label class="booking-field">
                 <span>Category</span>
                 <select id="adminServiceCategory">
@@ -834,16 +831,12 @@
                 <input id="adminServiceAdultPrice" type="number" min="0" step="0.01" placeholder="Optional — overrides base price">
               </label>
               <label class="booking-field">
-                <span>Child Price</span>
+                <span>Child Price (ages 4+)</span>
                 <input id="adminServiceChildPrice" type="number" min="0" step="0.01" placeholder="Optional — requires adult price">
               </label>
-              <label class="booking-field">
-                <span>Date Rule</span>
-                <select id="adminServiceDateRule">
-                  <option value="optional">Optional</option>
-                  <option value="required">Required</option>
-                  <option value="hidden">Hidden</option>
-                </select>
+              <label class="booking-field-full inline-check">
+                <input id="adminServiceQuoteOnly" type="checkbox">
+                <span>Quote request only — guests can only request a quote, not book directly</span>
               </label>
               <label class="booking-field">
                 <span>Duration Label</span>
@@ -870,14 +863,15 @@
                 <span>Learn More Description</span>
                 <textarea id="adminServiceLearnMoreDescription" rows="6" placeholder="Richer popup copy for the public tours page."></textarea>
               </label>
-              <label class="booking-field-full">
-                <span>Highlights</span>
-                <input id="adminServiceHighlights" type="text" placeholder="Comma separated highlights">
-              </label>
-              <label class="booking-field-full">
-                <span>Landscape Image URLs</span>
-                <textarea id="adminServiceLandscapeImages" rows="5" placeholder="One image URL per line for the Learn More popup gallery."></textarea>
-              </label>
+              <div class="booking-field-full">
+                <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Gallery Images</span>
+                <div id="adminServiceImageDropZone" style="border:2px dashed #cbd5e1;border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s" ondragover="event.preventDefault();this.style.borderColor='#3b82f6';this.style.background='#eff6ff'" ondragleave="this.style.borderColor='#cbd5e1';this.style.background=''" ondrop="event.preventDefault();this.style.borderColor='#cbd5e1';this.style.background='';window.handleServiceImageDrop&&window.handleServiceImageDrop(event.dataTransfer.files)">
+                  <div style="font-size:13px;opacity:.6;pointer-events:none">Drop images here or <span style="color:#3b82f6;text-decoration:underline">click to browse</span></div>
+                  <input id="adminServiceImageInput" type="file" accept="image/*" multiple style="display:none">
+                </div>
+                <div id="adminServiceImagePreviews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+                <input id="adminServiceLandscapeImages" type="hidden">
+              </div>
               <div class="booking-field-full">
                 <span>Brand Visibility</span>
               <div class="booking-stat-stack">
@@ -1621,6 +1615,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260527-reviews" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260527-imgdrop" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@
   .review-page{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);display:flex;align-items:center;justify-content:center;padding:24px}
   .review-card{background:#fff;border-radius:16px;max-width:560px;width:100%;padding:40px;box-shadow:0 25px 50px rgba(0,0,0,.4)}
   .review-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
-  .review-brand img{width:40px;height:40px;border-radius:8px}
+  .review-brand-mark{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;flex-shrink:0}
   .review-brand-name{font-weight:700;font-size:15px;color:#0f172a}
   .review-brand-sub{font-size:12px;color:#64748b}
   .review-heading{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:6px}
@@ -45,7 +45,7 @@
 <div class="review-page">
   <div class="review-card">
     <div class="review-brand">
-      <img src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="True Sky Ventures logo">
+      <div class="review-brand-mark" id="reviewBrandMark">TT</div>
       <div>
         <div class="review-brand-name" id="reviewBrandName">True Travel</div>
         <div class="review-brand-sub">Guest Experience Review</div>
@@ -112,10 +112,17 @@
   const params=new URLSearchParams(window.location.search)
   const brand=params.get('brand')||'true-travel'
 
-  const BRAND_LABELS={'true-travel':'True Travel','iventure':'Iventure'}
-  const brandLabel=BRAND_LABELS[brand]||'True Travel'
-  document.getElementById('reviewBrandName').textContent=brandLabel
-  document.title=`Share Your Experience — ${brandLabel}`
+  const BRANDS={
+    'true-travel':{label:'True Travel',mark:'TT',color:'#0c4a6e',bg:'linear-gradient(135deg,#0c4a6e 0%,#075985 60%,#0c4a6e 100%)'},
+    iventure:{label:'Iventure',mark:'IV',color:'#1e3a5f',bg:'linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 60%,#1e3a5f 100%)'}
+  }
+  const brandCfg=BRANDS[brand]||BRANDS['true-travel']
+  document.getElementById('reviewBrandName').textContent=brandCfg.label
+  document.getElementById('reviewBrandMark').textContent=brandCfg.mark
+  document.getElementById('reviewBrandMark').style.background=brandCfg.color
+  document.querySelector('.review-page').style.background=brandCfg.bg
+  document.getElementById('reviewSubmit').style.background=brandCfg.color
+  document.title=`Share Your Experience — ${brandCfg.label}`
 
   const STAR_LABELS={1:'Poor',2:'Fair',3:'Good',4:'Very good',5:'Excellent!'}
   let selectedRating=0

@@ -147,6 +147,7 @@ const DEFAULT_OPS_TEMPLATES={
 }
 const DOCUMENT_BUCKET='skybook-documents'
 const MEMORY_BUCKET='tour-memories'
+const SERVICE_IMAGE_BUCKET='service-images'
 const MEMORY_MIME_TYPES=new Set(['image/jpeg','image/png','image/webp','image/avif'])
 const DEFAULT_QUEUE_SETTINGS={
   enabled:true,
@@ -1560,6 +1561,7 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     deposit_value:Number(service.deposit_value||0),
     media_url:Array.isArray(service.media)&&service.media.length ? String(service.media[0]?.url||'') : '',
     media_gallery:normalizeServiceMedia(service.media,service.name),
+    is_quote_only:Boolean(service.metadata?.is_quote_only),
     highlight_points:Array.isArray(service.metadata?.highlight_points) ? service.metadata.highlight_points : [],
     brand_codes:Array.isArray(service.metadata?.brand_codes) ? service.metadata.brand_codes : [],
     minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
@@ -3712,6 +3714,8 @@ const rescheduleBooking=async(bookingId:string,payload:Json,userId:string)=>{
   },userId)
 }
 
+const slugifyServiceName=(name:string)=>name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)
+
 const upsertService=async(payload:Json)=>{
   const categorySlug=normalizeText(payload.category_slug)||'coastal-tours'
   const { data:category }=await adminClient.from('service_categories').select('id').eq('slug',categorySlug).maybeSingle()
@@ -3720,15 +3724,16 @@ const upsertService=async(payload:Json)=>{
     : []
   const minimumPax=Math.max(1,Number(payload.minimum_pax||1)||1)
   const mediaGallery=normalizeServiceMedia(payload.media_urls || payload.media,normalizeText(payload.name))
+  const rawSlug=normalizeText(payload.slug)||slugifyServiceName(String(payload.name||''))
   const servicePayload={
     category_id:category?.id||null,
-    slug:normalizeText(payload.slug),
+    slug:rawSlug,
     name:normalizeText(payload.name),
     short_description:normalizeText(payload.short_description),
     full_description:normalizeText(payload.full_description||payload.short_description),
     duration_label:normalizeText(payload.duration_label),
     unit_label:'guest',
-    preferred_date_mode:normalizeText(payload.preferred_date_mode)||'optional',
+    preferred_date_mode:'required',
     base_price:Number(payload.base_price||0),
     currency_code:'NAD',
     payment_mode:'deposit',
@@ -3743,6 +3748,7 @@ const upsertService=async(payload:Json)=>{
       minimum_pax:minimumPax,
       departure_window:normalizeText(payload.departure_window),
       pickup_time:normalizeText(payload.pickup_time),
+      is_quote_only:Boolean(payload.is_quote_only),
       departure_times:Array.isArray(payload.departure_times)
         ? payload.departure_times.map((item:unknown)=>({
             label:normalizeText((item as Record<string,unknown>)?.label),
@@ -3853,17 +3859,19 @@ const upsertEngineRow=async(table:string,payload:Json,allowedFields:string[])=>{
 const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   const permissions=resolveProfilePermissions(profile)
   const queueSettings=await getSettingValue('queue',DEFAULT_QUEUE_SETTINGS)
+  // Fire-and-forget — don't block login on maintenance tasks
   if((queueSettings as Json).autoProcessOnBootstrap!==false){
-    await processDueSystemJobs()
+    void processDueSystemJobs().catch(()=>{})
   }
-  await syncAllReconciliationRecords(String(user.id || ''))
-  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands]=await Promise.all([
+  void syncAllReconciliationRecords(String(user.id || '')).catch(()=>{})
+  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
     adminClient
       .from('bookings')
       .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
-      .order('created_at',{ascending:false}),
-    adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}),
-    adminClient.from('payments').select('id,booking_id,provider,status,amount,amount_received,currency_code,provider_reference,external_checkout_url,paid_at,metadata,created_at').order('created_at',{ascending:false}),
+      .order('created_at',{ascending:false})
+      .limit(600),
+    adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}).limit(600),
+    adminClient.from('payments').select('id,booking_id,provider,status,amount,amount_received,currency_code,provider_reference,external_checkout_url,paid_at,metadata,created_at').order('created_at',{ascending:false}).limit(400),
     fetchServices({includeInactive:true}),
     getSettingValue('config',{
       currency:'NAD',
@@ -3902,7 +3910,41 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     }),
     getSettingValue('ops_templates',DEFAULT_OPS_TEMPLATES),
     getSettingValue('booking_fields',DEFAULT_BOOKING_FORM_FIELDS),
-    listBrands()
+    listBrands(),
+    safeTableSelect<Json>(adminClient.from('service_operating_windows').select('*').order('day_of_week',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('service_date_rules').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('service_blackout_dates').select('*').order('starts_on',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('coupons').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('vouchers').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('agents').select('*').order('company_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('operators').select('*').order('company_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('booking_agents').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('booking_operators').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('booking_discounts').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('resources').select('*').order('name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('resource_allocations').select('*').order('allocation_date',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('invoices').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('office_invoices').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('refunds').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('payment_transactions').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('webhook_endpoints').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('supported_languages').select('*').order('code',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('supported_currencies').select('*').order('code',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('customer_accounts').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('calendar_sync_connections').select('*').order('created_at',{ascending:false})),
+    safeTableSelect<Json>(adminClient.from('email_logs').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('booking_status_history').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('admin_notes').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('booking_tasks').select('*').order('created_at',{ascending:false}).limit(300)),
+    safeTableSelect<Json>(adminClient.from('booking_documents').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('booking_memories').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('booking_portal_requests').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('app_users').select('id,full_name,role,is_active').order('full_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('booking_document_versions').select('*').order('created_at',{ascending:false}).limit(150)),
+    safeTableSelect<Json>(adminClient.from('customer_portal_sessions').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('system_jobs').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('system_health_events').select('*').order('created_at',{ascending:false}).limit(200)),
+    safeTableSelect<Json>(adminClient.from('reconciliation_records').select('*').order('created_at',{ascending:false}).limit(400))
   ])
   if(bookingsResult.error)throw bookingsResult.error
   if(customersResult.error)throw customersResult.error
@@ -4008,77 +4050,6 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       created_at:payment.created_at
     }
   })
-  const [
-    schedules,
-    dateRules,
-    blackoutDates,
-    coupons,
-    vouchers,
-    agents,
-    operators,
-    bookingAgents,
-    bookingOperators,
-    bookingDiscounts,
-    resources,
-    resourceAllocations,
-    invoices,
-    officeInvoices,
-    refunds,
-    paymentTransactions,
-    webhookEndpoints,
-    supportedLanguages,
-    supportedCurrencies,
-    customerAccounts,
-    calendarConnections,
-    emailLogs,
-    statusHistory,
-    adminNotes,
-    bookingTasks,
-    bookingDocuments,
-    bookingMemories,
-    portalRequests,
-    staffDirectory,
-    documentVersionsRaw,
-    portalSessions,
-    systemJobs,
-    healthEvents,
-    reconciliationRecords
-  ]=await Promise.all([
-    safeTableSelect<Json>(adminClient.from('service_operating_windows').select('*').order('day_of_week',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('service_date_rules').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('service_blackout_dates').select('*').order('starts_on',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('coupons').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('vouchers').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('agents').select('*').order('company_name',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('operators').select('*').order('company_name',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('booking_agents').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_operators').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_discounts').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('resources').select('*').order('name',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('resource_allocations').select('*').order('allocation_date',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('invoices').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('office_invoices').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('refunds').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('payment_transactions').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('webhook_endpoints').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('supported_languages').select('*').order('code',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('supported_currencies').select('*').order('code',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('customer_accounts').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('calendar_sync_connections').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('email_logs').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_status_history').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('admin_notes').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_tasks').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_documents').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_memories').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('booking_portal_requests').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('app_users').select('id,full_name,role,is_active').order('full_name',{ascending:true})),
-    safeTableSelect<Json>(adminClient.from('booking_document_versions').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('customer_portal_sessions').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('system_jobs').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('system_health_events').select('*').order('created_at',{ascending:false})),
-    safeTableSelect<Json>(adminClient.from('reconciliation_records').select('*').order('created_at',{ascending:false}))
-  ])
   const adminUsers=permissions.admin_users ? await listSkybookAdminUsers() : []
   const canSeeBookings=permissions.bookings || permissions.dashboard || permissions.calendar || permissions.reports
   const canSeeCustomers=permissions.customers || permissions.bookings
@@ -4090,14 +4061,9 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   const canSeeHealth=permissions.health || permissions.dashboard
   const canSeeEmails=permissions.emails || permissions.bookings
   const canSeeAssignments=permissions.bookings || permissions.engine || permissions.finance || permissions.dashboard
-  const documentVersions=await Promise.all((documentVersionsRaw || []).slice(0,160).map(async version=>({
-    ...version,
-    signed_url:await createSignedDocumentUrl(normalizeText(version.storage_bucket) || DOCUMENT_BUCKET,normalizeText(version.storage_path))
-  })))
-  const bookingMemoriesWithLinks=await Promise.all((bookingMemories || []).slice(0,220).map(async memory=>({
-    ...memory,
-    signed_url:await createSignedMemoryUrl(normalizeText(memory.storage_path))
-  })))
+  // Signed URLs generated on demand via /admin/documents/:id/url — not blocking bootstrap
+  const documentVersions=documentVersionsRaw||[]
+  const bookingMemoriesWithLinks=bookingMemories||[]
   const safeReports=permissions.reports ? buildReports({
     bookings,
     payments,
@@ -4680,6 +4646,21 @@ Deno.serve(async request=>{
       if(request.method==='PATCH'&&id==='users'&&subresource){
         requireSuperAdmin(adminProfile)
         return json(200,await upsertSkybookAdminUser({...requestBody,id:subresource}))
+      }
+
+      if(request.method==='POST'&&id==='service-images'){
+        requireSkybookPermission(adminProfile,'services')
+        const formData=await request.formData()
+        const file=formData.get('file') as File|null
+        if(!file)throw new Error('No file uploaded.')
+        const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
+        if(!['jpg','jpeg','png','webp','avif'].includes(ext))throw new Error('Only image files are allowed.')
+        const storagePath=`${crypto.randomUUID()}.${ext}`
+        const bytes=await file.arrayBuffer()
+        const {error}=await adminClient.storage.from(SERVICE_IMAGE_BUCKET).upload(storagePath,bytes,{contentType:file.type,upsert:false})
+        if(error)throw new Error(error.message)
+        const publicUrl=`${supabaseUrl}/storage/v1/object/public/${SERVICE_IMAGE_BUCKET}/${storagePath}`
+        return json(200,{url:publicUrl})
       }
 
       if(request.method==='GET'&&id==='reviews'){
