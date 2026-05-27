@@ -2908,11 +2908,12 @@ const renderCalendar=()=>{
       <div class="calendar-day-stack">
         ${dayBookings.length ? dayBookings.map(booking=>{
           const allocations=getBookingAllocations(booking.id)
+          const bookingUrl=getRecordPageUrl('bookings',booking.id)
           return `
-            <article class="calendar-entry-card">
+            <article class="calendar-entry-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
               <div class="calendar-entry-top">
                 <div>
-                  <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+                  <strong><a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${bookingAdminShared.escapeHtml(booking.reference)}</a></strong>
                   <p>${bookingAdminShared.escapeHtml(booking.service_name)} · ${bookingAdminShared.escapeHtml(booking.customer_name)}</p>
                 </div>
                 <div class="calendar-entry-badges">
@@ -2946,13 +2947,15 @@ const renderCalendar=()=>{
                 <strong>${date.toLocaleDateString('en-NA',{day:'2-digit',month:'short'})}</strong>
               </header>
               <div class="calendar-cell-body">
-                ${bookings.length ? bookings.map(booking=>`
-                  <article class="calendar-mini-card">
-                    <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+                ${bookings.length ? bookings.map(booking=>{
+                  const bookingUrl=getRecordPageUrl('bookings',booking.id)
+                  return `
+                  <article class="calendar-mini-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
+                    <a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong></a>
                     <span>${bookingAdminShared.escapeHtml(booking.service_name)}</span>
                     ${renderStatusBadge(booking.status)}
                   </article>
-                `).join('') : '<p class="muted-copy">No bookings</p>'}
+                `}).join('') : '<p class="muted-copy">No bookings</p>'}
               </div>
             </section>
           `
@@ -2975,12 +2978,14 @@ const renderCalendar=()=>{
               <span>${bookings.length} booking${bookings.length===1 ? '' : 's'}</span>
             </header>
             <div class="calendar-cell-body">
-              ${bookings.slice(0,4).map(booking=>`
-                <article class="calendar-mini-card">
-                  <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+              ${bookings.slice(0,4).map(booking=>{
+                const bookingUrl=getRecordPageUrl('bookings',booking.id)
+                return `
+                <article class="calendar-mini-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
+                  <a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong></a>
                   <span>${bookingAdminShared.escapeHtml(booking.service_name)}</span>
                 </article>
-              `).join('') || '<p class="muted-copy">No activity</p>'}
+              `}).join('') || '<p class="muted-copy">No activity</p>'}
             </div>
           </section>
         `
@@ -7785,6 +7790,12 @@ nodes.calendarViewButtons.forEach(button=>button.addEventListener('click',()=>{
 nodes.calendarFocusDate?.addEventListener('change',()=>{
   state.calendarFocusDate=nodes.calendarFocusDate.value||bookingAdminShared.currentDate()
   renderCalendar()
+})
+nodes.calendarCanvas?.addEventListener('click',event=>{
+  const card=event.target.closest('[data-open-booking]')
+  if(!card||event.target.closest('a'))return
+  const bookingId=card.dataset.openBooking
+  if(bookingId)window.open(getRecordPageUrl('bookings',bookingId),'_blank','noopener,noreferrer')
 })
 nodes.printArrivalsList?.addEventListener('click',()=>{
   try{ openArrivalsPrintModal() }catch(error){ setAdminStatus(error.message||'Could not open arrivals print dialog.',true) }
