@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Developer Portal — True Sky Ventures</title>
+<link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--accent-dim:#1f6feb;
+  --green:#3fb950;--red:#f85149;--yellow:#d29922;--orange:#e3b341;
+  --radius:8px;--font:'Manrope',system-ui,sans-serif
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+
+/* ── Gate ── */
+#devGate{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.gate-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:40px;width:100%;max-width:380px;text-align:center}
+.gate-logo{width:48px;height:48px;margin:0 auto 20px;display:block}
+.gate-title{font-size:18px;font-weight:700;margin-bottom:4px}
+.gate-sub{color:var(--muted);font-size:13px;margin-bottom:28px}
+.gate-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;color:var(--text);margin-bottom:12px;letter-spacing:2px}
+.gate-input:focus{outline:none;border-color:var(--accent)}
+.gate-btn{width:100%;background:var(--accent-dim);border:none;border-radius:var(--radius);padding:11px;color:#fff;font-weight:700;font-size:14px;transition:background .15s}
+.gate-btn:hover{background:var(--accent)}
+.gate-error{color:var(--red);font-size:13px;margin-top:10px;min-height:20px}
+
+/* ── Shell ── */
+#devShell{display:none;flex-direction:column;min-height:100vh}
+.dev-topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:10}
+.dev-topbar-logo{width:28px;height:28px}
+.dev-topbar-title{font-weight:800;font-size:15px;letter-spacing:.3px}
+.dev-topbar-tag{background:var(--accent-dim);color:#fff;font-size:10px;font-weight:700;letter-spacing:1.5px;padding:2px 7px;border-radius:4px;text-transform:uppercase}
+.dev-topbar-spacer{flex:1}
+.dev-topbar-time{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.dev-topbar-out{background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;color:var(--muted);font-size:12px;transition:color .15s,border-color .15s}
+.dev-topbar-out:hover{color:var(--text);border-color:var(--text)}
+
+.dev-body{display:flex;flex:1}
+.dev-nav{width:200px;background:var(--surface);border-right:1px solid var(--border);padding:16px 0;flex-shrink:0;position:sticky;top:52px;height:calc(100vh - 52px)}
+.dev-nav-btn{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;padding:9px 20px;color:var(--muted);font-size:13px;font-weight:600;text-align:left;transition:color .15s,background .15s;border-left:3px solid transparent}
+.dev-nav-btn.active{color:var(--text);background:var(--surface2);border-left-color:var(--accent)}
+.dev-nav-btn:hover:not(.active){color:var(--text);background:var(--surface2)}
+.dev-nav-icon{font-size:16px;width:20px;text-align:center}
+.dev-nav-sep{border:none;border-top:1px solid var(--border);margin:8px 16px}
+
+.dev-main{flex:1;padding:28px;overflow:auto;min-width:0}
+.dev-view{display:none}
+.dev-view.active{display:block}
+.dev-view-title{font-size:20px;font-weight:800;margin-bottom:4px}
+.dev-view-sub{color:var(--muted);font-size:13px;margin-bottom:24px}
+
+/* ── Stats row ── */
+.dev-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:28px}
+.dev-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.dev-stat-label{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.dev-stat-value{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+.dev-stat-value.green{color:var(--green)}
+.dev-stat-value.red{color:var(--red)}
+.dev-stat-value.yellow{color:var(--yellow)}
+.dev-stat-value.blue{color:var(--accent)}
+
+/* ── Toolbar ── */
+.dev-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.dev-toolbar-spacer{flex:1}
+.dev-search{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;color:var(--text);width:220px}
+.dev-search:focus{outline:none;border-color:var(--accent)}
+.dev-btn{background:var(--accent-dim);border:none;border-radius:var(--radius);padding:8px 16px;color:#fff;font-weight:700;font-size:13px;transition:background .15s}
+.dev-btn:hover{background:var(--accent)}
+.dev-btn.ghost{background:none;border:1px solid var(--border);color:var(--text)}
+.dev-btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.dev-btn.danger{background:#6e1010}
+.dev-btn.danger:hover{background:var(--red)}
+.dev-btn.sm{padding:5px 12px;font-size:12px}
+
+/* ── Table ── */
+.dev-table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.dev-table{width:100%;border-collapse:collapse}
+.dev-table th{background:var(--surface2);color:var(--muted);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:10px 16px;text-align:left;border-bottom:1px solid var(--border)}
+.dev-table td{padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+.dev-table tr:last-child td{border-bottom:none}
+.dev-table tr:hover td{background:var(--surface2)}
+.dev-tag{display:inline-block;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.dev-tag.active{background:#122d1b;color:var(--green)}
+.dev-tag.inactive{background:#2d1212;color:var(--red)}
+.dev-tag.super_admin{background:#1a1f6e;color:#79c0ff}
+.dev-tag.manager{background:#1a2b1a;color:var(--green)}
+.dev-tag.booking_agent{background:#2d2510;color:var(--orange)}
+.dev-tag.finance{background:#2d1a2d;color:#d2a8ff}
+.dev-tag.operations{background:#1a2d2d;color:#56d364}
+.dev-tag.default{background:var(--surface2);color:var(--muted)}
+.dev-cell-name{font-weight:600}
+.dev-cell-mono{font-family:ui-monospace,monospace;font-size:12px;color:var(--muted)}
+.dev-cell-actions{display:flex;gap:6px;justify-content:flex-end}
+.dev-empty{text-align:center;padding:48px 16px;color:var(--muted)}
+
+/* ── Modal ── */
+.dev-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:24px}
+.dev-overlay.open{display:flex}
+.dev-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+.dev-modal-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.dev-modal-title{font-size:16px;font-weight:700}
+.dev-modal-close{background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:0 4px}
+.dev-modal-close:hover{color:var(--text)}
+.dev-modal-body{padding:24px}
+.dev-modal-foot{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.dev-field{margin-bottom:16px}
+.dev-label{display:block;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+.dev-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text);transition:border-color .15s}
+.dev-input:focus{outline:none;border-color:var(--accent)}
+.dev-input[type=checkbox]{width:auto}
+.dev-select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:9px 12px;color:var(--text)}
+.dev-select:focus{outline:none;border-color:var(--accent)}
+.dev-perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+.dev-perm-item{display:flex;align-items:center;gap:8px;font-size:13px}
+.dev-inline-check{display:flex;align-items:center;gap:8px;font-size:13px}
+.dev-modal-status{color:var(--red);font-size:13px;margin-bottom:12px;min-height:18px}
+
+/* ── System view ── */
+.dev-sys-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dev-sys-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.dev-sys-card-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.dev-sys-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.dev-sys-row:last-child{border-bottom:none}
+.dev-sys-key{color:var(--muted);font-size:13px}
+.dev-sys-val{font-weight:600;font-size:13px}
+.dev-sys-val.green{color:var(--green)}
+.dev-sys-val.red{color:var(--red)}
+.dev-sys-val.yellow{color:var(--yellow)}
+
+/* ── Toast ── */
+#devToast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;font-size:13px;font-weight:600;z-index:200;opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s;pointer-events:none;max-width:320px}
+#devToast.show{opacity:1;transform:translateY(0)}
+#devToast.ok{border-left:3px solid var(--green)}
+#devToast.err{border-left:3px solid var(--red)}
+
+@media(max-width:680px){
+  .dev-nav{display:none}
+  .dev-sys-grid{grid-template-columns:1fr}
+  .dev-stats{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Gate ─────────────────────────────────────────────────────────── -->
+<div id="devGate">
+  <div class="gate-card">
+    <img class="gate-logo" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook">
+    <div class="gate-title">Developer Portal</div>
+    <div class="gate-sub">True Sky Ventures — restricted access</div>
+    <input class="gate-input" id="devTokenInput" type="password" placeholder="Enter access token" autocomplete="off">
+    <button class="gate-btn" id="devTokenBtn">Access Portal</button>
+    <div class="gate-error" id="devGateError"></div>
+  </div>
+</div>
+
+<!-- ── Shell ─────────────────────────────────────────────────────────── -->
+<div id="devShell">
+  <header class="dev-topbar">
+    <img class="dev-topbar-logo" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="">
+    <span class="dev-topbar-title">True Sky Ventures</span>
+    <span class="dev-topbar-tag">Dev</span>
+    <div class="dev-topbar-spacer"></div>
+    <span class="dev-topbar-time" id="devClock"></span>
+    <button class="dev-topbar-out" id="devLogout">Sign out</button>
+  </header>
+  <div class="dev-body">
+    <nav class="dev-nav">
+      <button class="dev-nav-btn active" data-view="users"><span class="dev-nav-icon">👥</span>Users</button>
+      <button class="dev-nav-btn" data-view="system"><span class="dev-nav-icon">📊</span>System</button>
+    </nav>
+    <main class="dev-main">
+
+      <!-- Users view -->
+      <div class="dev-view active" id="view-users">
+        <div class="dev-view-title">Admin Users</div>
+        <div class="dev-view-sub">All SkyBook users — manage access, roles, and credentials.</div>
+        <div class="dev-toolbar">
+          <input class="dev-search" id="userSearch" type="text" placeholder="Search by name or username…">
+          <div class="dev-toolbar-spacer"></div>
+          <button class="dev-btn" id="addUserBtn">+ Add User</button>
+        </div>
+        <div class="dev-table-wrap">
+          <table class="dev-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Last Sign In</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="7" class="dev-empty">Loading users…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- System view -->
+      <div class="dev-view" id="view-system">
+        <div class="dev-view-title">System Overview</div>
+        <div class="dev-view-sub">Live metrics from the SkyBook database.</div>
+        <div class="dev-stats" id="systemStats">
+          <div class="dev-stat"><div class="dev-stat-label">Bookings</div><div class="dev-stat-value" id="statBookings">—</div></div>
+          <div class="dev-stat"><div class="dev-stat-label">Customers</div><div class="dev-stat-value blue" id="statCustomers">—</div></div>
+          <div class="dev-stat"><div class="dev-stat-label">Services</div><div class="dev-stat-value" id="statServices">—</div></div>
+          <div class="dev-stat"><div class="dev-stat-label">Emails Sent</div><div class="dev-stat-value green" id="statEmailSent">—</div></div>
+          <div class="dev-stat"><div class="dev-stat-label">Email Failures</div><div class="dev-stat-value red" id="statEmailFailed">—</div></div>
+          <div class="dev-stat"><div class="dev-stat-label">Pending Bookings</div><div class="dev-stat-value yellow" id="statPending">—</div></div>
+        </div>
+        <div class="dev-sys-grid" id="systemDetail">
+          <div class="dev-sys-card">
+            <div class="dev-sys-card-title">Booking Status Breakdown</div>
+            <div id="sysBookingRows"><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+          </div>
+          <div class="dev-sys-card">
+            <div class="dev-sys-card-title">Email Status Breakdown</div>
+            <div id="sysEmailRows"><div style="color:var(--muted);font-size:13px">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── Add / Edit User Modal ─────────────────────────────────────────── -->
+<div class="dev-overlay" id="userModal">
+  <div class="dev-modal">
+    <div class="dev-modal-head">
+      <span class="dev-modal-title" id="userModalTitle">Add User</span>
+      <button class="dev-modal-close" id="userModalClose">×</button>
+    </div>
+    <div class="dev-modal-body">
+      <div class="dev-modal-status" id="userModalStatus"></div>
+      <input type="hidden" id="editUserId">
+      <div class="dev-field">
+        <label class="dev-label" for="editFullName">Full Name</label>
+        <input class="dev-input" id="editFullName" type="text" placeholder="e.g. Jane Smith">
+      </div>
+      <div class="dev-field">
+        <label class="dev-label" for="editUsername">Username</label>
+        <input class="dev-input" id="editUsername" type="text" placeholder="e.g. jane.smith" autocomplete="off">
+      </div>
+      <div class="dev-field">
+        <label class="dev-label" for="editPassword">Password <span id="editPasswordNote" style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(leave blank to keep existing)</span></label>
+        <input class="dev-input" id="editPassword" type="password" placeholder="Minimum 8 characters" autocomplete="new-password">
+      </div>
+      <div class="dev-field">
+        <label class="dev-label" for="editRole">Role</label>
+        <select class="dev-select" id="editRole">
+          <option value="super_admin">Super Admin</option>
+          <option value="manager">Manager</option>
+          <option value="booking_agent">Booking Agent</option>
+          <option value="finance">Finance</option>
+          <option value="operations">Operations</option>
+          <option value="reservations">Reservations</option>
+          <option value="supplier_management">Supplier Management</option>
+        </select>
+      </div>
+      <div class="dev-field">
+        <label class="dev-inline-check">
+          <input id="editActive" type="checkbox" checked>
+          <span>Account is active (user can log in)</span>
+        </label>
+      </div>
+    </div>
+    <div class="dev-modal-foot">
+      <button class="dev-btn ghost" id="userModalCancel">Cancel</button>
+      <button class="dev-btn" id="userModalSave">Save User</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Modal ─────────────────────────────────────────────────── -->
+<div class="dev-overlay" id="confirmModal">
+  <div class="dev-modal" style="max-width:380px">
+    <div class="dev-modal-head">
+      <span class="dev-modal-title" id="confirmTitle">Confirm</span>
+      <button class="dev-modal-close" id="confirmClose">×</button>
+    </div>
+    <div class="dev-modal-body">
+      <p id="confirmMessage" style="color:var(--muted);font-size:14px"></p>
+    </div>
+    <div class="dev-modal-foot">
+      <button class="dev-btn ghost" id="confirmCancel">Cancel</button>
+      <button class="dev-btn danger" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="devToast"></div>
+
+<script src="assets/js/dev-portal.js?v=20260527-v1"></script>
+</body>
+</html>

@@ -4641,6 +4641,50 @@ Deno.serve(async request=>{
       }
     }
 
+    // ── Developer portal routes ─────────────────────────────────────────────
+    if(resource==='developer'){
+      const devToken=request.headers.get('x-dev-token')||''
+      const expectedToken=normalizeText(Deno.env.get('DEV_PORTAL_TOKEN'))
+      if(!expectedToken||!devToken||devToken!==expectedToken)return json(401,{error:'Developer portal access denied.'})
+
+      if(request.method==='GET'&&id==='users'){
+        return json(200,{users:await listSkybookAdminUsers()})
+      }
+
+      if(request.method==='POST'&&id==='users'){
+        return json(200,await upsertSkybookAdminUser(requestBody))
+      }
+
+      if(request.method==='PATCH'&&id==='users'&&subresource){
+        return json(200,await upsertSkybookAdminUser({...requestBody,id:subresource}))
+      }
+
+      if(request.method==='DELETE'&&id==='users'&&subresource){
+        await adminClient.from('app_users').delete().eq('id',subresource)
+        await adminClient.auth.admin.deleteUser(subresource)
+        return json(200,{success:true})
+      }
+
+      if(request.method==='GET'&&id==='system'){
+        const [bookingCounts,emailCounts,customerCount,serviceCount]=await Promise.all([
+          adminClient.from('bookings').select('status',{count:'exact',head:false}),
+          adminClient.from('email_logs').select('status',{count:'exact',head:false}),
+          adminClient.from('customers').select('id',{count:'exact',head:true}),
+          adminClient.from('services').select('id',{count:'exact',head:true})
+        ])
+        const bookingsByStatus:Record<string,number>={}
+        ;(bookingCounts.data||[]).forEach((row:{status:string})=>{ bookingsByStatus[row.status]=(bookingsByStatus[row.status]||0)+1 })
+        const emailsByStatus:Record<string,number>={}
+        ;(emailCounts.data||[]).forEach((row:{status:string})=>{ emailsByStatus[row.status]=(emailsByStatus[row.status]||0)+1 })
+        return json(200,{
+          bookings:{total:(bookingCounts.data||[]).length,by_status:bookingsByStatus},
+          emails:{total:(emailCounts.data||[]).length,by_status:emailsByStatus},
+          customers:customerCount.count||0,
+          services:serviceCount.count||0
+        })
+      }
+    }
+
     return json(404,{error:'Route not found.'})
   }catch(error){
     return json(400,{error:error instanceof Error ? error.message : 'Unexpected booking API error.'})
