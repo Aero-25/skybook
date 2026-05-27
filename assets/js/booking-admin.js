@@ -365,6 +365,10 @@ const nodes={
   bookingStatus:document.getElementById('adminBookingStatusField'),
   bookingPaymentStatus:document.getElementById('adminBookingPaymentStatusField'),
   bookingDate:document.getElementById('adminBookingDate'),
+  bookingDeparture:document.getElementById('adminBookingDeparture'),
+  bookingDepartureWrap:document.getElementById('adminBookingDepartureWrap'),
+  bookingPickup:document.getElementById('adminBookingPickup'),
+  bookingPickupWrap:document.getElementById('adminBookingPickupWrap'),
   bookingQuantity:document.getElementById('adminBookingQuantity'),
   bookingQuantityWrap:document.getElementById('adminBookingQuantityWrap'),
   bookingAdultQuantity:document.getElementById('adminBookingAdultQuantity'),
@@ -1060,6 +1064,8 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Guest phone',booking?.customer_phone)
   addRow('Tour',booking?.service_name)
   addRow('Preferred date',formatDateLabel(booking?.preferred_date))
+  addRow('Departure',metadata.departure_label)
+  addRow('Pickup time',metadata.pickup_time)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
   const guestLabel=adultQty+childQty>0 ? `${booking?.quantity||adultQty+childQty} (${adultQty} adult${adultQty!==1?'s':''}, ${childQty} child${childQty!==1?'ren':''})` : String(booking?.quantity||1)
@@ -4221,6 +4227,24 @@ const renderSourceFilters=()=>{
   }
 }
 
+const syncBookingDepartureFields=(serviceSlug='',selectedLabel='',selectedPickup='')=>{
+  if(!nodes.bookingDeparture||!nodes.bookingDepartureWrap||!nodes.bookingPickupWrap)return
+  const service=state.services.find(item=>item.slug===serviceSlug||item.service_slug===serviceSlug)
+  const times=Array.isArray(service?.departure_times) ? service.departure_times.filter(item=>item.label||item.time) : []
+  if(!times.length){
+    nodes.bookingDepartureWrap.hidden=true
+    nodes.bookingPickupWrap.hidden=true
+    return
+  }
+  nodes.bookingDeparture.innerHTML=`<option value="">Any / TBC</option>${times.map(item=>`<option value="${bookingAdminShared.escapeHtml(item.label)}" data-pickup="${bookingAdminShared.escapeHtml(item.pickup_time||'')}">${bookingAdminShared.escapeHtml(item.label)}${item.time ? ` · ${item.time}` : ''}${item.pickup_time ? ` (pickup ${item.pickup_time})` : ''}</option>`).join('')}`
+  nodes.bookingDeparture.value=selectedLabel||''
+  const matchedTime=times.find(item=>item.label===nodes.bookingDeparture.value)
+  const pickupValue=selectedPickup||matchedTime?.pickup_time||''
+  if(nodes.bookingPickup)nodes.bookingPickup.value=pickupValue
+  nodes.bookingPickupWrap.hidden=!pickupValue
+  nodes.bookingDepartureWrap.hidden=false
+}
+
 const fillBookingForm=(booking=null)=>{
   const brandCode=booking?.brand_code||bookingAdminShared.readConfig().brandCode||state.brands[0]?.code||''
   if(nodes.bookingBrand)nodes.bookingBrand.value=brandCode
@@ -4238,6 +4262,7 @@ const fillBookingForm=(booking=null)=>{
     input.closest('.booking-field')?.classList.toggle('is-system-managed-field',statusIsSystemManaged)
   })
   nodes.bookingDate.value=booking?.preferred_date||''
+  syncBookingDepartureFields(booking?.service_slug||'',booking?.metadata?.departure_label||'',booking?.metadata?.pickup_time||'')
   nodes.bookingQuantity.value=booking?.quantity||2
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
@@ -6937,7 +6962,9 @@ const handleBookingSave=async event=>{
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
-      custom_fields:collectBookingCustomFieldValues()
+      custom_fields:collectBookingCustomFieldValues(),
+      departure_label:nodes.bookingDeparture?.value||'',
+      pickup_time:nodes.bookingPickup?.value||''
     },
     customer:{
       full_name:nodes.bookingCustomerName.value.trim(),
@@ -7653,7 +7680,16 @@ nodes.bookingForm.addEventListener('change',event=>{
       syncBookingReferenceField({brandCode:nodes.bookingBrand?.value||'',forceNew:true})
     }
   }
-  if(event.target===nodes.bookingService)syncBookingQuantityMode()
+  if(event.target===nodes.bookingService){
+    syncBookingQuantityMode()
+    syncBookingDepartureFields(nodes.bookingService.value)
+  }
+  if(event.target===nodes.bookingDeparture){
+    const opt=nodes.bookingDeparture.selectedOptions[0]
+    const pickupValue=opt?.dataset?.pickup||''
+    if(nodes.bookingPickup)nodes.bookingPickup.value=pickupValue
+    if(nodes.bookingPickupWrap)nodes.bookingPickupWrap.hidden=!pickupValue
+  }
   scheduleBookingEditorAutosave()
 })
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)

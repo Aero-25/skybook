@@ -713,6 +713,16 @@
               <span>Preferred Date</span>
               <input id="adminBookingDate" type="date">
             </label>
+            <label class="booking-field" id="adminBookingDepartureWrap" hidden>
+              <span>Departure Time</span>
+              <select id="adminBookingDeparture">
+                <option value="">Any / TBC</option>
+              </select>
+            </label>
+            <label class="booking-field" id="adminBookingPickupWrap" hidden>
+              <span>Pickup Time</span>
+              <input id="adminBookingPickup" type="text" readonly placeholder="Set by departure selection">
+            </label>
             <label class="booking-field" id="adminBookingQuantityWrap">
               <span>Guests</span>
               <input id="adminBookingQuantity" type="number" min="1" value="2" required>

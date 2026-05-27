@@ -1566,10 +1566,10 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     departure_window:normalizeText(service.metadata?.departure_window),
     pickup_time:normalizeText(service.metadata?.pickup_time),
     departure_times:Array.isArray(service.metadata?.departure_times)
-      ? (service.metadata.departure_times as Array<{label?:string,time?:string}|string>).map(item=>
+      ? (service.metadata.departure_times as Array<{label?:string,time?:string,pickup_time?:string}|string>).map(item=>
           typeof item==='object' && item!==null
-            ? {label:normalizeText(item.label),time:normalizeText(item.time)}
-            : {label:normalizeText(item as string),time:''}
+            ? {label:normalizeText(item.label),time:normalizeText(item.time),pickup_time:normalizeText(item.pickup_time)}
+            : {label:normalizeText(item as string),time:'',pickup_time:''}
         ).filter(item=>item.label||item.time)
       : [],
     addons:[]
@@ -3746,8 +3746,9 @@ const upsertService=async(payload:Json)=>{
       departure_times:Array.isArray(payload.departure_times)
         ? payload.departure_times.map((item:unknown)=>({
             label:normalizeText((item as Record<string,unknown>)?.label),
-            time:normalizeText((item as Record<string,unknown>)?.time)
-          })).filter((item:{label:string,time:string})=>item.label||item.time)
+            time:normalizeText((item as Record<string,unknown>)?.time),
+            pickup_time:normalizeText((item as Record<string,unknown>)?.pickup_time)
+          })).filter((item:{label:string,time:string,pickup_time:string})=>item.label||item.time)
         : []
     },
     media:mediaGallery

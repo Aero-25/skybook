@@ -310,7 +310,7 @@ window.TrueTravelBooking=(()=>{
       pickup_time:safeText(service?.pickup_time ?? metadata.pickup_time ?? ''),
       departure_times:(()=>{
         const raw=Array.isArray(service?.departure_times) ? service.departure_times : (Array.isArray(metadata.departure_times) ? metadata.departure_times : [])
-        return raw.map(item=>typeof item==='object'&&item!==null ? {label:safeText(item.label),time:safeText(item.time)} : {label:safeText(item),time:''}).filter(item=>item.label||item.time)
+        return raw.map(item=>typeof item==='object'&&item!==null ? {label:safeText(item.label),time:safeText(item.time),pickup_time:safeText(item.pickup_time)} : {label:safeText(item),time:'',pickup_time:''}).filter(item=>item.label||item.time)
       })(),
       media_url:safeText(service?.media_url||service?.imageUrl||''),
       media_gallery:mediaGallerySource.map((item,index)=>{
