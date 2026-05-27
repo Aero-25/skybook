@@ -4214,6 +4214,52 @@ const generateBookingPaymentLink=async(bookingId:string,payload:Json,userId:stri
   return { success:true, status:nextStatus, payment_status:nextPaymentStatus, payment_link:paymentLink, payment_token:paymentToken }
 }
 
+// ── Guest review helpers ────────────────────────────────────────────────────
+const submitGuestReview=async(payload:Json)=>{
+  const guestName=String(payload.guest_name||'').trim()
+  const reviewText=String(payload.review_text||'').trim()
+  const rating=Number(payload.rating)
+  if(!guestName)throw new Error('Please provide your name.')
+  if(!reviewText)throw new Error('Please write your review.')
+  if(!rating||rating<1||rating>5)throw new Error('Please select a rating between 1 and 5.')
+  const {data,error}=await adminClient.from('guest_reviews').insert({
+    brand_code:normalizeText(payload.brand_code)||'true-travel',
+    guest_name:guestName.slice(0,100),
+    guest_country:String(payload.guest_country||'').trim().slice(0,100),
+    guest_country_code:normalizeText(payload.guest_country_code).slice(0,10),
+    service_name:String(payload.service_name||'').trim().slice(0,200),
+    rating,
+    review_text:reviewText.slice(0,2000),
+    booking_reference:normalizeText(payload.booking_reference).slice(0,50)
+  }).select().single()
+  if(error)throw new Error(error.message)
+  return {review:data,message:'Thank you for your review! It will appear on site after moderation.'}
+}
+
+const getApprovedReviews=async(brandCode:string)=>{
+  let query=adminClient.from('guest_reviews').select('id,guest_name,guest_country,guest_country_code,service_name,rating,review_text,created_at').eq('status','approved').order('created_at',{ascending:false}).limit(50)
+  if(brandCode)query=query.eq('brand_code',brandCode)
+  const {data,error}=await query
+  if(error)throw new Error(error.message)
+  return data||[]
+}
+
+const listAdminReviews=async(status?:string)=>{
+  let query=adminClient.from('guest_reviews').select('*').order('created_at',{ascending:false})
+  if(status&&['pending','approved','rejected'].includes(status))query=query.eq('status',status)
+  const {data,error}=await query
+  if(error)throw new Error(error.message)
+  return data||[]
+}
+
+const updateReviewStatus=async(reviewId:string,payload:Json)=>{
+  const status=normalizeText(payload.status)
+  if(!['approved','rejected','pending'].includes(status))throw new Error('Invalid review status.')
+  const {data,error}=await adminClient.from('guest_reviews').update({status}).eq('id',reviewId).select().single()
+  if(error)throw new Error(error.message)
+  return {review:data}
+}
+
 Deno.serve(async request=>{
   if(request.method==='OPTIONS')return new Response('ok',{headers:corsHeaders})
   try{
@@ -4244,6 +4290,14 @@ Deno.serve(async request=>{
 
     if(request.method==='POST'&&resource==='memories'&&id==='lookup'){
       return json(200,await listTourMemories(requestBody,brandCode))
+    }
+
+    if(request.method==='POST'&&resource==='reviews'&&!id){
+      return json(201,await submitGuestReview(requestBody))
+    }
+
+    if(request.method==='GET'&&resource==='reviews'&&!id){
+      return json(200,{reviews:await getApprovedReviews(brandCode)})
     }
 
     if(resource==='portal' && request.method==='POST' && id==='session' && subresource==='resolve'){
@@ -4626,6 +4680,17 @@ Deno.serve(async request=>{
       if(request.method==='PATCH'&&id==='users'&&subresource){
         requireSuperAdmin(adminProfile)
         return json(200,await upsertSkybookAdminUser({...requestBody,id:subresource}))
+      }
+
+      if(request.method==='GET'&&id==='reviews'){
+        requireSkybookPermission(adminProfile,'bookings')
+        const statusFilter=new URL(request.url).searchParams.get('status')||''
+        return json(200,{reviews:await listAdminReviews(statusFilter)})
+      }
+
+      if(request.method==='PATCH'&&id==='reviews'&&subresource){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await updateReviewStatus(subresource,requestBody))
       }
 
       if(request.method==='POST'&&id==='change-password'){

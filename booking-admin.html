@@ -56,6 +56,7 @@
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
             <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
             <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
+            <button class="admin-tab" data-admin-tab="reviews" type="button"><span class="admin-tab-icon">GR</span><span>Guest Reviews</span></button>
           </div>
         </details>
         <details class="admin-menu-section">
@@ -1181,6 +1182,39 @@
         </div>
       </section>
 
+      <section class="admin-view" data-admin-view="reviews">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Guest Reviews</h3>
+              <p style="font-size:13px;opacity:.65;margin-top:4px">Approve reviews to publish them on your website. Rejected reviews are hidden.</p>
+            </div>
+            <div>
+              <button class="booking-button ghost compact-button" id="reviewsCopyLink" type="button">Copy Review Link</button>
+            </div>
+          </div>
+          <div class="toolbar-filters admin-spacer" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <select id="reviewsFilterStatus" style="min-width:130px">
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="">All Reviews</option>
+            </select>
+            <select id="reviewsFilterBrand" style="min-width:130px">
+              <option value="">All Brands</option>
+              <option value="true-travel">True Travel</option>
+              <option value="iventure">Iventure</option>
+            </select>
+          </div>
+          <div class="table-wrap admin-spacer">
+            <table>
+              <thead><tr><th>Guest</th><th>Country</th><th>Service</th><th>Rating</th><th>Review</th><th>Brand</th><th>Submitted</th><th>Actions</th></tr></thead>
+              <tbody id="reviewsTable"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
       <section class="admin-view" data-admin-view="engine">
         <div class="admin-panel-grid">
           <article class="booking-panel" id="adminEnginePrimaryPanel">
@@ -1576,7 +1610,7 @@
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260527-deptimes"></script>
+  <script src="assets/js/booking-shared.js?v=20260527-reviews"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
   <script src="assets/js/admin-modules/reports.js?v=20260424"></script>
   <script>
@@ -1587,6 +1621,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260527-deptimes" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260527-reviews" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

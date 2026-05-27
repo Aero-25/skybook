@@ -149,7 +149,8 @@ const state={
     restoredDraft:false,
     lastAutosavedAt:'',
     autosaveTimer:null
-  }
+  },
+  reviews:[]
 }
 
 const getAdminRouteState=()=>{
@@ -564,7 +565,11 @@ const nodes={
   commandPaletteInput:document.getElementById('commandPaletteInput'),
   commandPaletteResults:document.getElementById('commandPaletteResults'),
   toastStack:document.getElementById('toastStack'),
-  runJobsNowButton:document.getElementById('runJobsNowButton')
+  runJobsNowButton:document.getElementById('runJobsNowButton'),
+  reviewsTable:document.getElementById('reviewsTable'),
+  reviewsFilterStatus:document.getElementById('reviewsFilterStatus'),
+  reviewsFilterBrand:document.getElementById('reviewsFilterBrand'),
+  reviewsCopyLink:document.getElementById('reviewsCopyLink')
 }
 
 const SIDEBAR_COLLAPSED_KEY='skybook-admin-sidebar-collapsed-v1'
@@ -764,6 +769,12 @@ const MODULE_META={
     eyebrow:'Access Governance',
     title:'Users And Roles',
     subtitle:'Super admin role control for reservations, finance, operations, supplier management, reporting, design, and system settings.'
+  },
+  reviews:{
+    group:'Reservations',
+    eyebrow:'Guest Feedback',
+    title:'Guest Reviews',
+    subtitle:'Approve or reject guest reviews before they appear on your True Travel and Iventure websites.'
   }
 }
 
@@ -2393,7 +2404,8 @@ const VIEW_PERMISSION_MAP={
   platform:'finance',
   settings:'settings',
   emails:'emails',
-  'admin-users':'admin_users'
+  'admin-users':'admin_users',
+  reviews:'bookings'
 }
 const TAB_ROUTE_MAP={
   dashboard:{view:'dashboard',permission:'dashboard'},
@@ -2419,7 +2431,8 @@ const TAB_ROUTE_MAP={
   invoices:{view:'platform',permission:'finance',focusId:'adminPlatformPrimaryPanel'},
   settings:{view:'settings',permission:'settings'},
   emails:{view:'emails',permission:'emails'},
-  'admin-users':{view:'admin-users',permission:'admin_users'}
+  'admin-users':{view:'admin-users',permission:'admin_users'},
+  reviews:{view:'reviews',permission:'bookings'}
 }
 const getTabRoute=tab=>TAB_ROUTE_MAP[tab]||{view:tab,permission:VIEW_PERMISSION_MAP[tab]||'',focusId:''}
 
@@ -2597,6 +2610,7 @@ const switchTab=(tab,{scrollToFocus=true}={})=>{
     renderPlatformWorkbench()
     ensurePanelSwitchers()
   }
+  if(nextTab==='reviews')void loadReviews()
   if(nextTab==='invoices')showSwitcherPanel(nodes.platformPrimaryPanel,0)
   syncManagementActionHeaders()
   closeMobileSidebar()
@@ -4872,6 +4886,65 @@ const renderCustomers=()=>{
     </tr>
   `).join('') || renderEmptyRow(6,'No customers are loaded yet.')
   renderCustomerDetail()
+}
+
+const STAR_ICONS=['★★★★★','★★★★☆','★★★☆☆','★★☆☆☆','★☆☆☆☆']
+const renderStars=rating=>`<span title="${rating} star${rating===1?'':'s'}" style="color:#f59e0b;letter-spacing:1px">${'★'.repeat(rating)}${'☆'.repeat(5-rating)}</span>`
+
+const loadReviews=async()=>{
+  try{
+    const statusVal=nodes.reviewsFilterStatus?.value||''
+    const url=`admin/reviews${statusVal?`?status=${encodeURIComponent(statusVal)}`:''}`
+    const payload=await bookingAdminShared.apiRequest(url,{headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')})
+    state.reviews=payload.reviews||[]
+    renderReviews()
+  }catch(error){
+    setAdminStatus(error.message||'Failed to load reviews.',true)
+  }
+}
+
+const renderReviews=()=>{
+  if(!nodes.reviewsTable)return
+  const brandFilter=nodes.reviewsFilterBrand?.value||''
+  const filtered=state.reviews.filter(r=>!brandFilter||r.brand_code===brandFilter)
+  if(!filtered.length){
+    nodes.reviewsTable.innerHTML=`<tr><td colspan="8" style="text-align:center;opacity:.5;padding:20px">No reviews found.</td></tr>`
+    return
+  }
+  nodes.reviewsTable.innerHTML=filtered.map(r=>`
+    <tr>
+      <td><strong>${bookingAdminShared.escapeHtml(r.guest_name)}</strong></td>
+      <td>${bookingAdminShared.escapeHtml(r.guest_country||'—')}</td>
+      <td>${bookingAdminShared.escapeHtml(r.service_name||'—')}</td>
+      <td>${renderStars(r.rating)}</td>
+      <td style="max-width:280px"><span style="display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${bookingAdminShared.escapeHtml(r.review_text)}</span></td>
+      <td>${bookingAdminShared.escapeHtml(r.brand_code==='iventure'?'Iventure':'True Travel')}</td>
+      <td>${bookingAdminShared.escapeHtml(formatDateLabel(r.created_at))}</td>
+      <td style="white-space:nowrap">
+        ${r.status==='approved'
+          ? `<span class="booking-chip" style="background:rgba(34,197,94,.15);color:#166534">Approved</span> <button class="booking-button ghost compact-button" data-review-action="rejected" data-review-id="${bookingAdminShared.escapeHtml(r.id)}" type="button">Reject</button>`
+          : r.status==='rejected'
+          ? `<span class="booking-chip" style="background:rgba(239,68,68,.12);color:#991b1b">Rejected</span> <button class="booking-button ghost compact-button" data-review-action="approved" data-review-id="${bookingAdminShared.escapeHtml(r.id)}" type="button">Approve</button>`
+          : `<button class="booking-button compact-button" data-review-action="approved" data-review-id="${bookingAdminShared.escapeHtml(r.id)}" type="button">Approve</button> <button class="booking-button ghost compact-button" data-review-action="rejected" data-review-id="${bookingAdminShared.escapeHtml(r.id)}" type="button">Reject</button>`}
+      </td>
+    </tr>
+  `).join('')
+}
+
+const handleReviewAction=async(reviewId,newStatus)=>{
+  try{
+    await bookingAdminShared.apiRequest(`admin/reviews/${encodeURIComponent(reviewId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{status:newStatus}
+    })
+    const review=state.reviews.find(r=>r.id===reviewId)
+    if(review)review.status=newStatus
+    renderReviews()
+    setAdminStatus(`Review ${newStatus}.`)
+  }catch(error){
+    setAdminStatus(error.message||'Failed to update review.',true)
+  }
 }
 
 const renderPayments=()=>{
@@ -8190,6 +8263,22 @@ window.addEventListener('resize',()=>{
   syncManagementActionHeaders()
   if(!isMobileSidebarViewport())closeMobileSidebar()
   syncDesktopSidebarCollapse()
+})
+
+nodes.reviewsFilterStatus?.addEventListener('change',()=>{ void loadReviews() })
+nodes.reviewsFilterBrand?.addEventListener('change',renderReviews)
+nodes.reviewsTable?.addEventListener('click',event=>{
+  const btn=event.target.closest('[data-review-action]')
+  if(!btn)return
+  const reviewId=btn.dataset.reviewId
+  const newStatus=btn.dataset.reviewAction
+  if(reviewId&&newStatus)void handleReviewAction(reviewId,newStatus)
+})
+nodes.reviewsCopyLink?.addEventListener('click',()=>{
+  const brand=nodes.reviewsFilterBrand?.value||'true-travel'
+  const baseUrl=window.location.href.replace(/\/[^/]*\.html.*$/,'')
+  const url=`${baseUrl}/review.html?brand=${encodeURIComponent(brand)}`
+  navigator.clipboard.writeText(url).then(()=>showToast('Review link copied!','success')).catch(()=>showToast('Copy failed — check browser permissions.','error'))
 })
 
 window.addEventListener('scroll',syncManagementActionHeaders,{passive:true})

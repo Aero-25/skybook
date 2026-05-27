@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Share Your Experience</title>
+<link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260527-reviews">
+<style>
+  .review-page{min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#0f172a 100%);display:flex;align-items:center;justify-content:center;padding:24px}
+  .review-card{background:#fff;border-radius:16px;max-width:560px;width:100%;padding:40px;box-shadow:0 25px 50px rgba(0,0,0,.4)}
+  .review-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+  .review-brand img{width:40px;height:40px;border-radius:8px}
+  .review-brand-name{font-weight:700;font-size:15px;color:#0f172a}
+  .review-brand-sub{font-size:12px;color:#64748b}
+  .review-heading{font-size:22px;font-weight:800;color:#0f172a;margin-bottom:6px}
+  .review-sub{font-size:14px;color:#64748b;margin-bottom:28px;line-height:1.5}
+  .review-star-row{display:flex;gap:6px;margin-bottom:8px}
+  .review-star{font-size:36px;cursor:pointer;color:#d1d5db;line-height:1;transition:color .12s,transform .1s;user-select:none}
+  .review-star.is-active,.review-star.is-hover{color:#f59e0b;transform:scale(1.1)}
+  .review-star-label{font-size:12px;color:#64748b;margin-bottom:20px;min-height:16px}
+  .review-field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+  .review-field label{font-size:13px;font-weight:600;color:#374151}
+  .review-field input,.review-field select,.review-field textarea{border:1.5px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-family:Manrope,sans-serif;font-size:14px;color:#0f172a;outline:none;transition:border-color .15s;background:#fff}
+  .review-field input:focus,.review-field select:focus,.review-field textarea:focus{border-color:#3b82f6}
+  .review-field textarea{resize:vertical;min-height:110px;line-height:1.5}
+  .review-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .review-submit{width:100%;padding:14px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-family:Manrope,sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s;margin-top:4px}
+  .review-submit:hover{opacity:.85}
+  .review-submit:disabled{opacity:.5;cursor:default}
+  .review-status{padding:14px 18px;border-radius:10px;font-size:14px;font-weight:600;margin-top:16px;display:none}
+  .review-status.is-success{background:#dcfce7;color:#166534;display:block}
+  .review-status.is-error{background:#fee2e2;color:#991b1b;display:block}
+  .review-success-screen{text-align:center;padding:20px 0;display:none}
+  .review-success-icon{font-size:52px;margin-bottom:12px}
+  .review-success-title{font-size:20px;font-weight:800;color:#0f172a;margin-bottom:8px}
+  .review-success-text{font-size:14px;color:#64748b;line-height:1.6}
+  @media(max-width:480px){.review-card{padding:28px 20px}.review-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body style="margin:0;font-family:Manrope,sans-serif">
+<div class="review-page">
+  <div class="review-card">
+    <div class="review-brand">
+      <img src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="True Sky Ventures logo">
+      <div>
+        <div class="review-brand-name" id="reviewBrandName">True Travel</div>
+        <div class="review-brand-sub">Guest Experience Review</div>
+      </div>
+    </div>
+
+    <div id="reviewFormWrap">
+      <h1 class="review-heading">Share your experience</h1>
+      <p class="review-sub">Your feedback helps us deliver unforgettable moments and lets others discover what to expect.</p>
+
+      <div class="review-star-row" id="reviewStars" role="group" aria-label="Star rating">
+        <span class="review-star" data-star="1" title="1 star" role="button" tabindex="0">★</span>
+        <span class="review-star" data-star="2" title="2 stars" role="button" tabindex="0">★</span>
+        <span class="review-star" data-star="3" title="3 stars" role="button" tabindex="0">★</span>
+        <span class="review-star" data-star="4" title="4 stars" role="button" tabindex="0">★</span>
+        <span class="review-star" data-star="5" title="5 stars" role="button" tabindex="0">★</span>
+      </div>
+      <div class="review-star-label" id="reviewStarLabel">Tap a star to rate your experience</div>
+
+      <form id="reviewForm" novalidate>
+        <div class="review-row">
+          <div class="review-field">
+            <label for="reviewGuestName">Your name <span style="color:#ef4444">*</span></label>
+            <input id="reviewGuestName" type="text" placeholder="e.g. Sarah M." maxlength="100" required>
+          </div>
+          <div class="review-field">
+            <label for="reviewCountry">Country</label>
+            <input id="reviewCountry" type="text" placeholder="e.g. South Africa" maxlength="100">
+          </div>
+        </div>
+
+        <div class="review-field">
+          <label for="reviewService">Tour or experience</label>
+          <input id="reviewService" type="text" placeholder="e.g. Table Mountain Hike" maxlength="200">
+        </div>
+
+        <div class="review-field">
+          <label for="reviewText">Your review <span style="color:#ef4444">*</span></label>
+          <textarea id="reviewText" placeholder="Tell us about your experience — what made it special?" maxlength="2000" required></textarea>
+        </div>
+
+        <div class="review-field">
+          <label for="reviewBookingRef">Booking reference <span style="opacity:.5;font-weight:400">(optional)</span></label>
+          <input id="reviewBookingRef" type="text" placeholder="e.g. TT-20240517" maxlength="50">
+        </div>
+
+        <button class="review-submit" id="reviewSubmit" type="submit">Submit Review</button>
+      </form>
+
+      <div class="review-status" id="reviewStatus"></div>
+    </div>
+
+    <div class="review-success-screen" id="reviewSuccessScreen">
+      <div class="review-success-icon">🌟</div>
+      <div class="review-success-title">Thank you for your review!</div>
+      <p class="review-success-text">Your feedback has been received and will be published on our website after a quick review by our team. We genuinely appreciate you taking the time to share your experience.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+;(()=>{
+  const API='https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api'
+  const params=new URLSearchParams(window.location.search)
+  const brand=params.get('brand')||'true-travel'
+
+  const BRAND_LABELS={'true-travel':'True Travel','iventure':'Iventure'}
+  const brandLabel=BRAND_LABELS[brand]||'True Travel'
+  document.getElementById('reviewBrandName').textContent=brandLabel
+  document.title=`Share Your Experience — ${brandLabel}`
+
+  const STAR_LABELS={1:'Poor',2:'Fair',3:'Good',4:'Very good',5:'Excellent!'}
+  let selectedRating=0
+
+  const stars=[...document.querySelectorAll('.review-star')]
+  const starLabel=document.getElementById('reviewStarLabel')
+  const setStars=rating=>{
+    stars.forEach((s,i)=>{
+      s.classList.toggle('is-active',i<rating)
+    })
+    starLabel.textContent=rating ? `${STAR_LABELS[rating]} — ${rating} star${rating===1?'':'s'}` : 'Tap a star to rate your experience'
+  }
+  stars.forEach(star=>{
+    star.addEventListener('mouseover',()=>{ stars.forEach((s,i)=>s.classList.toggle('is-hover',i<Number(star.dataset.star))) })
+    star.addEventListener('mouseout',()=>{ stars.forEach(s=>s.classList.remove('is-hover')) })
+    star.addEventListener('click',()=>{ selectedRating=Number(star.dataset.star); setStars(selectedRating) })
+    star.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){ selectedRating=Number(star.dataset.star); setStars(selectedRating) } })
+  })
+
+  const form=document.getElementById('reviewForm')
+  const statusEl=document.getElementById('reviewStatus')
+  const submitBtn=document.getElementById('reviewSubmit')
+
+  const showError=msg=>{
+    statusEl.textContent=msg
+    statusEl.className='review-status is-error'
+    submitBtn.disabled=false
+  }
+
+  form.addEventListener('submit',async e=>{
+    e.preventDefault()
+    statusEl.className='review-status'
+    const guestName=document.getElementById('reviewGuestName').value.trim()
+    const reviewText=document.getElementById('reviewText').value.trim()
+    if(!selectedRating){ showError('Please select a star rating.'); return }
+    if(!guestName){ showError('Please enter your name.'); return }
+    if(!reviewText){ showError('Please write your review.'); return }
+    submitBtn.disabled=true
+    submitBtn.textContent='Submitting...'
+    try{
+      const res=await fetch(`${API}/reviews`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          brand_code:brand,
+          guest_name:guestName,
+          guest_country:document.getElementById('reviewCountry').value.trim(),
+          service_name:document.getElementById('reviewService').value.trim(),
+          rating:selectedRating,
+          review_text:reviewText,
+          booking_reference:document.getElementById('reviewBookingRef').value.trim()
+        })
+      })
+      const data=await res.json()
+      if(!res.ok)throw new Error(data.error||'Submission failed. Please try again.')
+      document.getElementById('reviewFormWrap').style.display='none'
+      document.getElementById('reviewSuccessScreen').style.display='block'
+    }catch(err){
+      showError(err.message||'Something went wrong. Please try again.')
+      submitBtn.disabled=false
+      submitBtn.textContent='Submit Review'
+    }
+  })
+})()
+</script>
+</body>
+</html>
