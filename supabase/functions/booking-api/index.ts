@@ -260,7 +260,7 @@ const parseDateValue=(value:string)=>{
 }
 const sanitizePermissionMap=(input:unknown)=>{
   const source=typeof input==='object' && input ? input as Record<string,unknown> : {}
-  return Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,Boolean(source[key])]))
+  return Object.fromEntries(SKYBOOK_PERMISSION_KEYS.filter(key=>key in source).map(key=>[key,Boolean(source[key])]))
 }
 const resolveProfilePermissions=(profile:Json={})=>{
   const role=normalizeText(profile.role).toLowerCase() || 'booking_agent'
@@ -3392,25 +3392,23 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await syncLifecycleTasks(bookingId,userId || null)
   await maybeCreateAutomatedOfficeSettlement(bookingId,userId || null)
   await syncReconciliationRecordForBooking(bookingId,userId || null)
-  if(!isAdmin){
-    await enqueueBookingEmailJob({
-      bookingId,
-      customerId:customer.id,
-      templateKey:'booking_received',
-      priority:'high',
-      createdBy:userId || null
-    })
-    await enqueueBookingEmailJob({
-      bookingId,
-      customerId:customer.id,
-      templateKey:'consultant_alert',
-      priority:'high',
-      createdBy:userId || null
-    })
-    const consultantWhatsApp=normalizeText(brand.support_whatsapp) || '+264813224270'
-    const waBody=`New ${normalizeText(brand.name)||'True Travel'} booking!\n\nCustomer: ${normalizeText(customer.full_name)||'Guest'}\nPhone: ${normalizeText(customer.phone)||'Not provided'}\nTour: ${normalizeText(service.name)||'Service'}\nDate: ${normalizeText(payload.preferred_date)||'TBC'}\nGuests: ${pricing.quantity}\nTotal: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}\nRef: ${reference}`
-    void sendWhatsAppMessage(consultantWhatsApp,waBody).catch(err=>console.error('WhatsApp alert failed:',err?.message))
-  }
+  await enqueueBookingEmailJob({
+    bookingId,
+    customerId:customer.id,
+    templateKey:'booking_received',
+    priority:'high',
+    createdBy:userId || null
+  })
+  await enqueueBookingEmailJob({
+    bookingId,
+    customerId:customer.id,
+    templateKey:'consultant_alert',
+    priority:'high',
+    createdBy:userId || null
+  })
+  const consultantWhatsApp=normalizeText(brand.support_whatsapp) || '+264813224270'
+  const waBody=`New ${normalizeText(brand.name)||'True Travel'} booking!\n\nCustomer: ${normalizeText(customer.full_name)||'Guest'}\nPhone: ${normalizeText(customer.phone)||'Not provided'}\nTour: ${normalizeText(service.name)||'Service'}\nDate: ${normalizeText(payload.preferred_date)||'TBC'}\nGuests: ${pricing.quantity}\nTotal: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}\nRef: ${reference}`
+  void sendWhatsAppMessage(consultantWhatsApp,waBody).catch(err=>console.error('WhatsApp alert failed:',err?.message))
   await enqueueSystemJob({
     job_type:'status_automation',
     job_group:'operations',
