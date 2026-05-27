@@ -190,7 +190,7 @@ const BRAND_CONSULTANT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
   iventure:'info@iventuretours.net'
 }
-const BRAND_RESEND_KEYS:Record<string,string>={}
+const BRAND_RESEND_KEYS:Record<string,string>={} // kept for backwards compat, unused
 const BRAND_EMAIL_NAMES={
   'true-travel':'True Travel',
   iventure:'Iventure'
@@ -1576,6 +1576,7 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
     departure_window:normalizeText(service.metadata?.departure_window),
     pickup_time:normalizeText(service.metadata?.pickup_time),
+    departure_times:Array.isArray(service.metadata?.departure_times) ? (service.metadata.departure_times as string[]).map(String).filter(Boolean) : [],
     addons:[]
   }))
 }
@@ -1724,28 +1725,13 @@ const queueEmailLog=async({bookingId,customerId,recipientEmail,templateKey,subje
 const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
   const integrations=normalizeJsonRecord(await getSettingValue('integrations',{}))
   const emailConfig=normalizeJsonRecord(integrations.email)
-  const normalizedBrand=normalizeText(brandCode) || 'true-travel'
-  const configuredBrandMap=normalizeJsonRecord(emailConfig.from_email_by_brand)
-  const configuredNameMap=normalizeJsonRecord(emailConfig.from_name_by_brand)
-  const configuredSupportEmail=await getConfiguredBrandSupportEmail(normalizedBrand)
-  const brandResendKey=BRAND_RESEND_KEYS[normalizedBrand] || ''
   return {
-    provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || (brandResendKey ? 'resend' : 'log_only')),
-    resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY') || emailConfig.resend_api_key || brandResendKey),
-    fromEmail:normalizeText(
-      Deno.env.get('EMAIL_FROM')
-      || configuredBrandMap[normalizedBrand]
-      || emailConfig.from_email
-      || configuredSupportEmail
-      || BRAND_SUPPORT_EMAILS[normalizedBrand as keyof typeof BRAND_SUPPORT_EMAILS]
-    ),
-    fromName:normalizeText(
-      Deno.env.get('EMAIL_FROM_NAME')
-      || configuredNameMap[normalizedBrand]
-      || emailConfig.from_name
-      || BRAND_EMAIL_NAMES[normalizedBrand as keyof typeof BRAND_EMAIL_NAMES]
-      || 'SkyBook'
-    )
+    provider:normalizeText(Deno.env.get('EMAIL_PROVIDER') || emailConfig.provider || 'emailjs'),
+    emailjsServiceId:normalizeText(Deno.env.get('EMAILJS_SERVICE_ID') || emailConfig.emailjs_service_id),
+    emailjsPublicKey:normalizeText(Deno.env.get('EMAILJS_PUBLIC_KEY') || emailConfig.emailjs_public_key),
+    emailjsPrivateKey:normalizeText(Deno.env.get('EMAILJS_PRIVATE_KEY') || emailConfig.emailjs_private_key),
+    emailjsTemplateBookingReceived:normalizeText(Deno.env.get('EMAILJS_TEMPLATE_BOOKING_RECEIVED') || emailConfig.emailjs_template_booking_received || 'template_booking_received'),
+    emailjsTemplateConsultantAlert:normalizeText(Deno.env.get('EMAILJS_TEMPLATE_CONSULTANT_ALERT') || emailConfig.emailjs_template_consultant_alert || 'template_consultant_alert')
   }
 }
 
@@ -1774,7 +1760,7 @@ const dispatchEmailLog=async(emailLog:Json)=>{
   const brandCode=normalizeText(emailLog.metadata?.brand_code) || 'true-travel'
   const config=await readEmailIntegrationConfig(brandCode)
   const provider=normalizeText(config.provider)
-  if(provider!=='resend' || !config.resendApiKey || !config.fromEmail){
+  if(provider!=='emailjs' || !config.emailjsServiceId || !config.emailjsPublicKey || !config.emailjsPrivateKey){
     await adminClient.from('email_logs').update({
       status:'queued',
       metadata:{
@@ -1786,32 +1772,38 @@ const dispatchEmailLog=async(emailLog:Json)=>{
     return { status:'queued', provider:provider || 'log_only' }
   }
 
-  const fromLabel=normalizeText(config.fromName)
-  const fromAddress=fromLabel ? fromLabel + ' <' + config.fromEmail + '>' : config.fromEmail
-  const response=await fetch('https://api.resend.com/emails',{
+  const templateKey=normalizeText(emailLog.metadata?.template_key) || normalizeText(emailLog.template_key) || 'booking_received'
+  const templateId=templateKey==='consultant_alert'
+    ? config.emailjsTemplateConsultantAlert
+    : config.emailjsTemplateBookingReceived
+
+  const response=await fetch('https://api.emailjs.com/api/v1.0/email/send',{
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      Authorization:'Bearer ' + config.resendApiKey
-    },
+    headers:{ 'Content-Type':'application/json' },
     body:JSON.stringify({
-      from:fromAddress,
-      to:[String(emailLog.recipient_email || '')],
-      cc:['gerritgrove@gmail.com'],
-      subject:String(emailLog.subject || ''),
-      text:String(emailLog.rendered_body || ''),
-      ...(normalizeText(emailLog.metadata?.rendered_html) ? {html:String(emailLog.metadata?.rendered_html)} : {})
+      service_id:config.emailjsServiceId,
+      template_id:templateId,
+      user_id:config.emailjsPublicKey,
+      accessToken:config.emailjsPrivateKey,
+      template_params:{
+        to_email:String(emailLog.recipient_email || ''),
+        subject:String(emailLog.subject || ''),
+        message:String(emailLog.rendered_body || ''),
+        html_content:normalizeText(emailLog.metadata?.rendered_html) || '',
+        brand_code:brandCode
+      }
     })
   })
-  const responseBody=await tryParseJson(response)
+
   if(!response.ok){
-    const errorMessage=normalizeText(responseBody?.message) || ('Email dispatch failed with status ' + response.status + '.')
+    const errorText=await response.text().catch(()=>'')
+    const errorMessage=normalizeText(errorText) || ('EmailJS dispatch failed with status ' + response.status + '.')
     await adminClient.from('email_logs').update({
       status:'failed',
       error_message:errorMessage,
       metadata:{
         ...normalizeJsonRecord(emailLog.metadata),
-        dispatch_provider:'resend',
+        dispatch_provider:'emailjs',
         response_status:response.status
       }
     }).eq('id',String(emailLog.id || ''))
@@ -1821,15 +1813,14 @@ const dispatchEmailLog=async(emailLog:Json)=>{
   await adminClient.from('email_logs').update({
     status:'sent',
     sent_at:nowIso(),
-    provider_message_id:normalizeText(responseBody?.id),
     error_message:null,
     metadata:{
       ...normalizeJsonRecord(emailLog.metadata),
-      dispatch_provider:'resend',
+      dispatch_provider:'emailjs',
       response_status:response.status
     }
   }).eq('id',String(emailLog.id || ''))
-  return { status:'sent', provider:'resend', provider_message_id:normalizeText(responseBody?.id) }
+  return { status:'sent', provider:'emailjs' }
 }
 
 const readWhatsAppConfig=()=>({
