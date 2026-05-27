@@ -1462,12 +1462,14 @@ const upsertSkybookAdminUser=async(payload:Json)=>{
     if(error)throw new Error(String(error.message || 'Unable to update admin credentials.'))
   }
   const fullName=normalizeText(payload.full_name) || normalizeText(authUser.user_metadata?.full_name) || requestedUsername
+  const isNewUser=!authUsers.find(user=>requestedId ? user.id===requestedId : resolveAuthUsername(user as unknown as Json)===requestedUsername) || !requestedId && !authUsers.find(user=>resolveAuthUsername(user as unknown as Json)===requestedUsername)
   const row={
     id:authUser.id,
     full_name:fullName,
     role:requestedRole,
     is_active:payload.is_active!==false,
-    permissions:sanitizePermissionMap(payload.permissions)
+    permissions:sanitizePermissionMap(payload.permissions),
+    ...(isNewUser ? {must_change_password:true} : {})
   }
   const { error }=await adminClient.from('app_users').upsert(row,{onConflict:'id'})
   if(error)throw new Error(String(error.message || 'Unable to save admin user.'))
@@ -1487,7 +1489,8 @@ const loginAdminWithUsername=async(payload:Json)=>{
     password
   })
   if(error || !data?.session)throw new Error('Invalid username or password.')
-  return { session:data.session, user:data.user }
+  const { data:appUser }=await adminClient.from('app_users').select('must_change_password').eq('id',authUser.id).maybeSingle()
+  return { session:data.session, user:data.user, must_change_password:Boolean(appUser?.must_change_password) }
 }
 
 const normalizeDiscountAmount=(total:number,discountType:string,discountValue:number)=>{
@@ -4638,6 +4641,15 @@ Deno.serve(async request=>{
       if(request.method==='PATCH'&&id==='users'&&subresource){
         requireSuperAdmin(adminProfile)
         return json(200,await upsertSkybookAdminUser({...requestBody,id:subresource}))
+      }
+
+      if(request.method==='POST'&&id==='change-password'){
+        const newPassword=normalizeText(requestBody.new_password)
+        if(!newPassword || newPassword.length<8)throw new Error('New password must be at least 8 characters.')
+        const { error:pwError }=await adminClient.auth.admin.updateUserById(user.id,{password:newPassword})
+        if(pwError)throw new Error(pwError.message||'Password update failed.')
+        await adminClient.from('app_users').update({must_change_password:false}).eq('id',user.id)
+        return json(200,{success:true})
       }
     }
 

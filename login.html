@@ -30,6 +30,7 @@
           </div>
           <div class="skybook-login-copy">
             <h1 id="skybookLoginTitle">Secure operations sign in</h1>
+            <p id="skybookLoginSubtitle" style="margin-top:6px;font-size:14px;opacity:.65" hidden></p>
           </div>
         </div>
 
@@ -46,6 +47,24 @@
             <button class="booking-button" type="submit">Sign In</button>
           </div>
         </form>
+
+        <form id="changePasswordForm" class="booking-form-grid skybook-login-form" hidden>
+          <div class="booking-field-full" style="margin-bottom:4px">
+            <p style="font-size:13px;opacity:.75;line-height:1.5">Your account requires a new password before you can continue. Choose something secure that you haven't used before.</p>
+          </div>
+          <label class="booking-field-full">
+            <span>New password</span>
+            <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" required>
+          </label>
+          <label class="booking-field-full">
+            <span>Confirm password</span>
+            <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repeat new password" required>
+          </label>
+          <div class="booking-field-full">
+            <button class="booking-button" type="submit">Set New Password</button>
+          </div>
+        </form>
+
         <div class="status-banner" id="authStatus" hidden></div>
       </div>
     </section>
@@ -53,6 +72,6 @@
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
-  <script src="assets/js/skybook-login.js?v=20260513-edits-v1"></script>
+  <script src="assets/js/skybook-login.js?v=20260527-mustchange"></script>
 </body>
 </html>

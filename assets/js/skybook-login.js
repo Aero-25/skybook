@@ -2,7 +2,12 @@ const skybookShared=window.TrueTravelBooking
 
 const loginNodes={
   form:document.getElementById('loginForm'),
+  changeForm:document.getElementById('changePasswordForm'),
+  newPassword:document.getElementById('newPassword'),
+  confirmPassword:document.getElementById('confirmPassword'),
   status:document.getElementById('authStatus'),
+  title:document.getElementById('skybookLoginTitle'),
+  subtitle:document.getElementById('skybookLoginSubtitle'),
   resetButton:document.getElementById('resetAuthCacheButton'),
   environmentMeta:document.getElementById('authEnvironmentMeta')
 }
@@ -15,6 +20,9 @@ const cacheKeys=[
   'true-travel-booking-config-v1',
   'true-travel-supabase-config-v1'
 ]
+
+// Temporary session held between login and password change
+let pendingSession=null
 
 const setLoginStatus=(message,isError=false)=>{
   if(!loginNodes.status)return
@@ -64,6 +72,18 @@ const clearSkybookCache=async()=>{
 
 const redirectToConsole=()=>window.location.replace(getSafeNextUrl())
 
+const showChangePasswordScreen=(username)=>{
+  if(loginNodes.form)loginNodes.form.hidden=true
+  if(loginNodes.changeForm)loginNodes.changeForm.hidden=false
+  if(loginNodes.title)loginNodes.title.textContent='Set a new password'
+  if(loginNodes.subtitle){
+    loginNodes.subtitle.textContent=`Welcome, ${username}. Choose a new password to continue.`
+    loginNodes.subtitle.hidden=false
+  }
+  setLoginStatus('')
+  loginNodes.newPassword?.focus()
+}
+
 const handleLogin=async event=>{
   event.preventDefault()
   const submitButton=loginNodes.form?.querySelector('button[type="submit"]')
@@ -83,6 +103,13 @@ const handleLogin=async event=>{
       setLoginStatus('Supabase did not return a valid admin session.',true)
       return
     }
+    if(result.must_change_password){
+      // Hold the session temporarily — set it after password change
+      pendingSession=result.session
+      const username=String(formData.get('username')||'').trim()
+      showChangePasswordScreen(username)
+      return
+    }
     const { error }=await client.auth.setSession({
       access_token:String(result.session.access_token),
       refresh_token:String(result.session.refresh_token)
@@ -100,7 +127,40 @@ const handleLogin=async event=>{
   }
 }
 
+const handleChangePassword=async event=>{
+  event.preventDefault()
+  const submitButton=loginNodes.changeForm?.querySelector('button[type="submit"]')
+  try{
+    const newPw=loginNodes.newPassword?.value||''
+    const confirmPw=loginNodes.confirmPassword?.value||''
+    if(newPw.length<8){setLoginStatus('Password must be at least 8 characters.',true);return}
+    if(newPw!==confirmPw){setLoginStatus('Passwords do not match.',true);return}
+    setLoginStatus('Updating password...')
+    if(submitButton)submitButton.disabled=true
+
+    // Temporarily set the session so the change-password request is authenticated
+    const client=await requireClient()
+    const { error:sessionError }=await client.auth.setSession({
+      access_token:String(pendingSession.access_token),
+      refresh_token:String(pendingSession.refresh_token)
+    })
+    if(sessionError)throw new Error(sessionError.message)
+
+    await skybookShared.apiRequest('admin/change-password',{
+      method:'POST',
+      body:{new_password:newPw}
+    })
+    setLoginStatus('Password updated. Opening SkyBook operations console...')
+    setTimeout(redirectToConsole,800)
+  }catch(error){
+    setLoginStatus(error instanceof Error ? error.message : 'Password change failed.',true)
+  }finally{
+    if(submitButton)submitButton.disabled=false
+  }
+}
+
 loginNodes.form?.addEventListener('submit',event=>{void handleLogin(event)})
+loginNodes.changeForm?.addEventListener('submit',event=>{void handleChangePassword(event)})
 loginNodes.resetButton?.addEventListener('click',()=>{void clearSkybookCache()})
 
 ;(async()=>{
