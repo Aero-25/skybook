@@ -4429,10 +4429,10 @@ const readWorkflowModalValues=form=>{
   }))
 }
 
-const buildDepartureTimeRow=(label='',time='')=>{
+const buildDepartureTimeRow=(label='',time='',pickupTime='')=>{
   const row=document.createElement('div')
-  row.style.cssText='display:flex;gap:8px;align-items:center'
-  row.innerHTML=`<input type="text" placeholder="Label (e.g. AM)" value="${label.replace(/"/g,'&quot;')}" data-dep-label style="flex:1;min-width:0"><input type="time" value="${time}" data-dep-time style="flex:1;min-width:0"><button type="button" data-dep-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove">×</button>`
+  row.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap'
+  row.innerHTML=`<input type="text" placeholder="Label (e.g. AM)" value="${label.replace(/"/g,'&quot;')}" data-dep-label style="flex:1;min-width:120px"><input type="time" value="${time}" data-dep-time style="flex:1;min-width:120px"><input type="text" placeholder="Pickup time (e.g. 07:30 or TBC)" value="${pickupTime.replace(/"/g,'&quot;')}" data-dep-pickup style="flex:2;min-width:160px"><button type="button" data-dep-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove">×</button>`
   row.querySelector('[data-dep-remove]').addEventListener('click',()=>row.remove())
   return row
 }
@@ -4442,7 +4442,8 @@ const getDepartureTimes=()=>{
   if(!list)return []
   return Array.from(list.querySelectorAll('div')).map(row=>({
     label:(row.querySelector('[data-dep-label]')?.value||'').trim(),
-    time:(row.querySelector('[data-dep-time]')?.value||'').trim()
+    time:(row.querySelector('[data-dep-time]')?.value||'').trim(),
+    pickup_time:(row.querySelector('[data-dep-pickup]')?.value||'').trim()
   })).filter(item=>item.label||item.time)
 }
 
@@ -4471,7 +4472,8 @@ const fillServiceForm=(service=null)=>{
     times.forEach(item=>{
       const label=typeof item==='object' ? (item.label||'') : String(item||'')
       const time=typeof item==='object' ? (item.time||'') : ''
-      nodes.serviceDepartureTimesList.appendChild(buildDepartureTimeRow(label,time))
+      const pickupTime=typeof item==='object' ? (item.pickup_time||service?.pickup_time||'') : (service?.pickup_time||'')
+      nodes.serviceDepartureTimesList.appendChild(buildDepartureTimeRow(label,time,pickupTime))
     })
   }
   if(nodes.servicePickupTime)nodes.servicePickupTime.value=service?.pickup_time||''
