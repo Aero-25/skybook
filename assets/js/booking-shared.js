@@ -109,7 +109,7 @@ window.TrueTravelBooking=(()=>{
   const SKYBOOK_PERMISSION_KEYS=SKYBOOK_PERMISSION_CATALOG.map(item=>item.key)
   const SKYBOOK_ROLE_DEFAULTS={
     super_admin:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
-    manager:{dashboard:true,calendar:true,reports:true,reconciliation:true,health:true,bookings:true,customers:true,payments:true,services:true,engine:true,finance:true,settings:true,emails:true,admin_users:false},
+    manager:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
     booking_agent:{dashboard:true,calendar:true,reports:false,reconciliation:false,health:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:false,admin_users:false},
     reservations:{dashboard:true,calendar:true,reports:false,reconciliation:false,health:false,bookings:true,customers:true,payments:false,services:false,engine:false,finance:false,settings:false,emails:true,admin_users:false},
     operations:{dashboard:true,calendar:true,reports:true,reconciliation:false,health:true,bookings:true,customers:true,payments:false,services:false,engine:true,finance:false,settings:false,emails:false,admin_users:false},

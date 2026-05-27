@@ -2431,7 +2431,6 @@ const getEffectivePermissions=profile=>{
 
 const canAccess=permissionKey=>{
   if(!permissionKey)return true
-  if(permissionKey==='admin_users')return String(state.profile?.role||'')==='super_admin'
   return Boolean(getEffectivePermissions(state.profile)[permissionKey])
 }
 

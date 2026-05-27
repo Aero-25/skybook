@@ -31,22 +31,7 @@ const SKYBOOK_PERMISSION_KEYS=SKYBOOK_PERMISSION_CATALOG.map(item=>item.key)
 
 const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
   super_admin:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
-  manager:{
-    dashboard:true,
-    calendar:true,
-    reports:true,
-    reconciliation:true,
-    health:true,
-    bookings:true,
-    customers:true,
-    payments:true,
-    services:true,
-    engine:true,
-    finance:true,
-    settings:true,
-    emails:true,
-    admin_users:false
-  },
+  manager:Object.fromEntries(SKYBOOK_PERMISSION_KEYS.map(key=>[key,true])),
   booking_agent:{
     dashboard:true,
     calendar:true,
@@ -288,8 +273,9 @@ const requireSkybookPermission=(profile:Json,key:string)=>{
   if(!hasSkybookPermission(profile,key))throw new Error(`You do not have access to ${key.replace(/_/g,' ')}.`)
 }
 const requireSuperAdmin=(profile:Json)=>{
-  if(normalizeText(profile.role)!=='super_admin'){
-    throw new Error('Super admin access is required for admin user management.')
+  const role=normalizeText(profile.role)
+  if(role!=='super_admin'&&role!=='manager'){
+    throw new Error('Manager or super admin access is required for admin user management.')
   }
 }
 const routeParts=(request:Request)=>{
