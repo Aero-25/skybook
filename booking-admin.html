@@ -842,10 +842,11 @@
                 <span>Minimum Pax</span>
                 <input id="adminServiceMinPax" type="number" min="1" step="1" value="1">
               </label>
-              <label class="booking-field">
-                <span>Departure Window</span>
-                <input id="adminServiceDepartureWindow" type="text" placeholder="AM departure / PM departure / Flexible">
-              </label>
+              <div class="booking-field-full" id="adminServiceDepartureTimesWrap">
+                <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Departure Times</span>
+                <div id="adminServiceDepartureTimesList" style="display:flex;flex-direction:column;gap:8px"></div>
+                <button type="button" id="adminServiceAddDepartureTime" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add departure time</button>
+              </div>
               <label class="booking-field">
                 <span>Pickup Time</span>
                 <input id="adminServicePickupTime" type="text" placeholder="08:00 or TBC">
@@ -1565,7 +1566,7 @@
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260513-payment-links-v2"></script>
+  <script src="assets/js/booking-shared.js?v=20260527-deptimes"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
   <script src="assets/js/admin-modules/reports.js?v=20260424"></script>
   <script>
@@ -1576,6 +1577,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260513-edits-v1" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260527-deptimes" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

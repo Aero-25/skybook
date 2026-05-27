@@ -1576,7 +1576,13 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
     departure_window:normalizeText(service.metadata?.departure_window),
     pickup_time:normalizeText(service.metadata?.pickup_time),
-    departure_times:Array.isArray(service.metadata?.departure_times) ? (service.metadata.departure_times as string[]).map(String).filter(Boolean) : [],
+    departure_times:Array.isArray(service.metadata?.departure_times)
+      ? (service.metadata.departure_times as Array<{label?:string,time?:string}|string>).map(item=>
+          typeof item==='object' && item!==null
+            ? {label:normalizeText(item.label),time:normalizeText(item.time)}
+            : {label:normalizeText(item as string),time:''}
+        ).filter(item=>item.label||item.time)
+      : [],
     addons:[]
   }))
 }
@@ -3749,7 +3755,13 @@ const upsertService=async(payload:Json)=>{
       brand_codes:brandCodes,
       minimum_pax:minimumPax,
       departure_window:normalizeText(payload.departure_window),
-      pickup_time:normalizeText(payload.pickup_time)
+      pickup_time:normalizeText(payload.pickup_time),
+      departure_times:Array.isArray(payload.departure_times)
+        ? payload.departure_times.map((item:unknown)=>({
+            label:normalizeText((item as Record<string,unknown>)?.label),
+            time:normalizeText((item as Record<string,unknown>)?.time)
+          })).filter((item:{label:string,time:string})=>item.label||item.time)
+        : []
     },
     media:mediaGallery
   }

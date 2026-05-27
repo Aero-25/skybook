@@ -401,7 +401,8 @@ const nodes={
   serviceDateRule:document.getElementById('adminServiceDateRule'),
   serviceDuration:document.getElementById('adminServiceDuration'),
   serviceMinPax:document.getElementById('adminServiceMinPax'),
-  serviceDepartureWindow:document.getElementById('adminServiceDepartureWindow'),
+  serviceDepartureTimesList:document.getElementById('adminServiceDepartureTimesList'),
+  serviceAddDepartureTime:document.getElementById('adminServiceAddDepartureTime'),
   servicePickupTime:document.getElementById('adminServicePickupTime'),
   serviceSummary:document.getElementById('adminServiceSummary'),
   serviceLearnMoreDescription:document.getElementById('adminServiceLearnMoreDescription'),
@@ -4429,6 +4430,29 @@ const readWorkflowModalValues=form=>{
   }))
 }
 
+const buildDepartureTimeRow=(label='',time='')=>{
+  const row=document.createElement('div')
+  row.style.cssText='display:flex;gap:8px;align-items:center'
+  row.innerHTML=`<input type="text" placeholder="Label (e.g. AM)" value="${label.replace(/"/g,'&quot;')}" data-dep-label style="flex:1;min-width:0"><input type="time" value="${time}" data-dep-time style="flex:1;min-width:0"><button type="button" data-dep-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove">×</button>`
+  row.querySelector('[data-dep-remove]').addEventListener('click',()=>row.remove())
+  return row
+}
+
+const getDepartureTimes=()=>{
+  const list=nodes.serviceDepartureTimesList
+  if(!list)return []
+  return Array.from(list.querySelectorAll('div')).map(row=>({
+    label:(row.querySelector('[data-dep-label]')?.value||'').trim(),
+    time:(row.querySelector('[data-dep-time]')?.value||'').trim()
+  })).filter(item=>item.label||item.time)
+}
+
+if(nodes.serviceAddDepartureTime){
+  nodes.serviceAddDepartureTime.addEventListener('click',()=>{
+    if(nodes.serviceDepartureTimesList)nodes.serviceDepartureTimesList.appendChild(buildDepartureTimeRow())
+  })
+}
+
 const fillServiceForm=(service=null)=>{
   const brandCodes=getServiceBrandCodes(service)
   nodes.serviceId.value=service?.id||''
@@ -4442,7 +4466,15 @@ const fillServiceForm=(service=null)=>{
   nodes.serviceDateRule.value=service?.preferred_date_mode||'optional'
   nodes.serviceDuration.value=service?.duration_label||''
   if(nodes.serviceMinPax)nodes.serviceMinPax.value=service?.minimum_pax||1
-  if(nodes.serviceDepartureWindow)nodes.serviceDepartureWindow.value=service?.departure_window||''
+  if(nodes.serviceDepartureTimesList){
+    nodes.serviceDepartureTimesList.innerHTML=''
+    const times=Array.isArray(service?.departure_times) ? service.departure_times : []
+    times.forEach(item=>{
+      const label=typeof item==='object' ? (item.label||'') : String(item||'')
+      const time=typeof item==='object' ? (item.time||'') : ''
+      nodes.serviceDepartureTimesList.appendChild(buildDepartureTimeRow(label,time))
+    })
+  }
   if(nodes.servicePickupTime)nodes.servicePickupTime.value=service?.pickup_time||''
   nodes.serviceSummary.value=service?.short_description||''
   if(nodes.serviceLearnMoreDescription)nodes.serviceLearnMoreDescription.value=service?.full_description||service?.short_description||''
@@ -7003,7 +7035,7 @@ const handleServiceSave=async event=>{
     preferred_date_mode:nodes.serviceDateRule.value,
     duration_label:nodes.serviceDuration.value.trim(),
     minimum_pax:Math.max(1,Number(nodes.serviceMinPax?.value||1)||1),
-    departure_window:nodes.serviceDepartureWindow?.value?.trim()||'',
+    departure_times:getDepartureTimes(),
     pickup_time:nodes.servicePickupTime?.value?.trim()||'',
     short_description:nodes.serviceSummary.value.trim(),
     full_description:nodes.serviceLearnMoreDescription?.value?.trim()||nodes.serviceSummary.value.trim(),

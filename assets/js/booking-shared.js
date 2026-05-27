@@ -308,6 +308,10 @@ window.TrueTravelBooking=(()=>{
       minimum_pax:Math.max(1,Number(service?.minimum_pax ?? metadata.minimum_pax ?? 1)||1),
       departure_window:safeText(service?.departure_window ?? metadata.departure_window ?? ''),
       pickup_time:safeText(service?.pickup_time ?? metadata.pickup_time ?? ''),
+      departure_times:(()=>{
+        const raw=Array.isArray(service?.departure_times) ? service.departure_times : (Array.isArray(metadata.departure_times) ? metadata.departure_times : [])
+        return raw.map(item=>typeof item==='object'&&item!==null ? {label:safeText(item.label),time:safeText(item.time)} : {label:safeText(item),time:''}).filter(item=>item.label||item.time)
+      })(),
       media_url:safeText(service?.media_url||service?.imageUrl||''),
       media_gallery:mediaGallerySource.map((item,index)=>{
         if(!item)return null
