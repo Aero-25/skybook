@@ -7276,6 +7276,45 @@ const handleBookingSave=async event=>{
   }
 }
 
+const syncServiceToToursData=async payload=>{
+  try{
+    const shared=window.TrueTravelShared
+    if(!shared)return
+    const {normalizeTour,readToursData,writeToursData,readSupabaseConfig,persistRemoteToursData}=shared
+    if(!normalizeTour||!readToursData||!writeToursData)return
+    const slug=String(payload.slug||payload.id||'').trim()
+    if(!slug)return
+    const mediaUrls=Array.isArray(payload.media_urls)?payload.media_urls.filter(Boolean):[]
+    const imageUrl=mediaUrls[0]||''
+    const current=readToursData()||{tours:[]}
+    const tours=[...(current.tours||[])]
+    const idx=tours.findIndex(t=>t.id===slug)
+    const incoming={
+      name:payload.name||'',
+      summary:payload.short_description||'',
+      durationLabel:payload.duration_label||'',
+      imageUrl:imageUrl||(idx>=0?(tours[idx].imageUrl||''):''),
+      featuredOnIndex:Boolean(payload.is_active!==false)
+    }
+    if(idx===-1){
+      tours.push(normalizeTour({
+        ...incoming,
+        id:slug,
+        seasons:[{label:'Standard',startDate:'',endDate:'',adultPrice:Number(payload.base_price||0),childPrice:''}]
+      }))
+    }else{
+      tours[idx]=normalizeTour({...tours[idx],...incoming})
+    }
+    const nextData={tours}
+    writeToursData(nextData)
+    if(persistRemoteToursData&&readSupabaseConfig){
+      await persistRemoteToursData(readSupabaseConfig(),nextData)
+    }
+  }catch(err){
+    console.warn('[SkyBook] tours-data sync failed:',err)
+  }
+}
+
 const validateServiceForm=()=>{
   const errors=[]
   if(!nodes.serviceName?.value.trim())
@@ -7339,6 +7378,7 @@ const handleServiceSave=async event=>{
     await refreshAdmin(isNew ? `Tour created: ${payload.name}` : `Tour updated: ${payload.name}`)
     showToast(isNew ? `Tour created: ${payload.name}` : `Tour updated: ${payload.name}`,'success')
     closeServiceModal()
+    void syncServiceToToursData(payload)
   }catch(error){
     const errMsg=error.message||'Tour could not be saved.'
     setAdminStatus(errMsg,true)
