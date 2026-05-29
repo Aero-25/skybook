@@ -831,6 +831,7 @@ const runWithActionLoading=(button,task,label='Working')=>{
 const handleFormSubmitWithLoading=(event,handler,label='Saving')=>{
   event.preventDefault()
   const button=event?.submitter||event?.target?.querySelector?.('button[type="submit"]')
+  setAdminStatus(`${label}…`)
   void runWithActionLoading(button,()=>handler(event),label).catch(error=>setAdminStatus(error.message||'Action failed.',true))
 }
 
@@ -4922,11 +4923,14 @@ const uploadServiceImages=async files=>{
   const fileList=[...files].filter(f=>f.type.startsWith('image/'))
   if(!fileList.length)return
   const zone=nodes.serviceImageDropZone
-  if(zone)zone.style.opacity='.5'
+  const zoneLabel=zone?.querySelector('div')
+  const originalLabelHTML=zoneLabel ? zoneLabel.innerHTML : null
+  if(zone)zone.style.pointerEvents='none'
   try{
-    for(const file of fileList){
+    for(let i=0;i<fileList.length;i++){
+      if(zoneLabel)zoneLabel.innerHTML=`<span class="admin-loading-spinner" aria-hidden="true"></span><span style="display:block;font-size:12px;margin-top:6px;opacity:.7">Uploading ${i+1} of ${fileList.length}…</span>`
       const form=new FormData()
-      form.append('file',file)
+      form.append('file',fileList[i])
       const result=await bookingAdminShared.apiRequest('admin/service-images',{
         method:'POST',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
@@ -4939,10 +4943,12 @@ const uploadServiceImages=async files=>{
         renderServiceImagePreviews(urls)
       }
     }
+    setAdminStatus(`${fileList.length} image${fileList.length===1?'':'s'} uploaded.`)
   }catch(error){
     setAdminStatus(error.message||'Image upload failed.',true)
   }finally{
-    if(zone)zone.style.opacity='1'
+    if(zone)zone.style.pointerEvents=''
+    if(zoneLabel&&originalLabelHTML!==null)zoneLabel.innerHTML=originalLabelHTML
   }
 }
 
@@ -8259,12 +8265,13 @@ nodes.reconciliationTable?.addEventListener('click',event=>{
     return
   }
   const recordId=event.target.dataset.reconciliationId
+  const btn=event.target.closest('button')
   if(action==='mark-review'){
-    void handleReconciliationAction(recordId,'needs_review').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
+    void runWithActionLoading(btn,()=>handleReconciliationAction(recordId,'needs_review'),'Updating').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
     return
   }
   if(action==='mark-clear'){
-    void handleReconciliationAction(recordId,'cleared').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
+    void runWithActionLoading(btn,()=>handleReconciliationAction(recordId,'cleared'),'Clearing').catch(error=>setAdminStatus(error.message||'Reconciliation update failed.',true))
   }
 })
 
@@ -8272,18 +8279,20 @@ nodes.systemJobsTable?.addEventListener('click',event=>{
   const action=event.target.dataset.jobAction
   const jobId=event.target.dataset.jobId
   if(!action||!jobId)return
-  void handleSystemJobAction(jobId,action).catch(error=>setAdminStatus(error.message||'Job action failed.',true))
+  const btn=event.target.closest('button')
+  void runWithActionLoading(btn,()=>handleSystemJobAction(jobId,action),'Running job').catch(error=>setAdminStatus(error.message||'Job action failed.',true))
 })
 
 nodes.healthEventsTable?.addEventListener('click',event=>{
   const action=event.target.dataset.healthAction
   const eventId=event.target.dataset.healthEventId
   if(action!=='resolve'||!eventId)return
-  void handleHealthEventResolve(eventId).catch(error=>setAdminStatus(error.message||'Health event update failed.',true))
+  const btn=event.target.closest('button')
+  void runWithActionLoading(btn,()=>handleHealthEventResolve(eventId),'Resolving').catch(error=>setAdminStatus(error.message||'Health event update failed.',true))
 })
 
 nodes.runJobsNowButton?.addEventListener('click',()=>{
-  void handleRunDueJobs().catch(error=>setAdminStatus(error.message||'Job run failed.',true))
+  void runWithActionLoading(nodes.runJobsNowButton,()=>handleRunDueJobs(),'Running jobs').catch(error=>setAdminStatus(error.message||'Job run failed.',true))
 })
 
 nodes.openCommandPalette?.addEventListener('click',openCommandPalette)
@@ -8341,7 +8350,7 @@ nodes.reviewsTable?.addEventListener('click',event=>{
   if(!btn)return
   const reviewId=btn.dataset.reviewId
   const newStatus=btn.dataset.reviewAction
-  if(reviewId&&newStatus)void handleReviewAction(reviewId,newStatus)
+  if(reviewId&&newStatus)void runWithActionLoading(btn,()=>handleReviewAction(reviewId,newStatus),'Updating').catch(error=>setAdminStatus(error.message||'Review update failed.',true))
 })
 nodes.reviewsCopyLink?.addEventListener('click',()=>{
   const brand=nodes.reviewsFilterBrand?.value||'true-travel'
