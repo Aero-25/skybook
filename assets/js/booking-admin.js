@@ -793,6 +793,61 @@ const showToast=(message,type='info')=>{
   },4200)
 }
 
+const showValidationErrors=(title,errors)=>{
+  document.getElementById('skybookValidationModal')?.remove()
+  if(!errors.length)return
+  const firstFieldId=errors.find(e=>e.fieldId)?.fieldId
+  const modal=document.createElement('div')
+  modal.id='skybookValidationModal'
+  modal.className='admin-modal-shell'
+  modal.setAttribute('role','alertdialog')
+  modal.setAttribute('aria-modal','true')
+  modal.setAttribute('aria-labelledby','skyValidationTitle')
+  modal.innerHTML=`
+    <div class="admin-modal-backdrop"></div>
+    <div class="admin-modal-panel" style="width:min(460px,100%);padding:28px 28px 24px">
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px">
+        <div style="flex:0 0 auto;width:38px;height:38px;border-radius:50%;background:#fef2f2;border:1.5px solid #fca5a5;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#dc2626;line-height:1">!</div>
+        <div>
+          <h2 id="skyValidationTitle" style="margin:0 0 3px;font-size:15px;font-weight:700">${bookingAdminShared.escapeHtml(title)}</h2>
+          <p style="margin:0;font-size:13px;opacity:.7">Please fix these issues before saving.</p>
+        </div>
+      </div>
+      <ul style="margin:0 0 22px;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px">
+        ${errors.map(e=>`
+          <li style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:#fff8f8;border:1px solid #fecaca;border-radius:8px;font-size:13px">
+            <span style="flex:0 0 auto;color:#dc2626;font-weight:900;font-size:15px;line-height:1.1">×</span>
+            <div><strong style="font-weight:600">${bookingAdminShared.escapeHtml(e.label)}:</strong> <span style="color:#9a1515">${bookingAdminShared.escapeHtml(e.message)}</span></div>
+          </li>`).join('')}
+      </ul>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="booking-button ghost" id="skyValidationDismiss" type="button">Dismiss</button>
+        ${firstFieldId?`<button class="booking-button" id="skyValidationFix" type="button">Go to first issue</button>`:''}
+      </div>
+    </div>`
+  const close=()=>modal.remove()
+  modal.querySelector('.admin-modal-backdrop').addEventListener('click',close)
+  modal.querySelector('#skyValidationDismiss').addEventListener('click',close)
+  if(firstFieldId){
+    modal.querySelector('#skyValidationFix').addEventListener('click',()=>{
+      close()
+      requestAnimationFrame(()=>{
+        const field=document.getElementById(firstFieldId)
+        if(!field)return
+        field.scrollIntoView({behavior:'smooth',block:'center'})
+        field.focus()
+        const prev=field.style.outline
+        field.style.outline='2px solid #ef4444'
+        field.style.outlineOffset='2px'
+        setTimeout(()=>{field.style.outline=prev||'';field.style.outlineOffset=''},2500)
+      })
+    })
+  }
+  const onKey=e=>{if(e.key==='Escape'){close();document.removeEventListener('keydown',onKey)}}
+  document.addEventListener('keydown',onKey)
+  document.body.appendChild(modal)
+}
+
 const setActionButtonLoading=(button,isLoading=true,label='Working')=>{
   if(!button||button.dataset.loadingExempt==='true')return
   if(isLoading){
@@ -7077,8 +7132,40 @@ const syncBookingQuantityMode=()=>{
   if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=!hasAdultChild
 }
 
+const validateBookingForm=()=>{
+  const errors=[]
+  if(!nodes.bookingService?.value)
+    errors.push({label:'Tour / Service',message:'Please select a tour before saving.',fieldId:'adminBookingService'})
+  if(!nodes.bookingCustomerName?.value.trim())
+    errors.push({label:'Customer Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
+  const email=nodes.bookingCustomerEmail?.value.trim()||''
+  if(!email)
+    errors.push({label:'Customer Email',message:'Email address is required.',fieldId:'adminBookingCustomerEmail'})
+  else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
+    errors.push({label:'Customer Email',message:'Enter a valid email address.',fieldId:'adminBookingCustomerEmail'})
+  const phone=nodes.bookingCustomerPhone?.value.trim()||''
+  if(!phone)
+    errors.push({label:'Customer Phone',message:'Phone or WhatsApp number is required.',fieldId:'adminBookingCustomerPhone'})
+  else if(phone.replace(/[^\d+]/g,'').length<7)
+    errors.push({label:'Customer Phone',message:'Enter a valid phone or WhatsApp number.',fieldId:'adminBookingCustomerPhone'})
+  const useAdultChild=!nodes.bookingAdultWrap?.hidden
+  const total=useAdultChild
+    ? Number(nodes.bookingAdultQuantity?.value||0)+Number(nodes.bookingChildQuantity?.value||0)
+    : Number(nodes.bookingQuantity?.value||0)
+  if(total<1)
+    errors.push({label:'Number of Guests',message:'At least 1 guest is required.',fieldId:useAdultChild?'adminBookingAdultQuantity':'adminBookingQuantity'})
+  if(!nodes.bookingDate?.value)
+    errors.push({label:'Preferred Date',message:'A booking date is required.',fieldId:'adminBookingDate'})
+  return errors
+}
+
 const handleBookingSave=async event=>{
   event.preventDefault()
+  const bookingValidationErrors=validateBookingForm()
+  if(bookingValidationErrors.length){
+    showValidationErrors('Booking cannot be saved',bookingValidationErrors)
+    return
+  }
   const returnToReservationManagement=state.activeTab==='reservation-management'
   const wasEditing=Boolean(state.selectedBookingId)
   const previousSelectedId=state.selectedBookingId
@@ -7139,12 +7226,16 @@ const handleBookingSave=async event=>{
   const savedBooking=state.bookings.find(booking=>booking.id===savedBookingId)
     || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
     || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
+  const tourName=state.services.find(s=>s.slug===payload.service_slug)?.name||payload.service_slug||'Unknown tour'
+  const guestName=payload.customer.full_name||'Guest'
+  const refLabel=savedReference ? ` · Ref ${String(savedReference).toUpperCase()}` : ''
   if(savedBooking){
     clearBookingEditorDraft()
     closeBookingModal()
     if(returnToReservationManagement && isReviewReservation(savedBooking)){
       openReservationManagementScreen(savedBooking,{scroll:true})
       setAdminStatus(wasEditing ? 'Reservation updated.' : 'Reservation created.')
+      showToast(wasEditing ? `Reservation updated${refLabel}` : `Reservation created for ${guestName} · ${tourName}${refLabel}`,'success')
       return
     }
     if(returnToReservationManagement && !isReviewReservation(savedBooking)){
@@ -7153,10 +7244,12 @@ const handleBookingSave=async event=>{
       const opened=navigatePendingBookingRecordWindow(pendingAcceptedBookingWindow,savedBooking.id)
       if(opened)setAdminStatus('Reservation accepted. Full booking view opened in a new page.')
       else setAdminStatus('Reservation accepted. Pop-up was blocked, so open the booking from the Bookings table.',true)
+      showToast(`Reservation accepted for ${guestName}${refLabel}`,'success')
       return
     }
     openBookingManagementScreen(savedBooking,{scroll:true})
     setAdminStatus(wasEditing ? 'Booking updated and management screen opened.' : 'Booking created and management screen opened.')
+    showToast(wasEditing ? `Booking updated${refLabel}` : `Booking created for ${guestName} · ${tourName}${refLabel}`,'success')
     return
   }
   closePendingBookingRecordWindow(pendingAcceptedBookingWindow)
@@ -7169,6 +7262,7 @@ const handleBookingSave=async event=>{
   clearBookingEditorDraft()
   renderAll()
   setAdminStatus(wasEditing ? 'Booking updated.' : 'Booking created.')
+  showToast(wasEditing ? `Booking updated${refLabel}` : `Booking created for ${guestName} · ${tourName}${refLabel}`,'success')
   }catch(error){
     closePendingBookingRecordWindow(pendingAcceptedBookingWindow)
     if(shouldOpenAcceptedBookingRecord&&nodes.bookingSaveButton){
@@ -7176,20 +7270,42 @@ const handleBookingSave=async event=>{
       nodes.bookingSaveButton.textContent=originalSaveButtonLabel||'Save Booking'
       nodes.bookingSaveButton.classList.remove('is-loading')
     }
-    setAdminStatus(error.message||'Booking could not be saved.',true)
+    const errMsg=error.message||'Booking could not be saved.'
+    setAdminStatus(errMsg,true)
+    showToast(errMsg,'error')
   }
 }
 
-const handleServiceSave=async event=>{
-  event.preventDefault()
+const validateServiceForm=()=>{
+  const errors=[]
+  if(!nodes.serviceName?.value.trim())
+    errors.push({label:'Tour Name',message:'Tour name is required.',fieldId:'adminServiceName'})
+  if(!nodes.serviceSummary?.value.trim())
+    errors.push({label:'Short Description',message:'A short description is required — shown on the booking site.',fieldId:'adminServiceSummary'})
+  const isQuoteOnly=nodes.serviceQuoteOnly?.checked
+  const basePrice=Number(nodes.servicePrice?.value||0)
+  if(!isQuoteOnly&&basePrice<=0)
+    errors.push({label:'Base Price',message:'Enter a price, or tick "Quote request only" if pricing is on request.',fieldId:'adminServicePrice'})
   const brandCodes=[
     nodes.serviceBrandTrueTravel?.checked ? 'true-travel' : '',
     nodes.serviceBrandIventure?.checked ? 'iventure' : ''
   ].filter(Boolean)
-  if(!brandCodes.length){
-    setAdminStatus('Choose at least one brand before saving this tour.',true)
+  if(!brandCodes.length)
+    errors.push({label:'Brand Visibility',message:'Select at least one brand — True Travel or Iventure.',fieldId:'adminServiceBrandTrueTravel'})
+  return errors
+}
+
+const handleServiceSave=async event=>{
+  event.preventDefault()
+  const serviceValidationErrors=validateServiceForm()
+  if(serviceValidationErrors.length){
+    showValidationErrors('Tour cannot be saved',serviceValidationErrors)
     return
   }
+  const brandCodes=[
+    nodes.serviceBrandTrueTravel?.checked ? 'true-travel' : '',
+    nodes.serviceBrandIventure?.checked ? 'iventure' : ''
+  ].filter(Boolean)
   const payload={
     id:nodes.serviceId.value.trim(),
     slug:nodes.serviceSlug.value.trim(),
@@ -7212,14 +7328,22 @@ const handleServiceSave=async event=>{
     brand_codes:brandCodes,
     is_active:nodes.serviceActive.checked
   }
-  const response=await bookingAdminShared.apiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
-    method:payload.id ? 'PATCH' : 'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-    body:payload
-  })
-  state.selectedServiceId=String(response?.id||payload.id||state.selectedServiceId||'').trim()
-  await refreshAdmin('Service saved.')
-  closeServiceModal()
+  try{
+    const response=await bookingAdminShared.apiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
+      method:payload.id ? 'PATCH' : 'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:payload
+    })
+    state.selectedServiceId=String(response?.id||payload.id||state.selectedServiceId||'').trim()
+    const isNew=!payload.id
+    await refreshAdmin(isNew ? `Tour created: ${payload.name}` : `Tour updated: ${payload.name}`)
+    showToast(isNew ? `Tour created: ${payload.name}` : `Tour updated: ${payload.name}`,'success')
+    closeServiceModal()
+  }catch(error){
+    const errMsg=error.message||'Tour could not be saved.'
+    setAdminStatus(errMsg,true)
+    showToast(errMsg,'error')
+  }
 }
 
 const handleAdminUserSave=async event=>{
