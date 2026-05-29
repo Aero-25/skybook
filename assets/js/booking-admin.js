@@ -887,7 +887,11 @@ const handleFormSubmitWithLoading=(event,handler,label='Saving')=>{
   event.preventDefault()
   const button=event?.submitter||event?.target?.querySelector?.('button[type="submit"]')
   setAdminStatus(`${label}…`)
-  void runWithActionLoading(button,()=>handler(event),label).catch(error=>setAdminStatus(error.message||'Action failed.',true))
+  void runWithActionLoading(button,()=>handler(event),label).catch(error=>{
+    const msg=error?.message||'Action failed. Please try again.'
+    setAdminStatus(msg,true)
+    showToast(msg,'error')
+  })
 }
 
 const unlockSkybookNotificationSound=()=>{
@@ -4365,8 +4369,7 @@ const openBookingModal=(booking=null)=>{
 
 const closeBookingModal=()=>{
   if(!state.isBookingModalOpen && !nodes.bookingModal)return
-  fillBookingForm(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
-  if(nodes.bookingModalTitle)nodes.bookingModalTitle.textContent='Create booking'
+  state.selectedBookingId=''
   setBookingModalState(false)
 }
 

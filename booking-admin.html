@@ -723,7 +723,7 @@
           </article>
           <article class="booking-panel">
             <h3>Process Refund</h3>
-            <form id="adminRefundForm" class="booking-form-grid">
+            <form id="adminRefundForm" class="booking-form-grid" novalidate>
               <label class="booking-field">
                 <span>Booking ID</span>
                 <input id="adminRefundBookingId" type="text" placeholder="Paste booking UUID" required>
@@ -753,7 +753,7 @@
         <div class="admin-panel-grid">
           <article class="booking-panel">
             <h3>Booking settings</h3>
-            <form id="bookingSettingsForm" class="booking-form-grid">
+            <form id="bookingSettingsForm" class="booking-form-grid" novalidate>
               <label class="booking-field">
                 <span>Currency Code</span>
                 <input id="settingCurrency" name="currency" type="text" value="NAD" placeholder="NAD">
@@ -796,7 +796,7 @@
               </div>
               <button class="booking-button ghost compact-button" id="addBookingFieldButton" type="button">Add Field</button>
             </div>
-            <form id="bookingFieldsForm" class="admin-spacer">
+            <form id="bookingFieldsForm" class="admin-spacer" novalidate>
               <div id="bookingFieldsList" class="booking-custom-field-list"></div>
               <div class="booking-field-full admin-spacer">
                 <button class="booking-button" type="submit">Save Booking Fields</button>
@@ -814,7 +814,7 @@
                 <h3>Guest email automation</h3>
               </div>
             </div>
-            <form id="emailAutomationForm" class="booking-form-grid">
+            <form id="emailAutomationForm" class="booking-form-grid" novalidate>
               <label class="booking-field-full inline-check">
                 <input id="emailTriggerBookingMade" type="checkbox">
                 <span>Send the True Travel under-review email when a guest submits a True Travel reservation.</span>
@@ -870,7 +870,7 @@
           </article>
           <article class="booking-panel">
             <h3>Create or update admin access</h3>
-            <form id="adminUserForm" class="booking-form-grid">
+            <form id="adminUserForm" class="booking-form-grid" novalidate>
               <input id="adminUserId" type="hidden">
               <label class="booking-field">
                 <span>Username</span>
@@ -954,7 +954,7 @@
                 <tbody id="adminEngineSchedulesTable"></tbody>
               </table>
             </div>
-            <form id="adminScheduleForm" class="booking-form-grid admin-spacer">
+            <form id="adminScheduleForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Service</span>
                 <select id="adminScheduleService" required></select>
@@ -987,7 +987,7 @@
                 <button class="booking-button" type="submit">Save Operating Window</button>
               </div>
             </form>
-            <form id="adminBlackoutForm" class="booking-form-grid admin-spacer">
+            <form id="adminBlackoutForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Blackout Service</span>
                 <select id="adminBlackoutService"></select>
@@ -1018,7 +1018,7 @@
                 <tbody id="adminCommercialToolsTable"></tbody>
               </table>
             </div>
-            <form id="adminCouponForm" class="booking-form-grid admin-spacer">
+            <form id="adminCouponForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Coupon Code</span>
                 <input id="adminCouponCode" type="text" required>
@@ -1042,7 +1042,7 @@
                 <button class="booking-button" type="submit">Save Coupon</button>
               </div>
             </form>
-            <form id="adminVoucherForm" class="booking-form-grid admin-spacer">
+            <form id="adminVoucherForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Voucher Code</span>
                 <input id="adminVoucherCode" type="text" required>
@@ -1073,7 +1073,7 @@
                 <tbody id="adminPlatformOperationsTable"></tbody>
               </table>
             </div>
-            <form id="adminResourceForm" class="booking-form-grid admin-spacer">
+            <form id="adminResourceForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Resource Name</span>
                 <input id="adminResourceName" type="text" required>
@@ -1112,7 +1112,7 @@
                 <button class="booking-button" type="submit">Save Resource</button>
               </div>
             </form>
-            <form id="adminAgentForm" class="booking-form-grid admin-spacer">
+            <form id="adminAgentForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Agent Code</span>
                 <input id="adminAgentCode" type="text" required>
@@ -1146,7 +1146,7 @@
                 <tbody id="adminPlatformConfigTable"></tbody>
               </table>
             </div>
-            <form id="adminOperatorForm" class="booking-form-grid admin-spacer">
+            <form id="adminOperatorForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Operator Code</span>
                 <input id="adminOperatorCode" type="text" required>
@@ -1206,7 +1206,7 @@
                 <button class="booking-button" type="submit">Save Operator</button>
               </div>
             </form>
-            <form id="adminOfficeInvoiceForm" class="booking-form-grid admin-spacer">
+            <form id="adminOfficeInvoiceForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Booking ID</span>
                 <input id="adminOfficeInvoiceBookingId" type="text" placeholder="Optional booking UUID">
@@ -1252,7 +1252,7 @@
                 <button class="booking-button ghost" type="submit">Create Creditor Entry</button>
               </div>
             </form>
-            <form id="automationRulesForm" class="booking-form-grid admin-spacer">
+            <form id="automationRulesForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field-full inline-check">
                 <input id="automationAutoConfirmPaid" type="checkbox">
                 <span>Auto confirm bookings when payment is marked paid.</span>
@@ -1269,7 +1269,7 @@
                 <button class="booking-button" type="submit">Save Automation Rules</button>
               </div>
             </form>
-            <form id="portalSettingsForm" class="booking-form-grid admin-spacer">
+            <form id="portalSettingsForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field-full inline-check">
                 <input id="portalEnabled" type="checkbox" checked>
                 <span>Enable customer portal foundation.</span>
@@ -1290,7 +1290,7 @@
                 <button class="booking-button ghost" type="submit">Save Portal Settings</button>
               </div>
             </form>
-            <form id="adminWebhookForm" class="booking-form-grid admin-spacer">
+            <form id="adminWebhookForm" class="booking-form-grid admin-spacer" novalidate>
               <label class="booking-field">
                 <span>Webhook Name</span>
                 <input id="adminWebhookName" type="text" required>
@@ -1463,7 +1463,7 @@
               </div>
               <button class="admin-modal-close" id="closeServiceModalButton" type="button" aria-label="Close service editor">X</button>
             </div>
-            <form id="adminServiceForm" class="booking-form-grid">
+            <form id="adminServiceForm" class="booking-form-grid" novalidate>
               <input id="adminServiceId" type="hidden">
               <label class="booking-field">
                 <span>Name</span>
@@ -1599,7 +1599,7 @@
             </div>
             <button class="admin-modal-close" id="closeWorkflowModalButton" type="button" aria-label="Close workflow dialog">X</button>
           </div>
-          <form id="workflowModalForm" class="booking-form-grid">
+          <form id="workflowModalForm" class="booking-form-grid" novalidate>
             <div id="workflowModalFields" class="booking-field-full"></div>
             <div class="booking-field-full workflow-modal-actions">
               <button class="booking-button ghost" id="workflowModalCancelButton" type="button">Cancel</button>
@@ -1621,6 +1621,7 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260529-savefix" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260529-hardened" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
+
