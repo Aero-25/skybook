@@ -218,6 +218,8 @@ const json=(status:number,payload:Json)=>new Response(JSON.stringify(payload),{
 })
 
 const readBody=async(request:Request)=>{
+  const contentType=request.headers.get('content-type')||''
+  if(!contentType.includes('application/json'))return {}
   try{return await request.json()}catch{return {}}
 }
 

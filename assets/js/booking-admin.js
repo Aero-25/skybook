@@ -829,6 +829,7 @@ const runWithActionLoading=(button,task,label='Working')=>{
 }
 
 const handleFormSubmitWithLoading=(event,handler,label='Saving')=>{
+  event.preventDefault()
   const button=event?.submitter||event?.target?.querySelector?.('button[type="submit"]')
   void runWithActionLoading(button,()=>handler(event),label).catch(error=>setAdminStatus(error.message||'Action failed.',true))
 }
