@@ -4342,12 +4342,15 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingDate.value=booking?.preferred_date||''
   syncBookingDepartureFields(booking?.service_slug||'',booking?.metadata?.departure_label||'',booking?.metadata?.pickup_time||'')
   nodes.bookingQuantity.value=booking?.quantity||2
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(booking?.adult_quantity||0)
+  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(booking?.child_quantity||0)
+  syncBookingQuantityMode()
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   renderAdminBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
-  nodes.bookingSaveButton.textContent=booking ? 'Save Booking' : 'Create Booking'
+  nodes.bookingSaveButton.textContent=booking ? 'Save Changes' : 'Create Booking'
 }
 
 const openBookingModal=(booking=null)=>{
@@ -7255,7 +7258,7 @@ const handleBookingSave=async event=>{
   closePendingBookingRecordWindow(pendingAcceptedBookingWindow)
   if(shouldOpenAcceptedBookingRecord&&nodes.bookingSaveButton){
     nodes.bookingSaveButton.disabled=false
-    nodes.bookingSaveButton.textContent=originalSaveButtonLabel||'Save Booking'
+    nodes.bookingSaveButton.textContent=originalSaveButtonLabel||'Save Changes'
     nodes.bookingSaveButton.classList.remove('is-loading')
   }
   closeBookingModal()
@@ -7267,7 +7270,7 @@ const handleBookingSave=async event=>{
     closePendingBookingRecordWindow(pendingAcceptedBookingWindow)
     if(shouldOpenAcceptedBookingRecord&&nodes.bookingSaveButton){
       nodes.bookingSaveButton.disabled=false
-      nodes.bookingSaveButton.textContent=originalSaveButtonLabel||'Save Booking'
+      nodes.bookingSaveButton.textContent=originalSaveButtonLabel||'Save Changes'
       nodes.bookingSaveButton.classList.remove('is-loading')
     }
     const errMsg=error.message||'Booking could not be saved.'
