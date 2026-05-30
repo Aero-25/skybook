@@ -1505,12 +1505,13 @@ const reserveInvoiceNumber=async(scope:'guest_invoice' | 'office_invoice',brandC
   return `${preferredPrefix}-${scope==='office_invoice' ? 'OFF' : 'INV'}-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${crypto.randomUUID().slice(0,8).toUpperCase()}`
 }
 
+const isSafeMediaUrl=(url:string)=>/^https?:\/\//i.test(url)
 const normalizeServiceMedia=(value:unknown,serviceName='')=>{
   if(!Array.isArray(value))return []
   return value.map((item,index)=>{
     if(typeof item==='string'){
       const url=normalizeText(item)
-      if(!url)return null
+      if(!url||!isSafeMediaUrl(url))return null
       return {
         url,
         alt:serviceName ? `${serviceName} image ${index+1}` : '',
@@ -1520,7 +1521,7 @@ const normalizeServiceMedia=(value:unknown,serviceName='')=>{
     if(!item || typeof item!=='object' || Array.isArray(item))return null
     const media=normalizeJsonRecord(item)
     const url=normalizeText(media.url || media.src)
-    if(!url)return null
+    if(!url||!isSafeMediaUrl(url))return null
     return {
       url,
       alt:normalizeText(media.alt || media.label || (serviceName ? `${serviceName} image ${index+1}` : '')),

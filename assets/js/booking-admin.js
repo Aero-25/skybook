@@ -581,8 +581,7 @@ const nodes={
   sessionTimeoutBanner:document.getElementById('sessionTimeoutBanner'),
   sessionTimeoutMessage:document.getElementById('sessionTimeoutMessage'),
   sessionTimeoutRenew:document.getElementById('sessionTimeoutRenew'),
-  sessionTimeoutDismiss:document.getElementById('sessionTimeoutDismiss'),
-  dashboardArrivalsTable:document.getElementById('adminDashboardArrivalsTable')
+  sessionTimeoutDismiss:document.getElementById('sessionTimeoutDismiss')
 }
 
 const SIDEBAR_COLLAPSED_KEY='skybook-admin-sidebar-collapsed-v1'
@@ -8697,6 +8696,7 @@ startSessionTimeoutCheck()
         return
       }
       startLiveAdminSync()
+      updateSessionTimeoutBanner()
       if(session.access_token!==previousToken && ['SIGNED_IN','TOKEN_REFRESHED'].includes(event)){
         const quietRecordRefresh=isRecordWorkspaceOpen()
         void refreshAdmin('Admin session refreshed.',quietRecordRefresh ? {silent:true,updateStatus:false} : {}).catch(error=>setAuthStatus(error.message||'Admin session refresh failed.',true))
@@ -8708,6 +8708,7 @@ startSessionTimeoutCheck()
     if(session){
       await refreshAdmin('Authenticated and loaded live booking data.')
       startLiveAdminSync()
+      updateSessionTimeoutBanner()
       void syncAdminInBackground()
     }else{
       stopLiveAdminSync()
