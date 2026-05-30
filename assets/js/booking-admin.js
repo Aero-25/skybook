@@ -1422,8 +1422,12 @@ const autosaveBookingEditorDraft=()=>{
     savedAt:new Date().toISOString(),
     values:collectBookingFormValues()
   }
-  localStorage.setItem(state.bookingEditor.draftKey,JSON.stringify(record))
-  state.bookingEditor.lastAutosavedAt=record.savedAt
+  try{
+    localStorage.setItem(state.bookingEditor.draftKey,JSON.stringify(record))
+    state.bookingEditor.lastAutosavedAt=record.savedAt
+  }catch(e){
+    if(e?.name==='QuotaExceededError')console.warn('[SkyBook] localStorage quota exceeded — booking draft not saved')
+  }
   syncBookingEditorDirtyState()
 }
 const scheduleBookingEditorAutosave=()=>{
@@ -7439,12 +7443,13 @@ const handleAdminUserSave=async event=>{
   const payload={
     id:nodes.adminUserId.value.trim(),
     username:nodes.adminUserUsername.value.trim(),
-    password:nodes.adminUserPassword.value,
+    password:nodes.adminUserPassword.value.trim(),
     full_name:nodes.adminUserFullName.value.trim(),
     role:nodes.adminUserRole.value,
     is_active:nodes.adminUserActive.checked,
     permissions:collectPermissionOverrides()
   }
+  if(!payload.id && !payload.password)throw new Error('Password is required when creating a new admin user.')
   await bookingAdminShared.apiRequest(payload.id ? `admin/users/${encodeURIComponent(payload.id)}` : 'admin/users',{
     method:payload.id ? 'PATCH' : 'POST',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
@@ -7697,12 +7702,14 @@ const handlePortalSave=async event=>{
 
 const handleWebhookSave=async event=>{
   event.preventDefault()
+  const webhookUrl=nodes.webhookUrl.value.trim()
+  try{new URL(webhookUrl)}catch{throw new Error('Webhook URL must be a valid absolute URL (e.g. https://example.com/hook).')}
   await bookingAdminShared.apiRequest('admin/webhook-endpoints',{
     method:'POST',
     headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       name:nodes.webhookName.value.trim(),
-      target_url:nodes.webhookUrl.value.trim(),
+      target_url:webhookUrl,
       subscribed_events:nodes.webhookEvents.value.split(',').map(item=>item.trim()).filter(Boolean),
       is_active:true
     }
@@ -8029,6 +8036,7 @@ nodes.printReportArrivals?.addEventListener('click',()=>{
 nodes.bookingForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleBookingSave,'Saving booking'))
 nodes.bookingForm.addEventListener('input',scheduleBookingEditorAutosave)
 window.addEventListener('pointerdown',unlockSkybookNotificationSound,{once:true,passive:true})
+window.addEventListener('pagehide',stopLiveAdminSync,{once:true})
 window.addEventListener('keydown',unlockSkybookNotificationSound,{once:true})
 nodes.bookingForm.addEventListener('change',event=>{
   if(event.target===nodes.bookingBrand){
