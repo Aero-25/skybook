@@ -113,6 +113,11 @@
     </aside>
 
     <main class="admin-content">
+      <div id="sessionTimeoutBanner" hidden style="background:#f59e0b;color:#1c1917;padding:.6rem 1.25rem;display:flex;align-items:center;gap:1rem;font-size:.875rem;font-weight:600;position:sticky;top:0;z-index:900">
+        <span id="sessionTimeoutMessage">Your session expires soon.</span>
+        <button type="button" id="sessionTimeoutRenew" style="background:#1c1917;color:#fef3c7;border:none;border-radius:.375rem;padding:.3rem .75rem;cursor:pointer;font-size:.8rem;font-weight:700">Renew Session</button>
+        <button type="button" id="sessionTimeoutDismiss" style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:1rem;color:#1c1917" aria-label="Dismiss">&#x2715;</button>
+      </div>
       <section class="admin-toolbar">
         <div class="toolbar-meta">
           <p class="module-breadcrumb" id="moduleBreadcrumb">SkyBook / Command / Command Center</p>
@@ -162,7 +167,7 @@
             <h3>Today's arrivals</h3>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Guests</th><th>Status</th></tr></thead>
+                <thead><tr><th>Reference</th><th>Brand</th><th>Service</th><th>Guests</th><th>Guide</th><th>Pickup</th><th>Status</th></tr></thead>
                 <tbody id="dashboardArrivalsTable"></tbody>
               </table>
             </div>
@@ -1448,11 +1453,41 @@
               <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
             </label>
             <div class="booking-field-full booking-action-row">
+              <button class="booking-button ghost" type="button" id="adminBookingPreviewEmailButton">Preview Email</button>
               <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
             </div>
           </form>
         </article>
       </div>
+
+        <div class="admin-modal-shell" id="emailPreviewModal" hidden aria-hidden="true">
+          <div class="admin-modal-backdrop" aria-hidden="true"></div>
+          <article class="booking-panel admin-modal-panel" role="dialog" aria-modal="true" aria-labelledby="emailPreviewTitle" style="max-width:640px;width:100%">
+            <div class="booking-modal-header">
+              <h2 class="booking-panel-title" id="emailPreviewTitle">Email Preview</h2>
+              <button class="admin-modal-close" id="emailPreviewClose" type="button" aria-label="Close email preview">X</button>
+            </div>
+            <div style="padding:1rem 1.5rem 1.5rem">
+              <label style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+                <span style="white-space:nowrap;font-weight:600;font-size:.875rem">Template:</span>
+                <select id="emailPreviewTemplate" style="flex:1;padding:.4rem .6rem;border:1px solid var(--admin-border,#e5e7eb);border-radius:.375rem;font-size:.875rem">
+                  <option value="booking_received">Booking Received (auto-sent to guest)</option>
+                  <option value="payment_request">Payment Request</option>
+                  <option value="booking_confirmed">Booking Confirmed</option>
+                  <option value="payment_received">Payment Received</option>
+                  <option value="cancellation_refund">Cancellation / Refund</option>
+                  <option value="status_changed">Status Changed</option>
+                </select>
+              </label>
+              <p style="font-size:.75rem;color:var(--admin-muted,#6b7280);margin-bottom:1rem">Preview only — no email is sent from here.</p>
+              <div style="background:var(--admin-surface-2,#f9fafb);border:1px solid var(--admin-border,#e5e7eb);border-radius:.5rem;padding:1rem 1.25rem;font-size:.85rem;line-height:1.7">
+                <strong id="emailPreviewSubject" style="display:block;margin-bottom:.5rem"></strong>
+                <hr style="border:none;border-top:1px solid var(--admin-border,#e5e7eb);margin:.5rem 0 .75rem">
+                <pre id="emailPreviewBody" style="white-space:pre-wrap;margin:0;font-family:inherit"></pre>
+              </div>
+            </div>
+          </article>
+        </div>
 
         <div class="admin-modal-shell" id="serviceModal" hidden aria-hidden="true">
           <div class="admin-modal-backdrop" aria-hidden="true"></div>
@@ -1621,7 +1656,7 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260529-hardened" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260530-features" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 

@@ -571,7 +571,18 @@ const nodes={
   reviewsTable:document.getElementById('reviewsTable'),
   reviewsFilterStatus:document.getElementById('reviewsFilterStatus'),
   reviewsFilterBrand:document.getElementById('reviewsFilterBrand'),
-  reviewsCopyLink:document.getElementById('reviewsCopyLink')
+  reviewsCopyLink:document.getElementById('reviewsCopyLink'),
+  bookingPreviewEmailButton:document.getElementById('adminBookingPreviewEmailButton'),
+  emailPreviewModal:document.getElementById('emailPreviewModal'),
+  emailPreviewClose:document.getElementById('emailPreviewClose'),
+  emailPreviewSubject:document.getElementById('emailPreviewSubject'),
+  emailPreviewBody:document.getElementById('emailPreviewBody'),
+  emailPreviewTemplate:document.getElementById('emailPreviewTemplate'),
+  sessionTimeoutBanner:document.getElementById('sessionTimeoutBanner'),
+  sessionTimeoutMessage:document.getElementById('sessionTimeoutMessage'),
+  sessionTimeoutRenew:document.getElementById('sessionTimeoutRenew'),
+  sessionTimeoutDismiss:document.getElementById('sessionTimeoutDismiss'),
+  dashboardArrivalsTable:document.getElementById('adminDashboardArrivalsTable')
 }
 
 const SIDEBAR_COLLAPSED_KEY='skybook-admin-sidebar-collapsed-v1'
@@ -2871,9 +2882,11 @@ const renderDashboard=()=>{
       <td>${bookingAdminShared.escapeHtml(brandMap.get(booking.brand_code)||booking.brand_code||'')}</td>
       <td>${bookingAdminShared.escapeHtml(booking.service_name)}</td>
       <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td>
+      <td>${bookingAdminShared.escapeHtml(booking.guide_name||booking.metadata?.guide_name||'—')}</td>
+      <td>${bookingAdminShared.escapeHtml(booking.metadata?.pickup_time||booking.metadata?.departure_label||'—')}</td>
       <td>${renderStatusBadge(booking.status)}</td>
     </tr>
-  `).join('') : renderEmptyRow(5,'No arrivals are scheduled for today.')
+  `).join('') : renderEmptyRow(7,'No arrivals are scheduled for today.')
   nodes.dashboardTomorrowPrepTable.innerHTML=tomorrowPrep.length ? tomorrowPrep.slice(0,8).map(booking=>{
     const allocations=getBookingAllocations(booking.id)
     return `
@@ -6752,10 +6765,10 @@ const openTrashWorkflowModal=({recordType,reasonPlaceholder,successMessage,nextT
       }
     ],
     onSubmit:async values=>{
-      if(!state.selectedBookingId)return
+      if(!state.selectedBookingId)throw new Error('No reservation selected — refresh the page and try again.')
       const reason=normalizeText(values.reason)
       if(!reason)throw new Error('A deletion reason is required.')
-      if(values.confirm_delete!==true)throw new Error('Confirm deletion before continuing.')
+      if(values.confirm_delete!==true)throw new Error('Check the confirmation box before deleting.')
       await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/trash`,{
         method:'POST',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
@@ -7140,8 +7153,18 @@ const syncBookingQuantityMode=()=>{
 
 const validateBookingForm=()=>{
   const errors=[]
+  if(!nodes.bookingBrand?.value)
+    errors.push({label:'Brand',message:'Select a brand (True Travel or Iventure) before saving.',fieldId:'adminBookingBrand'})
   if(!nodes.bookingService?.value)
     errors.push({label:'Tour / Service',message:'Please select a tour before saving.',fieldId:'adminBookingService'})
+  if(!nodes.bookingDate?.value)
+    errors.push({label:'Preferred Date',message:'A booking date is required.',fieldId:'adminBookingDate'})
+  const useAdultChild=!nodes.bookingAdultWrap?.hidden
+  const total=useAdultChild
+    ? Number(nodes.bookingAdultQuantity?.value||0)+Number(nodes.bookingChildQuantity?.value||0)
+    : Number(nodes.bookingQuantity?.value||0)
+  if(total<1)
+    errors.push({label:'Number of Guests',message:'At least 1 guest is required.',fieldId:useAdultChild?'adminBookingAdultQuantity':'adminBookingQuantity'})
   if(!nodes.bookingCustomerName?.value.trim())
     errors.push({label:'Customer Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
   const email=nodes.bookingCustomerEmail?.value.trim()||''
@@ -7154,14 +7177,8 @@ const validateBookingForm=()=>{
     errors.push({label:'Customer Phone',message:'Phone or WhatsApp number is required.',fieldId:'adminBookingCustomerPhone'})
   else if(phone.replace(/[^\d+]/g,'').length<7)
     errors.push({label:'Customer Phone',message:'Enter a valid phone or WhatsApp number.',fieldId:'adminBookingCustomerPhone'})
-  const useAdultChild=!nodes.bookingAdultWrap?.hidden
-  const total=useAdultChild
-    ? Number(nodes.bookingAdultQuantity?.value||0)+Number(nodes.bookingChildQuantity?.value||0)
-    : Number(nodes.bookingQuantity?.value||0)
-  if(total<1)
-    errors.push({label:'Number of Guests',message:'At least 1 guest is required.',fieldId:useAdultChild?'adminBookingAdultQuantity':'adminBookingQuantity'})
-  if(!nodes.bookingDate?.value)
-    errors.push({label:'Preferred Date',message:'A booking date is required.',fieldId:'adminBookingDate'})
+  if(!nodes.bookingGuideName?.value.trim())
+    errors.push({label:'Assigned Guide',message:'Assign a guide before saving the booking.',fieldId:'adminBookingGuideName'})
   return errors
 }
 
@@ -7174,6 +7191,21 @@ const handleBookingSave=async event=>{
   }
   const returnToReservationManagement=state.activeTab==='reservation-management'
   const wasEditing=Boolean(state.selectedBookingId)
+  if(!wasEditing){
+    const dupEmail=(nodes.bookingCustomerEmail?.value.trim()||'').toLowerCase()
+    const dupService=nodes.bookingService?.value||''
+    const dupDate=nodes.bookingDate?.value||''
+    const duplicate=dupEmail&&dupService&&dupDate&&state.bookings.find(b=>
+      (b.customer_email||'').toLowerCase()===dupEmail&&
+      (b.service_slug||b.service?.slug||'')===dupService&&
+      (b.preferred_date||'').slice(0,10)===dupDate&&
+      b.status!=='cancelled'
+    )
+    if(duplicate){
+      const confirmed=window.confirm(`A booking already exists for ${dupEmail} on ${dupDate} for this tour (Ref: ${duplicate.reference||duplicate.id}). Save anyway?`)
+      if(!confirmed)return
+    }
+  }
   const previousSelectedId=state.selectedBookingId
   const existingBooking=state.bookings.find(item=>item.id===previousSelectedId)||null
   const requestedStatus=nodes.bookingStatus.value
@@ -7295,9 +7327,14 @@ const syncServiceToToursData=async payload=>{
     const current=readToursData()||{tours:[]}
     const tours=[...(current.tours||[])]
     const idx=tours.findIndex(t=>t.id===slug)
+    const newPrice=Number(payload.base_price||0)
+    const catSlug=String(payload.category_slug||'').toLowerCase()
+    const isCombo=catSlug.includes('combo')||slug.includes('combo')||(payload.name||'').toLowerCase().includes('combo')||(payload.name||'').includes('+')
     const incoming={
       name:payload.name||'',
+      tourType:isCombo?'combo':'tour',
       summary:payload.short_description||'',
+      full_description:payload.full_description||payload.long_description||'',
       durationLabel:payload.duration_label||'',
       imageUrl:imageUrl||(idx>=0?(tours[idx].imageUrl||''):''),
       featuredOnIndex:Boolean(payload.is_active!==false)
@@ -7306,15 +7343,21 @@ const syncServiceToToursData=async payload=>{
       tours.push(normalizeTour({
         ...incoming,
         id:slug,
-        seasons:[{label:'Standard',startDate:'',endDate:'',adultPrice:Number(payload.base_price||0),childPrice:''}]
+        seasons:[{label:'Standard',startDate:'',endDate:'',adultPrice:newPrice,childPrice:''}]
       }))
     }else{
-      tours[idx]=normalizeTour({...tours[idx],...incoming})
+      const existingSeasons=Array.isArray(tours[idx].seasons)&&tours[idx].seasons.length
+        ? tours[idx].seasons.map(s=>({...s,adultPrice:newPrice>0?newPrice:s.adultPrice}))
+        : [{label:'Standard',startDate:'',endDate:'',adultPrice:newPrice,childPrice:''}]
+      tours[idx]=normalizeTour({...tours[idx],...incoming,seasons:existingSeasons})
     }
     const nextData={tours}
     writeToursData(nextData)
     if(persistRemoteToursData&&readSupabaseConfig){
-      await persistRemoteToursData(readSupabaseConfig(),nextData)
+      const baseConfig=readSupabaseConfig()
+      // Write to all brand buckets so every site (True Travel + iVenture) gets fresh data
+      const buckets=['True Travel','Demo Bucket']
+      await Promise.allSettled(buckets.map(bucket=>persistRemoteToursData({...baseConfig,bucket},nextData)))
     }
   }catch(err){
     console.warn('[SkyBook] tours-data sync failed:',err)
@@ -8024,7 +8067,11 @@ nodes.workflowModalForm?.addEventListener('submit',event=>{
   setActionButtonLoading(nodes.workflowModalSubmitButton,true,'Working')
   Promise.resolve(onSubmit(values,event.target))
     .then(()=>closeWorkflowModal())
-    .catch(error=>setAdminStatus(error.message||'Workflow action failed.',true))
+    .catch(error=>{
+      const msg=error.message||'Workflow action failed.'
+      setAdminStatus(msg,true)
+      showToast(msg,'error')
+    })
     .finally(()=>{
       setActionButtonLoading(nodes.workflowModalSubmitButton,false)
     })
@@ -8535,9 +8582,104 @@ document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)void syncAdminInBackground()
 })
 
+// ── Email preview ──────────────────────────────────────────────────────────
+const buildEmailPreviewVars=booking=>{
+  const brandCode=booking?.brand_code||'true-travel'
+  const currency=booking?.currency||state.settings.currency||'NAD'
+  return {
+    booking_reference:booking?.reference||'',
+    customer_name:booking?.customer_name||'',
+    service_name:booking?.service_name||'',
+    booking_date:booking?.preferred_date||'',
+    total_amount:booking ? bookingAdminShared.formatMoney(booking.total_amount||0,currency) : '',
+    payment_status:booking?.payment_status||'',
+    brand_name:getBrandName(brandCode),
+    brand_support_email:getBrandSupportEmailSetting(brandCode,state.settings.supportEmail||'bookings@truetravelnam.net'),
+    brand_support_phone:state.settings.supportPhone||''
+  }
+}
+const renderEmailPreview=()=>{
+  if(!nodes.emailPreviewTemplate||!nodes.emailPreviewSubject||!nodes.emailPreviewBody)return
+  const templateKey=nodes.emailPreviewTemplate.value||'booking_received'
+  const mergedTemplates={...bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),...(state.emailTemplates||{})}
+  const template=mergedTemplates[templateKey]||{subject:'',body:''}
+  const booking=state.bookings.find(b=>b.id===state.selectedBookingId)||null
+  const vars=buildEmailPreviewVars(booking)
+  nodes.emailPreviewSubject.textContent=bookingAdminShared.renderTemplate(template.subject,vars)
+  nodes.emailPreviewBody.textContent=bookingAdminShared.renderTemplate(template.body,vars)
+}
+nodes.bookingPreviewEmailButton?.addEventListener('click',()=>{
+  if(!nodes.emailPreviewModal)return
+  nodes.emailPreviewModal.hidden=false
+  nodes.emailPreviewModal.setAttribute('aria-hidden','false')
+  renderEmailPreview()
+})
+nodes.emailPreviewClose?.addEventListener('click',()=>{
+  if(!nodes.emailPreviewModal)return
+  nodes.emailPreviewModal.hidden=true
+  nodes.emailPreviewModal.setAttribute('aria-hidden','true')
+})
+nodes.emailPreviewTemplate?.addEventListener('change',renderEmailPreview)
+
+// ── Session timeout warning ─────────────────────────────────────────────────
+let sessionTimeoutCheckTimer=null
+const updateSessionTimeoutBanner=()=>{
+  if(!nodes.sessionTimeoutBanner)return
+  const expiresAt=state.session?.expires_at
+  if(!expiresAt){nodes.sessionTimeoutBanner.hidden=true;return}
+  const secsRemaining=Math.floor(expiresAt-Date.now()/1000)
+  if(secsRemaining<300){
+    const mins=Math.max(0,Math.floor(secsRemaining/60))
+    nodes.sessionTimeoutBanner.hidden=false
+    if(nodes.sessionTimeoutMessage)
+      nodes.sessionTimeoutMessage.textContent=secsRemaining<=0
+        ? 'Your session has expired — please sign in again.'
+        : `Your session expires in ${mins} minute${mins===1?'':'s'}. Renew now to stay logged in.`
+  }else{
+    nodes.sessionTimeoutBanner.hidden=true
+  }
+}
+const startSessionTimeoutCheck=()=>{
+  if(sessionTimeoutCheckTimer)return
+  sessionTimeoutCheckTimer=window.setInterval(updateSessionTimeoutBanner,30000)
+}
+nodes.sessionTimeoutRenew?.addEventListener('click',async()=>{
+  try{
+    const client=await requireClient()
+    await client.auth.refreshSession()
+    updateSessionTimeoutBanner()
+    showToast('Session renewed.','success')
+  }catch(error){
+    showToast(error.message||'Could not renew session.','error')
+  }
+})
+nodes.sessionTimeoutDismiss?.addEventListener('click',()=>{
+  if(nodes.sessionTimeoutBanner)nodes.sessionTimeoutBanner.hidden=true
+})
+
+// ── Autofill from customer history ─────────────────────────────────────────
+nodes.bookingCustomerEmail?.addEventListener('blur',()=>{
+  if(state.selectedBookingId)return
+  const email=(nodes.bookingCustomerEmail.value||'').trim().toLowerCase()
+  if(!email)return
+  const match=state.customers.find(c=>(c.email||'').toLowerCase()===email)
+  if(!match)return
+  const filled=[]
+  if(nodes.bookingCustomerName&&!nodes.bookingCustomerName.value.trim()&&match.full_name){
+    nodes.bookingCustomerName.value=match.full_name
+    filled.push('name')
+  }
+  if(nodes.bookingCustomerPhone&&!nodes.bookingCustomerPhone.value.trim()&&match.phone){
+    nodes.bookingCustomerPhone.value=match.phone
+    filled.push('phone')
+  }
+  if(filled.length)showToast(`Pre-filled ${filled.join(' and ')} from customer history.`,'info')
+})
+
 setBookingFiltersCollapsed(true)
 syncResourceCapacityState()
 syncDesktopSidebarCollapse()
+startSessionTimeoutCheck()
 
 ;(async()=>{
   try{
