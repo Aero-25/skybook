@@ -173,12 +173,6 @@ loginNodes.resetButton?.addEventListener('click',()=>{void clearSkybookCache()})
   renderEnvironmentMeta()
   try{
     const client=await requireClient()
-    const { data:{ session } }=await client.auth.getSession()
-    if(session?.access_token){
-      setLoginStatus('You are already signed in. Opening the console...')
-      redirectToConsole()
-    }
-  }catch(error){
-    setLoginStatus(error instanceof Error ? error.message : 'Admin authentication is not configured.',true)
-  }
+    await client.auth.signOut()
+  }catch{}
 })()

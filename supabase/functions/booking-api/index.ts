@@ -115,18 +115,19 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 }
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
-  draft:['pending','provisional','payment_request_sent','awaiting_payment','cancelled','failed'],
-  pending:['provisional','payment_request_sent','awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
-  provisional:['pending','payment_request_sent','awaiting_payment','confirmed','cancelled'],
-  payment_request_sent:['awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
-  awaiting_payment:['payment_request_sent','confirmed','rescheduled','cancelled','failed','no_show'],
-  rescheduled:['payment_request_sent','awaiting_payment','confirmed','cancelled','failed','no_show','completed'],
-  confirmed:['rescheduled','completed','cancelled','refunded','no_show'],
-  no_show:['confirmed','cancelled','refunded'],
-  completed:['refunded'],
-  cancelled:['pending','provisional','awaiting_payment'],
-  refunded:[],
-  failed:['pending','provisional','cancelled']
+  provisional:['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  invoice:['invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  invoiced:['partially_paid','fully_paid','finalised','cancelled'],
+  partially_paid:['fully_paid','finalised','cancelled'],
+  fully_paid:['finalised','cancelled'],
+  finalised:['cancelled'],
+  cancelled:['provisional','payment_pending'],
+  draft:['provisional','payment_pending','cancelled'],
+  pending:['provisional','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  confirmed:['fully_paid','finalised','cancelled'],
+  awaiting_payment:['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  completed:['finalised','cancelled']
 }
 
 const DEFAULT_OPS_TEMPLATES={
@@ -2061,23 +2062,23 @@ const runStatusAutomations=async(job:Json)=>{
   if(bookingId){
     const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
     if(!booking)return
-    if(Boolean((automationRules as Json).autoConfirmPaidBookings) && normalizeText(booking.payment_status)==='paid' && ['pending','awaiting_payment'].includes(normalizeText(booking.status))){
-      await updateBooking(bookingId,{ status:'confirmed', payment_status:'paid', reason:'Auto-confirmed by SkyBook automation' },'')
+    if(Boolean((automationRules as Json).autoConfirmPaidBookings) && normalizeText(booking.payment_status)==='paid' && ['provisional','payment_pending','invoice','invoiced'].includes(normalizeText(booking.status))){
+      await updateBooking(bookingId,{ status:'fully_paid', payment_status:'paid', reason:'Auto-updated to Fully Paid by SkyBook automation' },'')
     }
-    if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings) && normalizeText(booking.status)==='confirmed'){
+    if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings) && normalizeText(booking.status)==='fully_paid'){
       const preferredDate=parseDateValue(String(booking.preferred_date || ''))
       if(preferredDate && preferredDate < new Date()){
-        await updateBooking(bookingId,{ status:'completed', reason:'Auto-completed by SkyBook automation' },'')
+        await updateBooking(bookingId,{ status:'finalised', reason:'Auto-finalised by SkyBook automation' },'')
       }
     }
     return
   }
   if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings)){
-    const confirmedBookings=await safeTableSelect<Json>(adminClient.from('bookings').select('*').eq('status','confirmed'),[])
+    const confirmedBookings=await safeTableSelect<Json>(adminClient.from('bookings').select('*').eq('status','fully_paid'),[])
     for(const booking of confirmedBookings){
       const preferredDate=parseDateValue(String(booking.preferred_date || ''))
       if(preferredDate && preferredDate < new Date()){
-        await updateBooking(String(booking.id || ''),{ status:'completed', reason:'Auto-completed by SkyBook automation' },'')
+        await updateBooking(String(booking.id || ''),{ status:'finalised', reason:'Auto-finalised by SkyBook automation' },'')
       }
     }
   }
@@ -2275,9 +2276,9 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
       .single()
   )
   const currentStatus=normalizeText(booking.status)
-  const nextBookingStatus=nextPaymentStatus==='paid' && ['draft','pending','awaiting_payment','payment_request_sent','rescheduled'].includes(currentStatus)
-    ? 'confirmed'
-    : currentStatus
+  const nextBookingStatus=nextPaymentStatus==='paid' && ['draft','pending','provisional','payment_pending','invoice','invoiced','awaiting_payment','payment_request_sent'].includes(currentStatus)
+    ? 'fully_paid'
+    : (nextPaymentStatus==='partially_paid' && ['provisional','payment_pending','invoice','invoiced','draft','pending','awaiting_payment'].includes(currentStatus) ? 'partially_paid' : currentStatus)
   const existingMetadata=normalizeJsonRecord(booking.metadata)
   const { error:bookingUpdateError }=await adminClient.from('bookings').update({
     status:nextBookingStatus,
@@ -3268,7 +3269,7 @@ const buildReports=({
   const officePayables=officeInvoices
     .filter(invoice=>!['paid','cancelled'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.total_amount || 0),0)
-  const statusBreakdown=['pending','provisional','payment_request_sent','awaiting_payment','confirmed','completed','cancelled','refunded','failed'].map(status=>({
+  const statusBreakdown=['provisional','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'].map(status=>({
     status,
     count:bookings.filter(booking=>String(booking.status || '')===status).length
   }))
@@ -3322,11 +3323,15 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
+  const priceOverrideCreate=Number(payload.price_override||requestMetadata.price_override||0)
+  const finalPricingCreate=priceOverrideCreate>0
+    ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
+    : pricing
   const bookingStatus=isAdmin
-    ? (desiredStatus || (pricing.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
+    ? (desiredStatus || (finalPricingCreate.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
     : 'pending'
-  const paymentStatus=desiredPaymentStatus || (pricing.amountDueNow>0 ? 'pending' : 'unpaid')
-  const outstandingAmounts=resolveOutstandingAmounts(pricing,paymentStatus)
+  const paymentStatus=desiredPaymentStatus || (finalPricingCreate.amountDueNow>0 ? 'pending' : 'unpaid')
+  const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
     brand_code:String(brand.code || brandCode),
@@ -3337,13 +3342,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     source:bookingSource,
     preferred_date:normalizeText(payload.preferred_date) || null,
     confirmed_date:bookingStatus==='confirmed' ? (normalizeText(payload.preferred_date)||null) : null,
-    quantity:pricing.quantity,
+    quantity:finalPricingCreate.quantity,
     currency_code:service.currency,
-    subtotal_amount:pricing.subtotalAmount,
-    addons_amount:0-pricing.discountAmount,
-    tax_amount:pricing.taxAmount,
-    service_fee_amount:pricing.serviceFeeAmount,
-    total_amount:pricing.totalAmount,
+    subtotal_amount:finalPricingCreate.subtotalAmount,
+    addons_amount:0-finalPricingCreate.discountAmount,
+    tax_amount:finalPricingCreate.taxAmount,
+    service_fee_amount:finalPricingCreate.serviceFeeAmount,
+    total_amount:finalPricingCreate.totalAmount,
     amount_due_now:outstandingAmounts.amountDueNow,
     amount_due_later:outstandingAmounts.amountDueLater,
     customer_notes:normalizeText(payload.notes),
@@ -3489,8 +3494,8 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const isNoShowWorkflow=workflowAction==='no_show'&&nextStatus==='no_show'&&Boolean(normalizeText(payload.reason))
   const isRescheduleWorkflow=workflowAction==='reschedule'&&nextStatus==='rescheduled'&&Boolean(normalizeText(payload.reason))
   const isReservationAcceptanceWorkflow=workflowAction==='accept_reservation'
-    && ['draft','pending'].includes(normalizeText(existing.status))
-    && ['awaiting_payment','payment_request_sent'].includes(nextStatus)
+    && ['draft','pending','provisional'].includes(normalizeText(existing.status))
+    && ['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','awaiting_payment','confirmed'].includes(nextStatus)
   const isReinstateWorkflow=workflowAction==='reinstate'
     && normalizeText(existing.status)==='cancelled'
     && ['pending','provisional','awaiting_payment'].includes(nextStatus)
@@ -3513,7 +3518,12 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const basePricing=calculatePricing(service,pricingPayload,settings as Json)
   const storedDiscountAmount=await syncStoredBookingDiscountAmounts(id,basePricing.totalAmount)
   const pricing=calculatePricing(service,pricingPayload,settings as Json,storedDiscountAmount)
-  const outstandingAmounts=resolveOutstandingAmounts(pricing,nextPaymentStatus)
+  const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
+  const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
+  const finalOutstandingAmounts=priceOverride>0
+    ? resolveOutstandingAmounts({...pricing,totalAmount:priceOverride,subtotalAmount:priceOverride,amountDueNow:priceOverride,amountDueLater:0},nextPaymentStatus)
+    : resolveOutstandingAmounts(pricing,nextPaymentStatus)
+  const outstandingAmounts=finalOutstandingAmounts
   const existingMetadata=normalizeJsonRecord(existing.metadata)
   const cancellationReason=normalizeText(payload.reason)
   const cancellationCategory=normalizeText(payload.cancellation_reason_type || payload.reason_type || requestMetadata.cancellation_reason_type)
@@ -3529,10 +3539,10 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     preferred_date:nextPreferredDate,
     confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
     quantity:nextQuantity,
-    subtotal_amount:pricing.subtotalAmount,
-    tax_amount:pricing.taxAmount,
-    service_fee_amount:pricing.serviceFeeAmount,
-    total_amount:pricing.totalAmount,
+    subtotal_amount:priceOverride>0 ? priceOverride : pricing.subtotalAmount,
+    tax_amount:priceOverride>0 ? 0 : pricing.taxAmount,
+    service_fee_amount:priceOverride>0 ? 0 : pricing.serviceFeeAmount,
+    total_amount:finalTotalAmount,
     amount_due_now:outstandingAmounts.amountDueNow,
     amount_due_later:outstandingAmounts.amountDueLater,
     currency_code:String(service.currency || existing.currency_code || 'NAD'),

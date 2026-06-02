@@ -293,17 +293,34 @@
               <h3>Operations calendar</h3>
             </div>
             <div class="toolbar-actions admin-calendar-actions">
-              <button type="button" class="calendar-view-button is-active" data-calendar-view="day">Day</button>
+              <button type="button" class="calendar-view-button" data-calendar-view="day">Day</button>
               <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
-              <button type="button" class="calendar-view-button" data-calendar-view="month">Month</button>
+              <button type="button" class="calendar-view-button is-active" data-calendar-view="month">Month</button>
               <button type="button" class="calendar-view-button" id="printArrivalsList">Print Arrivals</button>
               <input id="calendarFocusDate" type="date">
             </div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="calendarSummaryCards"></div>
+          <div id="calendarSummaryCards" hidden></div>
           <div id="calendarCanvas" class="calendar-canvas"></div>
         </article>
       </section>
+
+      <!-- Calendar Day Panel -->
+      <div id="calendarDayPanel" class="calendar-day-panel" hidden>
+        <div class="calendar-day-panel-backdrop" id="calendarDayPanelBackdrop"></div>
+        <div class="calendar-day-panel-content">
+          <div class="calendar-day-panel-header">
+            <h3 id="calendarDayPanelTitle">Monday 1 January</h3>
+            <button type="button" class="calendar-day-panel-close" id="calendarDayPanelClose">&times;</button>
+          </div>
+          <div class="calendar-day-panel-actions">
+            <button type="button" class="booking-button" id="calDayCreateBooking">Create Booking</button>
+            <button type="button" class="booking-button ghost" id="calDayCreateCruise">Create Cruise Liner</button>
+            <button type="button" class="booking-button ghost" id="calDayViewBookings">View Bookings</button>
+          </div>
+          <div id="calendarDayBookings" class="calendar-day-bookings" hidden></div>
+        </div>
+      </div>
 
       <section class="admin-view" data-admin-view="reports">
         <div class="admin-panel-grid">
@@ -609,13 +626,13 @@
                     <label for="bookingFilterStatus">Booking Status</label>
                     <select id="bookingFilterStatus">
                       <option value="">All statuses</option>
-                      <option value="pending">Pending</option>
-                      <option value="payment_request_sent">Payment link generated</option>
-                      <option value="awaiting_payment">Awaiting payment</option>
-                      <option value="rescheduled">Rescheduled</option>
-                      <option value="confirmed">Confirmed</option>
-                      <option value="no_show">No show</option>
-                      <option value="completed">Finalised</option>
+                      <option value="provisional">Provisional</option>
+                      <option value="payment_pending">Payment Pending</option>
+                      <option value="invoice">Invoice</option>
+                      <option value="invoiced">Invoiced</option>
+                      <option value="partially_paid">Partially Paid</option>
+                      <option value="fully_paid">Fully Paid</option>
+                      <option value="finalised">Finalised &amp; Departed</option>
                       <option value="cancelled">Cancelled</option>
                     </select>
                   </div>
@@ -1411,13 +1428,12 @@
               <span>Status</span>
               <select id="adminBookingStatusField">
                 <option value="provisional">Provisional</option>
-                <option value="pending">Pending</option>
-                <option value="payment_request_sent">Payment Link Generated</option>
-                <option value="awaiting_payment">Awaiting Payment</option>
-                <option value="rescheduled">Rescheduled</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="no_show">No Show</option>
-                <option value="completed">Finalised</option>
+                <option value="payment_pending">Payment Pending</option>
+                <option value="invoice">Invoice</option>
+                <option value="invoiced">Invoiced</option>
+                <option value="partially_paid">Partially Paid</option>
+                <option value="fully_paid">Fully Paid</option>
+                <option value="finalised">Finalised &amp; Departed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </label>
@@ -1454,8 +1470,12 @@
               <input id="adminBookingAdultQuantity" type="number" min="0" value="1">
             </label>
             <label class="booking-field" id="adminBookingChildWrap" hidden>
-              <span>Children (ages 4+)</span>
+              <span>Children (4–12 yrs)</span>
               <input id="adminBookingChildQuantity" type="number" min="0" value="0">
+            </label>
+            <label class="booking-field" id="adminBookingInfantWrap" hidden>
+              <span>Children (under 4 yrs)</span>
+              <input id="adminBookingInfantQuantity" type="number" min="0" value="0">
             </label>
             <label class="booking-field-full">
               <span>Customer Name</span>
@@ -1463,11 +1483,11 @@
             </label>
             <label class="booking-field">
               <span>Customer Email</span>
-              <input id="adminBookingCustomerEmail" type="email" required>
+              <input id="adminBookingCustomerEmail" type="email">
             </label>
             <label class="booking-field">
               <span>Customer Phone</span>
-              <input id="adminBookingCustomerPhone" type="tel" required>
+              <input id="adminBookingCustomerPhone" type="tel">
             </label>
             <label class="booking-field-full">
               <span>Assigned guide</span>
@@ -1479,24 +1499,38 @@
             </label>
             <label class="booking-field">
               <span>Booked By</span>
-              <input id="adminBookingBookedBy" type="text" placeholder="Guest, agent, hotel, or staff">
+              <input id="adminBookingBookedBy" type="text" placeholder="Hotel, agent, or guest name" list="bookedByDatalist" autocomplete="off">
             </label>
+            <label class="booking-field">
+              <span>Agent / Reseller</span>
+              <input id="adminBookingAgent" type="text" placeholder="Agent or reseller name" list="agentDatalist" autocomplete="off">
+            </label>
+            <datalist id="bookedByDatalist"></datalist>
+            <datalist id="agentDatalist"></datalist>
             <label class="booking-field-full">
               <span>Dietary Requirements</span>
               <input id="adminBookingDietary" type="text" placeholder="Allergies, vegetarian/vegan, or None">
             </label>
             <label class="booking-field">
-              <span>Pickup Location</span>
-              <input id="adminBookingPickupLocation" type="text" placeholder="Hotel name or meeting point">
+              <span>Accommodation</span>
+              <input id="adminBookingPickupLocation" type="text" placeholder="Hotel or lodge name">
             </label>
             <label class="booking-field">
-              <span>Drop-off Location</span>
-              <input id="adminBookingDropoffLocation" type="text" placeholder="Hotel or destination (if different)">
+              <span>Pickup</span>
+              <input id="adminBookingPickupPoint" type="text" placeholder="Specific pickup point (if different from accommodation)">
+            </label>
+            <label class="booking-field">
+              <span>Drop Off</span>
+              <input id="adminBookingDropoffLocation" type="text" placeholder="Drop-off location">
             </label>
             <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
               <span>Notes</span>
               <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
+            </label>
+            <label class="booking-field">
+              <span>Total Price Override (NAD)</span>
+              <input id="adminBookingPriceOverride" type="number" min="0" step="0.01" placeholder="Leave blank to use calculated price">
             </label>
             <div class="booking-field-full booking-action-row">
               <button class="booking-button ghost" type="button" id="adminBookingPreviewEmailButton">Preview Email</button>
@@ -1671,6 +1705,91 @@
         </article>
       </div>
 
+      <!-- Cruise Liner Booking Modal -->
+      <div class="admin-modal-shell" id="cruiseLinerModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel" role="dialog" aria-modal="true" style="max-width:580px">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3>New Cruise Liner Booking</h3>
+              <p class="field-hint">For Akron or ATC cruise liner groups only.</p>
+            </div>
+            <button class="admin-modal-close" id="closeCruiseLinerModal" type="button" aria-label="Close">&times;</button>
+          </div>
+          <form id="cruiseLinerForm" style="padding:0 28px 28px">
+            <div class="booking-form-grid">
+              <label class="booking-field">
+                <span>Cruise Company</span>
+                <select id="cruiseCompany">
+                  <option value="">Select company</option>
+                  <option value="akron">Akron</option>
+                  <option value="atc">ATC</option>
+                </select>
+              </label>
+              <label class="booking-field">
+                <span>Date</span>
+                <input id="cruiseDate" type="date">
+              </label>
+              <label class="booking-field">
+                <span>Number of Buses</span>
+                <input id="cruiseBuses" type="number" min="0" value="0" placeholder="0">
+              </label>
+              <label class="booking-field">
+                <span>Number of Cars</span>
+                <input id="cruiseCars" type="number" min="0" value="0" placeholder="0">
+              </label>
+              <label class="booking-field">
+                <span>Total Pax</span>
+                <input id="cruisePax" type="number" min="1" value="1" placeholder="Total guest count">
+              </label>
+              <label class="booking-field">
+                <span>Activity (optional)</span>
+                <select id="cruiseActivity">
+                  <option value="">No activity — transport only</option>
+                </select>
+              </label>
+              <label class="booking-field-full">
+                <span>Notes</span>
+                <textarea id="cruiseNotes" rows="3" placeholder="Special instructions, meeting point, or group details"></textarea>
+              </label>
+            </div>
+            <div style="margin-top:20px;display:flex;gap:12px;justify-content:flex-end">
+              <button type="button" class="booking-button ghost" id="closeCruiseLinerModal2">Cancel</button>
+              <button type="submit" class="booking-button">Create Cruise Liner Booking</button>
+            </div>
+          </form>
+        </article>
+      </div>
+
+      <!-- Manual Invoice Modal -->
+      <div class="admin-modal-shell" id="manualInvoiceModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel" role="dialog" aria-modal="true" style="max-width:640px">
+          <div class="panel-header-inline admin-modal-header">
+            <h3>Create Invoice</h3>
+            <button class="admin-modal-close" id="closeManualInvoiceModal" type="button" aria-label="Close">&times;</button>
+          </div>
+          <div style="padding:0 28px 28px">
+            <p class="field-hint">Invoice goes to the <strong>Booked By</strong> entity. Company details are saved automatically for next time.</p>
+            <div id="invBookedByBadge" style="margin-bottom:14px;padding:10px 14px;border-radius:10px;background:#f0f9ff;border:1px solid #bae0fd;font-size:13px;color:#0369a1;display:none"></div>
+            <div class="booking-form-grid">
+              <label class="booking-field"><span>Billing Name / Company</span><input id="invBillingName" type="text" placeholder="Company or hotel name" list="bookedByDatalist" autocomplete="off"></label>
+              <label class="booking-field"><span>Contact Person</span><input id="invContactPerson" type="text" placeholder="Name of contact at the company"></label>
+              <label class="booking-field"><span>PO Box</span><input id="invPoBox" type="text" placeholder="PO Box number"></label>
+              <label class="booking-field"><span>Tax / VAT Number</span><input id="invTaxNumber" type="text" placeholder="VAT / Tax registration number"></label>
+              <label class="booking-field-full"><span>Address</span><textarea id="invAddress" rows="3" placeholder="Street address, city, country"></textarea></label>
+              <label class="booking-field"><span>Email (for invoice)</span><input id="invEmail" type="email" placeholder="Billing email address"></label>
+              <label class="booking-field"><span>Phone</span><input id="invPhone" type="tel" placeholder="Billing phone number"></label>
+              <label class="booking-field"><span>Invoice Number</span><input id="invNumber" type="text" placeholder="Auto-generated if blank"></label>
+            </div>
+            <div style="margin-top:20px;display:flex;gap:12px;justify-content:flex-end">
+              <button type="button" class="booking-button ghost" id="closeManualInvoiceModal2">Cancel</button>
+              <button type="button" class="booking-button" id="printManualInvoiceButton">Print / Save as PDF</button>
+            </div>
+          </div>
+        </article>
+      </div>
+
       <div class="admin-modal-shell" id="workflowModal" hidden aria-hidden="true">
         <div class="admin-modal-backdrop" aria-hidden="true"></div>
         <article class="booking-panel admin-modal-panel admin-workflow-modal" role="dialog" aria-modal="true" aria-labelledby="workflowModalTitle">
@@ -1703,7 +1822,7 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/booking-admin.js?v=20260530-features" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260602-updates" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 

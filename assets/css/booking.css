@@ -957,29 +957,46 @@ tbody tr:hover td{background:#f8fbfe}
 .status-badge.is-warn{background:#fff4df;color:#9b6b08;border-color:#f4dfb4}
 .status-badge.is-bad{background:#fee9e9;color:#a33a3a;border-color:#f5caca}
 .status-badge.is-neutral{background:#edf2f7;color:#5f6f80;border-color:#dde7f1}
-.status-badge.is-reservation{background:#e8f7ee;color:#1a6640;border-color:#a8dfc0}
+.status-badge.is-info{background:#e0f0ff;color:#1a4fa0;border-color:#a0c0f0}
+.status-badge.is-reservation{background:#e0f0ff;color:#1a4fa0;border-color:#a0c0f0}
 .status-badge.is-booking{background:#f0eaff;color:#5b3fa0;border-color:#c9b5f5}
-.status-badge.is-paid{background:#e5f0ff;color:#1a4fa0;border-color:#a0c0f0}
-.status-badge.is-finalised{background:#0e3a52;color:#ffffff;border-color:#0a2b3d}
-.status-badge.is-provisional{background:#fff000;color:#5a4200;border-color:#e6c800}
+.status-badge.is-paid{background:#bbf7d0;color:#065f46;border-color:#4ade80}
+.status-badge.is-provisional{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.status-badge.is-payment-pending{background:#ffedd5;color:#9a3412;border-color:#fdba74}
+.status-badge.is-invoice{background:#fef08a;color:#713f12;border-color:#fde047}
+.status-badge.is-invoiced{background:#fef3c7;color:#78350f;border-color:#fcd34d}
+.status-badge.is-partially-paid{background:#dcfce7;color:#14532d;border-color:#86efac}
+.status-badge.is-fully-paid{background:#bbf7d0;color:#065f46;border-color:#4ade80}
+.status-badge.is-finalised-status{background:#dbeafe;color:#1e3a8a;border-color:#93c5fd}
+.status-badge.is-finalised{background:#dbeafe;color:#1e3a8a;border-color:#93c5fd}
 .booking-row{cursor:pointer}
 .booking-row:hover{background:#f6fbff}
-.booking-row.status-reservation{border-left:3px solid #45a56f}
-.booking-row.status-booking{border-left:3px solid #8b5cf6}
-.booking-row.status-paid{border-left:3px solid #3b82f6}
-.booking-row.status-finalised{border-left:3px solid #1e40af}
-.booking-row.status-provisional{border-left:3px solid #facc15}
-.booking-row.status-cancelled{border-left:3px solid #ef4444}
-.calendar-mini-card.status-reservation{border-left:3px solid #45a56f}
-.calendar-mini-card.status-booking{border-left:3px solid #8b5cf6}
-.calendar-mini-card.status-paid{border-left:3px solid #3b82f6}
-.calendar-mini-card.status-finalised{border-left:3px solid #1e40af}
-.calendar-mini-card.status-provisional{border-left:3px solid #facc15}
-.calendar-entry-card.status-reservation{border-left:3px solid #45a56f}
-.calendar-entry-card.status-booking{border-left:3px solid #8b5cf6}
-.calendar-entry-card.status-paid{border-left:3px solid #3b82f6}
-.calendar-entry-card.status-finalised{border-left:3px solid #1e40af}
-.calendar-entry-card.status-provisional{border-left:3px solid #facc15}
+.booking-row.status-provisional{border-left:3px solid #ef4444}
+.booking-row.status-payment-pending{border-left:3px solid #f97316}
+.booking-row.status-invoice{border-left:3px solid #facc15}
+.booking-row.status-invoiced{border-left:3px solid #eab308}
+.booking-row.status-partially-paid{border-left:3px solid #86efac}
+.booking-row.status-fully-paid{border-left:3px solid #22c55e}
+.booking-row.status-finalised{border-left:3px solid #3b82f6}
+.booking-row.status-cancelled{border-left:3px solid #9ca3af}
+.booking-row.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}
+.calendar-mini-card.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}
+.calendar-entry-card.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}
+.cal-day-block.is-cruise-liner{border-color:#7c3aed;background:#7c3aed18}
+.calendar-mini-card.status-provisional{border-left:3px solid #ef4444;background:#fff5f5}
+.calendar-mini-card.status-payment-pending{border-left:3px solid #f97316;background:#fff7f0}
+.calendar-mini-card.status-invoice{border-left:3px solid #facc15;background:#fefce8}
+.calendar-mini-card.status-invoiced{border-left:3px solid #eab308;background:#fefce8}
+.calendar-mini-card.status-partially-paid{border-left:3px solid #86efac;background:#f0fdf4}
+.calendar-mini-card.status-fully-paid{border-left:3px solid #22c55e;background:#f0fdf4}
+.calendar-mini-card.status-finalised{border-left:3px solid #3b82f6;background:#eff6ff}
+.calendar-entry-card.status-provisional{border-left:3px solid #ef4444;background:#fff5f5}
+.calendar-entry-card.status-payment-pending{border-left:3px solid #f97316;background:#fff7f0}
+.calendar-entry-card.status-invoice{border-left:3px solid #facc15;background:#fefce8}
+.calendar-entry-card.status-invoiced{border-left:3px solid #eab308;background:#fefce8}
+.calendar-entry-card.status-partially-paid{border-left:3px solid #86efac;background:#f0fdf4}
+.calendar-entry-card.status-fully-paid{border-left:3px solid #22c55e;background:#f0fdf4}
+.calendar-entry-card.status-finalised{border-left:3px solid #3b82f6;background:#eff6ff}
 .table-primary-link{
   color:inherit;
   text-decoration:none;
@@ -1420,6 +1437,29 @@ tbody tr:hover td{background:#f8fbfe}
   background:#fff;
 }
 .calendar-cell.is-muted{opacity:.55}
+.calendar-cell{cursor:pointer;transition:box-shadow .15s}
+.calendar-cell:hover{box-shadow:0 0 0 2px var(--booking-ocean,#1a7cb0)}
+.calendar-day-panel{position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-end;justify-content:center}
+.calendar-day-panel[hidden]{display:none}
+.calendar-day-panel-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}
+.calendar-day-panel-content{position:relative;z-index:1;width:100%;max-width:680px;max-height:85vh;overflow-y:auto;background:#fff;border-radius:20px 20px 0 0;padding:28px 28px 40px;box-shadow:0 -8px 40px rgba(0,0,0,.18)}
+.calendar-day-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.calendar-day-panel-header h3{font-size:18px;font-weight:700;margin:0}
+.calendar-day-panel-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--booking-muted);line-height:1;padding:4px 8px}
+.calendar-day-panel-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.calendar-day-bookings{margin-top:20px}
+.calendar-day-bookings-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:600px){.calendar-day-bookings-grid{grid-template-columns:1fr 1fr}}
+.cal-day-block{padding:14px;border-radius:12px;cursor:pointer;border:1.5px solid transparent;transition:transform .12s,box-shadow .12s}
+.cal-day-block:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.cal-day-block strong{display:block;font-size:13px;font-weight:700;margin-bottom:4px}
+.cal-day-block span{display:block;font-size:12px;color:rgba(0,0,0,.6);margin-bottom:2px}
+.cal-day-block .block-amount{font-size:13px;font-weight:600;margin-top:4px}
+.cal-day-block-detail{display:none;grid-column:1/-1;background:#f8fafc;border-radius:12px;padding:16px;border:1.5px solid #e2e8f0}
+.cal-day-block-detail.is-open{display:block}
+.cal-day-block-detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}
+.cal-day-block-detail dt{font-size:12px;color:var(--booking-muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.cal-day-block-detail dd{font-size:13px;font-weight:500;margin:0}
 .calendar-cell header{
   display:flex;
   justify-content:space-between;

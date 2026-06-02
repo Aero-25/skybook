@@ -125,7 +125,7 @@ const state={
     recent_office_invoices:[],
     recent_refunds:[]
   },
-  calendarView:'day',
+  calendarView:'month',
   calendarFocusDate:bookingAdminShared.currentDate(),
   bookingQuickFilter:'',
   selectedBookingId:'',
@@ -379,6 +379,8 @@ const nodes={
   bookingAdultWrap:document.getElementById('adminBookingAdultWrap'),
   bookingChildQuantity:document.getElementById('adminBookingChildQuantity'),
   bookingChildWrap:document.getElementById('adminBookingChildWrap'),
+  bookingInfantQuantity:document.getElementById('adminBookingInfantQuantity'),
+  bookingInfantWrap:document.getElementById('adminBookingInfantWrap'),
   bookingCustomerName:document.getElementById('adminBookingCustomerName'),
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
@@ -386,10 +388,13 @@ const nodes={
   bookingNationality:document.getElementById('adminBookingNationality'),
   bookingBookedBy:document.getElementById('adminBookingBookedBy'),
   bookingDietary:document.getElementById('adminBookingDietary'),
+  bookingAgent:document.getElementById('adminBookingAgent'),
   bookingPickupLocation:document.getElementById('adminBookingPickupLocation'),
+  bookingPickupPoint:document.getElementById('adminBookingPickupPoint'),
   bookingDropoffLocation:document.getElementById('adminBookingDropoffLocation'),
   bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
+  bookingPriceOverride:document.getElementById('adminBookingPriceOverride'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
   bookingSaveProvisionalButton:document.getElementById('adminBookingSaveProvisionalButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
@@ -1361,11 +1366,15 @@ const collectBookingFormValues=()=>({
   quantity:nodes.bookingQuantity?.value||'',
   adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
   child_quantity:Number(nodes.bookingChildQuantity?.value||0),
+  infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
+  price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
+  agent:nodes.bookingAgent?.value?.trim()||'',
   guide_name:nodes.bookingGuideName?.value||'',
   nationality:nodes.bookingNationality?.value?.trim()||'',
   booked_by:nodes.bookingBookedBy?.value?.trim()||'',
   dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
   pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
+  pickup_point:nodes.bookingPickupPoint?.value?.trim()||'',
   dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
   customer_name:nodes.bookingCustomerName?.value||'',
   customer_email:nodes.bookingCustomerEmail?.value||'',
@@ -1389,11 +1398,15 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
   if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(values.adult_quantity||0)
   if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(values.child_quantity||0)
+  if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(values.infant_quantity||values.metadata?.infant_quantity||0)
+  if(nodes.bookingPriceOverride)nodes.bookingPriceOverride.value=String(values.price_override||values.metadata?.price_override||'')
+  if(nodes.bookingAgent)nodes.bookingAgent.value=String(values.agent||values.metadata?.agent||'')
   if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||values.metadata?.guide_name||'')
   if(nodes.bookingNationality)nodes.bookingNationality.value=String(values.nationality||values.metadata?.nationality||'')
   if(nodes.bookingBookedBy)nodes.bookingBookedBy.value=String(values.booked_by||values.metadata?.booked_by||'')
   if(nodes.bookingDietary)nodes.bookingDietary.value=String(values.dietary_requirements||values.metadata?.dietary_requirements||values.metadata?.dietary||'')
   if(nodes.bookingPickupLocation)nodes.bookingPickupLocation.value=String(values.pickup_location||values.metadata?.pickup_location||values.metadata?.hotel||'')
+  if(nodes.bookingPickupPoint)nodes.bookingPickupPoint.value=String(values.pickup_point||values.metadata?.pickup_point||'')
   if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=String(values.dropoff_location||values.metadata?.dropoff_location||'')
   if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
   if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
@@ -1459,20 +1472,8 @@ const scheduleBookingEditorAutosave=()=>{
   state.bookingEditor.autosaveTimer=window.setTimeout(autosaveBookingEditorDraft,260)
 }
 const restoreBookingEditorDraftIfAvailable=()=>{
-  if(!state.bookingEditor.draftKey)return false
-  try{
-    const raw=localStorage.getItem(state.bookingEditor.draftKey)
-    if(!raw)return false
-    const draftRecord=JSON.parse(raw)
-    if(!draftRecord||typeof draftRecord!=='object'||!draftRecord.values)return false
-    applyBookingFormValues(draftRecord.values)
-    state.bookingEditor.restoredDraft=true
-    state.bookingEditor.lastAutosavedAt=String(draftRecord.savedAt||'')
-    return true
-  }catch{
-    localStorage.removeItem(state.bookingEditor.draftKey)
-    return false
-  }
+  if(state.bookingEditor.draftKey)localStorage.removeItem(state.bookingEditor.draftKey)
+  return false
 }
 const initialiseBookingEditorSession=()=>{
   state.bookingEditor.draftKey=getBookingEditorDraftKey()
@@ -1490,26 +1491,31 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
-  if(['draft','pending'].includes(normalized))return 'is-reservation'
-  if(['awaiting_payment','payment_request_sent','confirmed','rescheduled'].includes(normalized))return 'is-booking'
-  if(['paid','settled','successful'].includes(normalized))return 'is-paid'
-  if(normalized==='completed')return 'is-finalised'
   if(normalized==='provisional')return 'is-provisional'
+  if(normalized==='payment_pending')return 'is-payment-pending'
+  if(normalized==='invoice')return 'is-invoice'
+  if(normalized==='invoiced')return 'is-invoiced'
+  if(normalized==='partially_paid')return 'is-partially-paid'
+  if(normalized==='fully_paid')return 'is-fully-paid'
+  if(normalized==='finalised')return 'is-finalised-status'
   if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
-  if(['ready','approved','partially_paid','queued','under_review','needs_review'].includes(normalized))return 'is-warn'
+  if(['draft','pending','awaiting_payment','confirmed'].includes(normalized))return 'is-info'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
 }
 
+const isCruiseLinerBooking=booking=>Boolean(booking?.metadata?.cruise_liner)
 const getStatusRowClass=booking=>{
+  if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
-  const paymentStatus=normalizeText(booking?.payment_status||'')
   if(status==='cancelled')return 'status-cancelled'
-  if(status==='completed')return 'status-finalised'
   if(status==='provisional')return 'status-provisional'
-  if(paymentStatus==='paid'||paymentStatus==='settled')return 'status-paid'
-  if(['confirmed','awaiting_payment','payment_request_sent','rescheduled'].includes(status))return 'status-booking'
-  if(['pending','draft'].includes(status))return 'status-reservation'
+  if(status==='payment_pending')return 'status-payment-pending'
+  if(status==='invoice')return 'status-invoice'
+  if(status==='invoiced')return 'status-invoiced'
+  if(status==='partially_paid')return 'status-partially-paid'
+  if(status==='fully_paid')return 'status-fully-paid'
+  if(status==='finalised')return 'status-finalised'
   return ''
 }
 
@@ -1773,7 +1779,7 @@ const renderBrandPill=brandCode=>{
 }
 const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
-const isReviewReservation=booking=>['draft','pending','provisional'].includes(normalizeText(booking?.status))
+const isReviewReservation=booking=>['draft','pending','provisional'].includes(normalizeText(booking?.status||''))
 const getTrashHistoryEntry=bookingId=>sortByDateDesc(
   state.statusHistory.filter(item=>item.booking_id===bookingId && normalizeText(item.to_status)==='cancelled' && /trash/i.test(String(item.reason||''))),
   'created_at'
@@ -2497,9 +2503,13 @@ const createDateRange=(focusDate,span)=>{
   start.setHours(0,0,0,0)
   if(span==='week'){
     const day=start.getDay()
-    start.setDate(start.getDate()-day)
+    const mondayOffset=day===0 ? -6 : 1-day
+    start.setDate(start.getDate()+mondayOffset)
   }else if(span==='month'){
     start.setDate(1)
+    const day=start.getDay()
+    const mondayOffset=day===0 ? -6 : 1-day
+    start.setDate(start.getDate()+mondayOffset)
   }
   const dates=[]
   const total=span==='day' ? 1 : span==='week' ? 7 : 42
@@ -2718,6 +2728,7 @@ const switchTab=(tab,{scrollToFocus=true}={})=>{
     ? (nodes.tabs.find(node=>!node.hidden)?.dataset.adminTab||'dashboard')
     : tab
   if(nextTab!=='services'&&state.isServiceModalOpen)closeServiceModal()
+  if(nextTab==='calendar')state.calendarView='month'
   state.activeTab=nextTab
   const route=getTabRoute(nextTab)
   const isReservationManagement=nextTab==='reservation-management'
@@ -3088,12 +3099,7 @@ const renderCalendar=()=>{
     const isCancelled=normalizeText(booking.status)==='cancelled'
     return key && !isCancelled && dates.some(date=>normalizeDateKey(date)===key)
   })
-  const summaryCards=[
-    {label:'Active bookings',value:String(rangeBookings.length)},
-    {label:'Assigned resources',value:String(state.resourceAllocations.filter(row=>dates.some(date=>normalizeDateKey(date)===normalizeDateKey(row.allocation_date))).length)},
-    {label:'Operators in window',value:String(new Set(rangeBookings.map(getBookingOperatorName).filter(name=>name&&name!=='Unassigned')).size)},
-    {label:'Pending in window',value:String(rangeBookings.filter(item=>item.status==='pending').length)}
-  ]
+  const summaryCards=[]
   nodes.calendarSummaryCards.innerHTML=summaryCards.map(card=>`
     <article class="metric-card">
       <span>${bookingAdminShared.escapeHtml(card.label)}</span>
@@ -3165,32 +3171,118 @@ const renderCalendar=()=>{
     return
   }
 
+  const DAY_NAMES=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
   nodes.calendarCanvas.innerHTML=`
     <div class="calendar-month-grid">
+      ${DAY_NAMES.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--booking-muted);padding:6px 0">${d}</div>`).join('')}
       ${dates.map(date=>{
         const key=normalizeDateKey(date)
         const bookings=rangeBookings.filter(booking=>normalizeDateKey(booking.preferred_date)===key)
         const isCurrentMonth=parseDateValue(focusDate)?.getMonth()===date.getMonth()
         return `
-          <section class="calendar-cell ${isCurrentMonth ? '' : 'is-muted'}">
+          <section class="calendar-cell ${isCurrentMonth ? '' : 'is-muted'}" data-cal-day="${bookingAdminShared.escapeHtml(key)}">
             <header>
               <strong>${date.getDate()}</strong>
-              <span>${bookings.length} booking${bookings.length===1 ? '' : 's'}</span>
+              <span>${bookings.length||''}</span>
             </header>
             <div class="calendar-cell-body">
-              ${bookings.slice(0,4).map(booking=>{
-                return `
-                <article class="calendar-mini-card is-clickable ${getStatusRowClass(booking)}" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} — ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')} (${bookingAdminShared.escapeHtml(booking.reference)})">
+              ${bookings.slice(0,3).map(booking=>`
+                <article class="calendar-mini-card ${getStatusRowClass(booking)}">
                   <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
                   <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                 </article>
-              `}).join('') || '<p class="muted-copy">No activity</p>'}
+              `).join('')}
+              ${bookings.length>3 ? `<span class="muted-copy" style="font-size:11px">+${bookings.length-3} more</span>` : ''}
             </div>
           </section>
         `
       }).join('')}
     </div>
   `
+}
+
+const syncAutocompleteDatalist=(datalistId,values)=>{
+  const dl=document.getElementById(datalistId)
+  if(!dl)return
+  const sorted=[...new Set(values.filter(Boolean).map(v=>String(v).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b))
+  dl.innerHTML=sorted.map(v=>`<option value="${bookingAdminShared.escapeHtml(v)}">`).join('')
+}
+
+const syncBookingAutocomplete=()=>{
+  const bookedByValues=state.bookings.flatMap(b=>[b.metadata?.booked_by,b.booked_by].filter(Boolean))
+  const agentValues=state.bookings.flatMap(b=>[b.metadata?.agent].filter(Boolean))
+  syncAutocompleteDatalist('bookedByDatalist',bookedByValues)
+  syncAutocompleteDatalist('agentDatalist',agentValues)
+}
+
+const getStatusColor=(status,isCruise=false)=>{
+  if(isCruise)return '#7c3aed'
+  const map={provisional:'#ef4444',payment_pending:'#f97316',invoice:'#facc15',invoiced:'#eab308',partially_paid:'#86efac',fully_paid:'#22c55e',finalised:'#3b82f6',cancelled:'#9ca3af'}
+  return map[normalizeText(status)]||'#94a3b8'
+}
+
+const openCalendarDayPanel=dateKey=>{
+  const panel=document.getElementById('calendarDayPanel')
+  const title=document.getElementById('calendarDayPanelTitle')
+  const dayBookingsEl=document.getElementById('calendarDayBookings')
+  if(!panel)return
+  const date=parseDateValue(dateKey)
+  if(!date)return
+  const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+  const monthNames=['January','February','March','April','May','June','July','August','September','October','November','December']
+  if(title)title.textContent=`${dayNames[date.getDay()]} ${date.getDate()} ${monthNames[date.getMonth()]} ${date.getFullYear()}`
+  state.calendarSelectedDay=dateKey
+  if(dayBookingsEl)dayBookingsEl.hidden=true
+  panel.hidden=false
+  document.getElementById('calDayCreateBooking')?.dataset && (document.getElementById('calDayCreateBooking').dataset.calDay=dateKey)
+  document.getElementById('calDayCreateCruise')?.dataset && (document.getElementById('calDayCreateCruise').dataset.calDay=dateKey)
+  document.getElementById('calDayViewBookings')?.dataset && (document.getElementById('calDayViewBookings').dataset.calDay=dateKey)
+}
+
+const renderCalendarDayBookings=dateKey=>{
+  const dayBookingsEl=document.getElementById('calendarDayBookings')
+  if(!dayBookingsEl)return
+  const bookings=state.bookings.filter(b=>normalizeDateKey(b.preferred_date)===dateKey&&normalizeText(b.status)!=='cancelled')
+  if(!bookings.length){
+    dayBookingsEl.innerHTML='<p class="muted-copy" style="text-align:center;padding:24px 0">No bookings for this day.</p>'
+    dayBookingsEl.hidden=false
+    return
+  }
+  dayBookingsEl.innerHTML=`<div class="calendar-day-bookings-grid">${bookings.map(booking=>{
+    const meta=normalizeJsonRecord(booking.metadata)
+    const isCruise=isCruiseLinerBooking(booking)
+    const statusColor=getStatusColor(booking.status,isCruise)
+    const pax=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||Number(booking.quantity||1)
+    const displayName=isCruise ? (meta.display_name||`${meta.cruise_company_label||'Cruise'} Group`) : (booking.customer_name||'Guest')
+    return `
+    <article class="cal-day-block ${getStatusRowClass(booking)}" data-cal-block="${bookingAdminShared.escapeHtml(booking.id)}"
+      style="border-color:${statusColor};background:${statusColor}18">
+      <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
+      <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
+      <span>${pax} pax${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
+      <div class="block-amount">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</div>
+    </article>
+    <div class="cal-day-block-detail" id="block-detail-${bookingAdminShared.escapeHtml(booking.id)}">
+      <dl>
+        <dt>Name</dt><dd>${bookingAdminShared.escapeHtml(isCruise?`${meta.cruise_company_label||'Cruise'} Group`:(booking.customer_name||'—'))}</dd>
+        <dt>Pax</dt><dd>${pax}</dd>
+        <dt>Activity</dt><dd>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</dd>
+        <dt>Amount</dt><dd>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</dd>
+        <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
+        <dt>Contact</dt><dd>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</dd>
+        <dt>Pickup</dt><dd>${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</dd>
+        <dt>Drop Off</dt><dd>${bookingAdminShared.escapeHtml(meta.dropoff_location||'—')}</dd>
+        <dt>Accommodation</dt><dd>${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</dd>
+      </dl>
+    </div>
+  `}).join('')}</div>`
+  dayBookingsEl.hidden=false
+}
+
+const closeCalendarDayPanel=()=>{
+  const panel=document.getElementById('calendarDayPanel')
+  if(panel)panel.hidden=true
+  state.calendarSelectedDay=''
 }
 
 const renderReports=()=>{
@@ -3880,9 +3972,9 @@ const renderBookingDetail=()=>{
               <p>${bookingAdminShared.escapeHtml('Booking total less agent commission and operator payout.')}</p>
             </article>
             <article class="detail-card">
-              <span>Booking discount</span>
-              <strong>${bookingAdminShared.formatMoney(discountTotal,booking.currency||state.settings.currency)}</strong>
-              <p>${bookingAdminShared.escapeHtml(manualDiscount ? `${formatDisplayLabel(manualDiscount.discount_type||'fixed')} ${manualDiscount.discount_value||manualDiscount.amount} - ${manualDiscount.consultant_comment||'No comment captured'}` : 'No consultant discount applied.')}</p>
+              <span>Price override</span>
+              <strong>${booking.metadata?.price_override>0 ? bookingAdminShared.formatMoney(booking.metadata.price_override,booking.currency||state.settings.currency) : '—'}</strong>
+              <p>${booking.metadata?.price_override>0 ? 'Manual price set by consultant' : 'Using calculated tour price'}</p>
             </article>
             <article class="detail-card">
               <span>Consultant owner</span>
@@ -3928,28 +4020,6 @@ const renderBookingDetail=()=>{
             </div>
             <div class="detail-inline-actions">
               <button class="booking-button" type="submit">Save Commercial Structure</button>
-            </div>
-          </form>
-          <form class="booking-inline-form booking-inline-form-wide" data-inline-form="booking-discount">
-            <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
-            <label class="booking-field">
-              <span>Discount Type</span>
-              <select name="discount_type">
-                <option value="percentage" ${normalizeText(manualDiscount?.discount_type)!=='fixed' ? 'selected' : ''}>Percentage</option>
-                <option value="fixed" ${normalizeText(manualDiscount?.discount_type)==='fixed' ? 'selected' : ''}>Fixed Amount</option>
-              </select>
-            </label>
-            <label class="booking-field">
-              <span>Discount Value</span>
-              <input name="discount_value" type="number" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(manualDiscount?.discount_value||''))}" placeholder="10 or 250.00">
-            </label>
-            <label class="booking-field-full">
-              <span>Consultant Comment</span>
-              <textarea name="consultant_comment" rows="3" placeholder="Reason for discount, approval note, or guest-care context" required>${bookingAdminShared.escapeHtml(manualDiscount?.consultant_comment||'')}</textarea>
-            </label>
-            <div class="detail-inline-actions">
-              <button class="booking-button" type="submit">Apply Discount</button>
-              ${manualDiscount ? '<button class="booking-button ghost" type="button" data-booking-inline-action="clear-discount">Clear Discount</button>' : ''}
             </div>
           </form>
         </section>
@@ -4368,7 +4438,7 @@ const renderBookingDetail=()=>{
           </div>
           <div class="detail-actions vertical-actions">
             <button type="button" data-booking-inline-action="document:guest_invoice">Guest Invoice PDF</button>
-            <button type="button" data-booking-inline-action="document:receipt">Receipt PDF</button>
+            <button type="button" data-booking-inline-action="create-manual-invoice">Create Invoice</button>
             <button type="button" data-booking-inline-action="document:manifest">Manifest PDF</button>
             ${isFinalised ? '<button type="button" data-booking-inline-action="memories-focus">Upload Tour Memories</button>' : ''}
           </div>
@@ -4710,6 +4780,215 @@ const setWorkflowModalState=isOpen=>{
   nodes.workflowModal.hidden=!state.isWorkflowModalOpen
   nodes.workflowModal.setAttribute('aria-hidden',String(!state.isWorkflowModalOpen))
   syncModalBodyState()
+}
+
+const openCruiseLinerModal=(dateKey='')=>{
+  const modal=document.getElementById('cruiseLinerModal')
+  if(!modal)return
+  const dateField=document.getElementById('cruiseDate')
+  if(dateField)dateField.value=dateKey||bookingAdminShared.currentDate()
+  const activitySelect=document.getElementById('cruiseActivity')
+  if(activitySelect){
+    activitySelect.innerHTML='<option value="">No activity — transport only</option>'
+    state.services.filter(s=>s.is_active!==false).forEach(service=>{
+      const opt=document.createElement('option')
+      opt.value=service.slug
+      opt.textContent=String(service.name||service.slug||'')
+      activitySelect.appendChild(opt)
+    })
+  }
+  modal.hidden=false
+  modal.setAttribute('aria-hidden','false')
+}
+const closeCruiseLinerModal=()=>{
+  const modal=document.getElementById('cruiseLinerModal')
+  if(modal){modal.hidden=true;modal.setAttribute('aria-hidden','true')}
+}
+const handleCruiseLinerSubmit=async event=>{
+  event.preventDefault()
+  const company=document.getElementById('cruiseCompany')?.value
+  const date=document.getElementById('cruiseDate')?.value
+  const buses=Number(document.getElementById('cruiseBuses')?.value||0)
+  const cars=Number(document.getElementById('cruiseCars')?.value||0)
+  const pax=Number(document.getElementById('cruisePax')?.value||1)
+  const activitySlug=document.getElementById('cruiseActivity')?.value||''
+  const notes=document.getElementById('cruiseNotes')?.value.trim()||''
+  if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
+  if(!date){showToast('Select a date.','info');return}
+  const activityService=activitySlug ? state.services.find(s=>s.slug===activitySlug) : null
+  const companyLabel=company==='akron' ? 'Akron' : 'ATC'
+  const tourName=activityService ? `${activityService.name} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
+  const serviceSlug=activitySlug||state.services.find(s=>s.is_active!==false)?.slug||''
+  if(!serviceSlug){showToast('No services loaded — please reload.','info');return}
+  try{
+    const payload={
+      brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
+      service_slug:serviceSlug,
+      status:'provisional',
+      payment_status:'unpaid',
+      preferred_date:date,
+      quantity:pax,
+      adult_quantity:pax,
+      child_quantity:0,
+      infant_quantity:0,
+      source:'admin',
+      notes:`${tourName}\nBuses: ${buses} | Cars: ${cars}\n${notes}`.trim(),
+      metadata:{
+        cruise_liner:true,
+        cruise_company:company,
+        cruise_company_label:companyLabel,
+        buses,
+        cars,
+        activity_slug:activitySlug,
+        activity_name:activityService?.name||'',
+        display_name:tourName
+      },
+      customer:{full_name:`${companyLabel} Group`,email:'',phone:'',whatsapp:''}
+    }
+    await bookingAdminShared.apiRequest('admin/bookings',{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:payload
+    })
+    closeCruiseLinerModal()
+    await refreshAdmin(`Cruise Liner booking created for ${companyLabel} on ${formatDateLabel(date)}.`)
+    showToast(`Cruise Liner booking created for ${companyLabel}`,'success')
+  }catch(error){
+    showToast(error?.message||'Could not create cruise liner booking.','info')
+  }
+}
+
+let manualInvoiceBooking=null
+
+const getStoredCompanyDetails=bookedByKey=>{
+  if(!bookedByKey)return null
+  const normalized=normalizeText(bookedByKey)
+  const match=state.bookings
+    .filter(b=>{
+      const key=normalizeText(b.metadata?.booked_by||b.booked_by||'')
+      return key===normalized && b.metadata?.billing_details
+    })
+    .sort((a,b)=>new Date(b.updated_at||b.created_at||0).getTime()-new Date(a.updated_at||a.created_at||0).getTime())[0]
+  return match?.metadata?.billing_details||null
+}
+
+const openManualInvoiceModal=booking=>{
+  manualInvoiceBooking=booking
+  const modal=document.getElementById('manualInvoiceModal')
+  if(!modal)return
+  const meta=normalizeJsonRecord(booking.metadata)
+  const bookedBy=meta.booked_by||booking.booked_by||''
+  const stored=getStoredCompanyDetails(bookedBy)
+
+  const set=(id,val)=>{ const el=document.getElementById(id); if(el)el.value=String(val||'') }
+  set('invBillingName', stored?.billing_name||bookedBy||booking.customer_name||'')
+  set('invContactPerson', stored?.contact_person||'')
+  set('invPoBox', stored?.po_box||'')
+  set('invTaxNumber', stored?.tax_number||'')
+  set('invAddress', stored?.address||'')
+  set('invEmail', stored?.email||booking.customer_email||'')
+  set('invPhone', stored?.phone||booking.customer_phone||'')
+  set('invNumber', `INV-${String(booking.reference||'').toUpperCase()}-${new Date().getFullYear()}`)
+
+  const badge=document.getElementById('invBookedByBadge')
+  if(badge){
+    if(bookedBy){
+      badge.textContent=`Invoice to: ${bookedBy}${stored?' · Company details loaded from previous booking':''}`.trim()
+      badge.style.display='block'
+    }else{
+      badge.style.display='none'
+    }
+  }
+  modal.hidden=false
+  modal.setAttribute('aria-hidden','false')
+}
+const closeManualInvoiceModal=()=>{
+  const modal=document.getElementById('manualInvoiceModal')
+  if(modal){modal.hidden=true;modal.setAttribute('aria-hidden','true')}
+  manualInvoiceBooking=null
+}
+const printManualInvoice=()=>{
+  const booking=manualInvoiceBooking
+  if(!booking)return
+  const meta=normalizeJsonRecord(booking.metadata)
+  const billingName=document.getElementById('invBillingName')?.value.trim()||booking.customer_name||''
+  const contactPerson=document.getElementById('invContactPerson')?.value.trim()||''
+  const poBox=document.getElementById('invPoBox')?.value.trim()||''
+  const taxNumber=document.getElementById('invTaxNumber')?.value.trim()||''
+  const address=document.getElementById('invAddress')?.value.trim()||''
+  const email=document.getElementById('invEmail')?.value.trim()||booking.customer_email||''
+  const phone=document.getElementById('invPhone')?.value.trim()||''
+  const invoiceNumber=document.getElementById('invNumber')?.value.trim()||`INV-${String(booking.reference||'').toUpperCase()}`
+
+  const billingDetails={billing_name:billingName,contact_person:contactPerson,po_box:poBox,tax_number:taxNumber,address,email,phone,saved_at:new Date().toISOString()}
+  if(booking.id&&(billingName||poBox||taxNumber)){
+    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{metadata:{...meta,billing_details:billingDetails}}
+    }).then(()=>refreshAdmin()).catch(()=>{})
+  }
+  const today=new Date().toLocaleDateString('en-NA',{day:'2-digit',month:'long',year:'numeric'})
+  const pax=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||Number(booking.quantity||1)
+  const html=`<!DOCTYPE html><html><head><title>Invoice ${bookingAdminShared.escapeHtml(invoiceNumber)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a2a35;padding:48px;max-width:760px;margin:0 auto}
+h1{font-size:28px;font-weight:800;margin-bottom:4px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:20px;border-bottom:2px solid #0a3050}
+.brand{color:#0a3050}
+.brand small{font-size:11px;color:#5f7383;display:block;margin-top:2px}
+.inv-no{text-align:right;color:#5f7383;font-size:12px}
+.inv-no strong{font-size:20px;color:#0a3050;display:block}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px}
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5f7383;margin-bottom:8px}
+.detail-name{font-size:16px;font-weight:700;margin-bottom:4px}
+.detail-line{color:#5f7383;font-size:12px;margin-bottom:2px}
+table{width:100%;border-collapse:collapse;margin-bottom:32px}
+th{background:#0a3050;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:10px 14px;text-align:left}
+td{padding:12px 14px;border-bottom:1px solid #e5edf5;font-size:13px}
+tr:last-child td{border-bottom:none}
+.total-row td{font-weight:700;font-size:15px;background:#f7fafc}
+.footer{border-top:1px solid #e5edf5;padding-top:16px;color:#5f7383;font-size:11px;text-align:center}
+@media print{body{padding:24px}button{display:none}}
+</style></head><body>
+<div class="header">
+  <div class="brand"><h1>INVOICE</h1><small>True Travel Namibia</small></div>
+  <div class="inv-no"><div class="section-label">Invoice number</div><strong>${bookingAdminShared.escapeHtml(invoiceNumber)}</strong><div>${bookingAdminShared.escapeHtml(today)}</div></div>
+</div>
+<div class="two-col">
+  <div><div class="section-label">Bill To</div>
+    <div class="detail-name">${bookingAdminShared.escapeHtml(billingName)}</div>
+    ${contactPerson ? `<div class="detail-line">Attn: ${bookingAdminShared.escapeHtml(contactPerson)}</div>` : ''}
+    ${poBox ? `<div class="detail-line">PO Box ${bookingAdminShared.escapeHtml(poBox)}</div>` : ''}
+    ${taxNumber ? `<div class="detail-line">Tax No: ${bookingAdminShared.escapeHtml(taxNumber)}</div>` : ''}
+    ${address ? address.split('\n').map(l=>`<div class="detail-line">${bookingAdminShared.escapeHtml(l)}</div>`).join('') : ''}
+    ${email ? `<div class="detail-line">${bookingAdminShared.escapeHtml(email)}</div>` : ''}
+    ${phone ? `<div class="detail-line">Tel: ${bookingAdminShared.escapeHtml(phone)}</div>` : ''}
+  </div>
+  <div><div class="section-label">Booking Details</div>
+    <div class="detail-line"><strong>Ref:</strong> ${bookingAdminShared.escapeHtml(booking.reference||'—')}</div>
+    <div class="detail-line"><strong>Date:</strong> ${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</div>
+    <div class="detail-line"><strong>Guests:</strong> ${pax}</div>
+    <div class="detail-line"><strong>Accommodation:</strong> ${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</div>
+    <div class="detail-line"><strong>Pickup:</strong> ${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</div>
+  </div>
+</div>
+<table>
+  <thead><tr><th>Description</th><th>Pax</th><th style="text-align:right">Amount</th></tr></thead>
+  <tbody>
+    <tr><td>${bookingAdminShared.escapeHtml(booking.service_name||'Tour Service')}</td><td>${pax}</td><td style="text-align:right">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||'NAD')}</td></tr>
+    <tr class="total-row"><td colspan="2"><strong>Total Due</strong></td><td style="text-align:right">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||'NAD')}</td></tr>
+  </tbody>
+</table>
+<div class="footer">Banking details will be provided by your True Travel consultant. Thank you for booking with True Travel Namibia.</div>
+</body></html>`
+  const win=window.open('','_blank','noopener,noreferrer,width=800,height=900')
+  if(!win){showToast('Pop-up blocked. Please allow pop-ups to print the invoice.','info');return}
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+  window.setTimeout(()=>win.print(),500)
 }
 
 const openWorkflowModal=config=>{
@@ -5532,6 +5811,21 @@ const renderReportsWorkbench=()=>{
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
+  const byBookedBy=reportBookings.reduce((accumulator,booking)=>{
+    const key=normalizeText(booking.metadata?.booked_by||booking.booked_by||'')||'(Direct / Not recorded)'
+    accumulator[key]=accumulator[key]||{count:0,revenue:0}
+    accumulator[key].count+=1
+    accumulator[key].revenue+=Number(booking.total_amount||0)
+    return accumulator
+  },{})
+  const byAgent=reportBookings.reduce((accumulator,booking)=>{
+    const key=normalizeText(booking.metadata?.agent||'')||''
+    if(!key)return accumulator
+    accumulator[key]=accumulator[key]||{count:0,revenue:0}
+    accumulator[key].count+=1
+    accumulator[key].revenue+=Number(booking.total_amount||0)
+    return accumulator
+  },{})
   const cancelledBookings=reportBookings.filter(booking=>String(booking.status||'').toLowerCase()==='cancelled')
   const noShowBookings=reportBookings.filter(booking=>normalizeText(booking.status)==='no_show')
   const acceptedBookings=reportBookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status)))
@@ -5611,6 +5905,30 @@ const renderReportsWorkbench=()=>{
       <article>
         <h4>Bookings by source</h4>
         ${buildBarChart(Object.entries(bySource).sort((a,b)=>b[1].count-a[1].count).map(([label,m])=>({label:formatSourceLabel(label),value:m.count})),{maxBars:8})}
+      </article>
+    </div>
+    <div class="report-split-grid">
+      <article>
+        <h4>Bookings by Booked By</h4>
+        <div class="report-stat-list">
+          ${Object.entries(byBookedBy).sort((a,b)=>b[1].count-a[1].count).map(([name,m])=>`
+            <div>
+              <strong>${bookingAdminShared.escapeHtml(name)}</strong>
+              <span>${m.count} booking${m.count===1?'':'s'} &mdash; ${bookingAdminShared.formatMoney(m.revenue,state.settings.currency||'NAD')}</span>
+            </div>
+          `).join('')||'<p class="muted-copy">No bookings recorded yet.</p>'}
+        </div>
+      </article>
+      <article>
+        <h4>Bookings by Agent</h4>
+        <div class="report-stat-list">
+          ${Object.entries(byAgent).sort((a,b)=>b[1].count-a[1].count).map(([name,m])=>`
+            <div>
+              <strong>${bookingAdminShared.escapeHtml(name)}</strong>
+              <span>${m.count} booking${m.count===1?'':'s'} &mdash; ${bookingAdminShared.formatMoney(m.revenue,state.settings.currency||'NAD')}</span>
+            </div>
+          `).join('')||'<p class="muted-copy">No agent bookings recorded yet.</p>'}
+        </div>
       </article>
     </div>
     <div class="report-split-grid">
@@ -6114,6 +6432,7 @@ const renderAll=()=>{
   fillBookingForm(state.bookings.find(item=>item.id===state.selectedBookingId)||null)
   fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
   fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
+  syncBookingAutocomplete()
   renderReservationPipeline()
   renderDashboard()
   renderNotifications()
@@ -6243,7 +6562,12 @@ const loadAdminData=async(options={})=>{
   fillServiceForm(state.services.find(item=>item.id===state.selectedServiceId)||null)
   fillAdminUserForm(state.adminUsers.find(item=>item.id===nodes.adminUserId?.value)||null)
   renderAll()
-  applyRequestedRoute(requestedRouteState,{scrollToFocus:!options.silent})
+  const routeApplied=applyRequestedRoute(requestedRouteState,{scrollToFocus:!options.silent})
+  if(!routeApplied&&!requestedRouteState?.tab&&!requestedRouteState?.bookingId&&!requestedRouteState?.reservationId){
+    state.calendarView='month'
+    if(nodes.calendarFocusDate&&!nodes.calendarFocusDate.value)nodes.calendarFocusDate.value=bookingAdminShared.currentDate()
+    switchTab('calendar')
+  }
 }
 
 const getLoadedBookingIdSet=()=>new Set((state.bookings||[]).map(item=>String(item?.id||'').trim()).filter(Boolean))
@@ -7391,34 +7715,24 @@ const syncBookingQuantityMode=()=>{
   if(nodes.bookingQuantity)nodes.bookingQuantity.required=!hasAdultChild
   if(nodes.bookingAdultWrap)nodes.bookingAdultWrap.hidden=!hasAdultChild
   if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=!hasAdultChild
+  if(nodes.bookingInfantWrap)nodes.bookingInfantWrap.hidden=!hasAdultChild
 }
 
 const validateBookingForm=()=>{
   const errors=[]
   const isProvisional=nodes.bookingStatus?.value==='provisional'
+  if(isProvisional)return errors
   if(!nodes.bookingBrand?.value)
     errors.push({label:'Brand',message:'Select a brand (True Travel or Iventure) before saving.',fieldId:'adminBookingBrand'})
   if(!nodes.bookingService?.value)
     errors.push({label:'Tour / Service',message:'Please select a tour before saving.',fieldId:'adminBookingService'})
-  if(!isProvisional&&!nodes.bookingDate?.value)
-    errors.push({label:'Preferred Date',message:'A booking date is required.',fieldId:'adminBookingDate'})
-  const useAdultChild=!nodes.bookingAdultWrap?.hidden
-  const total=useAdultChild
-    ? Number(nodes.bookingAdultQuantity?.value||0)+Number(nodes.bookingChildQuantity?.value||0)
-    : Number(nodes.bookingQuantity?.value||0)
-  if(total<1)
-    errors.push({label:'Number of Guests',message:'At least 1 guest is required.',fieldId:useAdultChild?'adminBookingAdultQuantity':'adminBookingQuantity'})
   if(!nodes.bookingCustomerName?.value.trim())
-    errors.push({label:'Customer Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
+    errors.push({label:'Guest Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
   const email=nodes.bookingCustomerEmail?.value.trim()||''
-  if(!isProvisional&&!email)
-    errors.push({label:'Customer Email',message:'Email address is required.',fieldId:'adminBookingCustomerEmail'})
-  if(!isProvisional&&email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
+  if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
     errors.push({label:'Customer Email',message:'Enter a valid email address.',fieldId:'adminBookingCustomerEmail'})
   const phone=nodes.bookingCustomerPhone?.value.trim()||''
-  if(!isProvisional&&!phone)
-    errors.push({label:'Customer Phone',message:'Phone or WhatsApp number is required.',fieldId:'adminBookingCustomerPhone'})
-  if(!isProvisional&&phone&&phone.replace(/[^\d+]/g,'').length<7)
+  if(phone&&phone.replace(/[^\d+]/g,'').length<7)
     errors.push({label:'Customer Phone',message:'Enter a valid phone or WhatsApp number.',fieldId:'adminBookingCustomerPhone'})
   return errors
 }
@@ -7462,7 +7776,9 @@ const handleBookingSave=async event=>{
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
-    quantity:(()=>{const a=Number(nodes.bookingAdultQuantity?.value||0);const c=Number(nodes.bookingChildQuantity?.value||0);return(a+c)>0?a+c:Number(nodes.bookingQuantity.value||1)})(),
+    infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
+    quantity:(()=>{const a=Number(nodes.bookingAdultQuantity?.value||0);const c=Number(nodes.bookingChildQuantity?.value||0);const i=Number(nodes.bookingInfantQuantity?.value||0);return(a+c+i)>0?a+c+i:Number(nodes.bookingQuantity.value||1)})(),
+    price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
     guide_name:nodes.bookingGuideName?.value.trim()||'',
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
@@ -7472,9 +7788,13 @@ const handleBookingSave=async event=>{
       pickup_time:nodes.bookingPickup?.value||'',
       nationality:nodes.bookingNationality?.value?.trim()||'',
       booked_by:nodes.bookingBookedBy?.value?.trim()||'',
+      agent:nodes.bookingAgent?.value?.trim()||'',
       dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
       pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
-      dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||''
+      pickup_point:nodes.bookingPickupPoint?.value?.trim()||'',
+      dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
+      infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
+      price_override:Number(nodes.bookingPriceOverride?.value||0)||0
     },
     customer:{
       full_name:nodes.bookingCustomerName.value.trim(),
@@ -8273,9 +8593,41 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
 })
 nodes.calendarCanvas?.addEventListener('click',event=>{
   const card=event.target.closest('[data-open-booking]')
-  if(!card||event.target.closest('a'))return
-  const bookingId=card.dataset.openBooking
-  if(bookingId)window.open(getRecordPageUrl('bookings',bookingId),'_blank','noopener,noreferrer')
+  if(card&&!event.target.closest('a')){
+    const bookingId=card.dataset.openBooking
+    if(bookingId)window.open(getRecordPageUrl('bookings',bookingId),'_blank','noopener,noreferrer')
+    return
+  }
+  const dayCell=event.target.closest('[data-cal-day]')
+  if(dayCell){
+    openCalendarDayPanel(dayCell.dataset.calDay)
+    return
+  }
+})
+document.getElementById('calendarDayPanelClose')?.addEventListener('click',closeCalendarDayPanel)
+document.getElementById('calendarDayPanelBackdrop')?.addEventListener('click',closeCalendarDayPanel)
+document.getElementById('calDayCreateBooking')?.addEventListener('click',()=>{
+  const dateKey=state.calendarSelectedDay||''
+  closeCalendarDayPanel()
+  openNewBookingWorkspace()
+  if(dateKey&&nodes.bookingDate)nodes.bookingDate.value=dateKey
+})
+document.getElementById('calDayCreateCruise')?.addEventListener('click',()=>{
+  const dateKey=state.calendarSelectedDay||''
+  closeCalendarDayPanel()
+  openCruiseLinerModal(dateKey)
+})
+document.getElementById('calDayViewBookings')?.addEventListener('click',()=>{
+  renderCalendarDayBookings(state.calendarSelectedDay||'')
+})
+document.getElementById('calendarDayBookings')?.addEventListener('click',event=>{
+  const block=event.target.closest('[data-cal-block]')
+  if(!block)return
+  const blockId=block.dataset.calBlock
+  const detail=document.getElementById(`block-detail-${bookingAdminShared.escapeHtml(blockId)}`)
+  if(!detail)return
+  const isOpen=detail.classList.toggle('is-open')
+  if(isOpen)detail.scrollIntoView({behavior:'smooth',block:'nearest'})
 })
 nodes.printArrivalsList?.addEventListener('click',()=>{
   try{ openArrivalsPrintModal() }catch(error){ setAdminStatus(error.message||'Could not open arrivals print dialog.',true) }
@@ -8315,6 +8667,12 @@ nodes.bookingForm.addEventListener('change',event=>{
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
 nodes.closeBookingModalButton?.addEventListener('click',closeBookingModal)
 nodes.closeCustomerModalButton?.addEventListener('click',closeCustomerModal)
+document.getElementById('closeCruiseLinerModal')?.addEventListener('click',closeCruiseLinerModal)
+document.getElementById('closeCruiseLinerModal2')?.addEventListener('click',closeCruiseLinerModal)
+document.getElementById('cruiseLinerForm')?.addEventListener('submit',event=>void handleCruiseLinerSubmit(event).catch(error=>showToast(error?.message||'Cruise Liner booking failed.','info')))
+document.getElementById('closeManualInvoiceModal')?.addEventListener('click',closeManualInvoiceModal)
+document.getElementById('closeManualInvoiceModal2')?.addEventListener('click',closeManualInvoiceModal)
+document.getElementById('printManualInvoiceButton')?.addEventListener('click',printManualInvoice)
 nodes.closeWorkflowModalButton?.addEventListener('click',closeWorkflowModal)
 nodes.workflowModalCancelButton?.addEventListener('click',closeWorkflowModal)
 nodes.workflowModalForm?.addEventListener('submit',event=>{
@@ -8605,6 +8963,11 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const paymentForm=nodes.bookingDetail.querySelector('form[data-inline-form="manual-payment"]')
     paymentForm?.scrollIntoView?.({behavior:'smooth',block:'center'})
     window.setTimeout(()=>paymentForm?.querySelector('[name="amount"]')?.focus?.(),180)
+    return
+  }
+  if(inlineAction==='create-manual-invoice'){
+    const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
+    if(booking)openManualInvoiceModal(booking)
     return
   }
   if(inlineAction==='issue-client-invoice'){
