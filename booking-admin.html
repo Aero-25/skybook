@@ -46,6 +46,7 @@
           <div class="admin-subnav">
             <button class="admin-tab is-active" data-admin-tab="dashboard" type="button"><span class="admin-tab-icon">DB</span><span>Command Center</span></button>
             <button class="admin-tab" data-admin-tab="notifications" type="button"><span class="admin-tab-icon">AL</span><span>Notifications</span></button>
+            <button class="admin-tab" data-admin-tab="manifest" type="button"><span class="admin-tab-icon">MF</span><span>Today's Manifest</span></button>
             <button class="admin-tab" data-admin-tab="calendar" type="button"><span class="admin-tab-icon">CL</span><span>Calendar</span></button>
           </div>
         </details>
@@ -266,6 +267,22 @@
               <tbody id="notificationsTable"></tbody>
             </table>
           </div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="manifest">
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Today's Manifest</h3>
+              <p class="muted-copy">All tours departing today — print or share with guides before departure.</p>
+            </div>
+            <div class="toolbar-actions">
+              <input id="manifestDate" type="date" style="font-size:13px;padding:6px 10px;border:1px solid var(--booking-line);border-radius:8px">
+              <button type="button" id="manifestPrintButton" class="booking-button ghost compact-button">🖨 Print</button>
+            </div>
+          </div>
+          <div id="manifestCanvas"></div>
         </article>
       </section>
 

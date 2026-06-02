@@ -317,6 +317,9 @@ const nodes={
   notificationCards:document.getElementById('notificationCards'),
   notificationsTable:document.getElementById('notificationsTable'),
   calendarViewButtons:[...document.querySelectorAll('[data-calendar-view]')],
+  manifestCanvas:document.getElementById('manifestCanvas'),
+  manifestDate:document.getElementById('manifestDate'),
+  manifestPrintButton:document.getElementById('manifestPrintButton'),
   calendarFocusDate:document.getElementById('calendarFocusDate'),
   calendarSummaryCards:document.getElementById('calendarSummaryCards'),
   calendarCanvas:document.getElementById('calendarCanvas'),
@@ -2056,6 +2059,7 @@ const buildOperationalAlerts=()=>{
     })
   })
 
+  const in48h=new Date(now.getTime()+48*60*60*1000)
   state.bookings.forEach(booking=>{
     const outstanding=Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)
     const preferredDate=parseDateValue(booking.preferred_date)
@@ -2067,6 +2071,16 @@ const buildOperationalAlerts=()=>{
         priority:preferredDate && preferredDate < now ? 'critical' : 'high',
         message:`Outstanding balance ${bookingAdminShared.formatMoney(outstanding,booking.currency||state.settings.currency)} still open.`,
         when:booking.preferred_date||booking.created_at||'',
+        booking_id:booking.id
+      })
+    }
+    if(normalizeText(booking.status)==='awaiting_payment' && preferredDate && preferredDate<=in48h && preferredDate>=now){
+      alerts.push({
+        category:'⚠ Payment urgent',
+        reference:booking.reference,
+        priority:'critical',
+        message:`Tour is within 48 hours but payment has not been received. Contact guest immediately.`,
+        when:booking.preferred_date||'',
         booking_id:booking.id
       })
     }
@@ -2500,6 +2514,7 @@ const createDateRange=(focusDate,span)=>{
 const VIEW_PERMISSION_MAP={
   dashboard:'dashboard',
   notifications:'dashboard',
+  manifest:'calendar',
   calendar:'calendar',
   reports:'reports',
   reconciliation:'reconciliation',
@@ -2524,6 +2539,7 @@ const VIEW_PERMISSION_MAP={
 const TAB_ROUTE_MAP={
   dashboard:{view:'dashboard',permission:'dashboard'},
   notifications:{view:'notifications',permission:'dashboard'},
+  manifest:{view:'manifest',permission:'calendar'},
   calendar:{view:'calendar',permission:'calendar'},
   reports:{view:'reports',permission:'reports'},
   reconciliation:{view:'reconciliation',permission:'reconciliation'},
@@ -2724,6 +2740,7 @@ const switchTab=(tab,{scrollToFocus=true}={})=>{
     renderPlatformWorkbench()
     ensurePanelSwitchers()
   }
+  if(nextTab==='manifest')renderManifest()
   if(nextTab==='reviews')void loadReviews()
   if(nextTab==='invoices')showSwitcherPanel(nodes.platformPrimaryPanel,0)
   syncManagementActionHeaders()
@@ -2993,6 +3010,73 @@ const renderDashboard=()=>{
   `).join('') || renderEmptyRow(5,'No bookings have been created yet.')
 }
 
+const renderManifest=()=>{
+  if(!nodes.manifestCanvas)return
+  if(nodes.manifestDate&&!nodes.manifestDate.value)nodes.manifestDate.value=getTodayKey()
+  const targetDate=nodes.manifestDate?.value||getTodayKey()
+  const dateKey=normalizeDateKey(targetDate)
+  const dayBookings=state.bookings.filter(booking=>{
+    const isCancelled=normalizeText(booking.status)==='cancelled'
+    return !isCancelled && normalizeDateKey(booking.preferred_date)===dateKey
+  }).sort((a,b)=>{
+    const aTime=String(a.metadata?.departure_label||a.metadata?.pickup_time||'').toLowerCase()
+    const bTime=String(b.metadata?.departure_label||b.metadata?.pickup_time||'').toLowerCase()
+    return aTime.localeCompare(bTime)
+  })
+  const dateLabel=parseDateValue(targetDate)?.toLocaleDateString('en-NA',{weekday:'long',day:'numeric',month:'long',year:'numeric'})||targetDate
+  nodes.manifestCanvas.innerHTML=`
+    <div id="manifestPrintArea" style="font-family:inherit">
+      <div class="manifest-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--booking-line)">
+        <div>
+          <h2 style="margin:0;font-size:22px">${bookingAdminShared.escapeHtml(dateLabel)} — Departure Manifest</h2>
+          <p style="margin:6px 0 0;color:var(--booking-muted);font-size:13px">Printed ${new Date().toLocaleString('en-NA')} · SkyBook Operations</p>
+        </div>
+        <div style="text-align:right">
+          <strong style="font-size:18px">${dayBookings.length} booking${dayBookings.length===1?'':'s'}</strong>
+          <p style="margin:4px 0 0;font-size:13px;color:var(--booking-muted)">${dayBookings.reduce((sum,b)=>{const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0);return sum+(a+c>0?a+c:Number(b.quantity||1))},0)} total guests</p>
+        </div>
+      </div>
+      ${dayBookings.length ? dayBookings.map((booking,index)=>{
+        const meta=normalizeJsonRecord(booking.metadata)
+        const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0)
+        const pax=a+c>0?`${a+c} (${a}A/${c}C)`:`${booking.quantity||1}`
+        const guide=booking.guide_name||meta.guide_name||'—'
+        const pickup=meta.pickup_location||meta.hotel||'—'
+        const dropoff=meta.dropoff_location||''
+        const dietary=meta.dietary_requirements||meta.dietary||''
+        const departure=meta.departure_label||meta.pickup_time||''
+        const notes=booking.customer_notes||booking.notes||''
+        return `
+          <article class="manifest-entry" style="margin-bottom:20px;padding:18px;border:1px solid var(--booking-line);border-radius:14px;page-break-inside:avoid">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+              <div>
+                <strong style="font-size:16px">${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+                <span style="margin-left:12px;font-size:13px;color:var(--booking-muted)">${bookingAdminShared.escapeHtml(booking.reference)}</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                ${renderStatusBadge(booking.status)}
+                ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 20px;font-size:13px">
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Tour</span><strong>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</strong></div>
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Guests</span><strong>${bookingAdminShared.escapeHtml(pax)}</strong></div>
+              ${departure ? `<div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Departure</span><strong>${bookingAdminShared.escapeHtml(departure)}</strong></div>` : ''}
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Guide</span><strong>${bookingAdminShared.escapeHtml(guide)}</strong></div>
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Pickup location</span><strong>${bookingAdminShared.escapeHtml(pickup)}</strong></div>
+              ${dropoff ? `<div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Drop-off</span><strong>${bookingAdminShared.escapeHtml(dropoff)}</strong></div>` : ''}
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</strong></div>
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Nationality</span><strong>${bookingAdminShared.escapeHtml(meta.nationality||booking.nationality||'—')}</strong></div>
+              ${dietary ? `<div style="grid-column:1/-1"><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Dietary requirements</span><strong style="color:#a33a3a">${bookingAdminShared.escapeHtml(dietary)}</strong></div>` : ''}
+              ${notes ? `<div style="grid-column:1/-1"><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Notes</span><strong>${bookingAdminShared.escapeHtml(notes)}</strong></div>` : ''}
+            </div>
+          </article>
+        `
+      }).join('') : `<p class="muted-copy">No active bookings scheduled for ${bookingAdminShared.escapeHtml(dateLabel)}.</p>`}
+    </div>
+  `
+}
+
 const renderCalendar=()=>{
   const focusDate=nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey()
   state.calendarFocusDate=focusDate
@@ -3192,37 +3276,48 @@ const renderReports=()=>{
   }
 }
 
-const renderReservations=()=>{
-  if(!nodes.reservationsTable)return
-  const reservations=getReviewReservations().sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0))
-  nodes.reservationsTable.innerHTML=reservations.map(booking=>`
-    <tr class="reservation-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-reservation-id="${bookingAdminShared.escapeHtml(booking.id)}">
+const renderReservationRow=booking=>`
+    <tr class="reservation-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-reservation-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.created_at))}</div>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</div>
+        <div class="table-subline" style="font-size:11px;opacity:.65">${bookingAdminShared.escapeHtml(booking.reference)}</div>
       </td>
       <td>
         ${renderBrandPill(booking.brand_code)}
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
       </td>
       <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_email||'')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</div>
       </td>
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(String(booking.quantity||1))} guest${Number(booking.quantity||1)===1 ? '' : 's'}</div>
-      </td>
+      <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))} guest${Number(booking.quantity||1)===1 ? '' : 's'}</td>
       <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
       <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
       <td>
         <div class="badge-stack">
-          ${renderStatusBadge(booking.status,'Needs review')}
+          ${renderStatusBadge(booking.status)}
           <button class="booking-button ghost compact-button" type="button" data-reservation-open="${bookingAdminShared.escapeHtml(booking.id)}">Open</button>
         </div>
       </td>
     </tr>
-  `).join('') || renderEmptyRow(7,'No reservations are waiting for review.')
+`
+const renderReservations=()=>{
+  if(!nodes.reservationsTable)return
+  const all=getReviewReservations().sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0))
+  const webRequests=all.filter(b=>!['provisional'].includes(normalizeText(b.status))&&normalizeText(b.metadata?.created_via||'website')!=='skybook_admin')
+  const adminDrafts=all.filter(b=>normalizeText(b.status)==='provisional'||normalizeText(b.metadata?.created_via||'website')==='skybook_admin')
+  const colHeaders='<tr><th>Guest / Tour</th><th>Brand / Source</th><th>Contact</th><th>Pax</th><th>Date</th><th>Total</th><th>Action</th></tr>'
+  nodes.reservationsTable.innerHTML=`
+    <tbody>
+      <tr><td colspan="7" style="padding:14px 10px 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--booking-muted);background:transparent;border-bottom:none">Website Requests</td></tr>
+      ${colHeaders}
+      ${webRequests.map(renderReservationRow).join('')||renderEmptyRow(7,'No website booking requests waiting for review.')}
+      <tr><td colspan="7" style="padding:18px 10px 4px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--booking-muted);background:transparent;border-bottom:none">Admin Drafts &amp; Provisional</td></tr>
+      ${colHeaders}
+      ${adminDrafts.map(renderReservationRow).join('')||renderEmptyRow(7,'No provisional or admin-created drafts waiting.')}
+    </tbody>
+  `
   if(state.activeTab!=='reservation-management')renderReservationDetail()
 }
 
@@ -3624,6 +3719,7 @@ const renderBookingDetail=()=>{
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="return-to-main">← Return to SkyBook</button>
+            <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="open-changelog">Changelog</button>
             ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-booking-inline-action="reinstate-booking">Reinstate Booking</button>` : ''}
             <nav class="booking-management-nav" aria-label="Booking management navigation">
               <a href="#booking-notification-panel">Notifications</a>
@@ -3686,24 +3782,39 @@ const renderBookingDetail=()=>{
         <section class="detail-section" id="booking-guest-service-panel">
           <div class="section-heading">
             <div>
-              <h4>Guest and service</h4>
-              <p class="muted-copy">Core trip context, pickup timing, and brand source.</p>
+              <h4>Guest and booking details</h4>
+              <p class="muted-copy">All captured fields from the booking form, pickup logistics, and operational notes.</p>
             </div>
             <div class="badge-stack">
               ${renderStatusBadge(booking.status)}
               ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
             </div>
           </div>
-          <div class="detail-grid detail-grid-strong">
-            <div><span>Guest</span><strong>${bookingAdminShared.escapeHtml(booking.customer_name)}</strong></div>
-            <div><span>Service</span><strong>${bookingAdminShared.escapeHtml(booking.service_name)}</strong></div>
-            <div><span>Email</span><strong>${bookingAdminShared.escapeHtml(booking.customer_email)}</strong></div>
-            <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</strong></div>
-            <div><span>Guests</span><strong>${(()=>{const a=Number(booking.adult_quantity||0);const c=Number(booking.child_quantity||0);return bookingAdminShared.escapeHtml(a+c>0?`${booking.quantity||a+c} (${a}A / ${c}C)`:String(booking.quantity||1))})()}</strong></div>
-            <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(sourceLabel)}</strong></div>
-            <div><span>Capture page</span><strong>${bookingAdminShared.escapeHtml(capturePage)}</strong></div>
-            <div><span>Created via</span><strong>${bookingAdminShared.escapeHtml(createdVia)}</strong></div>
-          </div>
+          <div class="detail-grid detail-grid-strong">${(()=>{
+            const meta=normalizeJsonRecord(booking.metadata)
+            const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0)
+            const guestLabel=a+c>0?`${booking.quantity||a+c} (${a} adult${a!==1?'s':''}, ${c} child${c!==1?'ren':''})`:`${booking.quantity||1} guest${(booking.quantity||1)!==1?'s':''}`
+            const row=(label,val)=>val?`<div><span>${bookingAdminShared.escapeHtml(label)}</span><strong>${bookingAdminShared.escapeHtml(String(val))}</strong></div>`:''
+            return [
+              row('Guest name',booking.customer_name),
+              row('Tour',booking.service_name),
+              row('Tour date',formatDateLabel(booking.preferred_date)),
+              row('Guests',guestLabel),
+              row('Email',booking.customer_email),
+              row('Phone',booking.customer_phone),
+              row('Nationality',meta.nationality||booking.nationality),
+              row('Booked by',meta.booked_by||booking.booked_by),
+              row('Guide',booking.guide_name||meta.guide_name),
+              row('Pickup schedule',meta.departure_label),
+              row('Pickup time',meta.pickup_time),
+              row('Pickup location',meta.pickup_location||meta.hotel),
+              row('Drop-off location',meta.dropoff_location),
+              row('Dietary requirements',meta.dietary_requirements||meta.dietary),
+              row('Source',sourceLabel),
+              row('Created via',createdVia),
+              row('Guest notes',booking.customer_notes||booking.notes)
+            ].join('')
+          })()}</div>
           ${customFieldRows.length ? `
             <div class="detail-grid detail-grid-strong admin-spacer">
               ${customFieldRows.map(item=>`<div><span>${bookingAdminShared.escapeHtml(item.label)}</span><strong>${bookingAdminShared.escapeHtml(item.value)}</strong></div>`).join('')}
@@ -5328,6 +5439,45 @@ const buildArrivalsManifestRows=targetDate=>{
   return []
 }
 
+const buildBarChart=(items,{valueKey='value',labelKey='label',colorFn=null,currency=null,title='',maxBars=8}={})=>{
+  const top=items.slice(0,maxBars)
+  if(!top.length)return `<p class="muted-copy">No data available yet.</p>`
+  const maxVal=Math.max(...top.map(item=>Number(item[valueKey]||0)),1)
+  const formatVal=v=>currency ? bookingAdminShared.formatMoney(v,currency) : String(v)
+  const defaultColors=['#5b3fa0','#1a4fa0','#1a6640','#a33a3a','#9b6b08','#0e3a52','#45a56f','#3b82f6']
+  const bars=top.map((item,i)=>{
+    const val=Number(item[valueKey]||0)
+    const pct=maxVal>0 ? (val/maxVal)*100 : 0
+    const color=colorFn ? colorFn(item,i) : defaultColors[i%defaultColors.length]
+    const label=String(item[labelKey]||'').length>22 ? String(item[labelKey]||'').slice(0,20)+'…' : String(item[labelKey]||'')
+    return `<div style="display:grid;grid-template-columns:140px 1fr 90px;align-items:center;gap:10px;min-height:32px">
+      <span title="${bookingAdminShared.escapeHtml(String(item[labelKey]||''))}" style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--booking-muted)">${bookingAdminShared.escapeHtml(label)}</span>
+      <div style="background:#edf2f7;border-radius:999px;overflow:hidden;height:16px">
+        <div style="background:${bookingAdminShared.escapeHtml(color)};width:${pct.toFixed(1)}%;height:100%;border-radius:999px;transition:width .4s ease"></div>
+      </div>
+      <span style="font-size:12px;font-weight:700;text-align:right;white-space:nowrap">${bookingAdminShared.escapeHtml(formatVal(val))}</span>
+    </div>`
+  }).join('')
+  return `<div style="display:flex;flex-direction:column;gap:8px">${bars}</div>`
+}
+
+const buildMonthlyChart=(bookings,{mode='count',currency='NAD'}={})=>{
+  const now=new Date()
+  const months=Array.from({length:6},(_,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-5+i,1)
+    return {key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('en-NA',{month:'short',year:'2-digit'}),count:0,revenue:0}
+  })
+  bookings.forEach(booking=>{
+    const d=booking.preferred_date||booking.created_at||''
+    const key=d.slice(0,7)
+    const bucket=months.find(m=>m.key===key)
+    if(!bucket)return
+    bucket.count+=1
+    bucket.revenue+=Number(booking.total_amount||0)
+  })
+  return buildBarChart(months,{valueKey:mode,labelKey:'label',currency:mode==='revenue'?currency:null,maxBars:6,colorFn:(_,i)=>i===months.length-1?'#0e3a52':'#8b5cf6'})
+}
+
 const renderReportsWorkbench=()=>{
   const overview=state.reports?.overview||{}
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
@@ -5397,6 +5547,26 @@ const renderReportsWorkbench=()=>{
       <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
     </article>
   `).join('') + `
+    <div class="report-split-grid" style="margin-bottom:18px">
+      <article>
+        <h4>Bookings per month (last 6 months)</h4>
+        ${buildMonthlyChart(reportBookings,{mode:'count'})}
+      </article>
+      <article>
+        <h4>Revenue per month (last 6 months)</h4>
+        ${buildMonthlyChart(reportBookings,{mode:'revenue',currency:state.settings.currency||'NAD'})}
+      </article>
+    </div>
+    <div class="report-split-grid">
+      <article>
+        <h4>Revenue by tour</h4>
+        ${buildBarChart(Object.entries(byService).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8).map(([label,m])=>({label,value:m.revenue})),{currency:state.settings.currency||'NAD',maxBars:8})}
+      </article>
+      <article>
+        <h4>Bookings by tour</h4>
+        ${buildBarChart(Object.entries(byService).sort((a,b)=>b[1].count-a[1].count).slice(0,8).map(([label,m])=>({label,value:m.count})),{maxBars:8,colorFn:(_,i)=>['#45a56f','#5b3fa0','#1a4fa0','#0e3a52','#9b6b08','#a33a3a','#3b82f6','#1a6640'][i%8]})}
+      </article>
+    </div>
     <div class="report-split-grid">
       <article>
         <h4>Sales by brand</h4>
@@ -5410,15 +5580,8 @@ const renderReportsWorkbench=()=>{
         </div>
       </article>
       <article>
-        <h4>Performance by tour</h4>
-        <div class="report-stat-list">
-          ${Object.entries(byService).sort((left,right)=>right[1].revenue-left[1].revenue).slice(0,6).map(([service,metrics])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(service)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings - ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('') || '<p class="muted-copy">No service performance data yet.</p>'}
-        </div>
+        <h4>Bookings by source</h4>
+        ${buildBarChart(Object.entries(bySource).sort((a,b)=>b[1].count-a[1].count).map(([label,m])=>({label:formatSourceLabel(label),value:m.count})),{maxBars:8})}
       </article>
     </div>
     <div class="report-split-grid">
@@ -5925,6 +6088,7 @@ const renderAll=()=>{
   renderReservationPipeline()
   renderDashboard()
   renderNotifications()
+  renderManifest()
   renderCalendar()
   renderReservations()
   renderReservationDetail()
@@ -8059,6 +8223,17 @@ document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',
 nodes.customerFilterSearch?.addEventListener('input',renderCustomers)
 nodes.customerFilterBrand?.addEventListener('change',renderCustomers)
 nodes.customerFilterSource?.addEventListener('change',renderCustomers)
+nodes.manifestDate?.addEventListener('change',renderManifest)
+nodes.manifestPrintButton?.addEventListener('click',()=>{
+  const area=document.getElementById('manifestPrintArea')
+  if(!area)return
+  const printWindow=window.open('','_blank','noopener,noreferrer,width=900,height=700')
+  if(!printWindow)return
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>Manifest</title><style>body{font-family:system-ui,sans-serif;padding:24px;color:#1a2a35}strong{font-weight:700}.manifest-entry{margin-bottom:20px;padding:18px;border:1px solid #dde;border-radius:14px;page-break-inside:avoid}@media print{.manifest-entry{border:1px solid #bbb}}</style></head><body>${area.innerHTML}</body></html>`)
+  printWindow.document.close()
+  printWindow.focus()
+  window.setTimeout(()=>printWindow.print(),400)
+})
 nodes.calendarViewButtons.forEach(button=>button.addEventListener('click',()=>{
   state.calendarView=button.dataset.calendarView||'day'
   renderCalendar()
