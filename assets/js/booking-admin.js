@@ -824,6 +824,7 @@ const showValidationErrors=(title,errors)=>{
   const modal=document.createElement('div')
   modal.id='skybookValidationModal'
   modal.className='admin-modal-shell'
+  modal.style.zIndex='10001'
   modal.setAttribute('role','alertdialog')
   modal.setAttribute('aria-modal','true')
   modal.setAttribute('aria-labelledby','skyValidationTitle')
@@ -850,7 +851,7 @@ const showValidationErrors=(title,errors)=>{
       </div>
     </div>`
   const close=()=>modal.remove()
-  modal.querySelector('.admin-modal-backdrop').addEventListener('click',close)
+  modal.querySelector('.admin-modal-backdrop').addEventListener('click',e=>{e.stopPropagation();close()})
   modal.querySelector('#skyValidationDismiss').addEventListener('click',close)
   if(firstFieldId){
     modal.querySelector('#skyValidationFix').addEventListener('click',()=>{
@@ -7966,8 +7967,8 @@ const handleBookingSave=async event=>{
       nodes.bookingSaveButton.classList.remove('is-loading')
     }
     const errMsg=error.message||'Booking could not be saved.'
+    showValidationErrors('Booking could not be saved',[{label:'Error',message:errMsg}])
     setAdminStatus(errMsg,true)
-    showToast(errMsg,'error')
   }
 }
 
