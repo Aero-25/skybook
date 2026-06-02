@@ -170,24 +170,32 @@
     const meta=typeof booking.metadata==='object'&&booking.metadata ? booking.metadata : {}
     nodes.content.innerHTML=`
       <style>
-        .changelog-diff-row{display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:13px;flex-wrap:wrap}
+        .cl-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:#e8edf2;border:1px solid #e8edf2;border-radius:14px;overflow:hidden;margin-bottom:24px}
+        .cl-summary-item{background:#fff;padding:14px 18px}
+        .cl-summary-label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#8fa3b2;margin-bottom:4px}
+        .cl-summary-value{display:block;font-size:14px;font-weight:700;color:#0d2535}
+        .cl-timeline{position:relative;padding:4px 0}
+        .cl-item{display:flex;gap:14px;padding-bottom:22px;position:relative}
+        .cl-item:last-child{padding-bottom:0}
+        .cl-item:not(:last-child)::before{content:'';position:absolute;left:15px;top:32px;bottom:0;width:2px;background:#e8edf2;z-index:0}
+        .cl-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;position:relative;z-index:1;margin-top:1px}
+        .cl-body{flex:1;min-width:0;padding-top:2px}
+        .cl-row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
+        .cl-title{font-size:14px;font-weight:700;color:#0d2535;flex:1;min-width:0}
+        .cl-kind-tag{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 9px;border-radius:999px;white-space:nowrap;flex-shrink:0}
+        .cl-when{font-size:11px;color:#8fa3b2;white-space:nowrap;flex-shrink:0}
+        .cl-detail{font-size:13px;color:#567087;margin:0 0 6px;line-height:1.5}
+        .cl-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+        .cl-actor{font-size:11px;color:#8fa3b2;font-weight:600}
+        .cl-status-arrow{font-size:11px;color:#567087;background:#f1f5f9;border-radius:6px;padding:2px 8px}
+        .cl-diff{background:#fafbfc;border:1px solid #e8edf2;border-radius:10px;padding:10px 14px;margin:6px 0 8px}
+        .changelog-diff-row{display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:13px;flex-wrap:wrap}
         .changelog-diff-row:last-child{border-bottom:none}
-        .changelog-diff-label{font-weight:700;color:#0e3a52;min-width:130px;flex-shrink:0}
+        .changelog-diff-label{font-weight:700;color:#0e3a52;min-width:120px;flex-shrink:0}
         .changelog-diff-old{color:#a33a3a;text-decoration:line-through;opacity:.75}
-        .changelog-diff-arrow{color:#567087;font-weight:700}
+        .changelog-diff-arrow{color:#8fa3b2;font-weight:700}
         .changelog-diff-new{color:#1a6640;font-weight:700}
-        .cl-actor{display:inline-flex;align-items:center;gap:5px;background:rgba(14,58,82,.08);border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;color:#0e3a52;white-space:nowrap}
-        .cl-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-size:14px;flex-shrink:0}
-        .cl-item{display:grid;grid-template-columns:180px 32px 1fr;gap:0 14px;padding:14px 0;border-bottom:1px solid var(--booking-line,#e8edf2)}
-        .cl-item:last-child{border-bottom:none}
-        .cl-when{font-size:12px;color:var(--booking-muted,#718498);line-height:1.4;padding-top:4px}
-        .cl-kind{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-top:3px}
-        .cl-body{min-width:0}
-        .cl-title{font-size:14px;font-weight:700;margin:0 0 4px;color:#1a2a35}
-        .cl-detail{font-size:13px;color:#567087;margin:0 0 8px}
-        .cl-diff{background:#fafbfc;border:1px solid #e8edf2;border-radius:10px;padding:10px 14px;margin:8px 0}
-        .cl-meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}
-        @media print{.booking-changelog-actions,.cl-actor button{display:none}}
+        @media print{.booking-changelog-actions{display:none}}
       </style>
       <header class="booking-changelog-hero">
         <div>
@@ -197,40 +205,40 @@
         </div>
         <div class="booking-changelog-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <a class="booking-button ghost" href="${esc(getBookingRecordUrl())}">← Back to booking</a>
-          <button class="booking-button ghost" type="button" onclick="window.print()">🖨 Print</button>
+          <button class="booking-button ghost" type="button" onclick="window.print()">Print</button>
           <button class="booking-button" type="button" id="refreshChangelog">Refresh</button>
         </div>
       </header>
-      <section class="detail-overview-grid booking-info-section" style="margin-bottom:18px">
-        <article class="detail-card"><span>Booking status</span><strong><span class="status-badge is-${esc(norm(booking.status||'').replace(/[^a-z0-9_-]+/g,'-'))}">${esc(safe(booking.status||'—').replace(/_/g,' '))}</span></strong></article>
-        <article class="detail-card"><span>Payment</span><strong><span class="status-badge is-${esc(norm(booking.payment_status||'').replace(/[^a-z0-9_-]+/g,'-'))}">${esc(safe(booking.payment_status||'—').replace(/_/g,' '))}</span></strong></article>
-        <article class="detail-card"><span>Total</span><strong>${esc(money(booking.total_amount||0,booking.currency_code||booking.currency))}</strong></article>
-        <article class="detail-card"><span>Pickup location</span><strong>${esc(meta.pickup_location||meta.hotel||'—')}</strong></article>
-        <article class="detail-card"><span>Nationality</span><strong>${esc(meta.nationality||'—')}</strong></article>
-        <article class="detail-card"><span>Guide</span><strong>${esc(booking.guide_name||meta.guide_name||'Unassigned')}</strong></article>
-        <article class="detail-card"><span>Dietary</span><strong>${esc(meta.dietary_requirements||meta.dietary||'—')}</strong></article>
-        <article class="detail-card"><span>Changelog entries</span><strong>${esc(String(items.length))}</strong></article>
-      </section>
-      <section class="booking-panel" style="padding:0">
-        ${items.length ? items.map(item=>{
-          const cfg=kindConfig[item.kind]||{icon:'•',color:'#567087',bg:'#edf2f7'}
-          return `<div class="cl-item">
-            <div class="cl-when">
-              <span>${esc(formatDateTime(item.when))}</span>
-              <strong class="cl-kind" style="color:${esc(cfg.color)}">${esc(item.kind)}</strong>
-            </div>
-            <div class="cl-icon" style="background:${esc(cfg.bg)};color:${esc(cfg.color)}">${cfg.icon}</div>
-            <div class="cl-body">
-              <p class="cl-title">${esc(item.title)}</p>
-              ${item.detail ? `<p class="cl-detail">${esc(item.detail)}</p>` : ''}
-              ${item.diffText ? `<div class="cl-diff">${renderDiffLines(item.diffText)}</div>` : ''}
-              <div class="cl-meta">
-                <span class="cl-actor">👤 ${esc(item.actor||'System')}</span>
-                ${item.fromStatus&&item.toStatus&&item.fromStatus!==item.toStatus ? `<span class="status-badge is-neutral" style="font-size:10px">${esc(item.fromStatus.replace(/_/g,' '))} → ${esc(item.toStatus.replace(/_/g,' '))}</span>` : ''}
+      <div class="cl-summary">
+        <div class="cl-summary-item"><span class="cl-summary-label">Status</span><span class="cl-summary-value">${esc(safe(booking.status||'—').replace(/_/g,' '))}</span></div>
+        <div class="cl-summary-item"><span class="cl-summary-label">Payment</span><span class="cl-summary-value">${esc(safe(booking.payment_status||'—').replace(/_/g,' '))}</span></div>
+        <div class="cl-summary-item"><span class="cl-summary-label">Total</span><span class="cl-summary-value">${esc(money(booking.total_amount||0,booking.currency_code||booking.currency))}</span></div>
+        <div class="cl-summary-item"><span class="cl-summary-label">Date</span><span class="cl-summary-value">${esc(formatDate(booking.preferred_date))}</span></div>
+        <div class="cl-summary-item"><span class="cl-summary-label">Guide</span><span class="cl-summary-value">${esc(booking.guide_name||meta.guide_name||'Unassigned')}</span></div>
+        <div class="cl-summary-item"><span class="cl-summary-label">Entries</span><span class="cl-summary-value">${esc(String(items.length))}</span></div>
+      </div>
+      <section class="booking-panel" style="padding:20px 24px">
+        <div class="cl-timeline">
+          ${items.length ? items.map(item=>{
+            const cfg=kindConfig[item.kind]||{icon:'•',color:'#567087',bg:'#edf2f7'}
+            return `<div class="cl-item">
+              <div class="cl-icon" style="background:${esc(cfg.bg)};color:${esc(cfg.color)}">${cfg.icon}</div>
+              <div class="cl-body">
+                <div class="cl-row1">
+                  <span class="cl-title">${esc(item.title)}</span>
+                  <span class="cl-kind-tag" style="background:${esc(cfg.bg)};color:${esc(cfg.color)}">${esc(item.kind)}</span>
+                  <span class="cl-when">${esc(formatDateTime(item.when))}</span>
+                </div>
+                ${item.detail ? `<p class="cl-detail">${esc(item.detail)}</p>` : ''}
+                ${item.diffText ? `<div class="cl-diff">${renderDiffLines(item.diffText)}</div>` : ''}
+                <div class="cl-meta">
+                  <span class="cl-actor">${esc(item.actor||'System')}</span>
+                  ${item.fromStatus&&item.toStatus&&item.fromStatus!==item.toStatus ? `<span class="cl-status-arrow">${esc(item.fromStatus.replace(/_/g,' '))} → ${esc(item.toStatus.replace(/_/g,' '))}</span>` : ''}
+                </div>
               </div>
-            </div>
-          </div>`
-        }).join('') : `<div style="padding:32px;text-align:center"><p class="muted-copy">No changelog entries yet. SkyBook logs status changes, amendments, notes, payments, emails, tasks, and documents here.</p></div>`}
+            </div>`
+          }).join('') : `<div style="padding:32px;text-align:center"><p class="muted-copy">No changelog entries yet.</p></div>`}
+        </div>
       </section>
     `
     nodes.content.hidden=false

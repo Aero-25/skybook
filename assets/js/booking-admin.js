@@ -2006,21 +2006,7 @@ const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   const key=normalizeText(filter)
   if(!key)return true
   const status=String(booking?.status||'').toLowerCase()
-  const paymentStatus=String(booking?.payment_status||'').toLowerCase()
-  const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
-  const bookingDate=parseDateValue(booking?.preferred_date)
-  const today=parseDateValue(getTodayKey())
-  const nextWeek=parseDateValue(getTodayKey())
-  if(nextWeek)nextWeek.setDate(nextWeek.getDate()+7)
-  if(key==='open')return !['cancelled','completed','refunded','failed'].includes(status)
-  if(key==='finalised')return status==='completed'
-  if(key==='cancelled')return status==='cancelled'
-  if(['cancelled','completed','refunded'].includes(status)||['cancelled','refunded'].includes(paymentStatus))return false
-  if(key==='needs_action')return bookingHasOpenOperationalWork(booking)
-  if(key==='unpaid')return hasOutstanding||['pending','unpaid','partially_paid','authorized','failed'].includes(paymentStatus)
-  if(key==='unassigned')return ['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
-  if(key==='upcoming')return Boolean(bookingDate&&today&&nextWeek&&bookingDate>=today&&bookingDate<=nextWeek&&!['cancelled','completed'].includes(status))
-  return true
+  return status===key
 }
 
 const updateBookingQuickFilterBar=()=>{
@@ -2031,13 +2017,14 @@ const updateBookingQuickFilterBar=()=>{
   const operationalBookings=getOperationalBookings()
   const countMap={
     all:operationalBookings.length,
-    open:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'open')).length,
+    provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
+    payment_pending:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'payment_pending')).length,
+    invoice:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoice')).length,
+    invoiced:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoiced')).length,
+    partially_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'partially_paid')).length,
+    fully_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'fully_paid')).length,
     finalised:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'finalised')).length,
-    cancelled:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'cancelled')).length,
-    needs_action:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'needs_action')).length,
-    unpaid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'unpaid')).length,
-    unassigned:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'unassigned')).length,
-    upcoming:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'upcoming')).length
+    cancelled:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'cancelled')).length
   }
   Object.entries(countMap).forEach(([key,count])=>{
     const node=document.querySelector(`[data-filter-count="${key}"]`)
@@ -3614,30 +3601,16 @@ const renderBookings=()=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+      <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
         <div class="table-subline" style="font-size:11px;opacity:.65"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></div>
       </td>
-      <td>
-        ${renderBrandPill(booking.brand_code)}
-        <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
-      </td>
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.customer_email||'')}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</div>
-      </td>
-      <td>
-        <div class="badge-stack">
-          ${renderStatusBadge(booking.status)}
-          ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
-        </div>
-      </td>
-      <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
+      <td>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</td>
+      <td>${renderStatusBadge(booking.payment_status||booking.status,'Payment ' + String(booking.payment_status||booking.status||'').replace(/_/g,' '))}</td>
     </tr>
   `
-  }).join('') || renderEmptyRow(7,'No bookings match the current filters.')
+  }).join('') || renderEmptyRow(4,'No bookings match the current filters.')
 }
 
 const filterTrashRows=(rows,{search='',archivedBy=''})=>{
@@ -6994,7 +6967,7 @@ const printArrivalsForDate=(selectedDate='')=>{
     `
   }).join('') : `<div class="no-arrivals">No arrivals scheduled for ${bookingAdminShared.escapeHtml(dateLabel)}.</div>`
 
-  const win=window.open('','_blank','noopener,noreferrer,width=900,height=860')
+  const win=window.open('','_blank','width=900,height=860')
   if(!win)throw new Error('Allow popups to print the arrivals list.')
   win.document.write(`<!DOCTYPE html>
 <html lang="en">
@@ -7045,10 +7018,10 @@ hr.card-divider{border-top:1px solid #dde9f2;margin:18px 0}
   </div>
 </div>
 ${cards}
+<script>window.addEventListener('load',()=>window.print())</script>
 </body></html>`)
   win.document.close()
   win.focus()
-  win.print()
 }
 
 const resolveReportPeriod=choice=>{

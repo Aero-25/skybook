@@ -971,14 +971,14 @@ tbody tr:hover td{background:#f8fbfe}
 .status-badge.is-finalised{background:#dbeafe;color:#1e3a8a;border-color:#93c5fd}
 .booking-row{cursor:pointer}
 .booking-row:hover{background:#f6fbff}
-.booking-row.status-provisional{border-left:3px solid #ef4444}
-.booking-row.status-payment-pending{border-left:3px solid #f97316}
-.booking-row.status-invoice{border-left:3px solid #facc15}
-.booking-row.status-invoiced{border-left:3px solid #eab308}
-.booking-row.status-partially-paid{border-left:3px solid #86efac}
-.booking-row.status-fully-paid{border-left:3px solid #22c55e}
-.booking-row.status-finalised{border-left:3px solid #3b82f6}
-.booking-row.status-cancelled{border-left:3px solid #9ca3af}
+.booking-row.status-provisional{border-left:3px solid #ef4444;background:#fff5f5}
+.booking-row.status-payment-pending{border-left:3px solid #f97316;background:#fff7f0}
+.booking-row.status-invoice{border-left:3px solid #facc15;background:#fefce8}
+.booking-row.status-invoiced{border-left:3px solid #eab308;background:#fefce8}
+.booking-row.status-partially-paid{border-left:3px solid #86efac;background:#f0fdf4}
+.booking-row.status-fully-paid{border-left:3px solid #22c55e;background:#f0fdf4}
+.booking-row.status-finalised{border-left:3px solid #3b82f6;background:#eff6ff}
+.booking-row.status-cancelled{border-left:3px solid #9ca3af;background:#f9fafb}
 .booking-row.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}
 .calendar-mini-card.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}
 .calendar-entry-card.is-cruise-liner{border-left:3px solid #7c3aed;background:#f5f3ff}

@@ -588,13 +588,14 @@
             <div class="booking-form-grid">
               <div class="booking-field-full booking-quick-filter-bar" aria-label="Booking quick filters">
                 <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All bookings <span data-filter-count="all">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="open">Open <span data-filter-count="open">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="payment_pending">Payment Pending <span data-filter-count="payment_pending">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoiced">Invoiced <span data-filter-count="invoiced">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Partially Paid <span data-filter-count="partially_paid">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Fully Paid <span data-filter-count="fully_paid">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="finalised">Finalised <span data-filter-count="finalised">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="cancelled">Cancelled <span data-filter-count="cancelled">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="needs_action">Needs action <span data-filter-count="needs_action">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="unpaid">Unpaid <span data-filter-count="unpaid">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="unassigned">Unassigned <span data-filter-count="unassigned">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="upcoming">Upcoming <span data-filter-count="upcoming">0</span></button>
                 <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset filters</button>
               </div>
               <div class="booking-field-full booking-filter-toggle-row">
@@ -683,7 +684,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Reference</th><th>Brand / Source</th><th>Customer</th><th>Service</th><th>Status</th><th>Date</th><th>Total</th></tr></thead>
+                <thead><tr><th>Date</th><th>Guest</th><th>Activity</th><th>Payment</th></tr></thead>
                 <tbody id="adminBookingsTable"></tbody>
               </table>
             </div>
