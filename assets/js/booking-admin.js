@@ -2007,6 +2007,7 @@ const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   const key=normalizeText(filter)
   if(!key)return true
   const status=String(booking?.status||'').toLowerCase()
+  if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
   return status===key
 }
 
