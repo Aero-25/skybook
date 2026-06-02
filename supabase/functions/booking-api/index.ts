@@ -1628,7 +1628,7 @@ const validatePublicBookingPayload=(service:Json,payload:Json)=>{
   if(!normalizeText(customer.full_name))errors.push('Customer full name is required.')
   if(!normalizeText(customer.email)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(customer.email)))errors.push('Valid customer email is required.')
   if(!normalizeText(customer.phone))errors.push('Phone or WhatsApp is required.')
-  if(Number(payload.quantity||0)<minimumPax)errors.push(`Quantity must be at least ${minimumPax}.`)
+  if(payload.admin_created!==true && Number(payload.quantity||0)<minimumPax)errors.push(`Quantity must be at least ${minimumPax}.`)
   if(String(service.preferred_date_mode)==='required'&&!normalizeText(payload.preferred_date))errors.push('Preferred date is required for this service.')
   if(payload.accept_terms!==true && payload.admin_created!==true)errors.push('Terms acceptance is required.')
   if(errors.length)throw new Error(errors[0])

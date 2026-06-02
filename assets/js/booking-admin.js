@@ -7944,8 +7944,13 @@ const handleBookingSave=async event=>{
       showToast(`Reservation accepted for ${guestName}${refLabel}`,'success')
       return
     }
-    openBookingManagementScreen(savedBooking,{scroll:true})
-    setAdminStatus(wasEditing ? 'Booking updated and management screen opened.' : 'Booking created and management screen opened.')
+    if(wasEditing){
+      openBookingManagementScreen(savedBooking,{scroll:true})
+      setAdminStatus('Booking updated.')
+    }else{
+      renderBookings()
+      setAdminStatus(`Booking created for ${guestName} · ${tourName}${refLabel}`)
+    }
     showToast(wasEditing ? `Booking updated${refLabel}` : `Booking created for ${guestName} · ${tourName}${refLabel}`,'success')
     return
   }
