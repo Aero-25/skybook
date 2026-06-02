@@ -3392,6 +3392,7 @@ const renderReservationDetail=()=>{
         </section>
 
         <section class="detail-section">
+          ${buildRepeatGuestBanner(booking)}
           <div class="section-heading">
             <div>
               <h4>Reservation overview</h4>
@@ -3630,6 +3631,33 @@ const renderBookingTrash=()=>{
   nodes.bookingTrashTable.innerHTML=renderTrashRows(trashed,'No bookings are in trash. Nothing is physically deleted from SkyBook.')
 }
 
+const buildRepeatGuestBanner=(booking)=>{
+  const email=String(booking?.customer_email||'').trim().toLowerCase()
+  if(!email)return ''
+  const priorBookings=state.bookings.filter(b=>{
+    if(b.id===booking.id)return false
+    const isCancelled=normalizeText(b.status)==='cancelled'
+    return !isCancelled && String(b.customer_email||'').trim().toLowerCase()===email
+  }).sort((a,b)=>(parseDateValue(b.preferred_date)?.getTime()||0)-(parseDateValue(a.preferred_date)?.getTime()||0))
+  if(!priorBookings.length)return ''
+  const latest=priorBookings[0]
+  const lastTour=bookingAdminShared.escapeHtml(latest.service_name||'a previous tour')
+  const lastDate=bookingAdminShared.escapeHtml(formatDateLabel(latest.preferred_date))
+  const count=priorBookings.length
+  const totalSpend=priorBookings.reduce((sum,b)=>sum+Number(b.total_amount||0),0)
+  const spendLabel=bookingAdminShared.formatMoney(totalSpend,booking.currency||state.settings.currency||'NAD')
+  return `
+    <div class="repeat-guest-banner" style="display:flex;align-items:center;gap:12px;padding:12px 18px;background:linear-gradient(135deg,#e8f7ee,#d8f0e0);border:1px solid #a8dfc0;border-radius:12px;margin-bottom:14px">
+      <span style="font-size:22px">⭐</span>
+      <div style="min-width:0;flex:1">
+        <strong style="font-size:13px;color:#1a6640">Returning guest — ${count} previous booking${count===1?'':'s'}</strong>
+        <p style="margin:2px 0 0;font-size:12px;color:#2d7a52">Last tour: ${lastTour} on ${lastDate} · Lifetime spend: ${spendLabel}</p>
+      </div>
+      <button type="button" class="booking-button ghost compact-button" style="font-size:11px;white-space:nowrap" data-booking-inline-action="view-customer-profile">View profile</button>
+    </div>
+  `
+}
+
 const renderBookingDetail=()=>{
   const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
   const brandName=state.brands.find(brand=>brand.code===booking?.brand_code)?.name||booking?.brand_code||''
@@ -3779,6 +3807,7 @@ const renderBookingDetail=()=>{
             </article>
         </section>
 
+        ${buildRepeatGuestBanner(booking)}
         <section class="detail-section" id="booking-guest-service-panel">
           <div class="section-heading">
             <div>
@@ -8590,6 +8619,22 @@ nodes.bookingDetail.addEventListener('click',event=>{
     switchTab(returnTab)
     return
   }
+  if(inlineAction==='view-customer-profile'){
+    const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
+    const email=String(booking?.customer_email||'').trim().toLowerCase()
+    const customer=state.customers.find(c=>String(c.email||'').trim().toLowerCase()===email||c.id===booking?.customer_id)
+    if(customer){
+      switchTab('customers')
+      window.setTimeout(()=>{
+        const row=document.querySelector(`[data-customer-id="${bookingAdminShared.escapeHtml(customer.id)}"]`)
+        row?.click()
+        row?.scrollIntoView({behavior:'smooth',block:'center'})
+      },200)
+    }else{
+      setAdminStatus('Customer profile not found. They may not have a full customer record yet.',true)
+    }
+    return
+  }
   if(inlineAction==='reinstate-booking'){
     const reinstateBooking=state.bookings.find(b=>b.id===state.selectedBookingId)
     if(!reinstateBooking){setAdminStatus('No booking selected.',true);return}
@@ -8941,21 +8986,43 @@ nodes.sessionTimeoutDismiss?.addEventListener('click',()=>{
 
 // ── Autofill from customer history ─────────────────────────────────────────
 nodes.bookingCustomerEmail?.addEventListener('blur',()=>{
-  if(state.selectedBookingId)return
   const email=(nodes.bookingCustomerEmail.value||'').trim().toLowerCase()
   if(!email)return
   const match=state.customers.find(c=>(c.email||'').toLowerCase()===email)
-  if(!match)return
-  const filled=[]
-  if(nodes.bookingCustomerName&&!nodes.bookingCustomerName.value.trim()&&match.full_name){
-    nodes.bookingCustomerName.value=match.full_name
-    filled.push('name')
+  if(match&&!state.selectedBookingId){
+    const filled=[]
+    if(nodes.bookingCustomerName&&!nodes.bookingCustomerName.value.trim()&&match.full_name){
+      nodes.bookingCustomerName.value=match.full_name
+      filled.push('name')
+    }
+    if(nodes.bookingCustomerPhone&&!nodes.bookingCustomerPhone.value.trim()&&match.phone){
+      nodes.bookingCustomerPhone.value=match.phone
+      filled.push('phone')
+    }
+    if(nodes.bookingNationality&&!nodes.bookingNationality.value.trim()&&match.nationality){
+      nodes.bookingNationality.value=match.nationality
+      filled.push('nationality')
+    }
+    if(filled.length)showToast(`Pre-filled ${filled.join(', ')} from customer history.`,'info')
   }
-  if(nodes.bookingCustomerPhone&&!nodes.bookingCustomerPhone.value.trim()&&match.phone){
-    nodes.bookingCustomerPhone.value=match.phone
-    filled.push('phone')
+  // Repeat guest check — show banner below the email field
+  const existingBanner=nodes.bookingForm?.querySelector('.repeat-guest-form-notice')
+  if(existingBanner)existingBanner.remove()
+  const priorBookings=state.bookings.filter(b=>{
+    const currentId=state.selectedBookingId
+    if(currentId&&b.id===currentId)return false
+    const isCancelled=normalizeText(b.status)==='cancelled'
+    return !isCancelled && String(b.customer_email||'').trim().toLowerCase()===email
+  }).sort((a,b)=>(parseDateValue(b.preferred_date)?.getTime()||0)-(parseDateValue(a.preferred_date)?.getTime()||0))
+  if(priorBookings.length>0){
+    const latest=priorBookings[0]
+    const notice=document.createElement('div')
+    notice.className='repeat-guest-form-notice booking-field-full'
+    notice.style.cssText='background:linear-gradient(135deg,#e8f7ee,#d8f0e0);border:1px solid #a8dfc0;border-radius:10px;padding:10px 14px;font-size:12px;color:#1a6640;display:flex;align-items:center;gap:8px'
+    notice.innerHTML=`<span style="font-size:16px">⭐</span><div><strong>Returning guest — ${priorBookings.length} previous booking${priorBookings.length===1?'':'s'}</strong><br>Last tour: ${bookingAdminShared.escapeHtml(latest.service_name||'—')} on ${bookingAdminShared.escapeHtml(formatDateLabel(latest.preferred_date))}</div>`
+    const emailField=nodes.bookingCustomerEmail?.closest('.booking-field')
+    if(emailField)emailField.insertAdjacentElement('afterend',notice)
   }
-  if(filled.length)showToast(`Pre-filled ${filled.join(' and ')} from customer history.`,'info')
 })
 
 setBookingFiltersCollapsed(true)

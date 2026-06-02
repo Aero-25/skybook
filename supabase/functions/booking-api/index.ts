@@ -3579,6 +3579,35 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   )
   await syncBookingItems(id,service,pricing)
   await syncBookingOperatorAssignmentAmount(id,Number(pricing.totalAmount || 0))
+  // Build structured field-level diff for amendment tracking
+  const amendmentChanges:string[]=[]
+  if(updatePayload.preferred_date!==existing.preferred_date)
+    amendmentChanges.push(`Date: ${normalizeText(existing.preferred_date)||'Not set'} → ${normalizeText(String(updatePayload.preferred_date||''))||'Not set'}`)
+  if(Number(updatePayload.quantity)!==Number(existing.quantity))
+    amendmentChanges.push(`Guests: ${existing.quantity} → ${updatePayload.quantity}`)
+  if(Number(updatePayload.adult_quantity||0)!==Number(existing.adult_quantity||0))
+    amendmentChanges.push(`Adults: ${existing.adult_quantity||0} → ${updatePayload.adult_quantity||0}`)
+  if(Number(updatePayload.child_quantity||0)!==Number(existing.child_quantity||0))
+    amendmentChanges.push(`Children: ${existing.child_quantity||0} → ${updatePayload.child_quantity||0}`)
+  if(String(updatePayload.service_id||'')!==String(existing.service_id||''))
+    amendmentChanges.push(`Tour: ${normalizeText(existing.service_name||existing.service_id||'—')} → ${normalizeText(service?.name||String(updatePayload.service_id||'—'))}`)
+  if(normalizeText(String(updatePayload.customer_notes||''))!==normalizeText(String(existing.customer_notes||'')))
+    amendmentChanges.push(`Notes updated`)
+  if(normalizeText(String(updatePayload.source||''))!==normalizeText(String(existing.source||'')))
+    amendmentChanges.push(`Source: ${existing.source||'—'} → ${updatePayload.source||'—'}`)
+  if(Number(updatePayload.total_amount)!==Number(existing.total_amount))
+    amendmentChanges.push(`Total: ${existing.total_amount||0} → ${updatePayload.total_amount||0} ${String(updatePayload.currency_code||existing.currency_code||'NAD')}`)
+  // Check metadata field changes (nationality, dietary, pickup, etc.)
+  const metaFields:Record<string,string>={nationality:'Nationality',booked_by:'Booked by',dietary_requirements:'Dietary',pickup_location:'Pickup location',dropoff_location:'Drop-off',guide_name:'Guide',departure_label:'Departure',pickup_time:'Pickup time'}
+  Object.entries(metaFields).forEach(([key,label])=>{
+    const oldVal=normalizeText(String(existingMetadata[key]||''))
+    const newVal=normalizeText(String(requestMetadata[key]||payload?.metadata?.[key]||''))
+    if(newVal&&oldVal!==newVal)amendmentChanges.push(`${label}: ${oldVal||'—'} → ${newVal}`)
+  })
+  if(amendmentChanges.length>0){
+    const amendmentReason=`Amendment — ${amendmentChanges.join(' | ')}`
+    await insertStatusHistory(id,String(updatePayload.status),String(updatePayload.status),amendmentReason,`admin:${userId}`,userId)
+  }
   if(updatePayload.status!==existing.status){
     await insertStatusHistory(id,String(existing.status),String(updatePayload.status),normalizeText(payload.reason)||'Booking updated in admin',`admin:${userId}`,userId)
   }
