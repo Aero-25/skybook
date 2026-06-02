@@ -1508,7 +1508,7 @@ const isCruiseLinerBooking=booking=>Boolean(booking?.metadata?.cruise_liner)
 const getStatusRowClass=booking=>{
   if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
-  if(status==='cancelled')return 'status-cancelled'
+  if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
   if(status==='provisional')return 'status-provisional'
   if(status==='payment_pending')return 'status-payment-pending'
   if(status==='invoice')return 'status-invoice'
