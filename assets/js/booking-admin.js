@@ -4810,7 +4810,7 @@ const handleCruiseLinerSubmit=async event=>{
   const date=document.getElementById('cruiseDate')?.value
   const buses=Number(document.getElementById('cruiseBuses')?.value||0)
   const cars=Number(document.getElementById('cruiseCars')?.value||0)
-  const pax=Number(document.getElementById('cruisePax')?.value||1)
+  const pax=1
   const activitySlug=document.getElementById('cruiseActivity')?.value||''
   const notes=document.getElementById('cruiseNotes')?.value.trim()||''
   if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
