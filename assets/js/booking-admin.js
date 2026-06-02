@@ -3208,7 +3208,7 @@ const syncBookingAutocomplete=()=>{
 
 const getStatusColor=(status,isCruise=false)=>{
   if(isCruise)return '#7c3aed'
-  const map={provisional:'#ef4444',payment_pending:'#f97316',invoice:'#facc15',invoiced:'#eab308',partially_paid:'#86efac',fully_paid:'#22c55e',finalised:'#3b82f6',cancelled:'#9ca3af'}
+  const map={provisional:'#7f1d1d',payment_pending:'#7c2d12',invoice:'#854d0e',invoiced:'#78350f',partially_paid:'#166534',fully_paid:'#14532d',finalised:'#1e3a8a',cancelled:'#4b5563',refunded:'#4b5563',failed:'#4b5563'}
   return map[normalizeText(status)]||'#94a3b8'
 }
 
