@@ -6911,30 +6911,144 @@ const openSkyBookPrintWindow=(title,markup)=>{
 const printArrivalsForDate=(selectedDate='')=>{
   const dateKey=selectedDate||nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey()
   const arrivals=buildArrivalsManifestRows(dateKey)
-  openSkyBookPrintWindow(`Arrivals List - ${formatDateLabel(dateKey)}`,`
-    <section>
-      <h2>Arrivals</h2>
-      <table>
-        <thead><tr><th>Reference</th><th>Guest</th><th>Tour</th><th>Pickups</th><th>Drop offs</th><th>Notes</th><th>Operator</th><th>Status</th><th>Total</th></tr></thead>
-        <tbody>${arrivals.map(row=>{
-          const booking=getBookingById(row.id)
-          return `
-            <tr>
-              <td><strong>${bookingAdminShared.escapeHtml(row.reference||'')}</strong><div class="table-subline">${bookingAdminShared.escapeHtml(getBrandName(booking?.brand_code||''))}</div></td>
-              <td>${bookingAdminShared.escapeHtml(row.guest||'Guest')}<div class="table-subline">${bookingAdminShared.escapeHtml(String(booking?.quantity||1))} pax</div></td>
-              <td>${bookingAdminShared.escapeHtml(row.tour||'Tour pending')}<div class="table-subline">${bookingAdminShared.escapeHtml(formatDateLabel(booking?.preferred_date||dateKey))}</div></td>
-              <td>${bookingAdminShared.escapeHtml(row.pickups||'Pending')}</td>
-              <td>${bookingAdminShared.escapeHtml(row.dropoffs||'Pending')}</td>
-              <td>${bookingAdminShared.escapeHtml(row.notes||'No notes')}</td>
-              <td>${bookingAdminShared.escapeHtml(row.operator||'Unassigned')}</td>
-              <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(row.status||''))}</td>
-              <td>${printableMoney(booking?.total_amount||row.total||0,booking?.currency||booking?.currency_code)}</td>
-            </tr>
-          `
-        }).join('') || '<tr><td colspan="9">No arrivals for this date.</td></tr>'}</tbody>
-      </table>
-    </section>
-  `)
+  const dateLabel=formatDateLabel(dateKey)
+  const brandLabel=state.activeBrandFilter ? getBrandName(state.activeBrandFilter) : 'All Brands'
+  const printedAt=new Date().toLocaleTimeString('en-NA',{hour:'2-digit',minute:'2-digit'})
+
+  const statusColour=status=>{
+    const s=normalizeText(status)
+    if(s==='provisional')return '#ef4444'
+    if(s==='payment_pending')return '#f97316'
+    if(s==='invoice')return '#facc15'
+    if(s==='invoiced')return '#eab308'
+    if(s==='partially_paid')return '#86efac'
+    if(s==='fully_paid')return '#22c55e'
+    if(s==='finalised')return '#3b82f6'
+    return '#94a3b8'
+  }
+
+  const cards=arrivals.length ? arrivals.map((row,index)=>{
+    const booking=getBookingById(row.id)
+    const meta=normalizeJsonRecord(booking?.metadata)
+    const adults=Number(booking?.adult_quantity||0)
+    const children=Number(booking?.child_quantity||0)
+    const infants=Number(booking?.infant_quantity||0)
+    const totalPax=adults+children+infants||Number(booking?.quantity||1)
+    const paxParts=[
+      adults>0 ? `${adults} Adult${adults>1?'s':''}` : '',
+      children>0 ? `${children} Child${children>1?'ren':''} (4–12)` : '',
+      infants>0 ? `${infants} Under 4` : ''
+    ].filter(Boolean)
+    const paxLabel=paxParts.length ? paxParts.join(', ') : `${totalPax} guest${totalPax>1?'s':''}`
+    const accommodation=meta.accommodation||meta.pickup_location||meta.hotel||'—'
+    const pickupPoint=meta.pickup_point||''
+    const dropoff=meta.dropoff_location||row.dropoffs||'—'
+    const dietary=meta.dietary_requirements||meta.dietary||'—'
+    const nationality=meta.nationality||'—'
+    const bookedBy=meta.booked_by||booking?.booked_by||'—'
+    const agent=meta.agent||'—'
+    const contact=booking?.customer_phone||'—'
+    const email=booking?.customer_email||''
+    const notes=booking?.customer_notes||booking?.notes||meta.notes||''
+    const operator=row.operator||'Unassigned'
+    const colour=statusColour(booking?.status||row.status)
+    const statusLabel=formatDisplayLabel(booking?.status||row.status||'')
+
+    const field=(label,value)=>value&&value!=='—'&&value!==''
+      ? `<div class="field"><span class="label">${bookingAdminShared.escapeHtml(label)}</span><span class="value">${bookingAdminShared.escapeHtml(String(value))}</span></div>`
+      : ''
+
+    return `
+      <div class="booking-card" style="border-left:5px solid ${colour}">
+        <div class="card-header">
+          <div class="guest-info">
+            <div class="guest-name">${bookingAdminShared.escapeHtml(row.guest||booking?.customer_name||'Guest')}</div>
+            <div class="tour-name">${bookingAdminShared.escapeHtml(row.tour||booking?.service_name||'Tour')}</div>
+          </div>
+          <div class="card-meta">
+            <div class="ref">${bookingAdminShared.escapeHtml(row.reference||booking?.reference||'')}</div>
+            <div class="status-pill" style="background:${colour}22;color:${colour};border:1px solid ${colour}">${bookingAdminShared.escapeHtml(statusLabel)}</div>
+            <div class="amount">${printableMoney(booking?.total_amount||row.total||0,booking?.currency||booking?.currency_code)}</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="fields-col">
+            ${field('Pax',paxLabel)}
+            ${field('Accommodation',accommodation)}
+            ${field('Pickup',pickupPoint)}
+            ${field('Drop Off',dropoff)}
+            ${field('Contact',contact)}
+            ${email?field('Email',email):''}
+          </div>
+          <div class="fields-col">
+            ${field('Dietary',dietary)}
+            ${field('Nationality',nationality)}
+            ${field('Booked By',bookedBy)}
+            ${agent!=='—'?field('Agent',agent):''}
+            ${field('Operator',operator)}
+            ${notes?field('Notes',notes):''}
+          </div>
+        </div>
+        ${index<arrivals.length-1 ? '<hr class="card-divider">' : ''}
+      </div>
+    `
+  }).join('') : `<div class="no-arrivals">No arrivals scheduled for ${bookingAdminShared.escapeHtml(dateLabel)}.</div>`
+
+  const win=window.open('','_blank','noopener,noreferrer,width=900,height=860')
+  if(!win)throw new Error('Allow popups to print the arrivals list.')
+  win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Arrivals — ${bookingAdminShared.escapeHtml(dateLabel)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#0d2535;background:#fff;padding:32px 40px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:18px;border-bottom:3px solid #0a3050;margin-bottom:28px}
+.page-title h1{font-size:24px;font-weight:800;color:#0a3050;margin-bottom:3px}
+.page-title p{font-size:13px;color:#5f7383}
+.page-meta{text-align:right;font-size:12px;color:#5f7383}
+.page-meta strong{display:block;font-size:15px;color:#0a3050;font-weight:700}
+.count-badge{display:inline-block;background:#0a3050;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle}
+.booking-card{padding:18px 0 0;margin-bottom:0}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;padding-left:16px}
+.guest-name{font-size:17px;font-weight:800;color:#0a3050;margin-bottom:3px}
+.tour-name{font-size:13px;color:#3a6480;font-weight:600}
+.card-meta{text-align:right;flex-shrink:0;margin-left:20px}
+.ref{font-size:11px;color:#5f7383;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;font-weight:700}
+.status-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.amount{font-size:15px;font-weight:800;color:#0a3050}
+.card-body{display:grid;grid-template-columns:1fr 1fr;gap:0 28px;padding-left:16px;padding-bottom:16px}
+.fields-col{display:flex;flex-direction:column;gap:5px}
+.field{display:flex;gap:8px;align-items:baseline}
+.label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#5f7383;white-space:nowrap;min-width:90px}
+.value{font-size:13px;color:#1a2a35;flex:1}
+.card-divider{border:none;border-top:1px solid #dde9f2;margin:0 0 20px;padding-left:16px}
+.no-arrivals{text-align:center;padding:60px 20px;color:#5f7383;font-size:15px}
+hr.card-divider{border-top:1px solid #dde9f2;margin:18px 0}
+@media print{
+  body{padding:16px 24px}
+  .page-header{padding-bottom:12px;margin-bottom:18px}
+  .booking-card{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="page-header">
+  <div class="page-title">
+    <h1>Arrivals <span class="count-badge">${arrivals.length}</span></h1>
+    <p>${bookingAdminShared.escapeHtml(dateLabel)} &mdash; ${bookingAdminShared.escapeHtml(brandLabel)}</p>
+  </div>
+  <div class="page-meta">
+    <strong>True Travel Namibia</strong>
+    Printed ${bookingAdminShared.escapeHtml(printedAt)}
+  </div>
+</div>
+${cards}
+</body></html>`)
+  win.document.close()
+  win.focus()
+  win.print()
 }
 
 const resolveReportPeriod=choice=>{
