@@ -2819,6 +2819,10 @@ const getFilteredBookings=()=>{
     }
     if(!bookingMatchesQuickFilter(booking))return false
     return true
+  }).sort((a,b)=>{
+    const da=parseDateValue(a.preferred_date)?.getTime()||0
+    const db=parseDateValue(b.preferred_date)?.getTime()||0
+    return da-db
   })
 }
 
