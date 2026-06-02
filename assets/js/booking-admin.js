@@ -380,9 +380,15 @@ const nodes={
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
   bookingGuideName:document.getElementById('adminBookingGuideName'),
+  bookingNationality:document.getElementById('adminBookingNationality'),
+  bookingBookedBy:document.getElementById('adminBookingBookedBy'),
+  bookingDietary:document.getElementById('adminBookingDietary'),
+  bookingPickupLocation:document.getElementById('adminBookingPickupLocation'),
+  bookingDropoffLocation:document.getElementById('adminBookingDropoffLocation'),
   bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
+  bookingSaveProvisionalButton:document.getElementById('adminBookingSaveProvisionalButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
   reservationsTable:document.getElementById('adminReservationsTable'),
   reservationDetail:document.getElementById('adminReservationDetail'),
@@ -1150,6 +1156,11 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Preferred date',formatDateLabel(booking?.preferred_date))
   addRow('Departure',metadata.departure_label)
   addRow('Pickup time',metadata.pickup_time)
+  addRow('Pickup location',metadata.pickup_location||metadata.hotel)
+  addRow('Drop-off location',metadata.dropoff_location)
+  addRow('Nationality',metadata.nationality||booking?.nationality)
+  addRow('Booked by',metadata.booked_by||booking?.booked_by)
+  addRow('Dietary requirements',metadata.dietary_requirements||metadata.dietary)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
   const guestLabel=adultQty+childQty>0 ? `${booking?.quantity||adultQty+childQty} (${adultQty} adult${adultQty!==1?'s':''}, ${childQty} child${childQty!==1?'ren':''})` : String(booking?.quantity||1)
@@ -1348,6 +1359,11 @@ const collectBookingFormValues=()=>({
   adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
   child_quantity:Number(nodes.bookingChildQuantity?.value||0),
   guide_name:nodes.bookingGuideName?.value||'',
+  nationality:nodes.bookingNationality?.value?.trim()||'',
+  booked_by:nodes.bookingBookedBy?.value?.trim()||'',
+  dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
+  pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
+  dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
   customer_name:nodes.bookingCustomerName?.value||'',
   customer_email:nodes.bookingCustomerEmail?.value||'',
   customer_phone:nodes.bookingCustomerPhone?.value||'',
@@ -1370,7 +1386,12 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
   if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(values.adult_quantity||0)
   if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(values.child_quantity||0)
-  if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||'')
+  if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||values.metadata?.guide_name||'')
+  if(nodes.bookingNationality)nodes.bookingNationality.value=String(values.nationality||values.metadata?.nationality||'')
+  if(nodes.bookingBookedBy)nodes.bookingBookedBy.value=String(values.booked_by||values.metadata?.booked_by||'')
+  if(nodes.bookingDietary)nodes.bookingDietary.value=String(values.dietary_requirements||values.metadata?.dietary_requirements||values.metadata?.dietary||'')
+  if(nodes.bookingPickupLocation)nodes.bookingPickupLocation.value=String(values.pickup_location||values.metadata?.pickup_location||values.metadata?.hotel||'')
+  if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=String(values.dropoff_location||values.metadata?.dropoff_location||'')
   if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
   if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
   if(nodes.bookingCustomerPhone)nodes.bookingCustomerPhone.value=String(values.customer_phone||'')
@@ -1466,11 +1487,27 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
-  if(['ready','confirmed','completed','paid','settled','approved','successful'].includes(normalized))return 'is-good'
-  if(['attention','pending','awaiting_payment','partially_paid','queued','under_review','needs_review','payment_request_sent','rescheduled','draft'].includes(normalized))return 'is-warn'
-  if(['blocked','cancelled','failed','refunded','inactive','critical','error','no_show'].includes(normalized))return 'is-bad'
+  if(['draft','pending'].includes(normalized))return 'is-reservation'
+  if(['awaiting_payment','payment_request_sent','confirmed','rescheduled'].includes(normalized))return 'is-booking'
+  if(['paid','settled','successful'].includes(normalized))return 'is-paid'
+  if(normalized==='completed')return 'is-finalised'
+  if(normalized==='provisional')return 'is-provisional'
+  if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
+  if(['ready','approved','partially_paid','queued','under_review','needs_review'].includes(normalized))return 'is-warn'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
+}
+
+const getStatusRowClass=booking=>{
+  const status=normalizeText(booking?.status||'')
+  const paymentStatus=normalizeText(booking?.payment_status||'')
+  if(status==='cancelled')return 'status-cancelled'
+  if(status==='completed')return 'status-finalised'
+  if(status==='provisional')return 'status-provisional'
+  if(paymentStatus==='paid'||paymentStatus==='settled')return 'status-paid'
+  if(['confirmed','awaiting_payment','payment_request_sent','rescheduled'].includes(status))return 'status-booking'
+  if(['pending','draft'].includes(status))return 'status-reservation'
+  return ''
 }
 
 const renderStatusBadge=(value,label='')=>`<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(label||String(value||'—').replace(/_/g,' '))}</span>`
@@ -1733,7 +1770,7 @@ const renderBrandPill=brandCode=>{
 }
 const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
-const isReviewReservation=booking=>['draft','pending'].includes(normalizeText(booking?.status))
+const isReviewReservation=booking=>['draft','pending','provisional'].includes(normalizeText(booking?.status))
 const getTrashHistoryEntry=bookingId=>sortByDateDesc(
   state.statusHistory.filter(item=>item.booking_id===bookingId && normalizeText(item.to_status)==='cancelled' && /trash/i.test(String(item.reason||''))),
   'created_at'
@@ -2964,10 +3001,11 @@ const renderCalendar=()=>{
   const dates=createDateRange(focusDate,state.calendarView)
   const rangeBookings=state.bookings.filter(booking=>{
     const key=normalizeDateKey(booking.preferred_date)
-    return key && dates.some(date=>normalizeDateKey(date)===key)
+    const isCancelled=normalizeText(booking.status)==='cancelled'
+    return key && !isCancelled && dates.some(date=>normalizeDateKey(date)===key)
   })
   const summaryCards=[
-    {label:'Visible bookings',value:String(rangeBookings.length)},
+    {label:'Active bookings',value:String(rangeBookings.length)},
     {label:'Assigned resources',value:String(state.resourceAllocations.filter(row=>dates.some(date=>normalizeDateKey(date)===normalizeDateKey(row.allocation_date))).length)},
     {label:'Operators in window',value:String(new Set(rangeBookings.map(getBookingOperatorName).filter(name=>name&&name!=='Unassigned')).size)},
     {label:'Pending in window',value:String(rangeBookings.filter(item=>item.status==='pending').length)}
@@ -2986,12 +3024,14 @@ const renderCalendar=()=>{
         ${dayBookings.length ? dayBookings.map(booking=>{
           const allocations=getBookingAllocations(booking.id)
           const bookingUrl=getRecordPageUrl('bookings',booking.id)
+          const guests=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||booking.quantity||1
+          const tooltipText=`${booking.customer_name||'Guest'} · ${booking.service_name||'Tour'}\nDate: ${formatDateLabel(booking.preferred_date)}\nGuests: ${guests}\nStatus: ${String(booking.status||'').replace(/_/g,' ')}\nRef: ${booking.reference}\nPhone: ${booking.customer_phone||'—'}\nEmail: ${booking.customer_email||'—'}`
           return `
-            <article class="calendar-entry-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
+            <article class="calendar-entry-card is-clickable ${getStatusRowClass(booking)}" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" data-cal-tooltip="${bookingAdminShared.escapeHtml(tooltipText)}">
               <div class="calendar-entry-top">
                 <div>
-                  <strong><a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${bookingAdminShared.escapeHtml(booking.reference)}</a></strong>
-                  <p>${bookingAdminShared.escapeHtml(booking.service_name)} · ${bookingAdminShared.escapeHtml(booking.customer_name)}</p>
+                  <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+                  <p>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')} &middot; <a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">${bookingAdminShared.escapeHtml(booking.reference)}</a></p>
                 </div>
                 <div class="calendar-entry-badges">
                   ${renderStatusBadge(booking.status)}
@@ -3025,11 +3065,10 @@ const renderCalendar=()=>{
               </header>
               <div class="calendar-cell-body">
                 ${bookings.length ? bookings.map(booking=>{
-                  const bookingUrl=getRecordPageUrl('bookings',booking.id)
                   return `
-                  <article class="calendar-mini-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
-                    <a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong></a>
-                    <span>${bookingAdminShared.escapeHtml(booking.service_name)}</span>
+                  <article class="calendar-mini-card is-clickable ${getStatusRowClass(booking)}" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} — ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')} (${bookingAdminShared.escapeHtml(booking.reference)})">
+                    <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+                    <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                     ${renderStatusBadge(booking.status)}
                   </article>
                 `}).join('') : '<p class="muted-copy">No bookings</p>'}
@@ -3056,11 +3095,10 @@ const renderCalendar=()=>{
             </header>
             <div class="calendar-cell-body">
               ${bookings.slice(0,4).map(booking=>{
-                const bookingUrl=getRecordPageUrl('bookings',booking.id)
                 return `
-                <article class="calendar-mini-card is-clickable" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="Open booking ${bookingAdminShared.escapeHtml(booking.reference)} in new tab">
-                  <a class="cal-booking-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong></a>
-                  <span>${bookingAdminShared.escapeHtml(booking.service_name)}</span>
+                <article class="calendar-mini-card is-clickable ${getStatusRowClass(booking)}" data-open-booking="${bookingAdminShared.escapeHtml(booking.id)}" title="${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} — ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')} (${bookingAdminShared.escapeHtml(booking.reference)})">
+                  <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+                  <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                 </article>
               `}).join('') || '<p class="muted-copy">No activity</p>'}
             </div>
@@ -3231,7 +3269,7 @@ const renderReservationDetail=()=>{
     <div class="booking-detail-shell reservation-management-shell">
       <div class="management-scroll-header" data-management-view="reservation-management">
         <div class="management-scroll-header-inner">
-          <strong>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+          <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} · ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</strong> <small style="font-weight:400;opacity:.65">${bookingAdminShared.escapeHtml(booking.reference)}</small>
           <div class="management-scroll-header-actions">
             <button type="button" data-reservation-nav="back">Back</button>
             <button type="button" data-reservation-action="edit">Edit</button>
@@ -3244,14 +3282,15 @@ const renderReservationDetail=()=>{
         <section class="booking-management-hero reservation-screen-shell">
           <div>
             <span class="booking-chip">Reservation management</span>
-            <h3>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+            <h3>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} · ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</h3>
+            <small style="font-size:13px;font-weight:400;opacity:.7">${bookingAdminShared.escapeHtml(booking.reference)}</small>
             <p>Review the guest request, complete any missing information, and decide whether this reservation should move into the live booking workspace.</p>
           </div>
           <nav class="booking-management-nav reservation-management-nav" aria-label="Reservation management navigation">
-            <button type="button" data-reservation-nav="back">Back to reservations</button>
+            <button type="button" data-reservation-nav="back">← Return to SkyBook</button>
             <div class="reservation-decision-actions" role="group" aria-label="Reservation decisions">
               <button type="button" data-reservation-action="edit">Edit details</button>
-              <button type="button" class="is-primary-action" data-reservation-action="accept">Accept reservation</button>
+              ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-reservation-action="reinstate">Reinstate Reservation</button>` : `<button type="button" class="is-primary-action" data-reservation-action="accept">Accept reservation</button>`}
               <button type="button" class="is-danger-action" data-reservation-action="delete">Delete reservation</button>
             </div>
           </nav>
@@ -3386,22 +3425,19 @@ const renderBookings=()=>{
   nodes.bookingsTable.innerHTML=filtered.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     return `
-    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
-        <strong><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||'')}</div>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
+        <div class="table-subline" style="font-size:11px;opacity:.65"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></div>
       </td>
       <td>
         ${renderBrandPill(booking.brand_code)}
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
       </td>
       <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.customer_name)}</strong>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_email||'')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</div>
-      </td>
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.service_name)}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</div>
       </td>
       <td>
         <div class="badge-stack">
@@ -3447,12 +3483,16 @@ const renderTrashRows=(rows,emptyMessage)=>rows.map(booking=>{
     restoredHistory.length ? `Restored ${restoredHistory.length}x` : 'Not yet restored'
   ].filter(Boolean)
   return `
-    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))}" data-trash-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}" data-trash-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
-        <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
+        <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+        <div class="table-subline">${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
+        <div class="table-subline" style="font-size:11px;opacity:.65">${bookingAdminShared.escapeHtml(booking.reference)}</div>
+      </td>
+      <td>
+        ${renderBrandPill(booking.brand_code)}
         <div class="table-subline">${renderStatusBadge(booking.status)}</div>
       </td>
-      <td>${renderBrandPill(booking.brand_code)}</td>
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_email||booking.customer_phone||'')}</div>
@@ -3569,7 +3609,7 @@ const renderBookingDetail=()=>{
     <div class="booking-detail-shell booking-screen-shell">
       <div class="management-scroll-header" data-management-view="bookings">
         <div class="management-scroll-header-inner">
-          <strong>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
+          <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} · ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</strong> <small style="font-weight:400;opacity:.65">${bookingAdminShared.escapeHtml(booking.reference)}</small>
           <div class="management-scroll-header-actions">
             <button type="button" data-booking-inline-action="toggle-functions" data-loading-exempt="true">${functionsCollapsed ? 'Open Functions' : 'Booking Functions'}</button>
           </div>
@@ -3579,14 +3619,19 @@ const renderBookingDetail=()=>{
         <section class="booking-management-hero">
           <div>
             <span class="booking-chip">Management workspace</span>
-            <h3>${bookingAdminShared.escapeHtml(booking.reference)} · ${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</h3>
+            <h3>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')} · ${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</h3>
+            <small style="font-size:13px;font-weight:400;opacity:.7">${bookingAdminShared.escapeHtml(booking.reference)}</small>
           </div>
-          <nav class="booking-management-nav" aria-label="Booking management navigation">
-            <a href="#booking-notification-panel">Notifications</a>
-            <a href="#booking-guest-service-panel">Details</a>
-            <a href="#booking-finance-panel">Finance</a>
-            <a href="#booking-documents-panel">Documents</a>
-          </nav>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="return-to-main">← Return to SkyBook</button>
+            ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-booking-inline-action="reinstate-booking">Reinstate Booking</button>` : ''}
+            <nav class="booking-management-nav" aria-label="Booking management navigation">
+              <a href="#booking-notification-panel">Notifications</a>
+              <a href="#booking-guest-service-panel">Details</a>
+              <a href="#booking-finance-panel">Finance</a>
+              <a href="#booking-documents-panel">Documents</a>
+            </nav>
+          </div>
         </section>
 
         <section class="detail-section" id="booking-notification-panel">
@@ -4403,6 +4448,7 @@ const openReservationManagementScreen=(booking,{scroll=true}={})=>{
 
 const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   if(!booking)return
+  state.preBookingTab=state.activeTab||'bookings'
   state.selectedBookingId=booking.id
   switchTab('bookings')
   fillBookingForm(booking)
@@ -4557,7 +4603,7 @@ const readWorkflowModalValues=form=>{
 const buildDepartureTimeRow=(label='',time='',pickupTime='')=>{
   const row=document.createElement('div')
   row.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap'
-  row.innerHTML=`<input type="text" placeholder="Label (e.g. AM)" value="${label.replace(/"/g,'&quot;')}" data-dep-label style="flex:1;min-width:120px"><input type="time" value="${time}" data-dep-time style="flex:1;min-width:120px"><input type="text" placeholder="Pickup time (e.g. 07:30 or TBC)" value="${pickupTime.replace(/"/g,'&quot;')}" data-dep-pickup style="flex:2;min-width:160px"><button type="button" data-dep-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove">×</button>`
+  row.innerHTML=`<input type="text" placeholder="Label (e.g. AM)" value="${label.replace(/"/g,'&quot;')}" data-dep-label style="flex:1;min-width:120px"><input type="time" value="${time}" data-dep-time style="flex:1;min-width:120px"><input type="text" placeholder="Pickup time (e.g. 07:30 or TBC)" value="${pickupTime.replace(/"/g,'&quot;')}" data-dep-pickup style="flex:2;min-width:160px"><button type="button" data-dep-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove pickup time">×</button>`
   row.querySelector('[data-dep-remove]').addEventListener('click',()=>row.remove())
   return row
 }
@@ -7156,11 +7202,12 @@ const syncBookingQuantityMode=()=>{
 
 const validateBookingForm=()=>{
   const errors=[]
+  const isProvisional=nodes.bookingStatus?.value==='provisional'
   if(!nodes.bookingBrand?.value)
     errors.push({label:'Brand',message:'Select a brand (True Travel or Iventure) before saving.',fieldId:'adminBookingBrand'})
   if(!nodes.bookingService?.value)
     errors.push({label:'Tour / Service',message:'Please select a tour before saving.',fieldId:'adminBookingService'})
-  if(!nodes.bookingDate?.value)
+  if(!isProvisional&&!nodes.bookingDate?.value)
     errors.push({label:'Preferred Date',message:'A booking date is required.',fieldId:'adminBookingDate'})
   const useAdultChild=!nodes.bookingAdultWrap?.hidden
   const total=useAdultChild
@@ -7171,17 +7218,15 @@ const validateBookingForm=()=>{
   if(!nodes.bookingCustomerName?.value.trim())
     errors.push({label:'Customer Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
   const email=nodes.bookingCustomerEmail?.value.trim()||''
-  if(!email)
+  if(!isProvisional&&!email)
     errors.push({label:'Customer Email',message:'Email address is required.',fieldId:'adminBookingCustomerEmail'})
-  else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
+  if(!isProvisional&&email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
     errors.push({label:'Customer Email',message:'Enter a valid email address.',fieldId:'adminBookingCustomerEmail'})
   const phone=nodes.bookingCustomerPhone?.value.trim()||''
-  if(!phone)
+  if(!isProvisional&&!phone)
     errors.push({label:'Customer Phone',message:'Phone or WhatsApp number is required.',fieldId:'adminBookingCustomerPhone'})
-  else if(phone.replace(/[^\d+]/g,'').length<7)
+  if(!isProvisional&&phone&&phone.replace(/[^\d+]/g,'').length<7)
     errors.push({label:'Customer Phone',message:'Enter a valid phone or WhatsApp number.',fieldId:'adminBookingCustomerPhone'})
-  if(!nodes.bookingGuideName?.value.trim())
-    errors.push({label:'Assigned Guide',message:'Assign a guide before saving the booking.',fieldId:'adminBookingGuideName'})
   return errors
 }
 
@@ -7231,7 +7276,12 @@ const handleBookingSave=async event=>{
       ...(existingBooking?.metadata||{}),
       custom_fields:collectBookingCustomFieldValues(),
       departure_label:nodes.bookingDeparture?.value||'',
-      pickup_time:nodes.bookingPickup?.value||''
+      pickup_time:nodes.bookingPickup?.value||'',
+      nationality:nodes.bookingNationality?.value?.trim()||'',
+      booked_by:nodes.bookingBookedBy?.value?.trim()||'',
+      dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
+      pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
+      dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||''
     },
     customer:{
       full_name:nodes.bookingCustomerName.value.trim(),
@@ -8230,12 +8280,30 @@ nodes.reservationDetail?.addEventListener('click',event=>{
     })
     return
   }
+  if(action==='reinstate'){
+    openWorkflowModal({
+      title:'Reinstate Reservation',
+      description:'Reinstate this cancelled reservation back into the review queue.',
+      submitLabel:'Reinstate Reservation',
+      fields:[
+        {name:'reason',label:'Reinstatement reason',type:'textarea',placeholder:'Error in cancellation, guest returned, etc.',required:true,helper:'Stored in audit history.'}
+      ],
+      onSubmit:async values=>{
+        const bookingId=state.selectedBookingId
+        if(!bookingId)return
+        await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
+          method:'PATCH',
+          headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+          body:{status:'pending',payment_status:'pending',reason:values.reason,workflow_action:'reinstate'}
+        })
+        await createActivityNote(bookingId,`Reservation reinstated: ${values.reason}`)
+        await refreshAdmin('Reservation reinstated.')
+      }
+    })
+    return
+  }
   if(action==='accept'){
     const reservationId=state.selectedBookingId
-    if(!booking.guide_name&&!booking.metadata?.guide_name){
-      setAdminStatus('A guide must be assigned before accepting this reservation. Edit the reservation and add the guide name.',true)
-      return
-    }
     const pendingWindow=openPendingBookingRecordWindow(booking)
     setReservationAcceptanceLoading(true,'Accepting this reservation and opening the full booking view in a new page.')
     setAdminStatus('Accepting reservation and preparing the full booking view...')
@@ -8340,6 +8408,34 @@ nodes.bookingDetail.addEventListener('click',event=>{
     if(booking){
       runDetailButtonAction(()=>issueClientInvoice(booking),'Client invoice failed.','Generating invoice')
     }
+    return
+  }
+  if(inlineAction==='return-to-main'){
+    const returnTab=state.preBookingTab||'bookings'
+    switchTab(returnTab)
+    return
+  }
+  if(inlineAction==='reinstate-booking'){
+    const reinstateBooking=state.bookings.find(b=>b.id===state.selectedBookingId)
+    if(!reinstateBooking){setAdminStatus('No booking selected.',true);return}
+    openWorkflowModal({
+      title:'Reinstate Booking',
+      description:'Reinstate this cancelled booking and return it to active status. A reason is required for the audit trail.',
+      submitLabel:'Reinstate Booking',
+      fields:[
+        {name:'reason',label:'Reinstatement reason',type:'textarea',placeholder:'Guest rebooked, error in cancellation, operator request, etc.',required:true,helper:'Stored in the booking audit history.'}
+      ],
+      onSubmit:async values=>{
+        if(!state.selectedBookingId)return
+        await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+          method:'PATCH',
+          headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+          body:{status:'pending',payment_status:'pending',reason:values.reason,workflow_action:'reinstate'}
+        })
+        await createActivityNote(state.selectedBookingId,`Booking reinstated: ${values.reason}`)
+        await refreshAdmin('Booking reinstated successfully.')
+      }
+    })
     return
   }
   if(inlineAction==='trash-booking'){
@@ -8620,6 +8716,10 @@ nodes.bookingPreviewEmailButton?.addEventListener('click',()=>{
   nodes.emailPreviewModal.hidden=false
   nodes.emailPreviewModal.setAttribute('aria-hidden','false')
   renderEmailPreview()
+})
+nodes.bookingSaveProvisionalButton?.addEventListener('click',()=>{
+  if(nodes.bookingStatus)nodes.bookingStatus.value='provisional'
+  nodes.bookingForm?.requestSubmit()
 })
 nodes.emailPreviewClose?.addEventListener('click',()=>{
   if(!nodes.emailPreviewModal)return

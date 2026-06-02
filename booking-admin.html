@@ -1378,6 +1378,7 @@
                 <option value="admin">Admin Desk</option>
                 <option value="true_travel_website">True Travel Website</option>
                 <option value="iventure_website">Iventure Website</option>
+                <option value="activity_bridge">Activity Bridge</option>
                 <option value="whatsapp">WhatsApp</option>
                 <option value="email">Email</option>
                 <option value="phone">Phone</option>
@@ -1392,6 +1393,7 @@
             <label class="booking-field">
               <span>Status</span>
               <select id="adminBookingStatusField">
+                <option value="provisional">Provisional</option>
                 <option value="pending">Pending</option>
                 <option value="payment_request_sent">Payment Link Generated</option>
                 <option value="awaiting_payment">Awaiting Payment</option>
@@ -1417,7 +1419,7 @@
               <input id="adminBookingDate" type="date">
             </label>
             <label class="booking-field" id="adminBookingDepartureWrap" hidden>
-              <span>Departure Time</span>
+              <span>Pickup Schedule</span>
               <select id="adminBookingDeparture">
                 <option value="">Any / TBC</option>
               </select>
@@ -1452,7 +1454,27 @@
             </label>
             <label class="booking-field-full">
               <span>Assigned guide</span>
-              <input id="adminBookingGuideName" type="text" placeholder="Guide's full name — required before acceptance">
+              <input id="adminBookingGuideName" type="text" placeholder="Guide's full name (optional)">
+            </label>
+            <label class="booking-field">
+              <span>Nationality</span>
+              <input id="adminBookingNationality" type="text" placeholder="e.g. German, Namibian">
+            </label>
+            <label class="booking-field">
+              <span>Booked By</span>
+              <input id="adminBookingBookedBy" type="text" placeholder="Guest, agent, hotel, or staff">
+            </label>
+            <label class="booking-field-full">
+              <span>Dietary Requirements</span>
+              <input id="adminBookingDietary" type="text" placeholder="Allergies, vegetarian/vegan, or None">
+            </label>
+            <label class="booking-field">
+              <span>Pickup Location</span>
+              <input id="adminBookingPickupLocation" type="text" placeholder="Hotel name or meeting point">
+            </label>
+            <label class="booking-field">
+              <span>Drop-off Location</span>
+              <input id="adminBookingDropoffLocation" type="text" placeholder="Hotel or destination (if different)">
             </label>
             <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
@@ -1461,6 +1483,7 @@
             </label>
             <div class="booking-field-full booking-action-row">
               <button class="booking-button ghost" type="button" id="adminBookingPreviewEmailButton">Preview Email</button>
+              <button class="booking-button ghost" type="button" id="adminBookingSaveProvisionalButton">Save as Provisional</button>
               <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
             </div>
           </form>
@@ -1552,9 +1575,9 @@
                 <input id="adminServiceMinPax" type="number" min="1" step="1" value="1">
               </label>
               <div class="booking-field-full" id="adminServiceDepartureTimesWrap">
-                <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Departure Times</span>
+                <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Pickup Times</span>
                 <div id="adminServiceDepartureTimesList" style="display:flex;flex-direction:column;gap:8px"></div>
-                <button type="button" id="adminServiceAddDepartureTime" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add departure time</button>
+                <button type="button" id="adminServiceAddDepartureTime" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add pickup time</button>
               </div>
               <label class="booking-field" hidden>
                 <span>Pickup Time</span>

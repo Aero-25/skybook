@@ -115,17 +115,18 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 }
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
-  draft:['pending','payment_request_sent','awaiting_payment','cancelled','failed'],
-  pending:['payment_request_sent','awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
+  draft:['pending','provisional','payment_request_sent','awaiting_payment','cancelled','failed'],
+  pending:['provisional','payment_request_sent','awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
+  provisional:['pending','payment_request_sent','awaiting_payment','confirmed','cancelled'],
   payment_request_sent:['awaiting_payment','confirmed','rescheduled','cancelled','failed','no_show'],
   awaiting_payment:['payment_request_sent','confirmed','rescheduled','cancelled','failed','no_show'],
   rescheduled:['payment_request_sent','awaiting_payment','confirmed','cancelled','failed','no_show','completed'],
   confirmed:['rescheduled','completed','cancelled','refunded','no_show'],
   no_show:['confirmed','cancelled','refunded'],
   completed:['refunded'],
-  cancelled:[],
+  cancelled:['pending','provisional','awaiting_payment'],
   refunded:[],
-  failed:['pending','cancelled']
+  failed:['pending','provisional','cancelled']
 }
 
 const DEFAULT_OPS_TEMPLATES={
@@ -3267,7 +3268,7 @@ const buildReports=({
   const officePayables=officeInvoices
     .filter(invoice=>!['paid','cancelled'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.total_amount || 0),0)
-  const statusBreakdown=['pending','payment_request_sent','awaiting_payment','confirmed','completed','cancelled','refunded','failed'].map(status=>({
+  const statusBreakdown=['pending','provisional','payment_request_sent','awaiting_payment','confirmed','completed','cancelled','refunded','failed'].map(status=>({
     status,
     count:bookings.filter(booking=>String(booking.status || '')===status).length
   }))
@@ -3490,8 +3491,14 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const isReservationAcceptanceWorkflow=workflowAction==='accept_reservation'
     && ['draft','pending'].includes(normalizeText(existing.status))
     && ['awaiting_payment','payment_request_sent'].includes(nextStatus)
-  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow){
-    throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, or automation actions.')
+  const isReinstateWorkflow=workflowAction==='reinstate'
+    && normalizeText(existing.status)==='cancelled'
+    && ['pending','provisional','awaiting_payment'].includes(nextStatus)
+    && Boolean(normalizeText(payload.reason))
+  const isProvisionalWorkflow=workflowAction==='save_provisional'
+    && nextStatus==='provisional'
+  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow){
+    throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, reinstate, or automation actions.')
   }
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'
   validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
@@ -3549,6 +3556,14 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
           cancelled_at:nowIso(),
           cancelled_by:userId
         }
+      } : {}),
+      ...(isReinstateWorkflow ? {
+        reinstatement:{
+          reason:cancellationReason,
+          reinstated_at:nowIso(),
+          reinstated_by:userId
+        },
+        cancellation:null
       } : {})
     },
     updated_by:userId

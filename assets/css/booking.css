@@ -957,8 +957,29 @@ tbody tr:hover td{background:#f8fbfe}
 .status-badge.is-warn{background:#fff4df;color:#9b6b08;border-color:#f4dfb4}
 .status-badge.is-bad{background:#fee9e9;color:#a33a3a;border-color:#f5caca}
 .status-badge.is-neutral{background:#edf2f7;color:#5f6f80;border-color:#dde7f1}
+.status-badge.is-reservation{background:#e8f7ee;color:#1a6640;border-color:#a8dfc0}
+.status-badge.is-booking{background:#f0eaff;color:#5b3fa0;border-color:#c9b5f5}
+.status-badge.is-paid{background:#e5f0ff;color:#1a4fa0;border-color:#a0c0f0}
+.status-badge.is-finalised{background:#0e3a52;color:#ffffff;border-color:#0a2b3d}
+.status-badge.is-provisional{background:#fff000;color:#5a4200;border-color:#e6c800}
 .booking-row{cursor:pointer}
 .booking-row:hover{background:#f6fbff}
+.booking-row.status-reservation{border-left:3px solid #45a56f}
+.booking-row.status-booking{border-left:3px solid #8b5cf6}
+.booking-row.status-paid{border-left:3px solid #3b82f6}
+.booking-row.status-finalised{border-left:3px solid #1e40af}
+.booking-row.status-provisional{border-left:3px solid #facc15}
+.booking-row.status-cancelled{border-left:3px solid #ef4444}
+.calendar-mini-card.status-reservation{border-left:3px solid #45a56f}
+.calendar-mini-card.status-booking{border-left:3px solid #8b5cf6}
+.calendar-mini-card.status-paid{border-left:3px solid #3b82f6}
+.calendar-mini-card.status-finalised{border-left:3px solid #1e40af}
+.calendar-mini-card.status-provisional{border-left:3px solid #facc15}
+.calendar-entry-card.status-reservation{border-left:3px solid #45a56f}
+.calendar-entry-card.status-booking{border-left:3px solid #8b5cf6}
+.calendar-entry-card.status-paid{border-left:3px solid #3b82f6}
+.calendar-entry-card.status-finalised{border-left:3px solid #1e40af}
+.calendar-entry-card.status-provisional{border-left:3px solid #facc15}
 .table-primary-link{
   color:inherit;
   text-decoration:none;
@@ -1414,6 +1435,25 @@ tbody tr:hover td{background:#f8fbfe}
 .is-clickable:hover{background:var(--booking-soft,#f8fafc)}
 .cal-booking-link{color:inherit;text-decoration:none}
 .cal-booking-link:hover{text-decoration:underline}
+[data-cal-tooltip]{position:relative}
+[data-cal-tooltip]:hover::after{
+  content:attr(data-cal-tooltip);
+  position:absolute;
+  bottom:calc(100% + 8px);
+  left:0;
+  z-index:9999;
+  min-width:240px;
+  max-width:320px;
+  padding:10px 14px;
+  border-radius:12px;
+  background:#0d2535;
+  color:#fff;
+  font-size:12px;
+  line-height:1.6;
+  white-space:pre-wrap;
+  box-shadow:0 8px 24px rgba(5,22,35,.32);
+  pointer-events:none;
+}
 .booking-detail-shell{
   display:grid;
   grid-template-columns:minmax(0,1.5fr) minmax(300px,.85fr);
@@ -2967,6 +3007,12 @@ tbody tr:hover td{
   color:#567087;
   border-color:#d8e6f1;
 }
+
+.status-badge.is-reservation{background:#e8f7ee;color:#1a6640;border-color:#a8dfc0}
+.status-badge.is-booking{background:#f0eaff;color:#5b3fa0;border-color:#c9b5f5}
+.status-badge.is-paid{background:#e5f0ff;color:#1a4fa0;border-color:#a0c0f0}
+.status-badge.is-finalised{background:#0e3a52;color:#ffffff;border-color:#0a2b3d}
+.status-badge.is-provisional{background:#fff000;color:#5a4200;border-color:#e6c800}
 
 .booking-form-grid{
   gap:14px;
