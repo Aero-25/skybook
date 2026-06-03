@@ -4481,6 +4481,13 @@ Deno.serve(async request=>{
         return json(200,await upsertService({...requestBody,id:subresource}))
       }
 
+      if(request.method==='DELETE'&&id==='services'&&subresource){
+        requireSkybookPermission(adminProfile,'services')
+        const { error }=await adminClient.from('services').delete().eq('id',subresource)
+        if(error)throw new Error(error.message)
+        return json(200,{deleted:true,id:subresource})
+      }
+
       if(request.method==='POST'&&id==='service-schedules'){
         requireSkybookPermission(adminProfile,'engine')
         return json(201,await upsertEngineRow('service_operating_windows',requestBody,[
