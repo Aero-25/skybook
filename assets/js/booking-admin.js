@@ -4767,7 +4767,7 @@ const renderServices=()=>{
       <td>${bookingAdminShared.escapeHtml(service.minimum_pax||1)}</td>
       <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
       <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
-      <td><button class="booking-button ghost compact" data-delete-service="${bookingAdminShared.escapeHtml(service.id)}" type="button" onclick="event.stopPropagation()">Delete</button></td>
+      <td><button class="booking-button ghost compact" data-delete-service="${bookingAdminShared.escapeHtml(service.id)}" type="button">Delete</button></td>
     </tr>
   `).join('') || renderEmptyRow(7,'No tours match the selected visibility filter.')
 }
