@@ -3265,12 +3265,10 @@ const renderCalendarDayBookings=dateKey=>{
   dayBookingsEl.innerHTML=`<div class="calendar-day-bookings-grid">${bookings.map(booking=>{
     const meta=normalizeJsonRecord(booking.metadata)
     const isCruise=isCruiseLinerBooking(booking)
-    const statusColor=getStatusColor(booking.status,isCruise)
     const pax=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||Number(booking.quantity||1)
     const displayName=isCruise ? (meta.display_name||`${meta.cruise_company_label||'Cruise'} Group`) : (booking.customer_name||'Guest')
     return `
-    <article class="cal-day-block ${getStatusRowClass(booking)}" data-cal-block="${bookingAdminShared.escapeHtml(booking.id)}"
-      style="border-color:${statusColor};background:${statusColor}18">
+    <article class="cal-day-block ${getStatusRowClass(booking)}" data-cal-block="${bookingAdminShared.escapeHtml(booking.id)}">
       <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
       <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
       <span>${pax} pax${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>

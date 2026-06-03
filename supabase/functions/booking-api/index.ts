@@ -117,7 +117,7 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
   provisional:['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
   payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  invoice:['invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled'],
   invoiced:['partially_paid','fully_paid','finalised','cancelled'],
   partially_paid:['fully_paid','finalised','cancelled'],
   fully_paid:['finalised','cancelled'],
@@ -871,7 +871,7 @@ const createTourMemoryUpload=async(payload:Json,userId:string)=>{
 
 const buildDocumentPdfBytes=async(booking:Json,documentType:string,context:Json={})=>{
   const pdf=await PDFDocument.create()
-  let page=pdf.addPage([595.28,841.89])
+  const page=pdf.addPage([595.28,841.89])
   const font=await pdf.embedFont(StandardFonts.Helvetica)
   const bold=await pdf.embedFont(StandardFonts.HelveticaBold)
   const brandCode=normalizeText(context.brand_code || booking.brand_code || 'true-travel') || 'true-travel'
@@ -881,65 +881,156 @@ const buildDocumentPdfBytes=async(booking:Json,documentType:string,context:Json=
   const logoAsset=await fetchBrandLogoAsset(brandProfile)
   let embeddedLogo:any=null
   if(logoAsset){
-    try{
-      embeddedLogo=logoAsset.format==='png' ? await pdf.embedPng(logoAsset.bytes) : await pdf.embedJpg(logoAsset.bytes)
-    }catch{
-      embeddedLogo=null
-    }
+    try{embeddedLogo=logoAsset.format==='png' ? await pdf.embedPng(logoAsset.bytes) : await pdf.embedJpg(logoAsset.bytes)}catch{embeddedLogo=null}
   }
   const currency=normalizeText(booking.currency_code || booking.currency || 'NAD')
-  const totalAmount=Number(booking.total_amount || 0).toFixed(2)
+  const totalAmount=Number(context.invoice_total || booking.total_amount || 0)
+  const balanceAmount=Number(context.balance_amount ?? (Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)))
+  const paymentsReceived=Number(context.payments_received || 0)
   const invoiceNumber=normalizeText(context.document_number) || normalizeText(booking.reference)
-  const numberLabel=documentType==='guest_invoice' ? 'Invoice Number' : 'Document Number'
-  const dateLabel=documentType==='guest_invoice' ? 'Invoice Date' : 'Generated At'
-  page.drawRectangle({x:24,y:24,width:547.28,height:793.89,color:rgb(0.99,0.99,0.99)})
-  page.drawRectangle({x:24,y:760,width:547.28,height:58,color:palette.accent})
+  const guestName=normalizeText(context.customer_name || booking.customer_name)
+  const guestEmail=normalizeText(context.customer_email || '')
+  const guestPhone=normalizeText(context.customer_phone || '')
+  const serviceName=normalizeText(context.service_name || booking.service_name)
+  const preferredDate=normalizeText(String(booking.preferred_date || 'TBC'))
+  const bookingStatus=normalizeText(String(booking.status || 'pending')).replace(/_/g,' ')
+  const paymentStatus=normalizeText(String(booking.payment_status || 'pending')).replace(/_/g,' ')
+  const adultQty=Number(booking.adult_quantity||0)
+  const childQty=Number(booking.child_quantity||0)
+  const pax=adultQty+childQty||Number(booking.quantity||1)
+  const paxLabel=adultQty+childQty>0 ? `${pax} (${adultQty} adult${adultQty!==1?'s':''}, ${childQty} child${childQty!==1?'ren':''})` : String(pax)
+  const today=new Date().toLocaleDateString('en-NA',{day:'2-digit',month:'long',year:'numeric'})
+  const fmtAmt=(n:number)=>`${currency} ${Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`
+  const white=rgb(1,1,1)
+  const lightGray=rgb(0.96,0.96,0.96)
+  const midGray=rgb(0.80,0.80,0.80)
+  const darkInk=rgb(0.09,0.09,0.11)
+  const W=595.28
+  const ML=40
+  const usable=W-ML*2
+
+  // ── HEADER BAR ────────────────────────────────────────────────────────────
+  const hdrH=62,hdrY=841.89-hdrH
+  page.drawRectangle({x:0,y:hdrY,width:W,height:hdrH,color:palette.accent})
   if(embeddedLogo){
-    const scale=Math.min(0.22,72/embeddedLogo.width)
+    const maxH=46,scale=Math.min(maxH/embeddedLogo.height,88/embeddedLogo.width)
     const dims=embeddedLogo.scale(scale)
-    page.drawImage(embeddedLogo,{x:42,y:776,width:dims.width,height:dims.height})
+    page.drawImage(embeddedLogo,{x:ML,y:hdrY+(hdrH-dims.height)/2,width:dims.width,height:dims.height})
   }else{
-    page.drawText(brandName,{x:42,y:786,size:18,font:bold,color:rgb(1,1,1)})
+    page.drawText(brandName,{x:ML,y:hdrY+22,size:16,font:bold,color:white})
   }
-  page.drawText(displayLabel(documentType),{x:360,y:786,size:17,font:bold,color:rgb(1,1,1)})
-  page.drawText('Prepared in SkyBook',{x:360,y:769,size:9,font,color:rgb(0.95,0.97,0.99)})
-  page.drawRectangle({x:40,y:708,width:515,height:34,color:palette.accentSoft})
-  page.drawText(brandName,{x:54,y:721,size:13,font:bold,color:palette.accent})
-  page.drawText(normalizeText(brandProfile.document_company_line) || 'Brand-aligned booking operations',{x:160,y:721,size:10,font,color:palette.muted})
-  const lines=[
-    `${brandName} ${displayLabel(documentType)}`,
-    '',
-    `Reference: ${normalizeText(booking.reference)}`,
-    `${numberLabel}: ${invoiceNumber}`,
-    `Guest: ${normalizeText(context.customer_name || booking.customer_name)}`,
-    `Service: ${normalizeText(context.service_name || booking.service_name)}`,
-    `Preferred Date: ${normalizeText(String(booking.preferred_date || context.preferred_date || 'TBC'))}`,
-    `Status: ${normalizeText(String(booking.status || 'pending')).replace(/_/g,' ')}`,
-    `Payment Status: ${normalizeText(String(booking.payment_status || 'pending')).replace(/_/g,' ')}`,
-    `Total Amount: ${currency} ${totalAmount}`,
-    `${dateLabel}: ${nowIso()}`,
-    '',
-    normalizeText(context.summary) || 'Operational document generated by SkyBook.',
-    '',
-    normalizeText(context.notes) || '',
-    '',
-    `Support: ${normalizeText(brandProfile.document_support_line || brandProfile.support_email || '')}`,
-    `Website: ${normalizeText(brandProfile.website_url)}`,
-    `Location: ${normalizeText(brandProfile.document_footer)}`
-  ].filter(line=>line!==undefined)
-  let y=676
-  page.drawText(lines[0],{ x:40, y, size:22, font:bold, color:palette.ink })
-  y-=26
-  for(const line of lines.slice(1)){
-    if(y<60){
-      y=790
-      page=pdf.addPage([595.28,841.89])
-      page.drawRectangle({x:24,y:24,width:547.28,height:793.89,color:rgb(0.99,0.99,0.99)})
-      page.drawRectangle({x:24,y:760,width:547.28,height:58,color:palette.accent})
+  const docLabel=documentType==='guest_invoice' ? 'guest invoice' : displayLabel(documentType)
+  page.drawText(docLabel,{x:W-ML-148,y:hdrY+32,size:15,font:bold,color:white})
+  page.drawText('Prepared in SkyBook',{x:W-ML-148,y:hdrY+14,size:9,font,color:rgb(0.93,0.95,0.97)})
+
+  // ── BRAND STRIP ───────────────────────────────────────────────────────────
+  const stpH=28,stpY=hdrY-stpH
+  page.drawRectangle({x:ML-16,y:stpY,width:usable+32,height:stpH,color:palette.accentSoft})
+  page.drawText(brandName,{x:ML,y:stpY+9,size:12,font:bold,color:palette.accent})
+  const compLine=normalizeText(brandProfile.document_company_line)||''
+  if(compLine)page.drawText(compLine,{x:ML+112,y:stpY+9,size:10,font,color:palette.muted,maxWidth:310})
+
+  // ── HEADING + INVOICE NUMBER BLOCK ────────────────────────────────────────
+  const hY=stpY-38
+  page.drawText(`${brandName} ${docLabel}`,{x:ML,y:hY,size:20,font:bold,color:darkInk,maxWidth:290})
+  const invX=W-ML-172
+  page.drawText('INVOICE NUMBER',{x:invX,y:hY+2,size:8,font:bold,color:palette.muted})
+  page.drawText(invoiceNumber,{x:invX,y:hY-15,size:12,font:bold,color:darkInk,maxWidth:168})
+  page.drawText(today,{x:invX,y:hY-31,size:10,font,color:palette.muted})
+
+  // ── DIVIDER ───────────────────────────────────────────────────────────────
+  const div1Y=hY-46
+  page.drawLine({start:{x:ML,y:div1Y},end:{x:W-ML,y:div1Y},thickness:0.5,color:midGray})
+
+  // ── TWO-COLUMN DETAIL SECTION ─────────────────────────────────────────────
+  const infoY=div1Y-14
+  const col2X=W/2+8
+
+  // Left — Bill To
+  page.drawText('BILL TO',{x:ML,y:infoY,size:8,font:bold,color:palette.muted})
+  page.drawText(guestName||'—',{x:ML,y:infoY-17,size:13,font:bold,color:darkInk,maxWidth:215})
+  let lY=infoY-33
+  if(guestEmail){page.drawText(guestEmail,{x:ML,y:lY,size:10,font,color:palette.ink,maxWidth:215});lY-=14}
+  if(guestPhone){page.drawText(guestPhone,{x:ML,y:lY,size:10,font,color:palette.ink,maxWidth:215});lY-=14}
+
+  // Right — Booking Details
+  page.drawText('BOOKING DETAILS',{x:col2X,y:infoY,size:8,font:bold,color:palette.muted})
+  const detailRows=[['Reference',normalizeText(booking.reference)],['Service',serviceName],['Tour Date',preferredDate],['Guests',paxLabel],['Status',bookingStatus],['Payment',paymentStatus]]
+  let rY=infoY-17
+  for(const [lbl,val] of detailRows){
+    page.drawText(`${lbl}:`,{x:col2X,y:rY,size:9,font:bold,color:palette.muted,maxWidth:108})
+    page.drawText(val,{x:col2X+118,y:rY,size:10,font,color:darkInk,maxWidth:148})
+    rY-=16
+  }
+
+  // ── LINE ITEMS TABLE ──────────────────────────────────────────────────────
+  const tblTopY=Math.min(lY,rY)-16
+  page.drawLine({start:{x:ML,y:tblTopY+4},end:{x:W-ML,y:tblTopY+4},thickness:0.5,color:midGray})
+  const tblY=tblTopY-14
+  const colPax=ML+338,colAmt=ML+428
+
+  // Header
+  page.drawRectangle({x:ML,y:tblY-20,width:usable,height:28,color:darkInk})
+  page.drawText('DESCRIPTION',{x:ML+12,y:tblY-8,size:9,font:bold,color:white})
+  page.drawText('GUESTS',{x:colPax,y:tblY-8,size:9,font:bold,color:white})
+  page.drawText('AMOUNT',{x:colAmt,y:tblY-8,size:9,font:bold,color:white})
+
+  // Service row
+  const svcY=tblY-46
+  page.drawRectangle({x:ML,y:svcY-10,width:usable,height:28,color:lightGray})
+  page.drawText(serviceName,{x:ML+12,y:svcY+4,size:11,font,color:darkInk,maxWidth:295})
+  page.drawText(String(pax),{x:colPax,y:svcY+4,size:11,font,color:darkInk})
+  page.drawText(fmtAmt(totalAmount),{x:colAmt,y:svcY+4,size:11,font:bold,color:darkInk,maxWidth:95})
+
+  // Discount row
+  let afterTbl=svcY-24
+  const discountAmount=Number(context.discount_amount||0)
+  if(discountAmount>0){
+    page.drawText('Discount',{x:ML+12,y:afterTbl-4,size:10,font,color:palette.muted})
+    page.drawText(`-${fmtAmt(discountAmount)}`,{x:colAmt,y:afterTbl-4,size:10,font,color:palette.muted,maxWidth:95})
+    afterTbl-=20
+  }
+
+  // Total row
+  page.drawLine({start:{x:ML,y:afterTbl+10},end:{x:W-ML,y:afterTbl+10},thickness:1,color:palette.accent})
+  page.drawRectangle({x:ML,y:afterTbl-18,width:usable,height:28,color:palette.accentSoft})
+  page.drawText('INVOICE TOTAL',{x:ML+12,y:afterTbl-4,size:10,font:bold,color:palette.ink})
+  page.drawText(fmtAmt(totalAmount),{x:colAmt,y:afterTbl-4,size:13,font:bold,color:palette.accent,maxWidth:95})
+
+  // ── BALANCE SECTION ───────────────────────────────────────────────────────
+  const balY=afterTbl-50
+  page.drawLine({start:{x:col2X,y:balY+30},end:{x:W-ML,y:balY+30},thickness:0.5,color:midGray})
+  page.drawText('Payments Received',{x:col2X,y:balY+14,size:10,font,color:palette.muted})
+  page.drawText(fmtAmt(paymentsReceived),{x:W-ML-98,y:balY+14,size:10,font,color:palette.muted,maxWidth:94})
+  page.drawText('Balance Due',{x:col2X,y:balY,size:12,font:bold,color:darkInk})
+  page.drawText(fmtAmt(balanceAmount),{x:W-ML-98,y:balY,size:13,font:bold,color:palette.accent,maxWidth:94})
+
+  // ── PAYMENT INSTRUCTIONS BOX ──────────────────────────────────────────────
+  const noteY=balY-46
+  const bankingNote=normalizeText(brandProfile.document_banking_line)||'Banking details will be provided by your reservations consultant. Please quote your booking reference when making payment.'
+  page.drawRectangle({x:ML,y:noteY-32,width:usable,height:50,color:lightGray})
+  page.drawText('Payment Instructions',{x:ML+12,y:noteY+4,size:9,font:bold,color:palette.muted})
+  page.drawText(bankingNote,{x:ML+12,y:noteY-10,size:9,font,color:palette.muted,maxWidth:usable-24})
+
+  // Custom field notes (if any)
+  const extraNotes=normalizeText(context.notes)
+  if(extraNotes){
+    const noteLines=extraNotes.split('\n').filter(Boolean)
+    let ny=noteY-58
+    for(const line of noteLines){
+      page.drawText(line,{x:ML,y:ny,size:9,font,color:palette.muted,maxWidth:usable})
+      ny-=14
     }
-    page.drawText(line || ' ',{ x:40, y, size:11, font, color:palette.ink, maxWidth:510 })
-    y-=18
   }
+
+  // ── FOOTER BAR ────────────────────────────────────────────────────────────
+  page.drawRectangle({x:0,y:0,width:W,height:40,color:palette.accent})
+  const supportLine=normalizeText(brandProfile.document_support_line||brandProfile.support_email||'')
+  const websiteUrl=normalizeText(brandProfile.website_url)
+  const locationLine=normalizeText(brandProfile.document_footer)
+  const footerText=[supportLine,websiteUrl,locationLine].filter(Boolean).join('  ·  ')
+  if(footerText)page.drawText(footerText,{x:ML,y:14,size:9,font,color:rgb(0.95,0.97,0.99),maxWidth:usable})
+
   return new Uint8Array(await pdf.save())
 }
 
@@ -958,6 +1049,7 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
     brand,
     customer_name:normalizeText((booking.customers as Json | null)?.full_name),
     customer_email:normalizeText((booking.customers as Json | null)?.email),
+    customer_phone:normalizeText((booking.customers as Json | null)?.phone),
     service_name:normalizeText((booking.services as Json | null)?.name)
   }
 }
@@ -1033,18 +1125,24 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
       return `${field.label}: ${value===true ? 'Yes' : value}`
     })
     .filter(Boolean)
+  const invoiceTotal=Number(linkedInvoice?.total_amount || booking.total_amount || 0)
+  const invoiceBalance=Number(linkedInvoice?.balance_amount ?? (Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)))
+  const paymentsReceived=Math.max(0,invoiceTotal-invoiceBalance)
+  const { customer_phone }=await fetchBookingDocumentContext(bookingId)
   const pdfBytes=await buildDocumentPdfBytes(booking,documentType,{
     brand_code:normalizeText(brand.code || booking.brand_code) || 'true-travel',
     brand,
     brand_name:normalizeText(brand.name),
     customer_name,
     customer_email,
+    customer_phone,
     service_name,
     document_number:documentNumber,
+    invoice_total:invoiceTotal,
+    balance_amount:invoiceBalance,
+    payments_received:paymentsReceived,
     summary:normalizeText(payload.summary) || `${displayLabel(documentType)} prepared for ${normalizeText(brand.name)} booking operations.`,
     notes:[
-      linkedInvoice ? `Invoice total: ${normalizeText(linkedInvoice.currency_code || booking.currency_code)} ${Number(linkedInvoice.total_amount || booking.total_amount || 0).toFixed(2)}` : '',
-      linkedInvoice ? `Invoice balance: ${normalizeText(linkedInvoice.currency_code || booking.currency_code)} ${Number(linkedInvoice.balance_amount || 0).toFixed(2)}` : '',
       normalizeText(payload.notes) || normalizeText(payloadMetadata.notes),
       ...customFieldLines
     ].filter(Boolean).join('\n')
@@ -1064,6 +1162,10 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
       metadata:{ document_type:documentType, storage_path:storagePath }
     })
     throw new Error(String(uploadResult.error.message || 'Unable to store generated PDF document.'))
+  }
+  // Auto-transition: invoice → invoiced once the guest invoice is generated
+  if(documentType==='guest_invoice' && normalizeText(booking.status)==='invoice'){
+    await updateBooking(bookingId,{ status:'invoiced', reason:'Guest invoice generated — status updated to Invoiced' },userId)
   }
   const checksum=await checksumBytes(pdfBytes)
   const version=await safeMaybeSingle<Json>(
@@ -2148,6 +2250,24 @@ const processSystemJob=async(job:Json)=>{
   }
 }
 
+const sweepPaymentPendingTransitions=async()=>{
+  const now=new Date()
+  const todayDate=now.toISOString().slice(0,10)
+  const cutoffDate=new Date(now.getTime()+24*60*60*1000).toISOString().slice(0,10)
+  const unpaidInvoiced=await safeTableSelect<Json>(
+    adminClient.from('bookings')
+      .select('id,status,preferred_date,payment_status')
+      .in('status',['invoice','invoiced'])
+      .not('payment_status','in','(paid,partially_paid)')
+      .gte('preferred_date',todayDate)
+      .lte('preferred_date',cutoffDate),
+    []
+  )
+  for(const b of unpaidInvoiced){
+    await updateBooking(String(b.id),{ status:'payment_pending', reason:'Tour within 24 hours — moved to Payment Pending by SkyBook automation' },'')
+  }
+}
+
 const processDueSystemJobs=async()=>{
   const queueSettings=await getSettingValue('queue',DEFAULT_QUEUE_SETTINGS)
   if((queueSettings as Json).enabled===false)return []
@@ -2167,6 +2287,7 @@ const processDueSystemJobs=async()=>{
     await processSystemJob(job)
     processed.push(String(job.id || ''))
   }
+  void sweepPaymentPendingTransitions().catch(()=>{})
   return processed
 }
 
@@ -3336,9 +3457,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const finalPricingCreate=priceOverrideCreate>0
     ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
-  const bookingStatus=isAdmin
-    ? (desiredStatus || (finalPricingCreate.amountDueNow>0 ? 'awaiting_payment' : 'confirmed'))
-    : 'pending'
+  const bookingStatus=desiredStatus || 'invoice'
   const paymentStatus=desiredPaymentStatus || (finalPricingCreate.amountDueNow>0 ? 'pending' : 'unpaid')
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({

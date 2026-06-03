@@ -1004,6 +1004,16 @@ tbody tr:hover td{background:#f8fbfe}
 .calendar-mini-card.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
 .calendar-entry-card.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
 .cal-day-block.is-cruise-liner{border-color:#7c3aed;background:#7c3aed18}
+.cal-day-block.status-provisional{border-color:#7f1d1d;background:#f87171}
+.cal-day-block.status-payment-pending{border-color:#7c2d12;background:#fb923c}
+.cal-day-block.status-invoice{border-color:#854d0e;background:#fde047}
+.cal-day-block.status-invoiced{border-color:#78350f;background:#fbbf24}
+.cal-day-block.status-partially-paid{border-color:#166534;background:#4ade80}
+.cal-day-block.status-fully-paid{border-color:#14532d;background:#16a34a;color:#fff}
+.cal-day-block.status-fully-paid strong,.cal-day-block.status-fully-paid span,.cal-day-block.status-fully-paid .block-amount{color:#fff}
+.cal-day-block.status-finalised{border-color:#1e3a8a;background:#1e40af;color:#fff}
+.cal-day-block.status-finalised strong,.cal-day-block.status-finalised span,.cal-day-block.status-finalised .block-amount{color:#fff}
+.cal-day-block.status-cancelled{border-color:#4b5563;background:#d1d5db}
 .calendar-mini-card.status-provisional{border-left:4px solid #7f1d1d;background:#f87171}
 .calendar-mini-card.status-payment-pending{border-left:4px solid #7c2d12;background:#fb923c}
 .calendar-mini-card.status-invoice{border-left:4px solid #854d0e;background:#fde047}
