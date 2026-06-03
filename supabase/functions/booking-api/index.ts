@@ -3635,6 +3635,17 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   }
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'
   validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
+  if(nextStatus==='finalised'&&normalizeText(existing.status)!=='finalised'){
+    const preferredDate=parseDateValue(normalizeText(existing.preferred_date))
+    const hasDeparted=preferredDate && preferredDate < new Date()
+    if(!hasDeparted){
+      throw new Error('A booking can only be finalised after the tour has departed.')
+    }
+    const isFullyPaid=['fully_paid','paid'].includes(nextPaymentStatus)||['fully_paid','paid'].includes(normalizeText(existing.payment_status))
+    if(!isFullyPaid){
+      throw new Error('A booking can only be finalised once it is fully paid.')
+    }
+  }
   if(nextStatus==='cancelled'&&normalizeText(existing.status)!=='cancelled'&&!normalizeText(payload.reason)){
     throw new Error('A cancellation reason is required before cancelling a booking.')
   }
