@@ -627,19 +627,18 @@
                       <option value="">All sources</option>
                     </select>
                   </div>
-                  <div class="booking-field">
-                    <label for="bookingFilterStatus">Booking Status</label>
-                    <select id="bookingFilterStatus">
-                      <option value="">All statuses</option>
-                      <option value="provisional">Provisional</option>
-                      <option value="payment_pending">Payment Pending</option>
-                      <option value="invoice">Invoice</option>
-                      <option value="invoiced">Invoiced</option>
-                      <option value="partially_paid">Partially Paid</option>
-                      <option value="fully_paid">Fully Paid</option>
-                      <option value="finalised">Finalised &amp; Departed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                  <div class="booking-field booking-field-full">
+                    <label>Booking Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
+                    <div class="status-pill-filter" id="bookingFilterStatus">
+                      <label class="status-pill-option"><input type="checkbox" value="provisional"><span class="status-pill-label status-pill-provisional">Provisional</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="payment_pending"><span class="status-pill-label status-pill-payment-pending">Payment Pending</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="invoice"><span class="status-pill-label status-pill-invoice">Invoice</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="invoiced"><span class="status-pill-label status-pill-invoiced">Invoiced</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="partially_paid"><span class="status-pill-label status-pill-partially-paid">Partially Paid</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="fully_paid"><span class="status-pill-label status-pill-fully-paid">Fully Paid</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="finalised"><span class="status-pill-label status-pill-finalised">Finalised &amp; Departed</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="cancelled"><span class="status-pill-label status-pill-cancelled">Cancelled</span></label>
+                    </div>
                   </div>
                   <div class="booking-field">
                     <label for="bookingFilterPaymentStatus">Payment Status</label>

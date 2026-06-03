@@ -2793,11 +2793,30 @@ const renderSession=()=>{
   if(!authenticated)closeMobileSidebar()
 }
 
+const getSelectedStatusFilters=()=>{
+  if(!nodes.bookingFilterStatus)return []
+  return [...nodes.bookingFilterStatus.querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.value)
+}
+const setStatusFilterValues=(values=[])=>{
+  if(!nodes.bookingFilterStatus)return
+  nodes.bookingFilterStatus.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+    cb.checked=values.includes(cb.value)
+  })
+  updateStatusFilterHint()
+}
+const clearStatusFilter=()=>setStatusFilterValues([])
+const updateStatusFilterHint=()=>{
+  const hint=document.getElementById('filterStatusHint')
+  if(!hint)return
+  const selected=getSelectedStatusFilters()
+  hint.textContent=selected.length ? `(${selected.length} selected)` : ''
+}
+
 const getFilteredBookings=()=>{
   const search=(nodes.bookingFilterSearch.value||'').trim().toLowerCase()
   const brand=(nodes.bookingFilterBrand.value||'').trim()
   const source=(nodes.bookingFilterSource?.value||'').trim()
-  const status=(nodes.bookingFilterStatus.value||'').trim()
+  const selectedStatuses=getSelectedStatusFilters()
   const paymentStatus=(nodes.bookingFilterPaymentStatus?.value||'').trim()
   const serviceSlug=(nodes.bookingFilterService?.value||'').trim()
   const operatorId=(nodes.bookingFilterOperator?.value||'').trim()
@@ -2818,7 +2837,7 @@ const getFilteredBookings=()=>{
     if(search&&!haystack.includes(search))return false
     if(brand&&booking.brand_code!==brand)return false
     if(source&&bookingSource!==source)return false
-    if(status&&booking.status!==status)return false
+    if(selectedStatuses.length&&!selectedStatuses.includes(booking.status))return false
     if(paymentStatus&&booking.payment_status!==paymentStatus)return false
     if(serviceSlug&&booking.service_slug!==serviceSlug)return false
     if(operatorId){
@@ -8703,10 +8722,10 @@ nodes.reservationPipeline?.addEventListener('click',event=>{
   if(!stage)return
   if(stage==='new')switchTab('reservations')
   else switchTab('bookings')
-  if(stage==='reviewed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='awaiting_payment'
-  if(stage==='awaiting'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='awaiting_payment'
-  if(stage==='confirmed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='confirmed'
-  if(stage==='completed'&&nodes.bookingFilterStatus)nodes.bookingFilterStatus.value='completed'
+  if(stage==='reviewed')setStatusFilterValues(['payment_pending','invoice','invoiced'])
+  if(stage==='awaiting')setStatusFilterValues(['payment_pending'])
+  if(stage==='confirmed')setStatusFilterValues(['fully_paid'])
+  if(stage==='completed')setStatusFilterValues(['finalised'])
   if(stage==='paid'&&nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value='paid'
   renderBookings()
 })
@@ -8715,7 +8734,7 @@ nodes.toggleBookingFilters?.addEventListener('click',toggleBookingFiltersPanel)
 nodes.bookingFilterSearch.addEventListener('input',renderBookings)
 nodes.bookingFilterBrand.addEventListener('change',renderBookings)
 nodes.bookingFilterSource?.addEventListener('change',renderBookings)
-nodes.bookingFilterStatus.addEventListener('change',renderBookings)
+nodes.bookingFilterStatus?.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.addEventListener('change',()=>{updateStatusFilterHint();renderBookings()}))
 nodes.bookingFilterPaymentStatus?.addEventListener('change',renderBookings)
 nodes.bookingFilterService?.addEventListener('change',renderBookings)
 nodes.bookingFilterOperator?.addEventListener('change',renderBookings)

@@ -255,6 +255,22 @@ body.skybook-auth-page{
 .booking-field,.booking-field-full{display:grid;gap:8px}
 .booking-field-full{grid-column:1 / -1}
 .booking-field label,.booking-field-full label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--booking-ocean)}
+.filter-status-hint{font-size:10px;font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--booking-ocean);opacity:.65;margin-left:4px}
+.status-pill-filter{display:flex;flex-wrap:wrap;gap:6px}
+.status-pill-option{display:contents}
+.status-pill-option input[type="checkbox"]{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.status-pill-label{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.04em;cursor:pointer;border:1.5px solid transparent;transition:opacity .15s,transform .1s;user-select:none;background:var(--booking-surface,#f8fafc);border-color:var(--booking-line,#e2e8f0);color:var(--booking-ocean)}
+.status-pill-option input:checked+.status-pill-label{opacity:1;transform:none}
+.status-pill-option input:not(:checked)+.status-pill-label{opacity:.45}
+.status-pill-label:hover{opacity:1 !important}
+.status-pill-provisional{background:#f87171;border-color:#7f1d1d;color:#1a0000}
+.status-pill-payment-pending{background:#fb923c;border-color:#7c2d12;color:#1a0a00}
+.status-pill-invoice{background:#fde047;border-color:#854d0e;color:#3a2800}
+.status-pill-invoiced{background:#fbbf24;border-color:#78350f;color:#3a2000}
+.status-pill-partially-paid{background:#4ade80;border-color:#166534;color:#012d0e}
+.status-pill-fully-paid{background:#16a34a;border-color:#14532d;color:#fff}
+.status-pill-finalised{background:#1e40af;border-color:#1e3a8a;color:#fff}
+.status-pill-cancelled{background:#d1d5db;border-color:#4b5563;color:#1f2937}
 .field-hint{font-size:12px;line-height:1.5;color:var(--booking-muted)}
 .booking-custom-field-list{display:grid;gap:14px}
 .booking-custom-field-row{padding:14px;border:1px solid var(--booking-line);border-radius:8px;background:rgba(255,255,255,.72)}
