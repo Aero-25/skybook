@@ -1535,7 +1535,7 @@ const normalizeServiceMedia=(value:unknown,serviceName='')=>{
 const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:string,includeInactive?:boolean,brandCode?:string}={})=>{
   let query=adminClient
     .from('services')
-    .select('id,slug,name,short_description,full_description,duration_label,unit_label,preferred_date_mode,base_price,currency_code,is_active,requires_manual_confirmation,payment_mode,deposit_type,deposit_value,metadata,media')
+    .select('id,slug,name,short_description,full_description,duration_label,unit_label,preferred_date_mode,base_price,adult_price,child_price,currency_code,is_active,requires_manual_confirmation,payment_mode,deposit_type,deposit_value,metadata,media')
     .order('name',{ascending:true})
   if(!includeInactive)query=query.eq('is_active',true)
   if(slug)query=query.eq('slug',slug)
@@ -1558,6 +1558,8 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     unit_label:service.unit_label||'guest',
     preferred_date_mode:service.preferred_date_mode,
     base_price:Number(service.base_price||0),
+    adult_price:service.adult_price!=null ? Number(service.adult_price) : null,
+    child_price:service.child_price!=null ? Number(service.child_price) : null,
     currency:service.currency_code||'NAD',
     is_active:service.is_active,
     requires_manual_confirmation:service.requires_manual_confirmation,
@@ -1622,15 +1624,21 @@ const calculatePricing=(service:Json,payload:Json,settings:Json,discountAmount=0
 
 const validatePublicBookingPayload=(service:Json,payload:Json)=>{
   const customer=(payload.customer||{}) as Json
+  const isAdmin=payload.admin_created===true
   const errors:string[]=[]
   const minimumPax=Math.max(1,Number(service.minimum_pax||1)||1)
   if(!normalizeText(payload.service_slug))errors.push('Service is required.')
-  if(!normalizeText(customer.full_name))errors.push('Customer full name is required.')
-  if(!normalizeText(customer.email)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(customer.email)))errors.push('Valid customer email is required.')
-  if(!normalizeText(customer.phone))errors.push('Phone or WhatsApp is required.')
-  if(payload.admin_created!==true && Number(payload.quantity||0)<minimumPax)errors.push(`Quantity must be at least ${minimumPax}.`)
+  if(!isAdmin&&!normalizeText(customer.full_name))errors.push('Customer full name is required.')
+  if(!isAdmin){
+    if(!normalizeText(customer.email)||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeText(customer.email)))errors.push('Valid customer email is required.')
+    if(!normalizeText(customer.phone))errors.push('Phone or WhatsApp is required.')
+  }else{
+    const email=normalizeText(customer.email)
+    if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))errors.push('Enter a valid email address.')
+  }
+  if(!isAdmin && Number(payload.quantity||0)<minimumPax)errors.push(`Quantity must be at least ${minimumPax}.`)
   if(String(service.preferred_date_mode)==='required'&&!normalizeText(payload.preferred_date))errors.push('Preferred date is required for this service.')
-  if(payload.accept_terms!==true && payload.admin_created!==true)errors.push('Terms acceptance is required.')
+  if(payload.accept_terms!==true && !isAdmin)errors.push('Terms acceptance is required.')
   if(errors.length)throw new Error(errors[0])
 }
 
@@ -1676,8 +1684,9 @@ const upsertCustomer=async(customer:Json,context:{
   createdVia?:string
   notes?:string
 }={})=>{
-  const email=normalizeText(customer.email).toLowerCase()
-  const { data:existing }=await adminClient.from('customers').select('*').ilike('email',email).maybeSingle()
+  const rawEmail=normalizeText(customer.email).toLowerCase()
+  const email=rawEmail||`noemail-${crypto.randomUUID()}@skybook.placeholder`
+  const { data:existing }=await adminClient.from('customers').select('*').ilike('email',rawEmail?email:'').maybeSingle()
   if(existing){
     const existingMetadata=normalizeJsonRecord(existing.metadata)
     const { data,error }=await adminClient.from('customers').update({
@@ -1690,7 +1699,7 @@ const upsertCustomer=async(customer:Json,context:{
     return data
   }
   const { data,error }=await adminClient.from('customers').insert({
-    full_name:normalizeText(customer.full_name),
+    full_name:normalizeText(customer.full_name)||'Guest',
     email,
     phone:normalizeText(customer.phone),
     whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone),
@@ -3792,6 +3801,8 @@ const upsertService=async(payload:Json)=>{
     unit_label:'guest',
     preferred_date_mode:'required',
     base_price:Number(payload.base_price||0),
+    adult_price:payload.adult_price!=null ? Number(payload.adult_price) : null,
+    child_price:payload.child_price!=null ? Number(payload.child_price) : null,
     currency_code:'NAD',
     payment_mode:'deposit',
     deposit_type:'percentage',
