@@ -7509,36 +7509,41 @@ const openBookingCancellationModal=()=>{
   const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
   if(!booking)return
   const paymentRecords=getBookingPayments(booking.id)
-  const hasPaidExposure=(sumAmounts(paymentRecords,'amount_received')||sumAmounts(paymentRecords,'amount'))>0
+  const amountReceived=sumAmounts(paymentRecords,'amount_received')
+  const hasPaidExposure=amountReceived>0
+  const cancellationFields=[
+    {
+      name:'reason_type',
+      label:'Cancellation reason',
+      type:'select',
+      value:'payment_overdue',
+      options:CANCELLATION_REASON_OPTIONS,
+      required:true,
+      helper:'This places the record in the Cancelled booking pocket.'
+    },
+    {
+      name:'consultant_comment',
+      label:'Consultant comment',
+      type:'textarea',
+      placeholder:'Add the specific context, approval, or guest communication note.',
+      required:true,
+      helper:'Stored on the booking timeline and internal notes.'
+    },
+    ...(hasPaidExposure ? [{
+      name:'process_refund',
+      label:`Open refund workflow after cancellation (${bookingAdminShared.formatMoney(amountReceived,booking.currency||state.settings.currency)} received)`,
+      type:'checkbox',
+      checked:false,
+      helper:'Only use this if a refund is being issued. Not all cancellations require a refund.'
+    }] : [])
+  ]
   openWorkflowModal({
     title:'Cancel booking',
-    description:'Choose a valid cancellation reason and capture the consultant comment before moving the booking to cancelled.',
+    description:hasPaidExposure
+      ? `${bookingAdminShared.formatMoney(amountReceived,booking.currency||state.settings.currency)} was received on this booking. You can optionally open the refund workflow after cancellation.`
+      : 'No payment was received on this booking. The booking will be cancelled with no financial exposure.',
     submitLabel:'Cancel booking',
-    fields:[
-      {
-        name:'reason_type',
-        label:'Cancellation reason',
-        type:'select',
-        value:'payment_overdue',
-        options:CANCELLATION_REASON_OPTIONS,
-        required:true,
-        helper:'This places the record in the Cancelled booking pocket.'
-      },
-      {
-        name:'consultant_comment',
-        label:'Consultant comment',
-        type:'textarea',
-        placeholder:'Add the specific context, approval, or guest communication note.',
-        required:true,
-        helper:'Stored on the booking timeline and internal notes.'
-      },
-      {
-        name:'process_refund',
-        label:'Open the refund workflow after cancellation',
-        type:'checkbox',
-        checked:hasPaidExposure
-      }
-    ],
+    fields:cancellationFields,
     onSubmit:async values=>{
       const reasonOption=CANCELLATION_REASON_OPTIONS.find(option=>option.value===values.reason_type)
       const reason=[reasonOption?.label||values.reason_type,values.consultant_comment].filter(Boolean).join(' - ')
