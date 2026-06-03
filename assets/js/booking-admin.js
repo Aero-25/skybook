@@ -9591,6 +9591,7 @@ startSessionTimeoutCheck()
   try{
     renderAuthEnvironmentMeta()
     const client=await requireClient()
+    let sessionConfirmed=false
     client.auth.onAuthStateChange((event,session)=>{
       const previousToken=state.session?.access_token||''
       state.session=session
@@ -9599,7 +9600,7 @@ startSessionTimeoutCheck()
         state.profile=null
         stopLiveAdminSync()
         renderSession()
-        redirectToLogin()
+        if(sessionConfirmed)redirectToLogin()
         return
       }
       startLiveAdminSync()
@@ -9613,6 +9614,7 @@ startSessionTimeoutCheck()
     state.session=session
     renderSession()
     if(session){
+      sessionConfirmed=true
       await refreshAdmin('Authenticated and loaded live booking data.')
       startLiveAdminSync()
       updateSessionTimeoutBanner()
