@@ -1049,7 +1049,14 @@ const syncSessionLabel=()=>{
 
 const parseDateValue=value=>{
   if(!value)return null
-  const stamp=String(value).includes('T') ? String(value) : `${value}T00:00:00`
+  if(value instanceof Date)return isNaN(value.getTime()) ? null : value
+  const str=String(value)
+  const dateOnly=str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if(dateOnly){
+    const d=new Date(Number(dateOnly[1]),Number(dateOnly[2])-1,Number(dateOnly[3]))
+    return isNaN(d.getTime()) ? null : d
+  }
+  const stamp=str.includes('T') ? str : `${str}T00:00:00`
   const next=new Date(stamp)
   return Number.isNaN(next.getTime()) ? null : next
 }
@@ -1487,7 +1494,11 @@ const initialiseBookingEditorSession=()=>{
 }
 
 const getTodayKey=()=>bookingAdminShared.currentDate()
-const normalizeDateKey=value=>parseDateValue(value)?.toISOString().slice(0,10)||''
+const normalizeDateKey=value=>{
+  const d=(value instanceof Date) ? value : parseDateValue(value)
+  if(!d||isNaN(d.getTime()))return ''
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
@@ -1780,7 +1791,17 @@ const renderBrandPill=brandCode=>{
 }
 const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
-const isReviewReservation=booking=>['draft','pending','provisional'].includes(normalizeText(booking?.status||''))
+const isReviewReservation=booking=>{
+  const status=normalizeText(booking?.status||'')
+  // provisional bookings always go straight to Bookings regardless of source
+  if(status==='provisional')return false
+  // only draft/pending can be reservations
+  if(!['draft','pending'].includes(status))return false
+  // reservations are website-sourced only; admin-created bookings go to Bookings
+  const source=normalizeText(booking?.source||booking?.metadata?.source||'website')
+  if(source==='admin'||Boolean(booking?.metadata?.admin_created))return false
+  return true
+}
 const getTrashHistoryEntry=bookingId=>sortByDateDesc(
   state.statusHistory.filter(item=>item.booking_id===bookingId && normalizeText(item.to_status)==='cancelled' && /trash/i.test(String(item.reason||''))),
   'created_at'
@@ -3387,8 +3408,16 @@ const renderReservationRow=booking=>`
       </td>
     </tr>
 `
+const updateReservationBadge=()=>{
+  const badge=document.getElementById('reservationNavBadge')
+  if(!badge)return
+  const count=getReviewReservations().length
+  badge.textContent=String(count)
+  badge.hidden=count===0
+}
 const renderReservations=()=>{
   if(!nodes.reservationsTable)return
+  updateReservationBadge()
   const all=getReviewReservations().sort((left,right)=>(parseDateValue(right.created_at)?.getTime()||0)-(parseDateValue(left.created_at)?.getTime()||0))
   const webRequests=all.filter(b=>!['provisional'].includes(normalizeText(b.status))&&normalizeText(b.metadata?.created_via||'website')!=='skybook_admin')
   const adminDrafts=all.filter(b=>normalizeText(b.status)==='provisional'||normalizeText(b.metadata?.created_via||'website')==='skybook_admin')
@@ -3598,6 +3627,46 @@ const openBookingChangelogPage=bookingId=>{
   if(!bookingId)return
   const opened=window.open(getBookingChangelogPageUrl(bookingId),'_blank','noopener')
   try{ if(opened)opened.opener=null }catch{}
+}
+
+const repairStatusConflicts=async()=>{
+  const btn=document.getElementById('repairStatusConflictsButton')
+  const conflicted=state.bookings.filter(b=>{
+    const status=normalizeText(b.status||'')
+    const payment=normalizeText(b.payment_status||'')
+    const unpaidPayment=['pending','payment_pending','unpaid'].includes(payment)
+    const overstatedStatus=['fully_paid','finalised','partially_paid'].includes(status)
+    return overstatedStatus && unpaidPayment
+  })
+  if(!conflicted.length){
+    showToast('No status conflicts found.','success')
+    return
+  }
+  const confirmed=window.confirm(`Found ${conflicted.length} booking${conflicted.length>1?'s':''} with conflicting status and payment. Fix them all to "Invoiced"?`)
+  if(!confirmed)return
+  if(btn){btn.disabled=true;btn.textContent=`Repairing 0 / ${conflicted.length}...`}
+  let fixed=0
+  let errors=0
+  for(const booking of conflicted){
+    try{
+      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+        method:'PATCH',
+        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+        body:{status:'invoiced',payment_status:booking.payment_status||'pending'}
+      })
+      fixed++
+      if(btn)btn.textContent=`Repairing ${fixed} / ${conflicted.length}...`
+    }catch{
+      errors++
+    }
+  }
+  if(btn){btn.disabled=false;btn.textContent='Repair Status Conflicts'}
+  await loadAdminData()
+  if(errors){
+    showToast(`Repaired ${fixed} bookings. ${errors} failed — check the console.`,'error')
+  }else{
+    showToast(`Repaired ${fixed} booking${fixed>1?'s':''} to Invoiced status.`,'success')
+  }
 }
 
 const renderBookings=()=>{
@@ -4698,8 +4767,9 @@ const renderServices=()=>{
       <td>${bookingAdminShared.escapeHtml(service.minimum_pax||1)}</td>
       <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
       <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
+      <td><button class="booking-button ghost compact" data-delete-service="${bookingAdminShared.escapeHtml(service.id)}" type="button" onclick="event.stopPropagation()">Delete</button></td>
     </tr>
-  `).join('') || renderEmptyRow(6,'No tours match the selected visibility filter.')
+  `).join('') || renderEmptyRow(7,'No tours match the selected visibility filter.')
 }
 
 const syncModalBodyState=()=>{
@@ -7887,7 +7957,9 @@ const handleBookingSave=async event=>{
       pickup_point:nodes.bookingPickupPoint?.value?.trim()||'',
       dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
       infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
-      price_override:Number(nodes.bookingPriceOverride?.value||0)||0
+      price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
+      admin_created:true,
+      created_via:'skybook_admin'
     },
     customer:{
       full_name:nodes.bookingCustomerName.value.trim(),
@@ -8618,6 +8690,7 @@ nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
 nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.quickCreateBooking?.addEventListener('click',openNewBookingWorkspace)
+document.getElementById('quickCreateCruiseLiner')?.addEventListener('click',()=>openCruiseLinerModal(''))
 nodes.globalBrandSwitch?.addEventListener('change',()=>{
   state.activeBrandFilter=nodes.globalBrandSwitch.value||''
   if(nodes.bookingFilterBrand)nodes.bookingFilterBrand.value=state.activeBrandFilter
@@ -8763,6 +8836,7 @@ nodes.bookingForm.addEventListener('change',event=>{
   scheduleBookingEditorAutosave()
 })
 nodes.bookingNewButton.addEventListener('click',openNewBookingWorkspace)
+document.getElementById('repairStatusConflictsButton')?.addEventListener('click',()=>void repairStatusConflicts())
 nodes.closeBookingModalButton?.addEventListener('click',closeBookingModal)
 nodes.closeCustomerModalButton?.addEventListener('click',closeCustomerModal)
 document.getElementById('closeCruiseLinerModal')?.addEventListener('click',closeCruiseLinerModal)
@@ -9233,7 +9307,32 @@ nodes.platformConfigTable?.addEventListener('click',event=>{
   handleCommandNavigation('bookings',bookingId)
 })
 
-nodes.servicesTable.addEventListener('click',event=>{
+nodes.servicesTable.addEventListener('click',async event=>{
+  const deleteBtn=event.target.closest('[data-delete-service]')
+  if(deleteBtn){
+    event.stopPropagation()
+    const serviceId=deleteBtn.dataset.deleteService
+    const service=state.services.find(item=>item.id===serviceId)
+    if(!service)return
+    const hasBookings=state.bookings.some(b=>b.service_slug===service.slug||b.service_id===serviceId)
+    const warningText=hasBookings ? `\n\nWarning: This tour has bookings. Deleting it will not remove those bookings.` : ''
+    if(!window.confirm(`Delete "${service.name}"? This cannot be undone.${warningText}`))return
+    deleteBtn.disabled=true
+    deleteBtn.textContent='Deleting…'
+    try{
+      await bookingAdminShared.apiRequest(`admin/services/${encodeURIComponent(serviceId)}`,{
+        method:'DELETE',
+        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+      })
+      await loadAdminData()
+      showToast(`"${service.name}" deleted.`,'success')
+    }catch(err){
+      deleteBtn.disabled=false
+      deleteBtn.textContent='Delete'
+      showToast(err?.message||'Could not delete the service.','error')
+    }
+    return
+  }
   const row=event.target.closest('[data-service-id]')
   if(!row)return
   const service=state.services.find(item=>item.id===row.dataset.serviceId)

@@ -398,6 +398,25 @@ body.skybook-auth-page{
   background:rgba(255,255,255,.16);
   color:#fff;
 }
+.admin-tab-badge{
+  margin-left:auto;
+  min-width:20px;
+  height:20px;
+  border-radius:10px;
+  background:#ef4444;
+  color:#fff;
+  font-size:11px;
+  font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 6px;
+  flex-shrink:0;
+}
+.admin-tab.is-active .admin-tab-badge{
+  background:rgba(255,255,255,.25);
+  color:#fff;
+}
 .admin-content{
   padding:18px 22px 28px;
   min-width:0;
@@ -977,7 +996,9 @@ tbody tr:hover td{background:#f8fbfe}
 .booking-row.status-invoiced{border-left:4px solid #78350f;background:#fbbf24}
 .booking-row.status-partially-paid{border-left:4px solid #166534;background:#4ade80}
 .booking-row.status-fully-paid{border-left:4px solid #14532d;background:#16a34a;color:#fff}
+.booking-row.status-fully-paid td,.booking-row.status-fully-paid strong,.booking-row.status-fully-paid .table-subline{color:#fff}
 .booking-row.status-finalised{border-left:4px solid #1e3a8a;background:#1e40af;color:#fff}
+.booking-row.status-finalised td,.booking-row.status-finalised strong,.booking-row.status-finalised .table-subline{color:#fff}
 .booking-row.status-cancelled{border-left:4px solid #4b5563;background:#d1d5db}
 .booking-row.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
 .calendar-mini-card.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
@@ -989,7 +1010,11 @@ tbody tr:hover td{background:#f8fbfe}
 .calendar-mini-card.status-invoiced{border-left:4px solid #78350f;background:#fbbf24}
 .calendar-mini-card.status-partially-paid{border-left:4px solid #166534;background:#4ade80}
 .calendar-mini-card.status-fully-paid{border-left:4px solid #14532d;background:#166534;color:#fff}
+.calendar-mini-card.status-fully-paid strong,.calendar-mini-card.status-fully-paid span{color:#fff}
 .calendar-mini-card.status-finalised{border-left:4px solid #1e3a8a;background:#1e40af;color:#fff}
+.calendar-mini-card.status-finalised strong,.calendar-mini-card.status-finalised span{color:#fff}
+.calendar-mini-card.status-provisional strong,.calendar-mini-card.status-provisional span{color:#1a0000}
+.calendar-mini-card.status-payment-pending strong,.calendar-mini-card.status-payment-pending span{color:#1a0000}
 .calendar-mini-card.status-cancelled{border-left:4px solid #4b5563;background:#d1d5db}
 .calendar-entry-card.status-provisional{border-left:4px solid #7f1d1d;background:#f87171}
 .calendar-entry-card.status-payment-pending{border-left:4px solid #7c2d12;background:#fb923c}
@@ -997,7 +1022,9 @@ tbody tr:hover td{background:#f8fbfe}
 .calendar-entry-card.status-invoiced{border-left:4px solid #78350f;background:#fbbf24}
 .calendar-entry-card.status-partially-paid{border-left:4px solid #166534;background:#4ade80}
 .calendar-entry-card.status-fully-paid{border-left:4px solid #14532d;background:#166534;color:#fff}
+.calendar-entry-card.status-fully-paid strong,.calendar-entry-card.status-fully-paid p,.calendar-entry-card.status-fully-paid span{color:#fff}
 .calendar-entry-card.status-finalised{border-left:4px solid #1e3a8a;background:#1e40af;color:#fff}
+.calendar-entry-card.status-finalised strong,.calendar-entry-card.status-finalised p,.calendar-entry-card.status-finalised span{color:#fff}
 .calendar-entry-card.status-cancelled{border-left:4px solid #4b5563;background:#d1d5db}
 .table-primary-link{
   color:inherit;

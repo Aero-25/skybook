@@ -53,7 +53,7 @@
         <details class="admin-menu-section">
           <summary><span>02</span> Reservations</summary>
           <div class="admin-subnav">
-            <button class="admin-tab" data-admin-tab="reservations" type="button"><span class="admin-tab-icon">RV</span><span>Reservation Review</span></button>
+            <button class="admin-tab" data-admin-tab="reservations" type="button"><span class="admin-tab-icon">RV</span><span>Reservation Review</span><span class="admin-tab-badge" id="reservationNavBadge" hidden></span></button>
             <button class="admin-tab" data-admin-tab="bookings" type="button"><span class="admin-tab-icon">BK</span><span>Bookings</span></button>
             <button class="admin-tab" data-admin-tab="customers" type="button"><span class="admin-tab-icon">CU</span><span>Customers & CRM</span></button>
             <button class="admin-tab" data-admin-tab="services" type="button"><span class="admin-tab-icon">SV</span><span>Services & Tours</span></button>
@@ -146,6 +146,7 @@
             </select>
             <button type="button" id="toolbarCommandPalette">Search</button>
             <button type="button" id="quickCreateBooking">New Booking</button>
+            <button type="button" id="quickCreateCruiseLiner">Cruise Liner</button>
             <button type="button" id="exportBookingsCsv">Export CSV</button>
           </div>
         </div>
@@ -583,7 +584,10 @@
               <div>
                 <h3>Reservation Command</h3>
               </div>
-              <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="booking-button ghost" type="button" id="repairStatusConflictsButton" title="Find and fix bookings where status and payment conflict">Repair Status Conflicts</button>
+                <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
+              </div>
             </div>
             <div class="booking-form-grid">
               <div class="booking-field-full booking-quick-filter-bar" aria-label="Booking quick filters">
@@ -719,7 +723,7 @@
           </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th></tr></thead>
+              <thead><tr><th>Name</th><th>Category</th><th>Base price</th><th>Min pax</th><th>Date rule</th><th>Visibility</th><th></th></tr></thead>
               <tbody id="adminServicesTable"></tbody>
             </table>
           </div>
