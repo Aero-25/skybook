@@ -9515,7 +9515,7 @@ const updateSessionTimeoutBanner=async()=>{
   const expiresAt=state.session?.expires_at
   if(!expiresAt)return
   const secsRemaining=Math.floor(expiresAt-Date.now()/1000)
-  if(secsRemaining<600){
+  if(secsRemaining<7200){
     try{
       const client=await requireClient()
       const {data}=await client.auth.refreshSession()
