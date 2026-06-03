@@ -3496,7 +3496,6 @@ const renderReservationDetail=()=>{
             <p>Review the guest request, complete any missing information, and decide whether this reservation should move into the live booking workspace.</p>
           </div>
           <nav class="booking-management-nav reservation-management-nav" aria-label="Reservation management navigation">
-            <button type="button" data-reservation-nav="back">← Return to SkyBook</button>
             <div class="reservation-decision-actions" role="group" aria-label="Reservation decisions">
               <button type="button" data-reservation-action="edit">Edit details</button>
               ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-reservation-action="reinstate">Reinstate Reservation</button>` : `<button type="button" class="is-primary-action" data-reservation-action="accept">Accept reservation</button>`}
@@ -3886,7 +3885,6 @@ const renderBookingDetail=()=>{
             <small style="font-size:13px;font-weight:400;opacity:.7">${bookingAdminShared.escapeHtml(booking.reference)}</small>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="return-to-main">← Return to SkyBook</button>
             <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="open-changelog">Changelog</button>
             ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-booking-inline-action="reinstate-booking">Reinstate Booking</button>` : ''}
             <nav class="booking-management-nav" aria-label="Booking management navigation">
