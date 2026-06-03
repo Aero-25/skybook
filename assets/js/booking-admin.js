@@ -9510,18 +9510,8 @@ nodes.emailPreviewTemplate?.addEventListener('change',renderEmailPreview)
 
 // ── Session auto-renewal (silent, no banner) ────────────────────────────────
 let sessionTimeoutCheckTimer=null
-const updateSessionTimeoutBanner=async()=>{
+const updateSessionTimeoutBanner=()=>{
   if(nodes.sessionTimeoutBanner)nodes.sessionTimeoutBanner.hidden=true
-  const expiresAt=state.session?.expires_at
-  if(!expiresAt)return
-  const secsRemaining=Math.floor(expiresAt-Date.now()/1000)
-  if(secsRemaining<7200){
-    try{
-      const client=await requireClient()
-      const {data}=await client.auth.refreshSession()
-      if(data?.session)state.session=data.session
-    }catch{}
-  }
 }
 const startSessionTimeoutCheck=()=>{
   if(sessionTimeoutCheckTimer)return
