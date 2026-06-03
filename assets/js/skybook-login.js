@@ -169,10 +169,4 @@ loginNodes.form?.addEventListener('submit',event=>{void handleLogin(event)})
 loginNodes.changeForm?.addEventListener('submit',event=>{void handleChangePassword(event)})
 loginNodes.resetButton?.addEventListener('click',()=>{void clearSkybookCache()})
 
-;(async()=>{
-  renderEnvironmentMeta()
-  try{
-    const client=await requireClient()
-    await client.auth.signOut()
-  }catch{}
-})()
+renderEnvironmentMeta()
