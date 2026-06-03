@@ -9508,27 +9508,24 @@ nodes.emailPreviewClose?.addEventListener('click',()=>{
 })
 nodes.emailPreviewTemplate?.addEventListener('change',renderEmailPreview)
 
-// ── Session timeout warning ─────────────────────────────────────────────────
+// ── Session auto-renewal (silent, no banner) ────────────────────────────────
 let sessionTimeoutCheckTimer=null
-const updateSessionTimeoutBanner=()=>{
-  if(!nodes.sessionTimeoutBanner)return
+const updateSessionTimeoutBanner=async()=>{
+  if(nodes.sessionTimeoutBanner)nodes.sessionTimeoutBanner.hidden=true
   const expiresAt=state.session?.expires_at
-  if(!expiresAt){nodes.sessionTimeoutBanner.hidden=true;return}
+  if(!expiresAt)return
   const secsRemaining=Math.floor(expiresAt-Date.now()/1000)
-  if(secsRemaining<300){
-    const mins=Math.max(0,Math.floor(secsRemaining/60))
-    nodes.sessionTimeoutBanner.hidden=false
-    if(nodes.sessionTimeoutMessage)
-      nodes.sessionTimeoutMessage.textContent=secsRemaining<=0
-        ? 'Your session has expired — please sign in again.'
-        : `Your session expires in ${mins} minute${mins===1?'':'s'}. Renew now to stay logged in.`
-  }else{
-    nodes.sessionTimeoutBanner.hidden=true
+  if(secsRemaining<600){
+    try{
+      const client=await requireClient()
+      const {data}=await client.auth.refreshSession()
+      if(data?.session)state.session=data.session
+    }catch{}
   }
 }
 const startSessionTimeoutCheck=()=>{
   if(sessionTimeoutCheckTimer)return
-  sessionTimeoutCheckTimer=window.setInterval(updateSessionTimeoutBanner,30000)
+  sessionTimeoutCheckTimer=window.setInterval(updateSessionTimeoutBanner,60000)
 }
 nodes.sessionTimeoutRenew?.addEventListener('click',async()=>{
   try{
