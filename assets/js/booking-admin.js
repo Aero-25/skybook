@@ -5017,30 +5017,34 @@ const printManualInvoice=()=>{
   const today=new Date().toLocaleDateString('en-NA',{day:'2-digit',month:'long',year:'numeric'})
   const pax=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||Number(booking.quantity||1)
   const html=`<!DOCTYPE html><html><head><title>Invoice ${bookingAdminShared.escapeHtml(invoiceNumber)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#1a2a35;padding:48px;max-width:760px;margin:0 auto}
-h1{font-size:28px;font-weight:800;margin-bottom:4px}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:20px;border-bottom:2px solid #0a3050}
-.brand{color:#0a3050}
-.brand small{font-size:11px;color:#5f7383;display:block;margin-top:2px}
-.inv-no{text-align:right;color:#5f7383;font-size:12px}
-.inv-no strong{font-size:20px;color:#0a3050;display:block}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px}
-.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#5f7383;margin-bottom:8px}
-.detail-name{font-size:16px;font-weight:700;margin-bottom:4px}
-.detail-line{color:#5f7383;font-size:12px;margin-bottom:2px}
-table{width:100%;border-collapse:collapse;margin-bottom:32px}
-th{background:#0a3050;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:10px 14px;text-align:left}
-td{padding:12px 14px;border-bottom:1px solid #e5edf5;font-size:13px}
-tr:last-child td{border-bottom:none}
-.total-row td{font-weight:700;font-size:15px;background:#f7fafc}
-.footer{border-top:1px solid #e5edf5;padding-top:16px;color:#5f7383;font-size:11px;text-align:center}
-@media print{body{padding:24px}button{display:none}}
+body{font-family:'Manrope','Helvetica Neue',Arial,sans-serif;font-size:13px;color:#0f172a;background:#fff;padding:56px;max-width:800px;margin:0 auto;line-height:1.65}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:48px;padding-bottom:28px;border-bottom:2px solid #e8f1fb}
+.brand h1{font-size:34px;font-weight:800;letter-spacing:-.04em;color:#0f172a;margin-bottom:6px}
+.brand-tag{font-size:10px;letter-spacing:.20em;text-transform:uppercase;color:#1e5b93;font-weight:700;opacity:.75;margin-top:6px}
+.inv-no{text-align:right}
+.inv-label{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#5f7a9a;font-weight:700;margin-bottom:8px}
+.inv-no strong{font-size:26px;font-weight:800;color:#0f172a;display:block;letter-spacing:-.02em}
+.inv-date{font-size:12px;color:#5f7a9a;margin-top:5px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:40px}
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.18em;color:#1e5b93;margin-bottom:10px;opacity:.75}
+.detail-name{font-size:17px;font-weight:700;margin-bottom:6px;letter-spacing:-.02em}
+.detail-line{color:#5f7a9a;font-size:13px;margin-bottom:3px}
+table{width:100%;border-collapse:collapse;margin-bottom:36px}
+th{background:transparent;color:#5f7a9a;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;padding:10px 16px;text-align:left;border-bottom:2px solid #e8f1fb}
+td{padding:14px 16px;border-bottom:1px solid #f0f6fb;font-size:13px;color:#0f172a}
+tbody tr:last-child td{border-bottom:none}
+.total-row td{font-weight:700;font-size:16px;border-top:2px solid #e8f1fb;border-bottom:none;padding:18px 16px;background:linear-gradient(135deg,#f0f7ff,#e8f4fb)}
+.footer{margin-top:40px;padding-top:20px;border-top:2px solid #e8f1fb;color:#5f7a9a;font-size:11px;line-height:1.9;text-align:center;letter-spacing:.02em}
+.print-actions{display:flex;justify-content:center;margin-top:28px;gap:12px}
+.print-actions button{padding:13px 32px;background:#1e5b93;color:#fff;border:none;border-radius:999px;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+@media print{body{padding:28px}.print-actions{display:none}}
 </style></head><body>
 <div class="header">
-  <div class="brand"><h1>INVOICE</h1><small>True Travel Namibia</small></div>
-  <div class="inv-no"><div class="section-label">Invoice number</div><strong>${bookingAdminShared.escapeHtml(invoiceNumber)}</strong><div>${bookingAdminShared.escapeHtml(today)}</div></div>
+  <div class="brand"><h1>Invoice</h1><div class="brand-tag">True Travel Namibia</div></div>
+  <div class="inv-no"><div class="inv-label">Invoice number</div><strong>${bookingAdminShared.escapeHtml(invoiceNumber)}</strong><div class="inv-date">${bookingAdminShared.escapeHtml(today)}</div></div>
 </div>
 <div class="two-col">
   <div><div class="section-label">Bill To</div>
@@ -5067,7 +5071,8 @@ tr:last-child td{border-bottom:none}
     <tr class="total-row"><td colspan="2"><strong>Total Due</strong></td><td style="text-align:right">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||'NAD')}</td></tr>
   </tbody>
 </table>
-<div class="footer">Banking details will be provided by your True Travel consultant. Thank you for booking with True Travel Namibia.</div>
+<div class="footer">Banking details will be provided by your True Travel consultant.<br>Thank you for booking with True Travel Namibia.</div>
+<div class="print-actions"><button onclick="window.print()">Print / Save PDF</button></div>
 </body></html>`
   const win=window.open('','_blank','noopener,noreferrer,width=800,height=900')
   if(!win){showToast('Pop-up blocked. Please allow pop-ups to print the invoice.','info');return}
