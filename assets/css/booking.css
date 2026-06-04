@@ -1648,8 +1648,10 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
   margin-top:18px;
   padding:18px;
   border-radius:24px;
-  background:#f8fbfe;
-  border:1px solid var(--booking-line);
+  background:var(--booking-glass);
+  border:1px solid var(--booking-glass-border);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
 }
 .calendar-day-stack,
 .timeline-stack,
@@ -1694,12 +1696,96 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
   min-height:180px;
   padding:14px;
   border-radius:20px;
-  border:1px solid var(--booking-line);
-  background:#fff;
+  border:1px solid rgba(255,255,255,.75);
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  transition:box-shadow .15s,background .15s;
 }
-.calendar-cell.is-muted{opacity:.55}
-.calendar-cell{cursor:pointer;transition:box-shadow .15s}
-.calendar-cell:hover{box-shadow:0 0 0 2px var(--booking-ocean,#1a7cb0)}
+.calendar-cell.is-muted{opacity:.50}
+.calendar-cell:hover{box-shadow:0 0 0 2px rgba(30,91,147,.40);background:rgba(255,255,255,.90)}
+/* Today cell — tinted + circled date number */
+.calendar-cell.is-today{
+  background:rgba(30,91,147,.05);
+  border-color:rgba(30,91,147,.22);
+}
+.calendar-cell.is-today header strong{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  background:var(--booking-ocean);
+  color:#fff;
+  font-size:13px;
+  font-weight:800;
+  margin:-2px;
+}
+/* Weekday header label */
+.cal-day-label{
+  text-align:center;
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.18em;
+  color:var(--booking-muted);
+  padding:8px 0 10px;
+}
+.cal-day-label.is-today-col{
+  color:var(--booking-ocean);
+  font-weight:800;
+  opacity:1;
+}
+/* Overflow pill */
+.cal-overflow-pill{
+  display:inline-flex;
+  align-items:center;
+  height:24px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(30,91,147,.18);
+  background:rgba(30,91,147,.05);
+  color:var(--booking-ocean);
+  font:inherit;
+  font-size:11px;
+  font-weight:700;
+  cursor:pointer;
+  transition:background .12s,border-color .12s;
+}
+.cal-overflow-pill:hover{background:rgba(30,91,147,.10);border-color:rgba(30,91,147,.32)}
+/* Styled date nav */
+.cal-date-nav{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.cal-date-nav-btn{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  border:1px solid rgba(30,91,147,.14);
+  background:rgba(255,255,255,.80);
+  backdrop-filter:blur(8px);
+  color:var(--booking-ocean);
+  font-size:18px;
+  line-height:1;
+  font-weight:700;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:background .12s,border-color .12s;
+}
+.cal-date-nav-btn:hover{background:#fff;border-color:rgba(30,91,147,.32)}
+.cal-date-nav-label{
+  font-size:13px;
+  font-weight:700;
+  color:var(--booking-ink);
+  min-width:130px;
+  text-align:center;
+  letter-spacing:-.01em;
+}
 .calendar-day-panel{position:fixed;inset:0;z-index:9000;display:flex;align-items:flex-end;justify-content:center}
 .calendar-day-panel[hidden]{display:none}
 .calendar-day-panel-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}

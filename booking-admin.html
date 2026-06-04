@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260604-polish">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260604-calendar">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen" aria-live="polite">
@@ -307,7 +307,12 @@
               <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
               <button type="button" class="calendar-view-button is-active" data-calendar-view="month">Month</button>
               <button type="button" class="calendar-view-button" id="printArrivalsList">Print Arrivals</button>
-              <input id="calendarFocusDate" type="date">
+              <div class="cal-date-nav">
+                <button type="button" class="cal-date-nav-btn" id="calNavPrev" aria-label="Previous">&#8592;</button>
+                <span class="cal-date-nav-label" id="calNavLabel"></span>
+                <button type="button" class="cal-date-nav-btn" id="calNavNext" aria-label="Next">&#8594;</button>
+                <input id="calendarFocusDate" type="date" hidden aria-hidden="true">
+              </div>
             </div>
           </div>
           <div id="calendarSummaryCards" hidden></div>

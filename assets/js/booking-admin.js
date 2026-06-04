@@ -3140,6 +3140,18 @@ const renderCalendar=()=>{
   state.calendarFocusDate=focusDate
   nodes.calendarViewButtons.forEach(button=>button.classList.toggle('is-active',button.dataset.calendarView===state.calendarView))
   if(nodes.calendarFocusDate&&nodes.calendarFocusDate.value!==focusDate)nodes.calendarFocusDate.value=focusDate
+  const _focusDateObj=parseDateValue(focusDate)||new Date()
+  const _navLabel=document.getElementById('calNavLabel')
+  if(_navLabel){
+    if(state.calendarView==='month'){
+      _navLabel.textContent=_focusDateObj.toLocaleDateString('en-NA',{month:'long',year:'numeric'})
+    }else if(state.calendarView==='week'){
+      const _weekEnd=new Date(_focusDateObj.getTime()+6*86400000)
+      _navLabel.textContent=`${_focusDateObj.toLocaleDateString('en-NA',{month:'short',day:'numeric'})} – ${_weekEnd.toLocaleDateString('en-NA',{month:'short',day:'numeric',year:'numeric'})}`
+    }else{
+      _navLabel.textContent=_focusDateObj.toLocaleDateString('en-NA',{weekday:'short',day:'numeric',month:'long'})
+    }
+  }
   const dates=createDateRange(focusDate,state.calendarView)
   const rangeBookings=state.bookings.filter(booking=>{
     const key=normalizeDateKey(booking.preferred_date)
@@ -3219,15 +3231,18 @@ const renderCalendar=()=>{
   }
 
   const DAY_NAMES=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+  const todayKey=getTodayKey()
+  const todayDayIdx=(new Date().getDay()+6)%7
   nodes.calendarCanvas.innerHTML=`
     <div class="calendar-month-grid">
-      ${DAY_NAMES.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--booking-muted);padding:6px 0">${d}</div>`).join('')}
+      ${DAY_NAMES.map((d,i)=>`<div class="cal-day-label${i===todayDayIdx?' is-today-col':''}">${d}</div>`).join('')}
       ${dates.map(date=>{
         const key=normalizeDateKey(date)
         const bookings=rangeBookings.filter(booking=>normalizeDateKey(booking.preferred_date)===key)
         const isCurrentMonth=parseDateValue(focusDate)?.getMonth()===date.getMonth()
+        const isToday=key===todayKey
         return `
-          <section class="calendar-cell ${isCurrentMonth ? '' : 'is-muted'}" data-cal-day="${bookingAdminShared.escapeHtml(key)}">
+          <section class="calendar-cell${isCurrentMonth?'':' is-muted'}${isToday?' is-today':''}" data-cal-day="${bookingAdminShared.escapeHtml(key)}">
             <header>
               <strong>${date.getDate()}</strong>
               <span>${bookings.length||''}</span>
@@ -3239,7 +3254,7 @@ const renderCalendar=()=>{
                   <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                 </article>
               `).join('')}
-              ${bookings.length>3 ? `<span class="muted-copy" style="font-size:11px">+${bookings.length-3} more</span>` : ''}
+              ${bookings.length>3?`<button type="button" class="cal-overflow-pill" data-cal-day="${bookingAdminShared.escapeHtml(key)}">+${bookings.length-3} more</button>`:''}
             </div>
           </section>
         `
@@ -8847,6 +8862,19 @@ nodes.calendarFocusDate?.addEventListener('change',()=>{
   state.calendarFocusDate=nodes.calendarFocusDate.value||bookingAdminShared.currentDate()
   renderCalendar()
 })
+const shiftCalendarDate=delta=>{
+  const focus=parseDateValue(nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey())||new Date()
+  const next=new Date(focus)
+  if(state.calendarView==='month')next.setMonth(next.getMonth()+delta)
+  else if(state.calendarView==='week')next.setDate(next.getDate()+(delta*7))
+  else next.setDate(next.getDate()+delta)
+  const key=normalizeDateKey(next)
+  if(nodes.calendarFocusDate)nodes.calendarFocusDate.value=key
+  state.calendarFocusDate=key
+  renderCalendar()
+}
+document.getElementById('calNavPrev')?.addEventListener('click',()=>shiftCalendarDate(-1))
+document.getElementById('calNavNext')?.addEventListener('click',()=>shiftCalendarDate(1))
 nodes.calendarCanvas?.addEventListener('click',event=>{
   const card=event.target.closest('[data-open-booking]')
   if(card&&!event.target.closest('a')){
