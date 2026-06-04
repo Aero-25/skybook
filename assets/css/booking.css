@@ -2617,39 +2617,39 @@ textarea:focus-visible{
 
 .admin-menu{
   display:grid;
-  gap:2px;
-  margin-top:14px;
+  gap:8px;
+  margin-top:16px;
 }
 
-/* Borderless accordion sections — Linear-style flat nav */
+/* Glass card sections — structured but soft */
 .admin-menu-section{
-  border:none;
-  border-radius:0;
-  background:transparent;
-  box-shadow:none;
+  border:1px solid rgba(255,255,255,.75);
+  border-radius:18px;
+  background:rgba(255,255,255,.58);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  box-shadow:0 2px 8px rgba(20,52,83,.04);
+  overflow:hidden;
 }
 
 .admin-menu-section summary{
   display:flex;
   align-items:center;
-  gap:8px;
-  min-height:34px;
-  padding:0 8px;
-  margin-top:10px;
-  border-radius:10px;
-  color:var(--sky-muted);
+  gap:9px;
+  min-height:44px;
+  padding:0 14px;
+  color:var(--sky-text);
   font-size:10px;
   font-weight:800;
-  letter-spacing:.18em;
+  letter-spacing:.16em;
   text-transform:uppercase;
   cursor:pointer;
   list-style:none;
-  transition:background .12s,color .12s;
+  transition:background .12s;
 }
 
 .admin-menu-section summary:hover{
-  background:rgba(23,105,170,.05);
-  color:var(--sky-blue);
+  background:rgba(23,105,170,.04);
 }
 
 .admin-menu-section summary::-webkit-details-marker{
@@ -2657,18 +2657,17 @@ textarea:focus-visible{
 }
 
 .admin-menu-section summary:after{
-  content:"›";
+  content:"+";
   margin-left:auto;
-  font-size:14px;
-  font-weight:400;
+  font-size:18px;
+  font-weight:300;
   line-height:1;
-  transition:transform .18s ease;
-  opacity:.55;
+  color:var(--sky-blue);
+  opacity:.65;
 }
 
 .admin-menu-section[open] summary:after{
-  transform:rotate(90deg);
-  opacity:.80;
+  content:"−";
 }
 
 /* Section number badge */
@@ -2676,62 +2675,64 @@ textarea:focus-visible{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:22px;
-  height:22px;
-  border-radius:7px;
-  background:rgba(23,105,170,.08);
+  width:24px;
+  height:24px;
+  border-radius:8px;
+  background:rgba(23,105,170,.09);
   color:var(--sky-blue);
   font-size:9px;
-  letter-spacing:0;
+  font-weight:800;
+  letter-spacing:.02em;
   flex-shrink:0;
 }
 
 .admin-subnav{
   display:grid;
-  gap:2px;
-  padding:2px 0 4px;
+  gap:3px;
+  padding:0 8px 10px;
+  border-top:1px solid rgba(23,105,170,.07);
 }
 
 /* Nav tabs */
 .admin-tab{
-  min-height:40px;
+  min-height:42px;
   margin-top:0;
-  padding:0 10px;
+  padding:0 12px;
   border:1px solid transparent;
   border-radius:12px;
   background:transparent;
   color:var(--sky-text);
   font-size:13px;
   font-weight:600;
-  transition:background .12s,border-color .12s,color .12s,box-shadow .12s;
+  transition:background .14s,color .14s;
 }
 
 .admin-tab:hover{
-  background:rgba(23,105,170,.06);
-  border-color:transparent;
+  background:rgba(23,105,170,.07);
   color:var(--sky-blue);
   transform:none;
+  border-color:transparent;
 }
 
-/* Active tab: white glass card with left accent stripe */
+/* Active: solid ocean blue — needs high contrast on light background */
 .admin-tab.is-active{
-  background:rgba(255,255,255,.92);
-  border-color:rgba(23,105,170,.14);
-  color:var(--sky-blue);
+  background:var(--sky-blue);
+  border-color:transparent;
+  color:#fff;
   font-weight:700;
-  box-shadow:inset 3px 0 0 var(--sky-blue),0 4px 14px rgba(20,52,83,.08);
+  box-shadow:0 6px 18px rgba(23,105,170,.28);
 }
 
 .admin-tab.is-active:hover{
-  background:rgba(255,255,255,.92);
-  color:var(--sky-blue);
+  background:var(--sky-blue);
+  color:#fff;
 }
 
 .admin-tab-icon{
   width:28px;
   height:28px;
   border-radius:9px;
-  background:rgba(23,105,170,.08);
+  background:rgba(23,105,170,.09);
   color:var(--sky-blue);
   font-size:9px;
   font-weight:800;
@@ -2740,8 +2741,8 @@ textarea:focus-visible{
 }
 
 .admin-tab.is-active .admin-tab-icon{
-  background:rgba(23,105,170,.12);
-  color:var(--sky-blue);
+  background:rgba(255,255,255,.18);
+  color:#fff;
 }
 
 .admin-content{
