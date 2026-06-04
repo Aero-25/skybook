@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260604-topbar">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260604-toolbar">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen" aria-live="polite">
@@ -137,13 +137,12 @@
               <h2 id="moduleTitle">Command Center</h2>
             </div>
           </div>
+          <p class="toolbar-status" id="bookingAdminStatus">Ready.</p>
         </div>
         <div class="toolbar-side">
-          <div class="toolbar-session-meta">
-            <span class="booking-chip" id="topSessionLabel">SkyBook</span>
-            <button class="toolbar-signout-btn" type="button" id="logoutButton" aria-label="Sign out">Sign Out</button>
-            <p class="toolbar-status" id="bookingAdminStatus">Ready.</p>
-          </div>
+          <span class="booking-chip" id="topSessionLabel">SkyBook</span>
+          <button class="toolbar-signout-btn" type="button" id="logoutButton" aria-label="Sign out">Sign Out</button>
+          <div class="toolbar-side-divider" aria-hidden="true"></div>
           <div class="toolbar-actions">
             <select id="globalBrandSwitch" class="toolbar-brand-switch" aria-label="Global brand filter">
               <option value="">All brands</option>

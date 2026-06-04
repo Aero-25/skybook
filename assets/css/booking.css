@@ -2838,11 +2838,10 @@ textarea:focus-visible{
 .admin-toolbar{
   position:relative;
   overflow:hidden;
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  gap:18px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:16px 28px;
   padding:28px;
   border:1px solid #d7e7f3;
   border-radius:28px;
@@ -2915,18 +2914,26 @@ textarea:focus-visible{
 }
 
 .toolbar-side{
-  display:grid;
-  justify-items:end;
-  gap:14px;
-  min-width:320px;
-}
-
-.toolbar-session-meta{
   display:flex;
   align-items:center;
-  gap:8px;
+  gap:10px;
   justify-content:flex-end;
   flex-wrap:wrap;
+  min-width:0;
+  padding-top:6px;
+}
+
+.toolbar-side-divider{
+  width:1px;
+  height:24px;
+  background:rgba(23,105,170,.14);
+  border-radius:1px;
+  flex-shrink:0;
+}
+
+/* toolbar-session-meta removed from HTML — kept as alias for compat */
+.toolbar-session-meta{
+  display:contents;
 }
 
 .toolbar-signout-btn{
@@ -2951,13 +2958,11 @@ textarea:focus-visible{
 }
 
 .toolbar-status{
-  margin:0;
+  margin:8px 0 0;
   color:#5f7486;
   font-size:12px;
   line-height:1.5;
-  text-align:right;
-  width:100%;
-  order:1;
+  text-align:left;
 }
 
 .toolbar-actions{
@@ -4026,10 +4031,14 @@ tbody tr:hover td{
     overflow:auto;
   }
   .admin-toolbar{
-    align-items:flex-start;
+    grid-template-columns:1fr;
   }
   .admin-toolbar h2{
     font-size:42px;
+  }
+  .toolbar-side{
+    justify-content:flex-start;
+    padding-top:0;
   }
   table{
     min-width:680px;
