@@ -1179,7 +1179,10 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Dietary requirements',metadata.dietary_requirements||metadata.dietary)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
-  const guestLabel=adultQty+childQty>0 ? `${booking?.quantity||adultQty+childQty} (${adultQty} adult${adultQty!==1?'s':''}, ${childQty} child${childQty!==1?'ren':''})` : String(booking?.quantity||1)
+  const infantQty=Number(booking?.infant_quantity||booking?.metadata?.infant_quantity||0)
+  const totalGuestQty=adultQty+childQty+infantQty||Number(booking?.quantity||1)
+  const guestParts=[adultQty>0?`${adultQty} adult${adultQty!==1?'s':''}`:'',(childQty>0?`${childQty} child${childQty!==1?'ren':''} (4–12)`:''),(infantQty>0?`${infantQty} under 4`:'')].filter(Boolean)
+  const guestLabel=guestParts.length ? `${totalGuestQty} (${guestParts.join(', ')})` : String(totalGuestQty)
   addRow('Guests',guestLabel)
   addRow('Total',bookingAdminShared.formatMoney(booking?.total_amount||0,booking?.currency||state.settings.currency))
   addRow('Guest notes',booking?.customer_notes||booking?.notes)
@@ -1371,10 +1374,10 @@ const collectBookingFormValues=()=>({
   status:nodes.bookingStatus?.value||'',
   payment_status:nodes.bookingPaymentStatus?.value||'',
   preferred_date:nodes.bookingDate?.value||'',
-  quantity:nodes.bookingQuantity?.value||'',
   adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
   child_quantity:Number(nodes.bookingChildQuantity?.value||0),
   infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
+  get quantity(){return String(Math.max(1,this.adult_quantity+this.child_quantity+this.infant_quantity))},
   price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
   agent:nodes.bookingAgent?.value?.trim()||'',
   guide_name:nodes.bookingGuideName?.value||'',
@@ -1404,9 +1407,10 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
-  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(values.adult_quantity||0)
-  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(values.child_quantity||0)
-  if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(values.infant_quantity||values.metadata?.infant_quantity||0)
+  const prefillAdults=Number(values.adult_quantity||0),prefillChildren=Number(values.child_quantity||0),prefillInfants=Number(values.infant_quantity||values.metadata?.infant_quantity||0)
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(prefillAdults>0||prefillChildren>0||prefillInfants>0 ? prefillAdults : (Number(values.quantity||nodes.bookingQuantity?.value||2)))
+  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(prefillChildren)
+  if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(prefillInfants)
   if(nodes.bookingPriceOverride)nodes.bookingPriceOverride.value=String(values.price_override||values.metadata?.price_override||'')
   if(nodes.bookingAgent)nodes.bookingAgent.value=String(values.agent||values.metadata?.agent||'')
   if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||values.metadata?.guide_name||'')
@@ -3414,7 +3418,7 @@ const renderReservationRow=booking=>`
         <strong>${bookingAdminShared.escapeHtml(booking.customer_email||'')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</div>
       </td>
-      <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))} guest${Number(booking.quantity||1)===1 ? '' : 's'}</td>
+      <td>${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const p=[a>0?`${a}A`:'',c>0?`${c}C`:'',i>0?`${i}I`:''].filter(Boolean).join('+');return bookingAdminShared.escapeHtml(p?`${t} (${p})`:`${t} guest${t===1?'':'s'}`)})()}</td>
       <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
       <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
       <td>
@@ -4680,8 +4684,12 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingDate.value=booking?.preferred_date||''
   syncBookingDepartureFields(booking?.service_slug||'',booking?.metadata?.departure_label||'',booking?.metadata?.pickup_time||'')
   nodes.bookingQuantity.value=booking?.quantity||2
-  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(booking?.adult_quantity||0)
-  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(booking?.child_quantity||0)
+  const loadedAdults=Number(booking?.adult_quantity||0)
+  const loadedChildren=Number(booking?.child_quantity||0)
+  const loadedInfants=Number(booking?.infant_quantity||booking?.metadata?.infant_quantity||0)
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(loadedAdults>0||loadedChildren>0||loadedInfants>0 ? loadedAdults : (booking?.quantity||2))
+  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(loadedChildren)
+  if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(loadedInfants)
   syncBookingQuantityMode()
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
@@ -7892,13 +7900,12 @@ const handleLogout=async()=>{
 }
 
 const syncBookingQuantityMode=()=>{
-  const service=state.services.find(s=>s.slug===nodes.bookingService?.value)
-  const hasAdultChild=service?.adult_price!=null&&Number(service.adult_price)>0
-  if(nodes.bookingQuantityWrap)nodes.bookingQuantityWrap.hidden=hasAdultChild
-  if(nodes.bookingQuantity)nodes.bookingQuantity.required=!hasAdultChild
-  if(nodes.bookingAdultWrap)nodes.bookingAdultWrap.hidden=!hasAdultChild
-  if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=!hasAdultChild
-  if(nodes.bookingInfantWrap)nodes.bookingInfantWrap.hidden=!hasAdultChild
+  // Always use split pax (adults/children/infants) — never show the generic Guests field
+  if(nodes.bookingQuantityWrap)nodes.bookingQuantityWrap.hidden=true
+  if(nodes.bookingQuantity)nodes.bookingQuantity.required=false
+  if(nodes.bookingAdultWrap)nodes.bookingAdultWrap.hidden=false
+  if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=false
+  if(nodes.bookingInfantWrap)nodes.bookingInfantWrap.hidden=false
 }
 
 const validateBookingForm=()=>{
