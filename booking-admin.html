@@ -11,14 +11,21 @@
 <link rel="stylesheet" href="assets/css/booking.css?v=20260602-v1">
 </head>
 <body class="booking-body skybook-admin-page">
-  <section class="admin-loading-screen" id="adminLoadingScreen">
+  <section class="admin-loading-screen" id="adminLoadingScreen" aria-live="polite">
+    <div class="admin-loader-blob admin-loader-blob-a" aria-hidden="true"></div>
+    <div class="admin-loader-blob admin-loader-blob-b" aria-hidden="true"></div>
     <article class="admin-loading-card">
-      <img class="admin-brand-mark admin-brand-mark-image" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook logo">
-      <div>
-        <h1 id="adminLoadingTitle">Checking admin session</h1>
-        <span class="admin-loading-spinner" id="adminLoadingSpinner" aria-hidden="true"></span>
-        <p id="adminLoadingStatus">Loading the protected operations workspace for reservations, finance, suppliers, and reporting.</p>
+      <div class="admin-loader-logo-ring" aria-hidden="true">
+        <div class="admin-loader-ring admin-loader-ring-outer"></div>
+        <div class="admin-loader-ring admin-loader-ring-inner"></div>
+        <img class="admin-brand-mark admin-brand-mark-image" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook">
       </div>
+      <div class="admin-loader-brand">SkyBook</div>
+      <div class="admin-loader-sub">Operations Console</div>
+      <div class="admin-loader-bar-track" aria-hidden="true"><div class="admin-loader-bar-fill"></div></div>
+      <h1 id="adminLoadingTitle" class="admin-loader-title">Preparing workspace</h1>
+      <p id="adminLoadingStatus" class="admin-loader-status">Syncing reservations, finance, and operations data.</p>
+      <span id="adminLoadingSpinner" hidden></span>
     </article>
   </section>
 

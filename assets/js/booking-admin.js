@@ -243,7 +243,7 @@ const setAdminLoadingContent=(title,message,{isError=false}={})=>{
   if(nodes.loadingSpinner)nodes.loadingSpinner.hidden=Boolean(isError)
 }
 
-const showBookingRecordLoader=(message='Loading the full booking record, payments, tasks, documents, and finance history.')=>{
+const showBookingRecordLoader=(message='Fetching payments, tasks, documents, and finance history.')=>{
   document.body.classList.add('is-booking-record-loading')
   document.body.classList.remove('is-booking-record-ready')
   setAdminDocumentTitle('Loading booking')
@@ -253,7 +253,7 @@ const showBookingRecordLoader=(message='Loading the full booking record, payment
 }
 
 const showAdminSessionLoader=()=>{
-  setAdminLoadingContent('Checking admin session','Loading the protected operations workspace for reservations, finance, suppliers, and reporting.')
+  setAdminLoadingContent('Preparing workspace','Syncing reservations, finance, and operations data.')
 }
 
 const finishBookingRecordLoader=()=>{

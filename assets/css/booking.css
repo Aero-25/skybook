@@ -144,6 +144,9 @@ body.skybook-auth-page{
   color:var(--booking-muted);
   line-height:1.6;
 }
+/* ═══════════════════════════════════════════════
+   SKYBOOK LOADER — Beautiful branded splash
+═══════════════════════════════════════════════ */
 .admin-loading-screen{
   position:fixed;
   inset:0;
@@ -151,41 +154,161 @@ body.skybook-auth-page{
   display:grid;
   place-items:center;
   padding:24px;
-  background:
-    radial-gradient(circle at 30% 20%,rgba(183,221,248,.55),transparent 30%),
-    linear-gradient(180deg,#f7fbff,#edf5fb);
+  background:linear-gradient(160deg,#081624 0%,#0d2240 38%,#102d52 65%,#0b1d38 100%);
+  overflow:hidden;
+  animation:loader-screen-in .45s ease both;
 }
-.admin-loading-card{
-  width:min(560px,100%);
-  display:grid;
-  grid-template-columns:64px minmax(0,1fr);
-  gap:18px;
-  align-items:center;
-  padding:28px;
-  border-radius:28px;
+@keyframes loader-screen-in{
+  from{opacity:0}
+  to{opacity:1}
 }
-.admin-loading-card .is-error{
-  color:#8b2e2e;
-}
-
-.admin-loading-spinner{
-  display:inline-block;
-  width:18px;
-  height:18px;
-  margin:2px 0 10px;
-  border:2px solid rgba(23,105,170,.18);
-  border-top-color:var(--sky-blue,#1769aa);
+/* Animated ambient blobs */
+.admin-loader-blob{
+  position:absolute;
   border-radius:50%;
-  animation:skybook-loading-spin .75s linear infinite;
+  pointer-events:none;
+  filter:blur(72px);
+}
+.admin-loader-blob-a{
+  width:56vw;height:56vw;
+  top:-18%;left:-12%;
+  background:radial-gradient(circle,rgba(23,105,170,.22) 0%,transparent 68%);
+  animation:loader-blob-a 9s ease-in-out infinite;
+}
+.admin-loader-blob-b{
+  width:48vw;height:48vw;
+  bottom:-16%;right:-10%;
+  background:radial-gradient(circle,rgba(14,58,100,.26) 0%,transparent 62%);
+  animation:loader-blob-b 12s ease-in-out infinite;
+}
+@keyframes loader-blob-a{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(7%,6%) scale(1.1)}}
+@keyframes loader-blob-b{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-6%,-8%) scale(1.12)}}
+
+.admin-loading-card{
+  position:relative;
+  z-index:2;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  gap:0;
+  padding:0;
+  border-radius:0;
+  background:transparent;
+  width:min(340px,calc(100% - 40px));
+  animation:loader-card-in .6s cubic-bezier(.22,.68,0,1.2) .1s both;
+}
+@keyframes loader-card-in{
+  from{opacity:0;transform:translateY(18px) scale(.96)}
+  to{opacity:1;transform:none}
 }
 
-.admin-loading-spinner[hidden]{
-  display:none;
+/* Logo + rings */
+.admin-loader-logo-ring{
+  position:relative;
+  width:116px;
+  height:116px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:26px;
+  flex-shrink:0;
+}
+.admin-loader-ring{
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+}
+.admin-loader-ring-outer{
+  border:2.5px solid transparent;
+  border-top-color:rgba(23,105,170,.9);
+  border-right-color:rgba(23,105,170,.25);
+  animation:loader-ring-cw 1.8s linear infinite;
+}
+.admin-loader-ring-inner{
+  inset:12px;
+  border:2px solid transparent;
+  border-bottom-color:rgba(191,161,74,.95);
+  border-left-color:rgba(191,161,74,.22);
+  animation:loader-ring-cw 1.2s linear infinite reverse;
+}
+@keyframes loader-ring-cw{to{transform:rotate(360deg)}}
+.admin-brand-mark-image{
+  width:76px;
+  height:76px;
+  object-fit:contain;
+  border-radius:0;
+  background:transparent;
+  border:none;
+  padding:0;
+  filter:drop-shadow(0 6px 20px rgba(23,105,170,.5));
+  animation:loader-logo-breathe 3.5s ease-in-out infinite;
+}
+@keyframes loader-logo-breathe{
+  0%,100%{transform:scale(1);filter:drop-shadow(0 6px 20px rgba(23,105,170,.5))}
+  50%{transform:scale(1.05);filter:drop-shadow(0 10px 28px rgba(23,105,170,.72))}
 }
 
-@keyframes skybook-loading-spin{
-  to{transform:rotate(360deg)}
+/* Brand name */
+.admin-loader-brand{
+  font-family:'Helvetica Neue',Arial,sans-serif;
+  font-size:34px;
+  font-weight:700;
+  color:#ffffff;
+  letter-spacing:-.02em;
+  line-height:1;
+  margin-bottom:6px;
 }
+.admin-loader-sub{
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.34);
+  margin-bottom:32px;
+}
+
+/* Animated shimmer bar */
+.admin-loader-bar-track{
+  width:200px;
+  height:3px;
+  background:rgba(255,255,255,.08);
+  border-radius:2px;
+  overflow:hidden;
+  margin-bottom:22px;
+}
+.admin-loader-bar-fill{
+  height:100%;
+  width:45%;
+  background:linear-gradient(90deg,transparent,rgba(23,105,170,.9),rgba(191,161,74,.8),transparent);
+  border-radius:2px;
+  animation:loader-shimmer 1.8s ease-in-out infinite;
+}
+@keyframes loader-shimmer{
+  0%{transform:translateX(-200%)}
+  100%{transform:translateX(380%)}
+}
+
+/* Status text */
+.admin-loader-title{
+  font-size:14px;
+  font-weight:500;
+  color:rgba(255,255,255,.6);
+  letter-spacing:.01em;
+  margin:0 0 6px;
+}
+.admin-loader-status{
+  font-size:12px;
+  color:rgba(255,255,255,.3);
+  margin:0;
+  line-height:1.55;
+  max-width:280px;
+}
+.admin-loader-status.is-error{color:#f87171}
+
+/* Legacy compat */
+.admin-loading-spinner[hidden]{display:none}
+@keyframes skybook-loading-spin{to{transform:rotate(360deg)}}
 .admin-auth-shell{
   min-height:100vh;
   display:grid;
