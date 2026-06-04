@@ -2891,6 +2891,8 @@ textarea:focus-visible{
 .toolbar-meta{
   display:grid;
   gap:10px;
+  min-width:0;
+  overflow:hidden;
 }
 
 .module-breadcrumb{
@@ -2900,6 +2902,9 @@ textarea:focus-visible{
   font-weight:800;
   letter-spacing:.16em;
   text-transform:uppercase;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
 .toolbar-title-row{
