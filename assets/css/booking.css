@@ -2922,9 +2922,32 @@ textarea:focus-visible{
 }
 
 .toolbar-session-meta{
-  display:grid;
-  justify-items:end;
+  display:flex;
+  align-items:center;
   gap:8px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+.toolbar-signout-btn{
+  min-height:32px;
+  padding:0 12px;
+  border-radius:999px;
+  border:1px solid rgba(30,91,147,.16);
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(8px);
+  color:var(--booking-ocean,#1e5b93);
+  font:inherit;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background .12s,border-color .12s;
+}
+.toolbar-signout-btn:hover{
+  background:#fff;
+  border-color:rgba(30,91,147,.30);
 }
 
 .toolbar-status{
@@ -2933,6 +2956,8 @@ textarea:focus-visible{
   font-size:12px;
   line-height:1.5;
   text-align:right;
+  width:100%;
+  order:1;
 }
 
 .toolbar-actions{

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260604-sidebar2">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260604-topbar">
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen" aria-live="polite">
@@ -44,11 +44,7 @@
         <span class="sidebar-collapse-icon" aria-hidden="true"></span>
         <span class="sidebar-collapse-label">Collapse</span>
       </button>
-      <div class="admin-session">
-        <strong id="sessionLabel">Not signed in</strong>
-        <button class="booking-button ghost" type="button" id="openCommandPalette">Search / Ctrl K</button>
-        <button class="booking-button ghost" type="button" id="logoutButton">Sign Out</button>
-      </div>
+      <span id="sessionLabel" hidden></span>
       <nav class="admin-menu" aria-label="SkyBook primary navigation">
         <details class="admin-menu-section">
           <summary><span>01</span> Command</summary>
@@ -145,6 +141,7 @@
         <div class="toolbar-side">
           <div class="toolbar-session-meta">
             <span class="booking-chip" id="topSessionLabel">SkyBook</span>
+            <button class="toolbar-signout-btn" type="button" id="logoutButton" aria-label="Sign out">Sign Out</button>
             <p class="toolbar-status" id="bookingAdminStatus">Ready.</p>
           </div>
           <div class="toolbar-actions">
