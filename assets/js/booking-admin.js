@@ -1403,7 +1403,7 @@ const applyBookingFormValues=values=>{
   })
   if(nodes.bookingSource)nodes.bookingSource.value=String(values.source||nodes.bookingSource.value||'admin')
   if(nodes.bookingService)nodes.bookingService.value=String(values.service_slug||'')
-  if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'awaiting_payment')
+  if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'confirmed')
   if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
@@ -3731,7 +3731,7 @@ const renderBookings=()=>{
       </td>
       <td>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</td>
       <td>${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const parts=[a>0?`${a} adult${a!==1?'s':''}`:'',(c>0?`${c} child${c!==1?'ren':''}`:''),i>0?`${i} infant${i!==1?'s':''}`:'' ].filter(Boolean);return bookingAdminShared.escapeHtml(parts.length?`${t} (${parts.join(', ')})`:String(t))})()}</td>
-      <td>${renderStatusBadge(booking.payment_status||booking.status,'Payment ' + String(booking.payment_status||booking.status||'').replace(/_/g,' '))}</td>
+      <td>${(()=>{const ps=normalizeText(booking.payment_status||booking.status);const isCancelled=normalizeText(booking.status)==='cancelled'||ps==='cancelled';return renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))})()}</td>
     </tr>
   `
   }).join('') || renderEmptyRow(5,'No bookings match the current filters.')
@@ -4385,7 +4385,7 @@ const renderBookingDetail=()=>{
           <div class="booking-function-sidebar-body" ${functionsCollapsed ? 'hidden' : ''}>
             <div class="booking-function-status">
               ${renderStatusBadge(booking.status)}
-              ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+              ${normalizeText(booking.status)==='cancelled'||normalizeText(booking.payment_status)==='cancelled' ? '' : renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' '))}
             </div>
             <div class="booking-function-group">
               <button type="button" data-booking-inline-action="edit-booking">Edit Booking Details</button>
@@ -4393,6 +4393,7 @@ const renderBookingDetail=()=>{
               ${bookingPaymentLink ? '<button type="button" data-booking-inline-action="copy-payment-link">Copy Payment Link</button>' : ''}
               ${canRecordPayments ? '<button type="button" data-booking-inline-action="load-payment" data-loading-exempt="true">Load Manual Payment</button>' : ''}
               ${canIssueClientInvoices ? '<button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>' : ''}
+              ${normalizeText(booking.status)==='confirmed' ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
               <button type="button" data-booking-inline-action="open-changelog" data-loading-exempt="true">Open Changelog</button>
               <button type="button" data-booking-inline-action="duplicate">Duplicate Booking</button>
               <button type="button" data-booking-inline-action="reschedule">Reschedule</button>
@@ -4583,7 +4584,7 @@ const renderBookingDetail=()=>{
             <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
             <label class="booking-field-full">
               <span>New note</span>
-              <textarea name="note" rows="4" placeholder="Add an internal note for operations, finance, or guest care." required></textarea>
+              <textarea name="note" rows="4" placeholder="Add an internal note for operations, finance, or guest care." autocomplete="off" required></textarea>
             </label>
             <label class="inline-check">
               <input type="checkbox" name="is_private" checked>
@@ -4700,7 +4701,7 @@ const fillBookingForm=(booking=null)=>{
   syncBookingReferenceField({booking,brandCode,forceNew:!booking})
   if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
   nodes.bookingService.value=booking?.service_slug||''
-  nodes.bookingStatus.value=booking?.status||'awaiting_payment'
+  nodes.bookingStatus.value=booking?.status||'confirmed'
   nodes.bookingPaymentStatus.value=booking?.payment_status||'pending'
   const statusIsSystemManaged=Boolean(booking)
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
@@ -4723,6 +4724,14 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
+  if(nodes.bookingGuideName)nodes.bookingGuideName.value=booking?.metadata?.guide_name||booking?.guide_name||''
+  if(nodes.bookingNationality)nodes.bookingNationality.value=booking?.metadata?.nationality||booking?.nationality||''
+  if(nodes.bookingBookedBy)nodes.bookingBookedBy.value=booking?.metadata?.booked_by||booking?.booked_by||''
+  if(nodes.bookingDietary)nodes.bookingDietary.value=booking?.metadata?.dietary_requirements||booking?.metadata?.dietary||''
+  if(nodes.bookingAgent)nodes.bookingAgent.value=booking?.metadata?.agent||''
+  if(nodes.bookingPickupLocation)nodes.bookingPickupLocation.value=booking?.metadata?.pickup_location||booking?.metadata?.hotel||''
+  if(nodes.bookingPickupPoint)nodes.bookingPickupPoint.value=booking?.metadata?.pickup_point||''
+  if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=booking?.metadata?.dropoff_location||''
   renderAdminBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   nodes.bookingSaveButton.textContent=booking ? 'Save Changes' : 'Create Booking'
@@ -4888,16 +4897,8 @@ const openCruiseLinerModal=(dateKey='')=>{
   if(!modal)return
   const dateField=document.getElementById('cruiseDate')
   if(dateField)dateField.value=dateKey||bookingAdminShared.currentDate()
-  const activitySelect=document.getElementById('cruiseActivity')
-  if(activitySelect){
-    activitySelect.innerHTML='<option value="">No activity — transport only</option>'
-    state.services.filter(s=>s.is_active!==false).forEach(service=>{
-      const opt=document.createElement('option')
-      opt.value=service.slug
-      opt.textContent=String(service.name||service.slug||'')
-      activitySelect.appendChild(opt)
-    })
-  }
+  const activityInput=document.getElementById('cruiseActivity')
+  if(activityInput)activityInput.value=''
   modal.hidden=false
   modal.setAttribute('aria-hidden','false')
 }
@@ -4912,21 +4913,20 @@ const handleCruiseLinerSubmit=async event=>{
   const buses=Number(document.getElementById('cruiseBuses')?.value||0)
   const cars=Number(document.getElementById('cruiseCars')?.value||0)
   const pax=1
-  const activitySlug=document.getElementById('cruiseActivity')?.value||''
+  const activityText=(document.getElementById('cruiseActivity')?.value||'').trim()
   const notes=document.getElementById('cruiseNotes')?.value.trim()||''
   if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
   if(!date){showToast('Select a date.','info');return}
-  const activityService=activitySlug ? state.services.find(s=>s.slug===activitySlug) : null
   const companyLabel=company==='akron' ? 'Akron' : 'ATC'
-  const tourName=activityService ? `${activityService.name} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
-  const serviceSlug=activitySlug||state.services.find(s=>s.is_active!==false)?.slug||''
+  const tourName=activityText ? `${activityText} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
+  const serviceSlug=state.services.find(s=>s.is_active!==false)?.slug||''
   if(!serviceSlug){showToast('No services loaded — please reload.','info');return}
   try{
     const payload={
       brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
       service_slug:serviceSlug,
-      status:'provisional',
-      payment_status:'unpaid',
+      status:'invoice',
+      payment_status:'pending',
       preferred_date:date,
       quantity:pax,
       adult_quantity:pax,
@@ -4940,8 +4940,7 @@ const handleCruiseLinerSubmit=async event=>{
         cruise_company_label:companyLabel,
         buses,
         cars,
-        activity_slug:activitySlug,
-        activity_name:activityService?.name||'',
+        activity_name:activityText,
         display_name:tourName
       },
       customer:{full_name:`${companyLabel} Group`,email:'',phone:'',whatsapp:''}
@@ -9285,6 +9284,16 @@ nodes.bookingDetail.addEventListener('click',event=>{
     }else{
       setAdminStatus('Customer profile not found. They may not have a full customer record yet.',true)
     }
+    return
+  }
+  if(inlineAction==='move-to-invoice'){
+    const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
+    if(!booking){setAdminStatus('No booking selected.',true);return}
+    runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{status:'invoice',workflow_action:'move_to_invoice'}
+    }).then(()=>createActivityNote(state.selectedBookingId,'Booking moved to Invoice status.')).then(()=>refreshAdmin('Booking moved to Invoice.')),'Status update failed.','Moving to Invoice')
     return
   }
   if(inlineAction==='reinstate-booking'){

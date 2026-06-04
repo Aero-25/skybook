@@ -1441,22 +1441,15 @@
             <label class="booking-field">
               <span>Status</span>
               <select id="adminBookingStatusField">
-                <option value="provisional">Provisional</option>
-                <option value="payment_pending">Payment Pending</option>
-                <option value="invoice">Invoice</option>
-                <option value="invoiced">Invoiced</option>
-                <option value="partially_paid">Partially Paid</option>
-                <option value="fully_paid">Fully Paid</option>
-                <option value="finalised">Finalised &amp; Departed</option>
+                <option value="confirmed">Confirmed</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="provisional">Provisional</option>
               </select>
             </label>
             <label class="booking-field">
               <span>Payment Status</span>
               <select id="adminBookingPaymentStatusField">
                 <option value="pending">Pending</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
                 <option value="refunded">Refunded</option>
                 <option value="cancelled">Cancelled</option>
               </select>
@@ -1509,7 +1502,7 @@
             </label>
             <label class="booking-field">
               <span>Nationality</span>
-              <input id="adminBookingNationality" type="text" placeholder="e.g. German, Namibian">
+              <input id="adminBookingNationality" type="text" placeholder="e.g. German, Namibian" autocomplete="off">
             </label>
             <label class="booking-field">
               <span>Booked By</span>
@@ -1540,7 +1533,7 @@
             <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
               <span>Notes</span>
-              <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
+              <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes" autocomplete="off"></textarea>
             </label>
             <div class="booking-field booking-field-full" id="adminBookingPricePreviewWrap">
               <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--booking-muted)">Calculated Price</span>
@@ -1762,9 +1755,7 @@
               </label>
               <label class="booking-field">
                 <span>Activity (optional)</span>
-                <select id="cruiseActivity">
-                  <option value="">No activity — transport only</option>
-                </select>
+                <input id="cruiseActivity" type="text" placeholder="e.g. Pelican Point Kayaking, Dune Drive" autocomplete="off">
               </label>
               <label class="booking-field-full">
                 <span>Notes</span>
