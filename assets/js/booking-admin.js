@@ -3288,19 +3288,22 @@ const renderCalendarDayBookings=dateKey=>{
   dayBookingsEl.innerHTML=`<div class="calendar-day-bookings-grid">${bookings.map(booking=>{
     const meta=normalizeJsonRecord(booking.metadata)
     const isCruise=isCruiseLinerBooking(booking)
-    const pax=Number(booking.adult_quantity||0)+Number(booking.child_quantity||0)||Number(booking.quantity||1)
+    const bA=Number(booking.adult_quantity||0),bC=Number(booking.child_quantity||0),bI=Number(booking.infant_quantity||0)
+    const pax=bA+bC+bI||Number(booking.quantity||1)
+    const paxParts=[bA>0?`${bA} adult${bA!==1?'s':''}`:'',(bC>0?`${bC} child${bC!==1?'ren':''}`:''),(bI>0?`${bI} infant${bI!==1?'s':''}`:'' )].filter(Boolean)
+    const paxLabel=paxParts.length?`${pax} pax (${paxParts.join(', ')})`:`${pax} pax`
     const displayName=isCruise ? (meta.display_name||`${meta.cruise_company_label||'Cruise'} Group`) : (booking.customer_name||'Guest')
     return `
     <article class="cal-day-block ${getStatusRowClass(booking)}" data-cal-block="${bookingAdminShared.escapeHtml(booking.id)}">
       <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
       <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
-      <span>${pax} pax${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
+      <span>${bookingAdminShared.escapeHtml(paxLabel)}${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
       <div class="block-amount">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</div>
     </article>
     <div class="cal-day-block-detail" id="block-detail-${bookingAdminShared.escapeHtml(booking.id)}">
       <dl>
         <dt>Name</dt><dd>${bookingAdminShared.escapeHtml(isCruise?`${meta.cruise_company_label||'Cruise'} Group`:(booking.customer_name||'—'))}</dd>
-        <dt>Pax</dt><dd>${pax}</dd>
+        <dt>Pax</dt><dd>${bookingAdminShared.escapeHtml(paxLabel)}</dd>
         <dt>Activity</dt><dd>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</dd>
         <dt>Amount</dt><dd>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</dd>
         <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
@@ -3702,10 +3705,11 @@ const renderBookings=()=>{
         <div class="table-subline" style="font-size:11px;opacity:.65"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></div>
       </td>
       <td>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</td>
+      <td>${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const parts=[a>0?`${a} adult${a!==1?'s':''}`:'',(c>0?`${c} child${c!==1?'ren':''}`:''),i>0?`${i} infant${i!==1?'s':''}`:'' ].filter(Boolean);return bookingAdminShared.escapeHtml(parts.length?`${t} (${parts.join(', ')})`:String(t))})()}</td>
       <td>${renderStatusBadge(booking.payment_status||booking.status,'Payment ' + String(booking.payment_status||booking.status||'').replace(/_/g,' '))}</td>
     </tr>
   `
-  }).join('') || renderEmptyRow(4,'No bookings match the current filters.')
+  }).join('') || renderEmptyRow(5,'No bookings match the current filters.')
 }
 
 const filterTrashRows=(rows,{search='',archivedBy=''})=>{
