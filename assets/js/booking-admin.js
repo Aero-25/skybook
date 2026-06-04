@@ -7906,6 +7906,45 @@ const syncBookingQuantityMode=()=>{
   if(nodes.bookingAdultWrap)nodes.bookingAdultWrap.hidden=false
   if(nodes.bookingChildWrap)nodes.bookingChildWrap.hidden=false
   if(nodes.bookingInfantWrap)nodes.bookingInfantWrap.hidden=false
+  updateAdminPricePreview()
+}
+
+const updateAdminPricePreview=()=>{
+  const breakdownEl=document.getElementById('adminBookingPriceBreakdown')
+  const totalEl=document.getElementById('adminBookingPriceTotal')
+  if(!breakdownEl||!totalEl)return
+  const service=state.services.find(s=>s.slug===nodes.bookingService?.value)
+  if(!service){
+    breakdownEl.textContent='Select a tour to see the calculated price'
+    totalEl.textContent=''
+    return
+  }
+  const adults=Math.max(0,Number(nodes.bookingAdultQuantity?.value||0))
+  const children=Math.max(0,Number(nodes.bookingChildQuantity?.value||0))
+  const infants=Math.max(0,Number(nodes.bookingInfantQuantity?.value||0))
+  const total=adults+children+infants
+  if(!total){
+    breakdownEl.textContent='Add guests to see the price'
+    totalEl.textContent=''
+    return
+  }
+  const normalizedService=bookingAdminShared.normalizeService(service)
+  const pricing=bookingAdminShared.calculatePricing(normalizedService,{
+    adult_quantity:adults,child_quantity:children,quantity:Math.max(1,total),addons:[]
+  })
+  const currency=normalizedService.currency||state.settings.currency||'NAD'
+  const hasAdultChild=normalizedService.adult_price!=null&&Number(normalizedService.adult_price)>0
+  const lines=[]
+  if(hasAdultChild){
+    if(adults>0)lines.push(`${adults} adult${adults!==1?'s':''} × ${bookingAdminShared.formatMoney(normalizedService.adult_price,currency)}`)
+    if(children>0)lines.push(`${children} child${children!==1?'ren':''} (4–12) × ${bookingAdminShared.formatMoney(normalizedService.child_price||0,currency)}`)
+    if(infants>0)lines.push(`${infants} under 4 — complimentary`)
+  }else{
+    lines.push(`${total} guest${total!==1?'s':''} × ${bookingAdminShared.formatMoney(normalizedService.base_price||0,currency)}`)
+    if(infants>0)lines.push(`${infants} under 4 — complimentary`)
+  }
+  breakdownEl.textContent=lines.join(' · ')
+  totalEl.textContent=bookingAdminShared.formatMoney(pricing.total_amount,currency)
 }
 
 const validateBookingForm=()=>{
@@ -8838,7 +8877,10 @@ nodes.printReportArrivals?.addEventListener('click',()=>{
   try{ printArrivalsForDate(nodes.reportsArrivalsDate?.value||getTodayKey()) }catch(error){ setAdminStatus(error.message||'Could not print arrivals list.',true) }
 })
 nodes.bookingForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleBookingSave,'Saving booking'))
-nodes.bookingForm.addEventListener('input',scheduleBookingEditorAutosave)
+nodes.bookingForm.addEventListener('input',event=>{
+  scheduleBookingEditorAutosave()
+  if([nodes.bookingAdultQuantity,nodes.bookingChildQuantity,nodes.bookingInfantQuantity].includes(event.target))updateAdminPricePreview()
+})
 window.addEventListener('pointerdown',unlockSkybookNotificationSound,{once:true,passive:true})
 window.addEventListener('pagehide',stopLiveAdminSync,{once:true})
 window.addEventListener('keydown',unlockSkybookNotificationSound,{once:true})
@@ -8853,6 +8895,7 @@ nodes.bookingForm.addEventListener('change',event=>{
   if(event.target===nodes.bookingService){
     syncBookingQuantityMode()
     syncBookingDepartureFields(nodes.bookingService.value)
+    updateAdminPricePreview()
   }
   if(event.target===nodes.bookingDeparture){
     const opt=nodes.bookingDeparture.selectedOptions[0]

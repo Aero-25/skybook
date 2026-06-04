@@ -1532,9 +1532,17 @@
               <span>Notes</span>
               <textarea id="adminBookingNotes" rows="4" placeholder="Internal notes or customer notes"></textarea>
             </label>
+            <div class="booking-field booking-field-full" id="adminBookingPricePreviewWrap">
+              <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--booking-muted)">Calculated Price</span>
+              <div id="adminBookingPricePreview" style="padding:10px 14px;background:var(--booking-surface,#f8fafc);border:1px solid var(--booking-line,#e2e8f0);border-radius:8px;font-size:13px;color:var(--booking-ocean)">
+                <span id="adminBookingPriceBreakdown" style="color:var(--booking-muted);font-size:12px"></span>
+                <strong id="adminBookingPriceTotal" style="font-size:18px;font-weight:800;display:block;margin-top:2px"></strong>
+              </div>
+            </div>
             <label class="booking-field">
               <span>Total Price Override (NAD)</span>
               <input id="adminBookingPriceOverride" type="number" min="0" step="0.01" placeholder="Leave blank to use calculated price">
+              <p class="field-hint" style="margin:0;font-size:11px">Only fill this to override the calculated price above.</p>
             </label>
             <div class="booking-field-full booking-action-row">
               <button class="booking-button ghost" type="button" id="adminBookingPreviewEmailButton">Preview Email</button>
