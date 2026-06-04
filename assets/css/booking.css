@@ -3,10 +3,12 @@
   --booking-paper:#ffffff;
   --booking-ink:#111111;
   --booking-muted:#5f6f80;
-  --booking-line:rgba(83,115,148,.18);
+  --booking-line:rgba(83,115,148,.16);
   --booking-accent:#cfe7fb;
   --booking-ocean:#1e5b93;
-  --booking-shadow:0 20px 48px rgba(32,76,121,.10);
+  --booking-shadow:0 20px 48px rgba(32,76,121,.08);
+  --booking-glass:rgba(255,255,255,.78);
+  --booking-glass-border:rgba(255,255,255,.72);
 }
 *{box-sizing:border-box}
 [hidden]{display:none !important}
@@ -26,7 +28,11 @@ textarea{
   font:inherit;
 }
 body.skybook-admin-page{
-  background:#f3f8fc;
+  background:
+    radial-gradient(ellipse 65% 60% at -5% 100%,rgba(147,197,253,.38) 0%,transparent 58%),
+    radial-gradient(ellipse 50% 55% at 108% -5%,rgba(186,224,255,.28) 0%,transparent 56%),
+    radial-gradient(ellipse 40% 35% at 85% 90%,rgba(207,231,251,.22) 0%,transparent 50%),
+    linear-gradient(160deg,#f8fbff 0%,#eef6ff 50%,#f3f9ff 100%);
 }
 body.skybook-auth-page{
   display:grid;
@@ -344,9 +350,12 @@ body.skybook-auth-page{
 .booking-hero{
   padding:34px;
   border-radius:32px;
-  background:linear-gradient(135deg,#edf7ff,#d9edfd 58%,#c9e5fb);
+  background:linear-gradient(135deg,rgba(255,255,255,.90) 0%,rgba(207,231,251,.80) 58%,rgba(182,221,248,.75) 100%);
+  border:1px solid rgba(255,255,255,.75);
   color:var(--booking-ink);
-  box-shadow:var(--booking-shadow);
+  box-shadow:0 16px 48px rgba(20,60,130,.08);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
 }
 .booking-hero h1,.booking-hero h2{margin:0;font-family:'Manrope','DM Sans',sans-serif;font-size:clamp(34px,5vw,58px);line-height:1}
 .booking-hero p{max-width:760px;font-size:15px;line-height:1.8;color:var(--booking-muted)}
@@ -362,10 +371,12 @@ body.skybook-auth-page{
 .booking-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:28px}
 .booking-card,.booking-panel,.result-card,.metric-card,.template-card{
   min-width:0;
-  background:var(--booking-paper);
-  border:1px solid var(--booking-line);
+  background:var(--booking-glass);
+  border:1px solid var(--booking-glass-border);
   border-radius:28px;
-  box-shadow:var(--booking-shadow);
+  box-shadow:0 16px 40px rgba(20,60,130,.07),0 2px 8px rgba(20,60,130,.04);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
 }
 .booking-card{overflow:hidden}
 .booking-card-media{height:210px;background:linear-gradient(145deg,#c7e3f8,#96c6ed,#5e99cf);background-size:cover;background-position:center}
@@ -465,9 +476,11 @@ body.skybook-auth-page{
 .admin-grid{display:grid;grid-template-columns:290px minmax(0,1fr);min-height:100vh}
 .admin-sidebar-booking{
   padding:26px 20px;
-  background:linear-gradient(180deg,#ffffff 0%,#eef5fb 100%);
+  background:rgba(255,255,255,.70);
+  backdrop-filter:blur(32px) saturate(180%);
+  -webkit-backdrop-filter:blur(32px) saturate(180%);
   color:var(--booking-ink);
-  border-right:1px solid var(--booking-line);
+  border-right:1px solid rgba(83,115,148,.10);
   position:sticky;
   top:0;
   height:100vh;
@@ -590,9 +603,12 @@ body.skybook-auth-page{
   gap:14px;
   margin:-18px -22px 18px;
   padding:0 22px;
-  color:#fff;
-  background:linear-gradient(90deg,#1e74b7,#2598d7);
-  box-shadow:0 12px 28px rgba(30,91,147,.16);
+  color:var(--booking-ink);
+  background:rgba(255,255,255,.80);
+  backdrop-filter:blur(24px) saturate(180%);
+  -webkit-backdrop-filter:blur(24px) saturate(180%);
+  border-bottom:1px solid rgba(83,115,148,.12);
+  box-shadow:0 4px 24px rgba(20,60,130,.06);
 }
 .skybook-topbar-left,
 .skybook-topbar-right,
@@ -602,17 +618,17 @@ body.skybook-auth-page{
   gap:10px;
 }
 .skybook-topbar-mark{
-  width:34px;
-  height:34px;
-  border-radius:9px;
+  width:36px;
+  height:36px;
+  border-radius:10px;
   display:grid;
   place-items:center;
-  background:#ffffff;
-  color:var(--booking-ocean);
+  background:var(--booking-ocean);
+  color:#fff;
   font-size:12px;
   font-weight:900;
   letter-spacing:.08em;
-  box-shadow:0 8px 20px rgba(10,52,92,.12);
+  box-shadow:0 6px 16px rgba(30,91,147,.22);
 }
 .skybook-topnav{
   gap:2px;
@@ -624,23 +640,24 @@ body.skybook-auth-page{
   border:1px solid transparent;
   border-radius:10px;
   background:transparent;
-  color:#fff;
+  color:var(--booking-ink);
   font-size:13px;
   font-weight:700;
   cursor:pointer;
 }
-.skybook-topnav-link:hover,
-.skybook-topbar-search:hover{
-  background:rgba(255,255,255,.14);
-  border-color:rgba(255,255,255,.18);
+.skybook-topnav-link:hover{
+  background:rgba(30,91,147,.07);
+  border-color:rgba(30,91,147,.12);
 }
 .skybook-topbar-pill{
   display:inline-flex;
   align-items:center;
-  min-height:32px;
-  padding:0 10px;
+  min-height:30px;
+  padding:0 12px;
   border-radius:999px;
-  background:rgba(255,255,255,.15);
+  background:rgba(30,91,147,.08);
+  border:1px solid rgba(30,91,147,.12);
+  color:var(--booking-ocean);
   font-size:12px;
   font-weight:800;
 }
@@ -651,13 +668,19 @@ body.skybook-auth-page{
   white-space:nowrap;
   font-size:13px;
   font-weight:700;
+  color:var(--booking-ink);
 }
 .skybook-topbar-search{
-  background:#ffffff;
+  background:rgba(30,91,147,.06);
+  border:1px solid rgba(30,91,147,.10);
   color:var(--booking-ocean);
 }
+.skybook-topbar-search:hover{
+  background:rgba(30,91,147,.10);
+  border-color:rgba(30,91,147,.18);
+}
 .admin-toolbar{
-  display:flex;justify-content:space-between;gap:18px;align-items:center;padding:22px 24px;border-radius:24px;background:var(--booking-paper);border:1px solid var(--booking-line);box-shadow:var(--booking-shadow);
+  display:flex;justify-content:space-between;gap:18px;align-items:center;padding:22px 24px;border-radius:24px;background:var(--booking-glass);border:1px solid var(--booking-glass-border);box-shadow:0 16px 40px rgba(20,60,130,.07),0 2px 8px rgba(20,60,130,.04);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
 }
 .admin-toolbar h2{margin:0;font-family:'DM Sans',sans-serif;font-size:30px;font-weight:800;letter-spacing:-.03em}
 .admin-toolbar > div:first-child{
