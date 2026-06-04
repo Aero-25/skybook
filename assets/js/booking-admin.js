@@ -260,7 +260,7 @@ const finishBookingRecordLoader=()=>{
   document.body.classList.remove('is-booking-record-loading')
   document.body.classList.add('is-booking-record-ready')
   if(nodes.appShell)nodes.appShell.hidden=false
-  if(nodes.loadingScreen)nodes.loadingScreen.hidden=true
+  hideLoaderAfterMinimum()
 }
 
 const syncAdminRouteState=({tab='',serviceId='',bookingId='',reservationId=''}={})=>{
@@ -2780,13 +2780,23 @@ const requireClient=async()=>{
   return bookingAdminShared.createSupabaseClient()
 }
 
+const LOADER_MIN_MS=5000
+const loaderShownAt=Date.now()
+const hideLoaderAfterMinimum=()=>{
+  const elapsed=Date.now()-loaderShownAt
+  const remaining=Math.max(0,LOADER_MIN_MS-elapsed)
+  window.setTimeout(()=>{
+    if(nodes.loadingScreen)nodes.loadingScreen.hidden=true
+  },remaining)
+}
+
 const renderSession=()=>{
   const authenticated=Boolean(state.session?.access_token)
   const bookingRecordLoading=authenticated&&isBookingRecordMode()&&!document.body.classList.contains('is-booking-record-ready')
   if(!bookingRecordLoading&&!document.body.classList.contains('is-booking-record-page'))showAdminSessionLoader()
   if(nodes.authGate)nodes.authGate.hidden=authenticated
   if(nodes.appShell)nodes.appShell.hidden=!authenticated||bookingRecordLoading
-  if(nodes.loadingScreen)nodes.loadingScreen.hidden=authenticated&&!bookingRecordLoading
+  if(authenticated&&!bookingRecordLoading){hideLoaderAfterMinimum()}
   if(bookingRecordLoading)showBookingRecordLoader()
   const label='Not signed in'
   const safeLabel=authenticated
