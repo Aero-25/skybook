@@ -411,11 +411,26 @@ body.skybook-auth-page{
 .booking-highlight-list{margin:0 0 22px;padding-left:18px;color:var(--booking-muted);display:grid;gap:8px}
 .booking-button{
   display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:0 18px;border-radius:999px;border:none;background:var(--booking-ocean);color:#fff;text-decoration:none;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;cursor:pointer;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease,border-color .15s ease;
 }
-.booking-button.ghost{background:#f5f9fd;color:var(--booking-ocean);border:1px solid var(--booking-line)}
+.booking-button:hover:not(:disabled):not(.is-loading){
+  transform:translateY(-1px);
+  box-shadow:0 8px 24px rgba(30,91,147,.28);
+}
+.booking-button:active:not(:disabled):not(.is-loading){
+  transform:scale(.97);
+  box-shadow:none;
+}
+.booking-button.ghost{background:rgba(255,255,255,.80);color:var(--booking-ocean);border:1px solid rgba(30,91,147,.16);backdrop-filter:blur(8px)}
+.booking-button.ghost:hover:not(:disabled):not(.is-loading){
+  background:rgba(255,255,255,.96);
+  box-shadow:0 6px 18px rgba(30,91,147,.10);
+  border-color:rgba(30,91,147,.28);
+}
 .booking-button.danger{background:#9b2f35;color:#fff}
+.booking-button.danger:hover:not(:disabled):not(.is-loading){box-shadow:0 8px 24px rgba(155,47,53,.28)}
 .booking-button.ghost.danger{background:#fff7f7;color:#9b2f35;border-color:#f0c8c8}
-.booking-button.ghost.danger:hover{background:#ffecec;border-color:#e5a8a8}
+.booking-button.ghost.danger:hover:not(:disabled){background:#ffecec;border-color:#e5a8a8;box-shadow:0 6px 16px rgba(155,47,53,.12)}
 .booking-two-col{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:22px;margin-top:28px}
 .booking-panel{padding:26px}
 .booking-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
@@ -451,7 +466,7 @@ body.skybook-auth-page{
 .booking-custom-field-flags .inline-check{min-height:38px}
 .booking-custom-field-flags .booking-button{margin-left:auto}
 .booking-field input,.booking-field select,.booking-field textarea,.booking-field-full input,.booking-field-full select,.booking-field-full textarea{
-  width:100%;min-height:50px;padding:14px 16px;border-radius:18px;border:1px solid var(--booking-line);background:#fbfdff;color:var(--booking-ink);font:inherit;
+  width:100%;min-height:50px;padding:14px 16px;border-radius:18px;border:1px solid rgba(83,115,148,.16);background:rgba(255,255,255,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--booking-ink);font:inherit;transition:border-color .15s ease,box-shadow .15s ease,background .15s ease;
 }
 .booking-field input[readonly],
 .booking-field-full input[readonly]{
@@ -2323,8 +2338,44 @@ textarea:focus-visible{
   transition:padding .2s ease, box-shadow .2s ease;
 }
 
-.admin-sidebar-booking::-webkit-scrollbar{width:8px}
-.admin-sidebar-booking::-webkit-scrollbar-thumb{background:#d7e6f2;border-radius:999px}
+.admin-sidebar-booking,
+.table-wrap,
+.admin-content,
+.booking-panel,
+.admin-modal-panel{
+  scrollbar-width:thin;
+  scrollbar-color:rgba(30,91,147,.16) transparent;
+}
+.admin-sidebar-booking::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar,
+.admin-content::-webkit-scrollbar,
+.booking-panel::-webkit-scrollbar,
+.admin-modal-panel::-webkit-scrollbar{
+  width:5px;
+  height:5px;
+}
+.admin-sidebar-booking::-webkit-scrollbar-track,
+.table-wrap::-webkit-scrollbar-track,
+.admin-content::-webkit-scrollbar-track,
+.booking-panel::-webkit-scrollbar-track,
+.admin-modal-panel::-webkit-scrollbar-track{
+  background:transparent;
+}
+.admin-sidebar-booking::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb,
+.admin-content::-webkit-scrollbar-thumb,
+.booking-panel::-webkit-scrollbar-thumb,
+.admin-modal-panel::-webkit-scrollbar-thumb{
+  background:rgba(30,91,147,.16);
+  border-radius:999px;
+}
+.admin-sidebar-booking::-webkit-scrollbar-thumb:hover,
+.table-wrap::-webkit-scrollbar-thumb:hover,
+.admin-content::-webkit-scrollbar-thumb:hover,
+.booking-panel::-webkit-scrollbar-thumb:hover,
+.admin-modal-panel::-webkit-scrollbar-thumb:hover{
+  background:rgba(30,91,147,.30);
+}
 
 .admin-brand-lockup{
   grid-template-columns:58px minmax(0,1fr);
@@ -3322,8 +3373,10 @@ tbody tr:hover td{
 .booking-field-full input:focus,
 .booking-field-full select:focus,
 .booking-field-full textarea:focus{
-  border-color:#8fc3e8;
-  box-shadow:0 0 0 4px rgba(43,143,216,.12);
+  outline:none;
+  border-color:rgba(30,91,147,.45);
+  background:rgba(255,255,255,.92);
+  box-shadow:0 0 0 3px rgba(30,91,147,.12),0 2px 8px rgba(30,91,147,.06);
 }
 
 .booking-detail-shell{
@@ -4190,56 +4243,51 @@ body.is-compact-tables .status-badge{
 }
 
 .toast{
-  transform:translateY(10px);
+  transform:translateY(12px) scale(.98);
   opacity:0;
-  padding:13px 15px;
-  border:1px solid #d5e5f1;
+  padding:13px 16px 13px 20px;
+  border:1px solid rgba(255,255,255,.72);
+  border-left:4px solid rgba(30,91,147,.50);
   border-radius:16px;
-  background:#fff;
-  color:#18364c;
+  background:rgba(255,255,255,.88);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  color:#0f172a;
   font-size:12px;
-  font-weight:800;
-  line-height:1.45;
-  box-shadow:0 22px 54px rgba(16,38,58,.18);
-  transition:opacity .2s ease, transform .2s ease;
+  font-weight:700;
+  line-height:1.55;
+  box-shadow:0 16px 40px rgba(20,60,130,.12),0 2px 8px rgba(20,60,130,.06);
+  transition:opacity .2s ease,transform .2s cubic-bezier(.22,.68,0,1.12);
+  pointer-events:auto;
 }
 
 .toast.is-visible{
-  transform:translateY(0);
+  transform:translateY(0) scale(1);
   opacity:1;
 }
 
 .toast.is-success{
-  border-color:#cbe9d5;
-  background:#f2fbf5;
-  color:#1e6b47;
+  border-left-color:#16a34a;
+  color:#14532d;
 }
 
 .toast.is-error{
-  border-color:#f0ccd0;
-  background:#fff4f4;
-  color:#9d1d2c;
+  border-left-color:#dc2626;
+  color:#7f1d1d;
 }
 
 .toast.is-info{
-  border-color:#cfe2f2;
-  background:#f2f8fd;
-  color:#175b8f;
+  border-left-color:var(--booking-ocean);
+  color:#1e3a5f;
 }
 
 @keyframes skybookFadeUp{
-  from{
-    transform:translateY(8px);
-    opacity:.72;
-  }
-  to{
-    transform:translateY(0);
-    opacity:1;
-  }
+  from{opacity:0;transform:translateY(7px)}
+  to{opacity:1;transform:none}
 }
 
 .admin-view.is-active{
-  animation:skybookFadeUp .22s ease both;
+  animation:skybookFadeUp .22s cubic-bezier(.22,.68,0,1.08) both;
 }
 
 @media (max-width:760px){
