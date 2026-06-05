@@ -803,13 +803,33 @@ body.skybook-auth-page{
 .booking-list-panel .table-subline{font-size:11px;margin-top:2px}
 .booking-detail-panel{
   height:calc(100vh - 195px);
-  overflow-y:auto;
+  overflow:hidden;
   border:0;
   border-radius:0;
   box-shadow:none;
-  padding:24px;
+  padding:0;
   background:var(--booking-glass);
+  display:flex;
+  flex-direction:column;
 }
+.bm-shell{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+.bm-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,.95);border-bottom:1px solid rgba(83,115,148,.12);flex-shrink:0;flex-wrap:wrap;min-height:52px;}
+.bm-header-guest{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
+.bm-header-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#1769aa,#2b8fd8);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.bm-header-name{min-width:0;}
+.bm-header-name strong{display:block;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--booking-ink);}
+.bm-header-name small{display:block;font-size:11px;color:var(--booking-muted);}
+.bm-header-badges{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.bm-header-actions{display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:auto;}
+.bm-body{display:flex;flex:1;overflow:hidden;min-height:0;}
+.bm-nav{width:130px;flex-shrink:0;border-right:1px solid rgba(83,115,148,.12);padding:6px 0;overflow-y:auto;background:rgba(248,250,252,.7);}
+.bm-nav-item{display:block;width:100%;padding:8px 12px;text-align:left;font:inherit;font-size:12px;font-weight:500;color:var(--booking-muted);background:none;border:none;border-left:3px solid transparent;cursor:pointer;transition:background .1s,color .1s;white-space:nowrap;}
+.bm-nav-item:hover{background:rgba(30,91,147,.05);color:var(--booking-ink);}
+.bm-nav-item.is-active{color:var(--booking-ocean);background:rgba(30,91,147,.07);font-weight:700;border-left-color:var(--booking-ocean);}
+.bm-nav-badge{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(220,60,40,.12);color:#dc3c28;margin-left:4px;}
+.bm-nav-divider{height:1px;background:rgba(83,115,148,.1);margin:5px 8px;}
+.bm-content{flex:1;overflow-y:auto;min-width:0;padding:16px;}
+.bm-section[hidden]{display:none!important;}
 .client-profile-card{
   display:flex;
   gap:14px;
@@ -3767,6 +3787,7 @@ tbody tr:hover td{
 }
 
 .skybook-admin-page.is-booking-record-page .booking-detail-panel{
+  height:100vh;
   padding:0;
   border:0;
   border-radius:0;
@@ -5123,11 +5144,13 @@ body.is-compact-tables .status-badge{
     border-radius:0;
   }
   .booking-detail-panel{
-    height:auto;
+    height:60vh;
     max-height:none;
     border-radius:0;
-    padding:18px;
+    padding:0;
   }
+  .bm-nav{width:100px;}
+  .bm-nav-item{font-size:11px;padding:7px 9px;}
 
   .booking-form-grid,
   .booking-filters-grid,
