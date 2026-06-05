@@ -1746,6 +1746,22 @@
                 <input id="cruiseDate" type="date">
               </label>
               <label class="booking-field">
+                <span>Time</span>
+                <input id="cruiseTime" type="time" placeholder="e.g. 08:00">
+              </label>
+              <label class="booking-field">
+                <span>PAX</span>
+                <input id="cruisePax" type="number" min="1" value="1" placeholder="Total passengers">
+              </label>
+              <label class="booking-field">
+                <span>Inv</span>
+                <input id="cruiseInv" type="text" placeholder="Invoice number" autocomplete="off">
+              </label>
+              <label class="booking-field">
+                <span>Booking Ref</span>
+                <input id="cruiseBookingRef" type="text" placeholder="Reference from cruise company" autocomplete="off">
+              </label>
+              <label class="booking-field">
                 <span>Number of Buses</span>
                 <input id="cruiseBuses" type="number" min="0" value="0" placeholder="0">
               </label>
@@ -1753,7 +1769,7 @@
                 <span>Number of Cars</span>
                 <input id="cruiseCars" type="number" min="0" value="0" placeholder="0">
               </label>
-              <label class="booking-field">
+              <label class="booking-field-full">
                 <span>Activity (optional)</span>
                 <input id="cruiseActivity" type="text" placeholder="e.g. Pelican Point Kayaking, Dune Drive" autocomplete="off">
               </label>

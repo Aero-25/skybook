@@ -4897,8 +4897,12 @@ const openCruiseLinerModal=(dateKey='')=>{
   if(!modal)return
   const dateField=document.getElementById('cruiseDate')
   if(dateField)dateField.value=dateKey||bookingAdminShared.currentDate()
-  const activityInput=document.getElementById('cruiseActivity')
-  if(activityInput)activityInput.value=''
+  ;['cruiseActivity','cruiseInv','cruiseBookingRef','cruiseTime'].forEach(id=>{
+    const el=document.getElementById(id)
+    if(el)el.value=''
+  })
+  const paxEl=document.getElementById('cruisePax')
+  if(paxEl)paxEl.value='1'
   modal.hidden=false
   modal.setAttribute('aria-hidden','false')
 }
@@ -4910,9 +4914,12 @@ const handleCruiseLinerSubmit=async event=>{
   event.preventDefault()
   const company=document.getElementById('cruiseCompany')?.value
   const date=document.getElementById('cruiseDate')?.value
+  const time=(document.getElementById('cruiseTime')?.value||'').trim()
+  const pax=Math.max(1,Number(document.getElementById('cruisePax')?.value||1))
   const buses=Number(document.getElementById('cruiseBuses')?.value||0)
   const cars=Number(document.getElementById('cruiseCars')?.value||0)
-  const pax=1
+  const inv=(document.getElementById('cruiseInv')?.value||'').trim()
+  const bookingRef=(document.getElementById('cruiseBookingRef')?.value||'').trim()
   const activityText=(document.getElementById('cruiseActivity')?.value||'').trim()
   const notes=document.getElementById('cruiseNotes')?.value.trim()||''
   if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
@@ -4921,6 +4928,7 @@ const handleCruiseLinerSubmit=async event=>{
   const tourName=activityText ? `${activityText} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
   const serviceSlug=state.services.find(s=>s.is_active!==false)?.slug||''
   if(!serviceSlug){showToast('No services loaded — please reload.','info');return}
+  const noteParts=[tourName,`PAX: ${pax}`,`Buses: ${buses} | Cars: ${cars}`,time?`Time: ${time}`:'',inv?`Inv: ${inv}`:'',bookingRef?`Booking Ref: ${bookingRef}`:'',notes].filter(Boolean)
   try{
     const payload={
       brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
@@ -4933,13 +4941,17 @@ const handleCruiseLinerSubmit=async event=>{
       child_quantity:0,
       infant_quantity:0,
       source:'admin',
-      notes:`${tourName}\nBuses: ${buses} | Cars: ${cars}\n${notes}`.trim(),
+      notes:noteParts.join('\n'),
       metadata:{
         cruise_liner:true,
         cruise_company:company,
         cruise_company_label:companyLabel,
         buses,
         cars,
+        pax,
+        time,
+        inv,
+        booking_ref:bookingRef,
         activity_name:activityText,
         display_name:tourName
       },
