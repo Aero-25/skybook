@@ -3731,19 +3731,19 @@ const renderBookings=()=>{
   updateBookingQuickFilterBar()
   nodes.bookingsTable.innerHTML=filtered.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
+    const isCancelled=normalizeText(booking.status)==='cancelled'
+    const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))
     return `
-    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
-      <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
-        <div class="table-subline" style="font-size:11px;opacity:.65"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a></div>
+        <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
       </td>
-      <td>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</td>
-      <td>${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const parts=[a>0?`${a} adult${a!==1?'s':''}`:'',(c>0?`${c} child${c!==1?'ren':''}`:''),i>0?`${i} infant${i!==1?'s':''}`:'' ].filter(Boolean);return bookingAdminShared.escapeHtml(parts.length?`${t} (${parts.join(', ')})`:String(t))})()}</td>
-      <td>${(()=>{const ps=normalizeText(booking.payment_status||booking.status);const isCancelled=normalizeText(booking.status)==='cancelled'||ps==='cancelled';return renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))})()}</td>
+      <td style="white-space:nowrap">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+      <td>${paymentBadge}</td>
     </tr>
   `
-  }).join('') || renderEmptyRow(5,'No bookings match the current filters.')
+  }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
 }
 
 const filterTrashRows=(rows,{search='',archivedBy=''})=>{
@@ -3827,6 +3827,66 @@ const renderBookingTrash=()=>{
     }
   )
   nodes.bookingTrashTable.innerHTML=renderTrashRows(trashed,'No bookings are in trash. Nothing is physically deleted from SkyBook.')
+}
+
+const buildClientProfileCard=(booking)=>{
+  const name=String(booking.customer_name||'Guest').trim()
+  const email=String(booking.customer_email||'').trim().toLowerCase()
+  const phone=String(booking.customer_phone||'').trim()
+  const customer=state.customers.find(c=>c.id===booking.customer_id)||
+    (email ? state.customers.find(c=>String(c.email||'').trim().toLowerCase()===email) : null)
+  const customerMeta=normalizeJsonRecord(customer?.metadata)
+  const bookingMeta=normalizeJsonRecord(booking.metadata)
+  const initials=name.split(/\s+/).map(w=>w[0]||'').filter(Boolean).slice(0,2).join('').toUpperCase()||'?'
+  const otherBookings=state.bookings.filter(b=>{
+    if(b.id===booking.id)return false
+    return (booking.customer_id && b.customer_id===booking.customer_id) ||
+      (email && String(b.customer_email||'').trim().toLowerCase()===email)
+  }).sort((a,b)=>(parseDateValue(b.preferred_date)?.getTime()||0)-(parseDateValue(a.preferred_date)?.getTime()||0))
+  const bookingCount=customer?.booking_count||otherBookings.length+1
+  const lifetimeSpend=otherBookings.reduce((s,b)=>s+Number(b.total_amount||0),Number(booking.total_amount||0))
+  const currency=booking.currency||state.settings.currency
+  const nationality=customerMeta.nationality||bookingMeta.nationality||''
+  const whatsapp=customerMeta.whatsapp||''
+  const preferredContact=customerMeta.preferred_contact_method||''
+  const firstSeen=customer?.created_at ? formatDateLabel(customer.created_at) : ''
+  const contactParts=[
+    email && `<a href="mailto:${bookingAdminShared.escapeHtml(email)}" style="color:inherit;text-decoration:none">${bookingAdminShared.escapeHtml(email)}</a>`,
+    phone && bookingAdminShared.escapeHtml(phone),
+    whatsapp && whatsapp!==phone && `WA: ${bookingAdminShared.escapeHtml(whatsapp)}`,
+    nationality && bookingAdminShared.escapeHtml(nationality)
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ')
+  const extraInfo=[
+    preferredContact && `Prefers: ${bookingAdminShared.escapeHtml(preferredContact)}`,
+    firstSeen && `First seen: ${bookingAdminShared.escapeHtml(firstSeen)}`
+  ].filter(Boolean).join(' &nbsp;·&nbsp; ')
+  return `
+    <div class="client-profile-card">
+      <div class="client-avatar">${bookingAdminShared.escapeHtml(initials)}</div>
+      <div class="client-profile-body">
+        <p class="client-profile-name">${bookingAdminShared.escapeHtml(name)}</p>
+        <p class="client-profile-contact">${contactParts||'<span style="opacity:.5">No contact info on record</span>'}${extraInfo ? `<br><span style="opacity:.75">${extraInfo}</span>` : ''}</p>
+        <div class="client-profile-chips">
+          <span class="client-stat-chip">${bookingAdminShared.escapeHtml(String(bookingCount))} booking${bookingCount!==1?'s':''}</span>
+          ${lifetimeSpend>0 ? `<span class="client-stat-chip is-spend">Lifetime ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(lifetimeSpend,currency))}</span>` : ''}
+          ${customer ? `<button type="button" class="booking-button ghost compact-button" style="font-size:11px;padding:4px 10px;min-height:26px" data-booking-inline-action="view-customer-profile">View Full Profile</button>` : ''}
+        </div>
+        ${otherBookings.length ? `
+          <div class="client-prev-bookings">
+            <div class="client-prev-label">Other bookings by this guest</div>
+            ${otherBookings.slice(0,5).map(b=>`
+              <div class="client-prev-row" data-booking-id="${bookingAdminShared.escapeHtml(b.id)}">
+                <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
+                <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
+                <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
+                ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':'Payment '+String(b.payment_status||b.status||'').replace(/_/g,' '))}
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `
 }
 
 const buildRepeatGuestBanner=(booking)=>{
@@ -3954,6 +4014,8 @@ const renderBookingDetail=()=>{
             </nav>
           </div>
         </section>
+
+        ${buildClientProfileCard(booking)}
 
         <section class="detail-section" id="booking-notification-panel">
           <div class="section-heading">
@@ -9059,8 +9121,7 @@ nodes.bookingsTable.addEventListener('click',event=>{
   const row=event.target.closest('[data-booking-id]')
   if(!row)return
   const booking=state.bookings.find(item=>item.id===row.dataset.bookingId)
-  if(!booking)return
-  openRecordInNewTab('bookings',booking.id)
+  if(booking)openBookingManagementScreen(booking,{scroll:false})
 })
 
 nodes.reservationsTable?.addEventListener('click',event=>{
@@ -9222,6 +9283,12 @@ nodes.reservationDetail?.addEventListener('click',event=>{
 })
 
 nodes.bookingDetail.addEventListener('click',event=>{
+  const prevRow=event.target.closest('.client-prev-row[data-booking-id]')
+  if(prevRow&&!event.target.closest('a,button')){
+    const b=state.bookings.find(item=>item.id===prevRow.dataset.bookingId)
+    if(b)openBookingManagementScreen(b,{scroll:false})
+    return
+  }
   const actionButton=event.target.closest('button')
   const actionElement=event.target.closest('[data-booking-action],[data-booking-inline-action]')
   const action=actionElement?.dataset.bookingAction

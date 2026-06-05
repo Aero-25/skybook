@@ -590,39 +590,36 @@
       <section class="admin-view" data-admin-view="bookings">
         <div class="booking-workspace">
           <article class="booking-panel booking-list-panel">
-            <div class="widget-header">
-              <div>
-                <h3>Reservation Command</h3>
+            <div class="booking-list-top">
+              <div class="booking-list-toolbar">
+                <input type="text" id="bookingFilterSearch" class="booking-list-search" placeholder="Search name, reference, email...">
+                <button class="booking-button ghost compact-button" type="button" id="repairStatusConflictsButton" title="Repair status conflicts">Fix</button>
+                <button class="booking-button compact-button" type="button" id="adminBookingNewButton">+ New</button>
               </div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="booking-button ghost" type="button" id="repairStatusConflictsButton" title="Find and fix bookings where status and payment conflict">Repair Status Conflicts</button>
-                <button class="booking-button ghost" type="button" id="adminBookingNewButton">New Booking</button>
-              </div>
-            </div>
-            <div class="booking-form-grid">
-              <div class="booking-field-full booking-quick-filter-bar" aria-label="Booking quick filters">
-                <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All bookings <span data-filter-count="all">0</span></button>
+              <div class="booking-quick-filter-bar" aria-label="Booking quick filters">
+                <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All <span data-filter-count="all">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoiced">Invoiced <span data-filter-count="invoiced">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Partially Paid <span data-filter-count="partially_paid">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Fully Paid <span data-filter-count="fully_paid">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Part Paid <span data-filter-count="partially_paid">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Paid <span data-filter-count="fully_paid">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="cancelled">Cancelled <span data-filter-count="cancelled">0</span></button>
-                <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset filters</button>
+                <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset</button>
               </div>
-              <div class="booking-field-full booking-filter-toggle-row">
+              <div class="booking-filter-toggle-row">
                 <button
                   type="button"
                   class="booking-button ghost booking-filter-toggle"
                   id="toggleBookingFilters"
                   aria-expanded="false"
                   aria-controls="bookingFiltersPanel"
+                  style="font-size:11px;padding:4px 10px;min-height:28px"
                 >
-                  Show filters
+                  Advanced filters
                 </button>
               </div>
-              <div class="booking-filters-panel is-collapsed booking-field-full" id="bookingFiltersPanel" hidden>
+              <div class="booking-filters-panel is-collapsed" id="bookingFiltersPanel" hidden>
                 <div class="booking-filters-grid">
                   <div class="booking-field">
                     <label for="bookingFilterBrand">Brand</label>
@@ -636,8 +633,8 @@
                       <option value="">All sources</option>
                     </select>
                   </div>
-                  <div class="booking-field booking-field-full">
-                    <label>Booking Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
+                  <div class="booking-field">
+                    <label>Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
                     <div class="status-pill-filter" id="bookingFilterStatus">
                       <label class="status-pill-option"><input type="checkbox" value="provisional"><span class="status-pill-label status-pill-provisional">Provisional</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="confirmed"><span class="status-pill-label status-pill-confirmed">Confirmed</span></label>
@@ -645,7 +642,7 @@
                     </div>
                   </div>
                   <div class="booking-field">
-                    <label for="bookingFilterPaymentStatus">Payment Status</label>
+                    <label for="bookingFilterPaymentStatus">Payment</label>
                     <select id="bookingFilterPaymentStatus">
                       <option value="">All payment states</option>
                       <option value="invoice">Invoice</option>
@@ -673,23 +670,19 @@
                     </select>
                   </div>
                   <div class="booking-field">
-                    <label for="bookingFilterDateFrom">Date From</label>
+                    <label for="bookingFilterDateFrom">From</label>
                     <input id="bookingFilterDateFrom" type="date">
                   </div>
                   <div class="booking-field">
-                    <label for="bookingFilterDateTo">Date To</label>
+                    <label for="bookingFilterDateTo">To</label>
                     <input id="bookingFilterDateTo" type="date">
-                  </div>
-                  <div class="booking-field-full">
-                    <label for="bookingFilterSearch">Fast Search / Reference</label>
-                    <input id="bookingFilterSearch" type="text" placeholder="Reference, customer, email, service">
                   </div>
                 </div>
               </div>
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Date</th><th>Guest</th><th>Activity</th><th>Pax</th><th>Payment</th></tr></thead>
+                <thead><tr><th>Guest</th><th>Date</th><th>Status</th></tr></thead>
                 <tbody id="adminBookingsTable"></tbody>
               </table>
             </div>
