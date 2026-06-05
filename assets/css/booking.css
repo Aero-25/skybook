@@ -1527,29 +1527,48 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .status-badge.is-reservation{background:#e0f0ff;color:#1a4fa0;border-color:#a0c0f0}
 .status-badge.is-booking{background:#f0eaff;color:#5b3fa0;border-color:#c9b5f5}
 .status-badge.is-paid{background:#bbf7d0;color:#065f46;border-color:#4ade80}
-.status-badge.is-provisional{background:#fefce8;color:#92400e;border-color:#ca8a04}
-.status-badge.is-confirmed{background:#f1f5f9;color:#1e293b;border-color:#334155}
-.status-badge.is-invoice{background:#ede9fe;color:#4c1d95;border-color:#a78bfa}
-.status-badge.is-invoiced{background:#dcfce7;color:#14532d;border-color:#4ade80}
-.status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#34d399}
-.status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#60a5fa}
+.status-badge.is-provisional{background:#fef9c3;color:#713f12;border-color:#facc15}
+.status-badge.is-confirmed{background:#f1f5f9;color:#1e293b;border-color:#1e293b}
+.status-badge.is-invoice{background:#fee2e2;color:#991b1b;border-color:#ef4444}
+.status-badge.is-invoiced{background:#dcfce7;color:#14532d;border-color:#22c55e}
+.status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
+.status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
+.status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
 .booking-row{cursor:pointer}
-.booking-row.status-provisional td{background:rgba(254,243,199,.65)}
-.booking-row.status-provisional td:first-child{border-left:4px solid #d97706}
-.booking-row.status-confirmed td{background:rgba(241,245,249,.75)}
-.booking-row.status-confirmed td:first-child{border-left:4px solid #475569}
-.booking-row.status-confirmed-invoice td{background:rgba(237,233,254,.75)}
-.booking-row.status-confirmed-invoice td:first-child{border-left:4px solid #7c3aed}
-.booking-row.status-confirmed-invoiced td{background:rgba(220,252,231,.75)}
-.booking-row.status-confirmed-invoiced td:first-child{border-left:4px solid #16a34a}
-.booking-row.status-confirmed-partially-paid td{background:rgba(187,247,208,.75)}
-.booking-row.status-confirmed-partially-paid td:first-child{border-left:4px solid #059669}
-.booking-row.status-confirmed-fully-paid td{background:rgba(219,234,254,.75)}
-.booking-row.status-confirmed-fully-paid td:first-child{border-left:4px solid #2563eb}
-.booking-row.status-cancelled td{background:rgba(243,244,246,.65)}
-.booking-row.status-cancelled td:first-child{border-left:4px solid #9ca3af}
-.booking-row.is-cruise-liner td{background:rgba(237,233,254,.75)}
-.booking-row.is-cruise-liner td:first-child{border-left:4px solid #7c3aed}
+/* ── Row colours: STATUS = full border colour | PAYMENT = background ── */
+/* Helpers — apply border-top/bottom to every td, left to first, right to last */
+/* PROVISIONAL — Yellow border, light warm bg */
+.booking-row.status-provisional td{background:rgba(254,249,225,.75);border-top:2px solid #facc15;border-bottom:2px solid #facc15}
+.booking-row.status-provisional td:first-child{border-left:4px solid #facc15}
+.booking-row.status-provisional td:last-child{border-right:2px solid #facc15}
+/* CONFIRMED (no payment) — Black border, light neutral bg */
+.booking-row.status-confirmed td{background:rgba(248,250,252,.75);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
+.booking-row.status-confirmed td:first-child{border-left:4px solid #1e293b}
+.booking-row.status-confirmed td:last-child{border-right:2px solid #1e293b}
+/* CONFIRMED + INVOICE — Black border, red bg */
+.booking-row.status-confirmed-invoice td{background:rgba(254,226,226,.8);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
+.booking-row.status-confirmed-invoice td:first-child{border-left:4px solid #1e293b}
+.booking-row.status-confirmed-invoice td:last-child{border-right:2px solid #1e293b}
+/* CONFIRMED + INVOICED — Black border, light green bg */
+.booking-row.status-confirmed-invoiced td{background:rgba(220,252,231,.85);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
+.booking-row.status-confirmed-invoiced td:first-child{border-left:4px solid #1e293b}
+.booking-row.status-confirmed-invoiced td:last-child{border-right:2px solid #1e293b}
+/* CONFIRMED + PARTIALLY PAID — Black border, dark green bg */
+.booking-row.status-confirmed-partially-paid td{background:rgba(134,239,172,.6);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
+.booking-row.status-confirmed-partially-paid td:first-child{border-left:4px solid #1e293b}
+.booking-row.status-confirmed-partially-paid td:last-child{border-right:2px solid #1e293b}
+/* CONFIRMED + FULLY PAID — Black border, blue bg */
+.booking-row.status-confirmed-fully-paid td{background:rgba(219,234,254,.9);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
+.booking-row.status-confirmed-fully-paid td:first-child{border-left:4px solid #1e293b}
+.booking-row.status-confirmed-fully-paid td:last-child{border-right:2px solid #1e293b}
+/* CANCELLED — Red border, red bg */
+.booking-row.status-cancelled td{background:rgba(254,226,226,.75);border-top:2px solid #ef4444;border-bottom:2px solid #ef4444}
+.booking-row.status-cancelled td:first-child{border-left:4px solid #ef4444}
+.booking-row.status-cancelled td:last-child{border-right:2px solid #ef4444}
+/* CRUISE LINER — Violet border + bg (overrides confirmed) */
+.booking-row.is-cruise-liner td{background:rgba(237,233,254,.8);border-top:2px solid #7c3aed!important;border-bottom:2px solid #7c3aed!important}
+.booking-row.is-cruise-liner td:first-child{border-left:4px solid #7c3aed!important}
+.booking-row.is-cruise-liner td:last-child{border-right:2px solid #7c3aed!important}
 .calendar-mini-card.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
 .calendar-entry-card.is-cruise-liner{border-left:4px solid #5b21b6;background:#c4b5fd}
 .cal-day-block.is-cruise-liner{border-color:#7c3aed;background:#7c3aed18}
@@ -3858,12 +3877,13 @@ tbody tr:hover td{
 .status-badge.is-reservation{background:#e8f7ee;color:#1a6640;border-color:#a8dfc0}
 .status-badge.is-booking{background:#f0eaff;color:#5b3fa0;border-color:#c9b5f5}
 .status-badge.is-paid{background:#e5f0ff;color:#1a4fa0;border-color:#a0c0f0}
-.status-badge.is-provisional{background:#fefce8;color:#92400e;border-color:#ca8a04}
-.status-badge.is-confirmed{background:#f1f5f9;color:#1e293b;border-color:#334155}
-.status-badge.is-invoice{background:#ede9fe;color:#4c1d95;border-color:#a78bfa}
-.status-badge.is-invoiced{background:#dcfce7;color:#14532d;border-color:#4ade80}
-.status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#34d399}
-.status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#60a5fa}
+.status-badge.is-provisional{background:#fef9c3;color:#713f12;border-color:#facc15}
+.status-badge.is-confirmed{background:#f1f5f9;color:#1e293b;border-color:#1e293b}
+.status-badge.is-invoice{background:#fee2e2;color:#991b1b;border-color:#ef4444}
+.status-badge.is-invoiced{background:#dcfce7;color:#14532d;border-color:#22c55e}
+.status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
+.status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
+.status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
 
 .booking-form-grid{
   gap:14px;
