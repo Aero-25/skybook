@@ -3459,8 +3459,8 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const finalPricingCreate=priceOverrideCreate>0
     ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
-  const bookingStatus=desiredStatus || 'invoice'
-  const paymentStatus=desiredPaymentStatus || (finalPricingCreate.amountDueNow>0 ? 'pending' : 'unpaid')
+  const bookingStatus=(['provisional','confirmed','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'confirmed' : 'provisional')
+  const paymentStatus=desiredPaymentStatus || (isAdmin ? 'invoice' : '')
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
@@ -3512,9 +3512,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     if(isUniqueViolation(error)&&requestedReference){
       throw new Error('Booking reference already exists. Please use a unique reference.')
     }
-    throw error
+    throw new Error((error as {message?:string})?.message || 'Booking insert failed.')
   }
-  if(!booking)throw lastInsertError || new Error('Unable to create booking with a unique reference.')
+  if(!booking)throw new Error(((lastInsertError as {message?:string})?.message) || 'Unable to create booking with a unique reference.')
   const bookingId=String(booking.id || '')
   if(!bookingId)throw new Error('Booking was created without an id.')
 
@@ -4981,6 +4981,7 @@ Deno.serve(async request=>{
 
     return json(404,{error:'Route not found.'})
   }catch(error){
-    return json(400,{error:error instanceof Error ? error.message : 'Unexpected booking API error.'})
+    const msg=error instanceof Error ? error.message : ((error as {message?:string})?.message ? String((error as {message?:string}).message) : 'Unexpected booking API error.')
+    return json(400,{error:msg})
   }
 })
