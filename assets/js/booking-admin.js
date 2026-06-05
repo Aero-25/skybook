@@ -140,7 +140,7 @@ const state={
   isWorkflowModalOpen:false,
   workflowModalConfig:null,
   bookingFunctionsCollapsed:false,
-  bookingDetailTab:'overview',
+  bookingDetailTab:'client',
   bookingListPage:0,
   notificationAudioUnlocked:false,
   lastNotificationSoundAt:0,
@@ -4012,7 +4012,7 @@ const renderBookingDetail=()=>{
   const paymentLinkGeneratedAt=normalizeText(paymentLinkMeta.generated_at)
   const functionsCollapsed=state.bookingFunctionsCollapsed===true
   const bmInitials=(booking.customer_name||'?').split(/\s+/).map(w=>w[0]||'').filter(Boolean).slice(0,2).join('').toUpperCase()
-  const activeTab=state.bookingDetailTab||'overview'
+  const activeTab=state.bookingDetailTab||'client'
   nodes.bookingDetail.innerHTML=`
     <div class="bm-shell booking-screen-shell">
       <div class="bm-header">
@@ -4036,68 +4036,15 @@ const renderBookingDetail=()=>{
       </div>
       <div class="bm-body">
         <nav class="bm-nav" aria-label="Booking sections">
-          <button type="button" class="bm-nav-item${activeTab==='overview'?' is-active':''}" data-bm-nav="overview">Overview${bookingAlerts.length ? ` <span class="bm-nav-badge">${bookingAlerts.length}</span>` : ''}</button>
           <button type="button" class="bm-nav-item${activeTab==='client'?' is-active':''}" data-bm-nav="client">Client</button>
           <button type="button" class="bm-nav-item${activeTab==='finance'?' is-active':''}" data-bm-nav="finance">Finance</button>
           <button type="button" class="bm-nav-item${activeTab==='tasks'?' is-active':''}" data-bm-nav="tasks">Tasks${openTasks.length ? ` <span class="bm-nav-badge">${openTasks.length}</span>` : ''}</button>
-          <button type="button" class="bm-nav-item${activeTab==='timeline'?' is-active':''}" data-bm-nav="timeline">Timeline</button>
           <button type="button" class="bm-nav-item${activeTab==='documents'?' is-active':''}" data-bm-nav="documents">Documents</button>
           <button type="button" class="bm-nav-item${activeTab==='commercial'?' is-active':''}" data-bm-nav="commercial">Commercial</button>
-          <button type="button" class="bm-nav-item${activeTab==='notes'?' is-active':''}" data-bm-nav="notes">Notes</button>
           <div class="bm-nav-divider"></div>
           <button type="button" class="bm-nav-item${activeTab==='actions'?' is-active':''}" data-bm-nav="actions">Actions</button>
         </nav>
         <div class="bm-content">
-
-          <div class="bm-section" data-bm-section="overview"${activeTab!=='overview'?' hidden':''}>
-            <section class="detail-section" id="booking-notification-panel">
-              <div class="section-heading">
-                <div>
-                  <h4>Notifications for this booking</h4>
-                  <p class="muted-copy">Operational signals that need admin attention before the guest experience is affected.</p>
-                </div>
-                ${renderStatusBadge(bookingAlerts.length ? 'pending' : 'completed',bookingAlerts.length ? `${bookingAlerts.length} alert${bookingAlerts.length===1 ? '' : 's'}` : 'No alerts')}
-              </div>
-              <div class="booking-alert-strip">
-                ${bookingAlerts.length ? bookingAlerts.map(alert=>`
-                  <article class="booking-alert-card is-${bookingAdminShared.escapeHtml(alert.priority||'normal')}">
-                    <span>${bookingAdminShared.escapeHtml(alert.category||'Alert')}</span>
-                    <strong>${bookingAdminShared.escapeHtml(alert.message||'Review this booking.')}</strong>
-                    <small>${bookingAdminShared.escapeHtml(formatDateTimeLabel(alert.when))}</small>
-                  </article>
-                `).join('') : `
-                  <article class="booking-alert-card is-clear">
-                    <span>Clear</span>
-                    <strong>No booking notifications are currently open.</strong>
-                    <small>SkyBook will surface payment, assignment, task, and departure signals here.</small>
-                  </article>
-                `}
-              </div>
-            </section>
-            <section class="detail-section detail-overview-grid">
-              <article class="detail-card">
-                <span>Reference</span>
-                <strong>${bookingAdminShared.escapeHtml(booking.reference)}</strong>
-              </article>
-              <article class="detail-card">
-                <span>Brand</span>
-                <strong>${bookingAdminShared.escapeHtml(brandName)}</strong>
-              </article>
-              <article class="detail-card">
-                <span>Preferred date</span>
-                <strong>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</strong>
-              </article>
-                <article class="detail-card">
-                  <span>Total tracked</span>
-                  <strong>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</strong>
-                </article>
-                <article class="detail-card">
-                  <span>Last changed</span>
-                  <strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.updated_at||booking.created_at))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(lastChangedBy)}</p>
-                </article>
-            </section>
-          </div>
 
           <div class="bm-section" data-bm-section="client"${activeTab!=='client'?' hidden':''}>
             ${buildClientProfileCard(booking)}
@@ -4144,60 +4091,103 @@ const renderBookingDetail=()=>{
                 </div>
               ` : ''}
             </section>
+            <section class="detail-section">
+              <div class="section-heading">
+                <div>
+                  <h4>Internal notes</h4>
+                  <p class="muted-copy">Office handover notes, payment exceptions, and guest care context.</p>
+                </div>
+                ${notes.length ? `<span class="bm-nav-badge" style="display:inline-flex">${notes.length}</span>` : ''}
+              </div>
+              ${notes.length ? `
+                <div class="bm-notes-list">
+                  ${notes.slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(note=>`
+                    <article class="bm-note-card${note.is_private===false?' is-shared':''}">
+                      <div class="bm-note-card-meta">
+                        <span>${bookingAdminShared.escapeHtml(note.is_private===false ? 'Shared' : 'Internal')}</span>
+                        <small>${bookingAdminShared.escapeHtml(formatDateTimeLabel(note.created_at))}</small>
+                      </div>
+                      <div class="bm-note-card-body">${bookingAdminShared.escapeHtml(note.note||'')}</div>
+                    </article>
+                  `).join('')}
+                </div>
+              ` : '<p class="muted-copy" style="margin:0">No internal notes yet.</p>'}
+              <div class="template-chip-row" style="margin-top:14px">
+                ${noteTemplates.map(template=>`<button class="booking-button ghost compact-button" type="button" data-booking-inline-action="note-template" data-template-value="${bookingAdminShared.escapeHtml(template)}">${bookingAdminShared.escapeHtml(template)}</button>`).join('')}
+              </div>
+              <form class="booking-inline-form" data-inline-form="note" style="margin-top:12px">
+                <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+                <label class="booking-field-full">
+                  <span>New note</span>
+                  <textarea name="note" rows="3" placeholder="Add an internal note for operations, finance, or guest care." autocomplete="off" required></textarea>
+                </label>
+                <label class="inline-check">
+                  <input type="checkbox" name="is_private" checked>
+                  <span>Keep this note private to internal staff.</span>
+                </label>
+                <div class="detail-inline-actions">
+                  <button class="booking-button" type="submit">Add Note</button>
+                </div>
+              </form>
+            </section>
           </div>
 
           <div class="bm-section" data-bm-section="finance"${activeTab!=='finance'?' hidden':''}>
-            <section class="detail-section" id="booking-finance-panel">
-              <h4>Finance</h4>
-              <div class="detail-rail-stats">
-                <article class="detail-card">
-                  <span>Guest invoice</span>
-                  <strong>${bookingAdminShared.formatMoney(invoice?.total_amount||booking.total_amount||0,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml(invoice?.status||'Unissued')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Guest balance</span>
-                  <strong>${bookingAdminShared.formatMoney(guestBalance,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
-                  <p>${renderStatusBadge(booking.payment_status)}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Discounts</span>
-                  <strong>${bookingAdminShared.formatMoney(discountTotal,booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml(`${discounts.length} discount record${discounts.length===1 ? '' : 's'}`)}</p>
-                </article>
-                <article class="detail-card booking-payment-link-card">
-                  <span>Payment link</span>
-                  <strong>${bookingPaymentLink ? 'Ready' : 'Not generated'}</strong>
-                  <p>${bookingPaymentLink ? `Generated ${bookingAdminShared.escapeHtml(formatDateTimeLabel(paymentLinkGeneratedAt))}` : 'Generate a booking-specific link before asking the client to pay.'}</p>
-                  <div class="detail-inline-actions">
-                    <button type="button" class="booking-button compact-button" data-booking-inline-action="generate-payment-link">${bookingPaymentLink ? 'Regenerate' : 'Generate'}</button>
-                    ${bookingPaymentLink ? `<button type="button" class="booking-button ghost compact-button" data-booking-inline-action="copy-payment-link">Copy</button><a class="booking-button ghost compact-button" href="${bookingAdminShared.escapeHtml(bookingPaymentLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : ''}
-                  </div>
-                  ${bookingPaymentLink ? `<input class="payment-link-display" type="text" value="${bookingAdminShared.escapeHtml(bookingPaymentLink)}" readonly>` : ''}
-                </article>
-                <article class="detail-card">
-                  <span>Office exposure</span>
-                  <strong>${bookingAdminShared.formatMoney(officeExposure,booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml(`${officeInvoices.length} office invoice${officeInvoices.length===1 ? '' : 's'}`)}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Partner exposure</span>
-                  <strong>${bookingAdminShared.formatMoney(operatorCommission+agentCommission,booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml(`Operating partner ${bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency)} / Selling partner ${bookingAdminShared.formatMoney(agentCommission,booking.currency||state.settings.currency)}`)}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Refunds</span>
-                  <strong>${bookingAdminShared.formatMoney(sumAmounts(refunds,'amount'),booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml(`${refunds.length} refund record${refunds.length===1 ? '' : 's'}`)}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Reconciliation</span>
-                  <strong>${renderStatusBadge(reconciliationRecord?.status||'open',reconciliationRecord?.status||'open')}</strong>
-                  <p>${bookingAdminShared.escapeHtml(reconciliationRecord?.summary||'Waiting for finance review.')}</p>
-                </article>
-              </div>
-              ${canRecordPayments ? `
-                <form class="booking-inline-form booking-inline-form-wide admin-spacer" data-inline-form="manual-payment">
+            <nav class="bm-sub-nav">
+              <button type="button" class="bm-sub-nav-item is-active" data-bm-sub-nav="overview">Overview</button>
+              ${canRecordPayments ? '<button type="button" class="bm-sub-nav-item" data-bm-sub-nav="record">Record Payment</button>' : ''}
+              <button type="button" class="bm-sub-nav-item" data-bm-sub-nav="exposure">Exposure</button>
+            </nav>
+            <div class="bm-sub-section" data-bm-sub-section="overview">
+              <section class="detail-section" id="booking-finance-panel">
+                <div class="section-heading">
+                  <div><h4>Financial summary</h4><p class="muted-copy">Invoice, balance, and payment status for this booking.</p></div>
+                </div>
+                <div class="detail-rail-stats">
+                  <article class="detail-card">
+                    <span>Guest invoice</span>
+                    <strong>${bookingAdminShared.formatMoney(invoice?.total_amount||booking.total_amount||0,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(invoice?.status||'Unissued')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Guest balance</span>
+                    <strong>${bookingAdminShared.formatMoney(guestBalance,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
+                    <p>${renderStatusBadge(booking.payment_status)}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Discounts</span>
+                    <strong>${bookingAdminShared.formatMoney(discountTotal,booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(`${discounts.length} discount record${discounts.length===1 ? '' : 's'}`)}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Refunds</span>
+                    <strong>${bookingAdminShared.formatMoney(sumAmounts(refunds,'amount'),booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(`${refunds.length} refund record${refunds.length===1 ? '' : 's'}`)}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Reconciliation</span>
+                    <strong>${renderStatusBadge(reconciliationRecord?.status||'open',reconciliationRecord?.status||'open')}</strong>
+                    <p>${bookingAdminShared.escapeHtml(reconciliationRecord?.summary||'Waiting for finance review.')}</p>
+                  </article>
+                  <article class="detail-card booking-payment-link-card">
+                    <span>Payment link</span>
+                    <strong>${bookingPaymentLink ? 'Ready' : 'Not generated'}</strong>
+                    <p>${bookingPaymentLink ? `Generated ${bookingAdminShared.escapeHtml(formatDateTimeLabel(paymentLinkGeneratedAt))}` : 'Generate a booking-specific payment link.'}</p>
+                    <div class="detail-inline-actions">
+                      <button type="button" class="booking-button compact-button" data-booking-inline-action="generate-payment-link">${bookingPaymentLink ? 'Regenerate' : 'Generate'}</button>
+                      ${bookingPaymentLink ? `<button type="button" class="booking-button ghost compact-button" data-booking-inline-action="copy-payment-link">Copy</button>` : ''}
+                    </div>
+                  </article>
+                </div>
+              </section>
+            </div>
+            ${canRecordPayments ? `
+            <div class="bm-sub-section" data-bm-sub-section="record" hidden>
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments received outside the online payment flow.</p></div>
+                </div>
+                <form class="booking-inline-form booking-inline-form-wide" data-inline-form="manual-payment">
                   <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
                   <label class="booking-field">
                     <span>Payment Type</span>
@@ -4233,8 +4223,28 @@ const renderBookingDetail=()=>{
                     <button class="booking-button" type="submit">Load Payment</button>
                   </div>
                 </form>
-              ` : ''}
-            </section>
+              </section>
+            </div>
+            ` : ''}
+            <div class="bm-sub-section" data-bm-sub-section="exposure" hidden>
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Cost exposure</h4><p class="muted-copy">Office invoices and partner payouts reducing margin on this booking.</p></div>
+                </div>
+                <div class="detail-rail-stats">
+                  <article class="detail-card">
+                    <span>Office exposure</span>
+                    <strong>${bookingAdminShared.formatMoney(officeExposure,booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(`${officeInvoices.length} office invoice${officeInvoices.length===1 ? '' : 's'}`)}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Partner exposure</span>
+                    <strong>${bookingAdminShared.formatMoney(operatorCommission+agentCommission,booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(`Op: ${bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency)} / Agent: ${bookingAdminShared.formatMoney(agentCommission,booking.currency||state.settings.currency)}`)}</p>
+                  </article>
+                </div>
+              </section>
+            </div>
           </div>
 
           <div class="bm-section" data-bm-section="tasks"${activeTab!=='tasks'?' hidden':''}>
@@ -4326,37 +4336,6 @@ const renderBookingDetail=()=>{
                   <button class="booking-button" type="submit">Add Task</button>
                 </div>
               </form>
-            </section>
-          </div>
-
-          <div class="bm-section" data-bm-section="timeline"${activeTab!=='timeline'?' hidden':''}>
-            <section class="detail-section">
-              <div class="section-heading">
-                <div>
-                  <h4>Timeline and audit trail</h4>
-                  <p class="muted-copy">Every booking change, email event, and internal note in one place.</p>
-                </div>
-              </div>
-              <div class="timeline-stack">
-                ${sortByDateDesc([
-                  ...history.map(item=>({kind:'status',date:item.created_at,title:`Status: ${item.to_status||'updated'}`,body:item.reason||'Status updated',meta:item.actor_label||'system'})),
-                  ...transactions.map(item=>({kind:'payment',date:item.created_at,title:`Payment: ${item.transaction_type||'transaction'}`,body:bookingAdminShared.formatMoney(item.amount||0,item.currency_code||booking.currency||state.settings.currency),meta:item.status||'recorded'})),
-                  ...emails.map(item=>({kind:'email',date:item.created_at,title:item.subject||'Email event',body:item.rendered_body||'Email queued',meta:item.status||'queued'})),
-                  ...notes.map(item=>({kind:'note',date:item.created_at,title:'Internal note',body:item.note||'',meta:item.is_private ? 'private' : 'shared'}))
-                ],'date').map(item=>`
-                  <article class="timeline-item">
-                    <div class="timeline-dot ${item.kind}"></div>
-                    <div class="timeline-content">
-                      <div class="timeline-top">
-                        <strong>${bookingAdminShared.escapeHtml(item.title)}</strong>
-                        <span>${bookingAdminShared.escapeHtml(formatDateTimeLabel(item.date))}</span>
-                      </div>
-                      <p>${bookingAdminShared.escapeHtml(item.body||'')}</p>
-                      <small>${bookingAdminShared.escapeHtml(item.meta||'')}</small>
-                    </div>
-                  </article>
-                `).join('') || '<p class="muted-copy">No history has been logged yet.</p>'}
-              </div>
             </section>
           </div>
 
@@ -4483,205 +4462,152 @@ const renderBookingDetail=()=>{
           </div>
 
           <div class="bm-section" data-bm-section="commercial"${activeTab!=='commercial'?' hidden':''}>
-            <section class="detail-section">
-              <div class="section-heading">
-                <div>
-                  <h4>Commercial structure</h4>
-                  <p class="muted-copy">Track who we invoice, who earns commission on the booking, and what margin remains after partner exposure.</p>
+            <nav class="bm-sub-nav">
+              <button type="button" class="bm-sub-nav-item is-active" data-bm-sub-nav="summary">Summary</button>
+              <button type="button" class="bm-sub-nav-item" data-bm-sub-nav="structure">Structure</button>
+              <button type="button" class="bm-sub-nav-item" data-bm-sub-nav="partners">Partners</button>
+              <button type="button" class="bm-sub-nav-item" data-bm-sub-nav="ownership">Ownership</button>
+            </nav>
+            <div class="bm-sub-section" data-bm-sub-section="summary">
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Commercial summary</h4><p class="muted-copy">Margin, partner exposure, and billing at a glance.</p></div>
                 </div>
-              </div>
-              <div class="detail-subgrid">
-                <article class="detail-card">
-                  <span>Bill to</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingBillToLabel(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(normalizeText(commercialMeta.bill_to_type)==='company' ? 'Company account / trade billing' : 'Guest direct billing')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Selling partner</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingAgentName(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(sellingModel==='gross_commission' ? `Gross commission ${bookingAdminShared.formatMoney(agentAssignmentAmount,booking.currency||state.settings.currency)}` : sellingModel==='net_rate' ? 'Net rate / reseller pricing' : 'Direct booking with no selling partner payout')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Operating partner</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(operatorCommission>0 ? `Supplier payout ${bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency)}` : 'No assisting operator payout linked yet.')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Internal margin</span>
-                  <strong>${bookingAdminShared.formatMoney(internalMargin,booking.currency||state.settings.currency)}</strong>
-                  <p>${bookingAdminShared.escapeHtml('Booking total less agent commission and operator payout.')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Price override</span>
-                  <strong>${booking.metadata?.price_override>0 ? bookingAdminShared.formatMoney(booking.metadata.price_override,booking.currency||state.settings.currency) : '—'}</strong>
-                  <p>${booking.metadata?.price_override>0 ? 'Manual price set by consultant' : 'Using calculated tour price'}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Consultant owner</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingConsultantOwnerName(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml('Used for manager productivity and turnover reporting.')}</p>
-                </article>
-              </div>
-              <form class="booking-inline-form booking-inline-form-wide" data-inline-form="commercial-structure">
-                <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
-                <label class="booking-field">
-                  <span>Bill To</span>
-                  <select name="bill_to_type">
-                    <option value="guest" ${normalizeText(commercialMeta.bill_to_type)!=='company' ? 'selected' : ''}>Guest</option>
-                    <option value="company" ${normalizeText(commercialMeta.bill_to_type)==='company' ? 'selected' : ''}>Company</option>
-                  </select>
-                </label>
-                <label class="booking-field">
-                  <span>Billing Company</span>
-                  <input name="bill_to_company_name" type="text" value="${bookingAdminShared.escapeHtml(normalizeText(commercialMeta.bill_to_company_name))}" placeholder="Corporate client / hotel / reseller">
-                </label>
-                <label class="booking-field">
-                  <span>Selling Model</span>
-                  <select name="selling_model">
-                    <option value="direct" ${sellingModel==='direct' ? 'selected' : ''}>Direct</option>
-                    <option value="gross_commission" ${sellingModel==='gross_commission' ? 'selected' : ''}>Gross Commission</option>
-                    <option value="net_rate" ${sellingModel==='net_rate' ? 'selected' : ''}>Net Rate</option>
-                  </select>
-                </label>
-                <label class="booking-field-full">
-                  <span>Selling Partner</span>
-                  <select name="agent_id">
-                    <option value="">No selling partner</option>
-                    ${agentOptions}
-                  </select>
-                </label>
-                <label class="booking-field">
-                  <span>Commission / Partner Amount</span>
-                  <input name="agent_commission_amount" type="number" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(agentAssignmentAmount||''))}" placeholder="0.00">
-                </label>
-                <div class="detail-callout">
-                  <strong>How this behaves</strong>
-                  <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(sellingModel==='gross_commission' ? 'SkyBook will treat the partner amount as commission payable to the selling company once the booking is confirmed.' : sellingModel==='net_rate' ? 'SkyBook stores this as a commercial flag for reseller / trade pricing without auto-creating a commission payable.' : 'Direct bookings do not create a selling partner payable.')}</p>
+                <div class="detail-rail-stats">
+                  <article class="detail-card">
+                    <span>Billing party</span>
+                    <strong>${bookingAdminShared.escapeHtml(getBookingBillToLabel(booking))}</strong>
+                    <p>${bookingAdminShared.escapeHtml(sellingModel==='net_rate' ? 'Net-rate company billing' : sellingModel==='gross_commission' ? 'Commission payable after sale' : 'Direct guest billing')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Internal margin</span>
+                    <strong>${bookingAdminShared.formatMoney(internalMargin,booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml('Booking total less agent commission and operator payout.')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Selling partner</span>
+                    <strong>${bookingAdminShared.escapeHtml(getBookingAgentName(booking))}</strong>
+                    <p>${bookingAdminShared.escapeHtml(agentCommission>0 ? bookingAdminShared.formatMoney(agentCommission,booking.currency||state.settings.currency) : 'No commission exposure yet.')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Operating partner</span>
+                    <strong>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</strong>
+                    <p>${bookingAdminShared.escapeHtml(operatorCommission>0 ? bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency) : 'No supplier payout recorded yet.')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Last changed</span>
+                    <strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.updated_at||booking.created_at))}</strong>
+                    <p>${bookingAdminShared.escapeHtml(lastChangedBy)}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Consultant owner</span>
+                    <strong>${bookingAdminShared.escapeHtml(getBookingConsultantOwnerName(booking))}</strong>
+                    <p>${bookingAdminShared.escapeHtml('Manager productivity and turnover reporting.')}</p>
+                  </article>
                 </div>
-                <div class="detail-inline-actions">
-                  <button class="booking-button" type="submit">Save Commercial Structure</button>
+              </section>
+            </div>
+            <div class="bm-sub-section" data-bm-sub-section="structure" hidden>
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Commercial structure</h4><p class="muted-copy">Set billing party, selling model, and selling partner for this booking.</p></div>
                 </div>
-              </form>
-            </section>
-            <section class="detail-section">
-              <div class="section-heading">
-                <div>
-                  <h4>Internal ownership</h4>
-                  <p class="muted-copy">Assign a consultant when needed so manager reporting can track productivity and turnover without making ownership mandatory.</p>
+                <form class="booking-inline-form booking-inline-form-wide" data-inline-form="commercial-structure">
+                  <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+                  <label class="booking-field">
+                    <span>Bill To</span>
+                    <select name="bill_to_type">
+                      <option value="guest" ${normalizeText(commercialMeta.bill_to_type)!=='company' ? 'selected' : ''}>Guest</option>
+                      <option value="company" ${normalizeText(commercialMeta.bill_to_type)==='company' ? 'selected' : ''}>Company</option>
+                    </select>
+                  </label>
+                  <label class="booking-field">
+                    <span>Billing Company</span>
+                    <input name="bill_to_company_name" type="text" value="${bookingAdminShared.escapeHtml(normalizeText(commercialMeta.bill_to_company_name))}" placeholder="Corporate client / hotel / reseller">
+                  </label>
+                  <label class="booking-field">
+                    <span>Selling Model</span>
+                    <select name="selling_model">
+                      <option value="direct" ${sellingModel==='direct' ? 'selected' : ''}>Direct</option>
+                      <option value="gross_commission" ${sellingModel==='gross_commission' ? 'selected' : ''}>Gross Commission</option>
+                      <option value="net_rate" ${sellingModel==='net_rate' ? 'selected' : ''}>Net Rate</option>
+                    </select>
+                  </label>
+                  <label class="booking-field-full">
+                    <span>Selling Partner</span>
+                    <select name="agent_id">
+                      <option value="">No selling partner</option>
+                      ${agentOptions}
+                    </select>
+                  </label>
+                  <label class="booking-field">
+                    <span>Commission / Partner Amount</span>
+                    <input name="agent_commission_amount" type="number" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(agentAssignmentAmount||''))}" placeholder="0.00">
+                  </label>
+                  <div class="detail-callout">
+                    <strong>How this behaves</strong>
+                    <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(sellingModel==='gross_commission' ? 'SkyBook will treat the partner amount as commission payable to the selling company once the booking is confirmed.' : sellingModel==='net_rate' ? 'SkyBook stores this as a commercial flag for reseller / trade pricing without auto-creating a commission payable.' : 'Direct bookings do not create a selling partner payable.')}</p>
+                  </div>
+                  <div class="detail-inline-actions">
+                    <button class="booking-button" type="submit">Save Commercial Structure</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+            <div class="bm-sub-section" data-bm-sub-section="partners" hidden>
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Operating partner & payout</h4><p class="muted-copy">Attach the assisting company we need to pay for delivering the tour.</p></div>
                 </div>
-                <div class="booking-chip">Manager reporting</div>
-              </div>
-              <form class="booking-inline-form" data-inline-form="ownership">
-                <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
-                <label class="booking-field-full">
-                  <span>Consultant owner</span>
-                  <select name="consultant_owner_id">
-                    <option value="">Unassigned</option>
-                    ${consultantOptions}
-                  </select>
-                </label>
-                <div class="detail-callout">
-                  <strong>Current owner</strong>
-                  <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(getBookingConsultantOwnerName(booking))}</p>
+                <form class="booking-inline-form" data-inline-form="operator-assignment">
+                  <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+                  <label class="booking-field-full">
+                    <span>Operating Partner</span>
+                    <select name="operator_id">
+                      <option value="">Unassigned</option>
+                      ${operatorOptions}
+                    </select>
+                  </label>
+                  <label class="booking-field">
+                    <span>Payout Amount</span>
+                    <input type="number" name="commission_amount" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(operatorAssignment?.commission_amount||''))}" placeholder="Leave blank for automatic calculation">
+                  </label>
+                  <div class="detail-callout">
+                    <strong>Automatic creditor calculation</strong>
+                    <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(operatorAssignment?.operator_id ? `${getBookingOperatorName(booking)} currently calculates to ${bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency)}.` : 'Choose an operating partner and leave payout blank to use the partner percentage or fixed take configured in Partner Center.')}</p>
+                  </div>
+                  <div class="detail-inline-actions">
+                    <button class="booking-button" type="submit">Save Operating Partner</button>
+                    <button class="booking-button ghost" type="button" data-booking-inline-action="clear-operator">Clear Operating Partner</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+            <div class="bm-sub-section" data-bm-sub-section="ownership" hidden>
+              <section class="detail-section">
+                <div class="section-heading">
+                  <div><h4>Internal ownership</h4><p class="muted-copy">Assign a consultant for manager productivity and turnover reporting.</p></div>
+                  <div class="booking-chip">Manager reporting</div>
                 </div>
-                <div class="detail-inline-actions">
-                  <button class="booking-button" type="submit">Save Ownership</button>
-                </div>
-              </form>
-            </section>
-            <section class="detail-section">
-              <h4>Commercials</h4>
-              <div class="detail-rail-stats">
-                <article class="detail-card">
-                  <span>Billing party</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingBillToLabel(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(sellingModel==='net_rate' ? 'Net-rate company billing' : sellingModel==='gross_commission' ? 'Commission payable after sale' : 'Direct guest billing')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Selling partner</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingAgentName(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(agentCommission>0 ? bookingAdminShared.formatMoney(agentCommission,booking.currency||state.settings.currency) : 'No commission exposure yet.')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Operating partner</span>
-                  <strong>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(operatorCommission>0 ? bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency) : 'No supplier payout recorded yet.')}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Payment timeline</span>
-                  <strong>${bookingAdminShared.escapeHtml(String(payments.length))}</strong>
-                  <p>${payments.length ? payments.map(item=>`${item.provider} · ${item.status}`).join(' / ') : 'No payment records yet.'}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Email log</span>
-                  <strong>${bookingAdminShared.escapeHtml(String(emails.length))}</strong>
-                  <p>${emails.length ? bookingAdminShared.escapeHtml(emails[0].subject||'Latest email queued') : 'No email has been logged yet.'}</p>
-                </article>
-                <article class="detail-card">
-                  <span>Last changed</span>
-                  <strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.updated_at||booking.created_at))}</strong>
-                  <p>${bookingAdminShared.escapeHtml(lastChangedBy)}</p>
-                </article>
-              </div>
-            </section>
-            <section class="detail-section">
-              <div class="section-heading">
-                <div>
-                  <h4>Operating partner & payout</h4>
-                  <p class="muted-copy">Attach the assisting company we need to pay for helping us deliver the tour.</p>
-                </div>
-              </div>
-              <form class="booking-inline-form" data-inline-form="operator-assignment">
-                <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
-                <label class="booking-field-full">
-                  <span>Operating Partner</span>
-                  <select name="operator_id">
-                    <option value="">Unassigned</option>
-                    ${operatorOptions}
-                  </select>
-                </label>
-                <label class="booking-field">
-                  <span>Payout Amount</span>
-                  <input type="number" name="commission_amount" min="0" step="0.01" value="${bookingAdminShared.escapeHtml(String(operatorAssignment?.commission_amount||''))}" placeholder="Leave blank for automatic calculation">
-                </label>
-                <div class="detail-callout">
-                  <strong>Automatic creditor calculation</strong>
-                  <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(operatorAssignment?.operator_id ? `${getBookingOperatorName(booking)} currently calculates to ${bookingAdminShared.formatMoney(operatorCommission,booking.currency||state.settings.currency)}.` : 'Choose an operating partner and leave payout blank to use the partner percentage or fixed take configured in Partner Center.')}</p>
-                </div>
-                <div class="detail-inline-actions">
-                  <button class="booking-button" type="submit">Save Operating Partner</button>
-                  <button class="booking-button ghost" type="button" data-booking-inline-action="clear-operator">Clear Operating Partner</button>
-                </div>
-              </form>
-            </section>
-          </div>
-
-          <div class="bm-section" data-bm-section="notes"${activeTab!=='notes'?' hidden':''}>
-            <section class="detail-section">
-              <div class="section-heading">
-                <div>
-                  <h4>Internal notes</h4>
-                  <p class="muted-copy">Capture office handover notes, payment exceptions, or guest service context without leaving the booking.</p>
-                </div>
-              </div>
-              <div class="template-chip-row">
-                ${noteTemplates.map(template=>`<button class="booking-button ghost compact-button" type="button" data-booking-inline-action="note-template" data-template-value="${bookingAdminShared.escapeHtml(template)}">${bookingAdminShared.escapeHtml(template)}</button>`).join('')}
-              </div>
-              <form class="booking-inline-form" data-inline-form="note">
-                <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
-                <label class="booking-field-full">
-                  <span>New note</span>
-                  <textarea name="note" rows="4" placeholder="Add an internal note for operations, finance, or guest care." autocomplete="off" required></textarea>
-                </label>
-                <label class="inline-check">
-                  <input type="checkbox" name="is_private" checked>
-                  <span>Keep this note private to internal staff.</span>
-                </label>
-                <div class="detail-inline-actions">
-                  <button class="booking-button" type="submit">Add Internal Note</button>
-                </div>
-              </form>
-            </section>
+                <form class="booking-inline-form" data-inline-form="ownership">
+                  <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
+                  <label class="booking-field-full">
+                    <span>Consultant owner</span>
+                    <select name="consultant_owner_id">
+                      <option value="">Unassigned</option>
+                      ${consultantOptions}
+                    </select>
+                  </label>
+                  <div class="detail-callout">
+                    <strong>Current owner</strong>
+                    <p class="detail-helper-copy">${bookingAdminShared.escapeHtml(getBookingConsultantOwnerName(booking))}</p>
+                  </div>
+                  <div class="detail-inline-actions">
+                    <button class="booking-button" type="submit">Save Ownership</button>
+                  </div>
+                </form>
+              </section>
+            </div>
           </div>
 
           <div class="bm-section" data-bm-section="actions"${activeTab!=='actions'?' hidden':''}>
@@ -4881,7 +4807,7 @@ const openReservationManagementScreen=(booking,{scroll=true}={})=>{
 const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   if(!booking)return
   state.preBookingTab=state.activeTab||'bookings'
-  if(booking.id!==state.selectedBookingId)state.bookingDetailTab='overview'
+  if(booking.id!==state.selectedBookingId)state.bookingDetailTab='client'
   state.selectedBookingId=booking.id
   switchTab('bookings')
   fillBookingForm(booking)
@@ -9369,6 +9295,16 @@ nodes.bookingDetail.addEventListener('click',event=>{
     state.bookingDetailTab=tab
     nodes.bookingDetail.querySelectorAll('.bm-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmNav===tab))
     nodes.bookingDetail.querySelectorAll('.bm-section').forEach(el=>{el.hidden=el.dataset.bmSection!==tab})
+    return
+  }
+  const subNavBtn=event.target.closest('[data-bm-sub-nav]')
+  if(subNavBtn){
+    const subTab=subNavBtn.dataset.bmSubNav
+    const container=subNavBtn.closest('.bm-section')
+    if(container){
+      container.querySelectorAll('.bm-sub-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmSubNav===subTab))
+      container.querySelectorAll('.bm-sub-section').forEach(el=>{el.hidden=el.dataset.bmSubSection!==subTab})
+    }
     return
   }
   const prevRow=event.target.closest('.client-prev-row[data-booking-id]')
