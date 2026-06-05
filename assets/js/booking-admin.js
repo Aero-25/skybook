@@ -1594,6 +1594,7 @@ const setupBookingRecordAccordions=()=>{
   shell?.querySelectorAll('.detail-section').forEach(section=>{
     if(section.classList.contains('booking-info-section'))return
     if(section.dataset.bookingAccordionReady==='true')return
+    if(section.closest('.bm-section'))return
     section.dataset.bookingAccordionReady='true'
     const key=getBookingRecordSectionKey(section)
     section.dataset.bookingSectionKey=key
