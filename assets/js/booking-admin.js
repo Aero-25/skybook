@@ -4045,6 +4045,7 @@ const renderBookingDetail=()=>{
           ${renderStatusBadge(booking.status)}
           ${booking.payment_status ? renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' ')) : ''}
         </div>
+        <span class="bm-mobile-tab-label">${{client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[activeTab]||activeTab}</span>
         <div class="bm-header-actions">
           <button type="button" class="booking-button ghost compact-button bm-back-btn" data-booking-inline-action="back-to-list">← Back</button>
           <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="edit-booking">Edit</button>
@@ -4054,7 +4055,12 @@ const renderBookingDetail=()=>{
         </div>
       </div>
       <div class="bm-body">
+        <div class="bm-nav-overlay" data-booking-inline-action="close-mobile-nav"></div>
         <nav class="bm-nav" aria-label="Booking sections">
+          <div class="bm-nav-mobile-hdr">
+            <span class="bm-nav-mobile-hdr-title">Navigation</span>
+            <button type="button" class="bm-nav-close-btn" data-booking-inline-action="close-mobile-nav">✕</button>
+          </div>
           <div class="bm-nav-card">
             <button type="button" class="bm-nav-item${activeTab==='client'?' is-active':''}" data-bm-nav="client">Client</button>
             <button type="button" class="bm-nav-item${activeTab==='finance'?' is-active':''}" data-bm-nav="finance">Finance</button>
@@ -4702,6 +4708,10 @@ const renderBookingDetail=()=>{
 
         </div>
       </div>
+      <button type="button" class="bm-mobile-fab" data-booking-inline-action="toggle-mobile-nav" aria-label="Navigation menu">
+        <svg class="bm-fab-icon-menu" width="22" height="22" viewBox="0 0 22 22" fill="none"><rect x="3" y="5" width="16" height="2" rx="1" fill="currentColor"/><rect x="3" y="10" width="16" height="2" rx="1" fill="currentColor"/><rect x="3" y="15" width="16" height="2" rx="1" fill="currentColor"/></svg>
+        <svg class="bm-fab-icon-close" width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      </button>
     </div>
   `
   setupBookingRecordAccordions()
@@ -9364,6 +9374,9 @@ nodes.bookingDetail.addEventListener('click',event=>{
     state.bookingDetailTab=tab
     nodes.bookingDetail.querySelectorAll('.bm-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmNav===tab))
     nodes.bookingDetail.querySelectorAll('.bm-section').forEach(el=>{el.hidden=el.dataset.bmSection!==tab})
+    const tabLabel=nodes.bookingDetail.querySelector('.bm-mobile-tab-label')
+    if(tabLabel)tabLabel.textContent={client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[tab]||tab
+    nodes.bookingDetail.querySelector('.bm-shell')?.classList.remove('is-nav-open')
     return
   }
   const subNavBtn=event.target.closest('[data-bm-sub-nav]')
@@ -9388,6 +9401,14 @@ nodes.bookingDetail.addEventListener('click',event=>{
   const inlineAction=actionElement?.dataset.bookingInlineAction
   const runDetailButtonAction=(task,errorMessage,label='Working')=>{
     void runWithActionLoading(actionButton,task,label).catch(error=>setAdminStatus(error.message||errorMessage,true))
+  }
+  if(inlineAction==='toggle-mobile-nav'){
+    nodes.bookingDetail.querySelector('.bm-shell')?.classList.toggle('is-nav-open')
+    return
+  }
+  if(inlineAction==='close-mobile-nav'){
+    nodes.bookingDetail.querySelector('.bm-shell')?.classList.remove('is-nav-open')
+    return
   }
   if(inlineAction==='back-to-list'){
     window.close()
