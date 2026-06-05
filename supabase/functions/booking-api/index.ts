@@ -115,19 +115,21 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 }
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
-  provisional:['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled'],
-  invoiced:['partially_paid','fully_paid','finalised','cancelled'],
-  partially_paid:['fully_paid','finalised','cancelled'],
-  fully_paid:['finalised','cancelled'],
-  finalised:['cancelled'],
+  // New two-field system
+  provisional:['confirmed','cancelled','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised'],
+  confirmed:['cancelled'],
   cancelled:['provisional','payment_pending'],
+  // Legacy statuses kept for backwards-compat during migration
+  payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled','confirmed'],
+  invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled','confirmed'],
+  invoiced:['partially_paid','fully_paid','finalised','cancelled','confirmed'],
+  partially_paid:['fully_paid','finalised','cancelled','confirmed'],
+  fully_paid:['finalised','cancelled','confirmed'],
+  finalised:['cancelled','confirmed'],
   draft:['provisional','payment_pending','cancelled'],
-  pending:['provisional','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  confirmed:['fully_paid','finalised','cancelled'],
-  awaiting_payment:['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  completed:['finalised','cancelled']
+  pending:['provisional','confirmed','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  awaiting_payment:['provisional','confirmed','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
+  completed:['finalised','cancelled','confirmed']
 }
 
 const DEFAULT_OPS_TEMPLATES={
@@ -3661,7 +3663,16 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     && Boolean(normalizeText(payload.reason))
   const isProvisionalWorkflow=workflowAction==='save_provisional'
     && nextStatus==='provisional'
-  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow){
+  const isConfirmBookingWorkflow=workflowAction==='confirm_booking'
+    && ['provisional','pending','awaiting_payment'].includes(normalizeText(existing.status))
+    && nextStatus==='confirmed'
+  const isMoveToInvoiceWorkflow=workflowAction==='move_to_invoice'
+    && normalizeText(existing.status)==='confirmed'
+    && nextPaymentStatus==='invoice'
+  const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
+    && normalizeText(existing.status)==='confirmed'
+    && ['invoice','invoiced','partially_paid','fully_paid'].includes(nextPaymentStatus)
+  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow&&!isConfirmBookingWorkflow&&!isMoveToInvoiceWorkflow&&!isUpdatePaymentStatusWorkflow){
     throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, reinstate, or automation actions.')
   }
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'

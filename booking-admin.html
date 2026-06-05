@@ -603,12 +603,11 @@
               <div class="booking-field-full booking-quick-filter-bar" aria-label="Booking quick filters">
                 <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All bookings <span data-filter-count="all">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="payment_pending">Payment Pending <span data-filter-count="payment_pending">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoiced">Invoiced <span data-filter-count="invoiced">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Partially Paid <span data-filter-count="partially_paid">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Fully Paid <span data-filter-count="fully_paid">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="finalised">Finalised <span data-filter-count="finalised">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="cancelled">Cancelled <span data-filter-count="cancelled">0</span></button>
                 <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset filters</button>
               </div>
@@ -641,12 +640,7 @@
                     <label>Booking Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
                     <div class="status-pill-filter" id="bookingFilterStatus">
                       <label class="status-pill-option"><input type="checkbox" value="provisional"><span class="status-pill-label status-pill-provisional">Provisional</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="payment_pending"><span class="status-pill-label status-pill-payment-pending">Payment Pending</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="invoice"><span class="status-pill-label status-pill-invoice">Invoice</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="invoiced"><span class="status-pill-label status-pill-invoiced">Invoiced</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="partially_paid"><span class="status-pill-label status-pill-partially-paid">Partially Paid</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="fully_paid"><span class="status-pill-label status-pill-fully-paid">Fully Paid</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="finalised"><span class="status-pill-label status-pill-finalised">Finalised &amp; Departed</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="confirmed"><span class="status-pill-label status-pill-confirmed">Confirmed</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="cancelled"><span class="status-pill-label status-pill-cancelled">Cancelled</span></label>
                     </div>
                   </div>
@@ -654,12 +648,10 @@
                     <label for="bookingFilterPaymentStatus">Payment Status</label>
                     <select id="bookingFilterPaymentStatus">
                       <option value="">All payment states</option>
-                      <option value="pending">Pending</option>
-                      <option value="unpaid">Unpaid</option>
-                      <option value="paid">Paid</option>
+                      <option value="invoice">Invoice</option>
+                      <option value="invoiced">Invoiced</option>
                       <option value="partially_paid">Partially Paid</option>
-                      <option value="refunded">Refunded</option>
-                      <option value="cancelled">Cancelled</option>
+                      <option value="fully_paid">Fully Paid</option>
                     </select>
                   </div>
                   <div class="booking-field">
@@ -1428,6 +1420,7 @@
                 <option value="iventure_website">Iventure Website</option>
                 <option value="activity_bridge">Activity Bridge</option>
                 <option value="whatsapp">WhatsApp</option>
+                <option value="sms">SMS</option>
                 <option value="email">Email</option>
                 <option value="phone">Phone</option>
                 <option value="walk_in">Walk-In</option>
@@ -1441,17 +1434,19 @@
             <label class="booking-field">
               <span>Status</span>
               <select id="adminBookingStatusField">
+                <option value="provisional">Provisional</option>
                 <option value="confirmed">Confirmed</option>
                 <option value="cancelled">Cancelled</option>
-                <option value="provisional">Provisional</option>
               </select>
             </label>
             <label class="booking-field">
               <span>Payment Status</span>
               <select id="adminBookingPaymentStatusField">
-                <option value="pending">Pending</option>
-                <option value="refunded">Refunded</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="">— Not set —</option>
+                <option value="invoice">Invoice</option>
+                <option value="invoiced">Invoiced</option>
+                <option value="partially_paid">Partially Paid</option>
+                <option value="fully_paid">Fully Paid</option>
               </select>
             </label>
             <label class="booking-field">
@@ -1548,7 +1543,6 @@
               <p class="field-hint" style="margin:0;font-size:11px">Only fill this to override the calculated price above.</p>
             </label>
             <div class="booking-field-full booking-action-row">
-              <button class="booking-button ghost" type="button" id="adminBookingPreviewEmailButton">Preview Email</button>
               <button class="booking-button ghost" type="button" id="adminBookingSaveProvisionalButton">Save as Provisional</button>
               <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
             </div>
@@ -1556,34 +1550,6 @@
         </article>
       </div>
 
-        <div class="admin-modal-shell" id="emailPreviewModal" hidden aria-hidden="true">
-          <div class="admin-modal-backdrop" aria-hidden="true"></div>
-          <article class="booking-panel admin-modal-panel" role="dialog" aria-modal="true" aria-labelledby="emailPreviewTitle" style="max-width:640px;width:100%">
-            <div class="booking-modal-header">
-              <h2 class="booking-panel-title" id="emailPreviewTitle">Email Preview</h2>
-              <button class="admin-modal-close" id="emailPreviewClose" type="button" aria-label="Close email preview">X</button>
-            </div>
-            <div style="padding:1rem 1.5rem 1.5rem">
-              <label style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
-                <span style="white-space:nowrap;font-weight:600;font-size:.875rem">Template:</span>
-                <select id="emailPreviewTemplate" style="flex:1;padding:.4rem .6rem;border:1px solid var(--admin-border,#e5e7eb);border-radius:.375rem;font-size:.875rem">
-                  <option value="booking_received">Booking Received (auto-sent to guest)</option>
-                  <option value="payment_request">Payment Request</option>
-                  <option value="booking_confirmed">Booking Confirmed</option>
-                  <option value="payment_received">Payment Received</option>
-                  <option value="cancellation_refund">Cancellation / Refund</option>
-                  <option value="status_changed">Status Changed</option>
-                </select>
-              </label>
-              <p style="font-size:.75rem;color:var(--admin-muted,#6b7280);margin-bottom:1rem">Preview only — no email is sent from here.</p>
-              <div style="background:var(--admin-surface-2,#f9fafb);border:1px solid var(--admin-border,#e5e7eb);border-radius:.5rem;padding:1rem 1.25rem;font-size:.85rem;line-height:1.7">
-                <strong id="emailPreviewSubject" style="display:block;margin-bottom:.5rem"></strong>
-                <hr style="border:none;border-top:1px solid var(--admin-border,#e5e7eb);margin:.5rem 0 .75rem">
-                <pre id="emailPreviewBody" style="white-space:pre-wrap;margin:0;font-family:inherit"></pre>
-              </div>
-            </div>
-          </article>
-        </div>
 
         <div class="admin-modal-shell" id="serviceModal" hidden aria-hidden="true">
           <div class="admin-modal-backdrop" aria-hidden="true"></div>

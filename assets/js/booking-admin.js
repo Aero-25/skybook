@@ -586,12 +586,6 @@ const nodes={
   reviewsFilterStatus:document.getElementById('reviewsFilterStatus'),
   reviewsFilterBrand:document.getElementById('reviewsFilterBrand'),
   reviewsCopyLink:document.getElementById('reviewsCopyLink'),
-  bookingPreviewEmailButton:document.getElementById('adminBookingPreviewEmailButton'),
-  emailPreviewModal:document.getElementById('emailPreviewModal'),
-  emailPreviewClose:document.getElementById('emailPreviewClose'),
-  emailPreviewSubject:document.getElementById('emailPreviewSubject'),
-  emailPreviewBody:document.getElementById('emailPreviewBody'),
-  emailPreviewTemplate:document.getElementById('emailPreviewTemplate'),
   sessionTimeoutBanner:document.getElementById('sessionTimeoutBanner'),
   sessionTimeoutMessage:document.getElementById('sessionTimeoutMessage'),
   sessionTimeoutRenew:document.getElementById('sessionTimeoutRenew'),
@@ -1508,14 +1502,13 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
   if(normalized==='provisional')return 'is-provisional'
-  if(normalized==='payment_pending')return 'is-payment-pending'
+  if(normalized==='confirmed')return 'is-confirmed'
   if(normalized==='invoice')return 'is-invoice'
   if(normalized==='invoiced')return 'is-invoiced'
   if(normalized==='partially_paid')return 'is-partially-paid'
   if(normalized==='fully_paid')return 'is-fully-paid'
-  if(normalized==='finalised')return 'is-finalised-status'
   if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
-  if(['draft','pending','awaiting_payment','confirmed'].includes(normalized))return 'is-info'
+  if(['draft','pending','awaiting_payment'].includes(normalized))return 'is-neutral'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
 }
@@ -1524,14 +1517,16 @@ const isCruiseLinerBooking=booking=>Boolean(booking?.metadata?.cruise_liner)
 const getStatusRowClass=booking=>{
   if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
+  const payment=normalizeText(booking?.payment_status||'')
   if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
   if(status==='provisional')return 'status-provisional'
-  if(status==='payment_pending')return 'status-payment-pending'
-  if(status==='invoice')return 'status-invoice'
-  if(status==='invoiced')return 'status-invoiced'
-  if(status==='partially_paid')return 'status-partially-paid'
-  if(status==='fully_paid')return 'status-fully-paid'
-  if(status==='finalised')return 'status-finalised'
+  if(status==='confirmed'){
+    if(payment==='invoice')return 'status-confirmed-invoice'
+    if(payment==='invoiced')return 'status-confirmed-invoiced'
+    if(payment==='partially_paid')return 'status-confirmed-partially-paid'
+    if(payment==='fully_paid')return 'status-confirmed-fully-paid'
+    return 'status-confirmed'
+  }
   return ''
 }
 
@@ -2025,15 +2020,20 @@ const bookingHasOpenOperationalWork=booking=>{
   const openTasks=getBookingTasks(booking?.id).some(task=>String(task.status||'')==='open')
   const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
   const needsOperator=['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
-  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','unpaid','partially_paid'].includes(paymentStatus)
+  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','invoice','invoiced','partially_paid'].includes(paymentStatus)
 }
 
 const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   const key=normalizeText(filter)
   if(!key)return true
-  const status=String(booking?.status||'').toLowerCase()
+  const status=normalizeText(booking?.status||'')
+  const payment=normalizeText(booking?.payment_status||'')
   if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
-  return status===key
+  if(key==='provisional')return status==='provisional'
+  if(key==='confirmed')return status==='confirmed'
+  // payment status quick filters — match confirmed bookings by payment status
+  if(['invoice','invoiced','partially_paid','fully_paid'].includes(key))return status==='confirmed'&&payment===key
+  return status===key||payment===key
 }
 
 const updateBookingQuickFilterBar=()=>{
@@ -2045,12 +2045,11 @@ const updateBookingQuickFilterBar=()=>{
   const countMap={
     all:operationalBookings.length,
     provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
-    payment_pending:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'payment_pending')).length,
+    confirmed:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'confirmed')).length,
     invoice:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoice')).length,
     invoiced:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoiced')).length,
     partially_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'partially_paid')).length,
     fully_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'fully_paid')).length,
-    finalised:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'finalised')).length,
     cancelled:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'cancelled')).length
   }
   Object.entries(countMap).forEach(([key,count])=>{
@@ -2922,7 +2921,7 @@ const renderDashboard=()=>{
   const todayArrivals=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,todayKey))
   const tomorrowPrep=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,tomorrowKey))
   const pendingConfirmations=dashboardBookings.filter(item=>item.status==='pending')
-  const unpaidBookings=dashboardBookings.filter(item=>['pending','unpaid','partially_paid','authorized'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
+  const unpaidBookings=dashboardBookings.filter(item=>['invoice','invoiced','partially_paid'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
   const unpaidExposure=unpaidBookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
   const refundExposure=sumAmounts(state.refunds,'amount')
   const operatorPayoutsDue=state.officeInvoices.filter(invoice=>!['paid','settled','cancelled'].includes(String(invoice.status||'').toLowerCase()))
@@ -3277,10 +3276,17 @@ const syncBookingAutocomplete=()=>{
   syncAutocompleteDatalist('agentDatalist',agentValues)
 }
 
-const getStatusColor=(status,isCruise=false)=>{
+const getStatusColor=(status,isCruise=false,paymentStatus='')=>{
   if(isCruise)return '#7c3aed'
-  const map={provisional:'#7f1d1d',payment_pending:'#7c2d12',invoice:'#854d0e',invoiced:'#78350f',partially_paid:'#166534',fully_paid:'#14532d',finalised:'#1e3a8a',cancelled:'#4b5563',refunded:'#4b5563',failed:'#4b5563'}
-  return map[normalizeText(status)]||'#94a3b8'
+  if(normalizeText(status)==='provisional')return '#ca8a04'
+  if(['cancelled','refunded','failed','no_show'].includes(normalizeText(status)))return '#9ca3af'
+  // confirmed — color by payment status background
+  const pm=normalizeText(paymentStatus||status)
+  if(pm==='invoice')return '#7c3aed'
+  if(pm==='invoiced')return '#16a34a'
+  if(pm==='partially_paid')return '#15803d'
+  if(pm==='fully_paid')return '#2563eb'
+  return '#1e293b'
 }
 
 const openCalendarDayPanel=dateKey=>{
@@ -3679,42 +3685,45 @@ const openBookingChangelogPage=bookingId=>{
 
 const repairStatusConflicts=async()=>{
   const btn=document.getElementById('repairStatusConflictsButton')
+  // Find bookings with legacy statuses that need migrating to the new two-field system
   const conflicted=state.bookings.filter(b=>{
     const status=normalizeText(b.status||'')
-    const payment=normalizeText(b.payment_status||'')
-    const unpaidPayment=['pending','payment_pending','unpaid'].includes(payment)
-    const overstatedStatus=['fully_paid','finalised','partially_paid'].includes(status)
-    return overstatedStatus && unpaidPayment
+    return['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','pending','awaiting_payment','completed'].includes(status)
   })
   if(!conflicted.length){
-    showToast('No status conflicts found.','success')
+    showToast('No legacy status conflicts found.','success')
     return
   }
-  const confirmed=window.confirm(`Found ${conflicted.length} booking${conflicted.length>1?'s':''} with conflicting status and payment. Fix them all to "Invoiced"?`)
-  if(!confirmed)return
+  const doFix=window.confirm(`Found ${conflicted.length} booking${conflicted.length>1?'s':''} with legacy statuses. Migrate them to the new Booking / Payment status system?`)
+  if(!doFix)return
   if(btn){btn.disabled=true;btn.textContent=`Repairing 0 / ${conflicted.length}...`}
   let fixed=0
   let errors=0
   for(const booking of conflicted){
+    const s=normalizeText(booking.status||'')
+    let newStatus='confirmed'
+    let newPayment='invoice'
+    if(s==='payment_pending'){newStatus='confirmed';newPayment='invoice'}
+    else if(s==='invoice'){newStatus='confirmed';newPayment='invoice'}
+    else if(s==='invoiced'){newStatus='confirmed';newPayment='invoiced'}
+    else if(s==='partially_paid'){newStatus='confirmed';newPayment='partially_paid'}
+    else if(s==='fully_paid'){newStatus='confirmed';newPayment='fully_paid'}
+    else if(s==='finalised'||s==='completed'){newStatus='confirmed';newPayment='fully_paid'}
+    else if(s==='pending'||s==='awaiting_payment'){newStatus='provisional';newPayment=''}
     try{
       await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-        body:{status:'invoiced',payment_status:booking.payment_status||'pending'}
+        body:{status:newStatus,payment_status:newPayment,workflow_action:'system_automation'}
       })
       fixed++
       if(btn)btn.textContent=`Repairing ${fixed} / ${conflicted.length}...`
-    }catch{
-      errors++
-    }
+    }catch{errors++}
   }
   if(btn){btn.disabled=false;btn.textContent='Repair Status Conflicts'}
   await loadAdminData()
-  if(errors){
-    showToast(`Repaired ${fixed} bookings. ${errors} failed — check the console.`,'error')
-  }else{
-    showToast(`Repaired ${fixed} booking${fixed>1?'s':''} to Invoiced status.`,'success')
-  }
+  if(errors){showToast(`Migrated ${fixed} bookings. ${errors} failed.`,'error')}
+  else{showToast(`Migrated ${fixed} booking${fixed>1?'s':''} to new status system.`,'success')}
 }
 
 const renderBookings=()=>{
@@ -4389,18 +4398,18 @@ const renderBookingDetail=()=>{
             </div>
             <div class="booking-function-group">
               <button type="button" data-booking-inline-action="edit-booking">Edit Booking Details</button>
+              ${normalizeText(booking.status)==='provisional' ? `<button type="button" data-booking-inline-action="confirm-booking" ${canConfirmBooking(booking)?'':'disabled title="Complete guest name, tour, brand, and date before confirming"'}>${canConfirmBooking(booking)?'Confirm Booking':'Confirm Booking (details missing)'}</button>` : ''}
               <button type="button" data-booking-inline-action="generate-payment-link">Generate Payment Link</button>
               ${bookingPaymentLink ? '<button type="button" data-booking-inline-action="copy-payment-link">Copy Payment Link</button>' : ''}
               ${canRecordPayments ? '<button type="button" data-booking-inline-action="load-payment" data-loading-exempt="true">Load Manual Payment</button>' : ''}
               ${canIssueClientInvoices ? '<button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>' : ''}
-              ${normalizeText(booking.status)==='confirmed' ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
+              ${normalizeText(booking.status)==='confirmed'&&!['invoice','invoiced','partially_paid','fully_paid'].includes(normalizeText(booking.payment_status||'')) ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
               <button type="button" data-booking-inline-action="open-changelog" data-loading-exempt="true">Open Changelog</button>
               <button type="button" data-booking-inline-action="duplicate">Duplicate Booking</button>
               <button type="button" data-booking-inline-action="reschedule">Reschedule</button>
-              ${isFinalised ? '<button type="button" data-booking-inline-action="memories-focus" data-loading-exempt="true">Upload Tour Memories</button>' : ''}
               <button type="button" class="is-danger-action" data-booking-action="cancelled">Cancel Booking</button>
             </div>
-            <p class="booking-function-note">Status updates are handled by payment, cancellation, reschedule, and automation workflows.</p>
+            <p class="booking-function-note">Edit booking details to update status and payment status directly.</p>
           </div>
         </section>
         <section class="detail-section" id="booking-finance-panel">
@@ -7034,13 +7043,9 @@ const printArrivalsForDate=(selectedDate='')=>{
 
   const statusColour=status=>{
     const s=normalizeText(status)
-    if(s==='provisional')return '#ef4444'
-    if(s==='payment_pending')return '#f97316'
-    if(s==='invoice')return '#facc15'
-    if(s==='invoiced')return '#eab308'
-    if(s==='partially_paid')return '#86efac'
-    if(s==='fully_paid')return '#22c55e'
-    if(s==='finalised')return '#3b82f6'
+    if(s==='provisional')return '#ca8a04'
+    if(s==='confirmed')return '#1e293b'
+    if(['cancelled','refunded','failed','no_show'].includes(s))return '#9ca3af'
     return '#94a3b8'
   }
 
@@ -7994,14 +7999,21 @@ const updateAdminPricePreview=()=>{
 
 const validateBookingForm=()=>{
   const errors=[]
-  const isProvisional=nodes.bookingStatus?.value==='provisional'
-  if(isProvisional)return errors
+  const wasEditing=Boolean(state.selectedBookingId)
+  const requestedStatus=nodes.bookingStatus?.value||''
+  // New bookings always save as provisional — skip validation
+  if(!wasEditing)return errors
+  // Provisional edits skip validation
+  if(requestedStatus==='provisional')return errors
+  // Confirmed bookings require key fields
   if(!nodes.bookingBrand?.value)
     errors.push({label:'Brand',message:'Select a brand (True Travel or Iventure) before saving.',fieldId:'adminBookingBrand'})
   if(!nodes.bookingService?.value)
     errors.push({label:'Tour / Service',message:'Please select a tour before saving.',fieldId:'adminBookingService'})
   if(!nodes.bookingCustomerName?.value.trim())
-    errors.push({label:'Guest Name',message:'Guest name is required.',fieldId:'adminBookingCustomerName'})
+    errors.push({label:'Guest Name',message:'Guest name is required to confirm a booking.',fieldId:'adminBookingCustomerName'})
+  if(!nodes.bookingDate?.value)
+    errors.push({label:'Tour Date',message:'A tour date is required to confirm a booking.',fieldId:'adminBookingDate'})
   const email=nodes.bookingCustomerEmail?.value.trim()||''
   if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.toLowerCase()))
     errors.push({label:'Customer Email',message:'Enter a valid email address.',fieldId:'adminBookingCustomerEmail'})
@@ -8009,6 +8021,16 @@ const validateBookingForm=()=>{
   if(phone&&phone.replace(/[^\d+]/g,'').length<7)
     errors.push({label:'Customer Phone',message:'Enter a valid phone or WhatsApp number.',fieldId:'adminBookingCustomerPhone'})
   return errors
+}
+
+const canConfirmBooking=booking=>{
+  if(!booking)return false
+  if(normalizeText(booking.status)==='cancelled')return false
+  if(!booking.brand_code)return false
+  if(!booking.service_slug&&!booking.service_name)return false
+  if(!String(booking.customer_name||'').trim())return false
+  if(!booking.preferred_date)return false
+  return true
 }
 
 const handleBookingSave=async event=>{
@@ -8045,8 +8067,8 @@ const handleBookingSave=async event=>{
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
-    status:(!wasEditing||isReservationAcceptanceWorkflow) ? requestedStatus : (existingBooking?.status||requestedStatus),
-    payment_status:(!wasEditing||isReservationAcceptanceWorkflow) ? requestedPaymentStatus : (existingBooking?.payment_status||requestedPaymentStatus),
+    status:!wasEditing ? 'provisional' : requestedStatus,
+    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'invoice' : requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -8813,10 +8835,10 @@ nodes.reservationPipeline?.addEventListener('click',event=>{
   if(!stage)return
   if(stage==='new')switchTab('reservations')
   else switchTab('bookings')
-  if(stage==='reviewed')setStatusFilterValues(['payment_pending','invoice','invoiced'])
-  if(stage==='awaiting')setStatusFilterValues(['payment_pending'])
+  if(stage==='reviewed')setStatusFilterValues(['invoice','invoiced'])
+  if(stage==='awaiting')setStatusFilterValues(['invoice'])
   if(stage==='confirmed')setStatusFilterValues(['fully_paid'])
-  if(stage==='completed')setStatusFilterValues(['finalised'])
+  if(stage==='completed')setStatusFilterValues(['fully_paid'])
   if(stage==='paid'&&nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value='paid'
   renderBookings()
 })
@@ -9298,14 +9320,25 @@ nodes.bookingDetail.addEventListener('click',event=>{
     }
     return
   }
+  if(inlineAction==='confirm-booking'){
+    const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
+    if(!booking){setAdminStatus('No booking selected.',true);return}
+    if(!canConfirmBooking(booking)){setAdminStatus('Complete guest name, tour, brand, and date before confirming.',true);return}
+    runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      method:'PATCH',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{status:'confirmed',payment_status:'invoice',workflow_action:'confirm_booking'}
+    }).then(()=>createActivityNote(state.selectedBookingId,'Booking confirmed.')).then(()=>refreshAdmin('Booking confirmed.')),'Confirmation failed.','Confirming booking')
+    return
+  }
   if(inlineAction==='move-to-invoice'){
     const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
     if(!booking){setAdminStatus('No booking selected.',true);return}
     runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{status:'invoice',workflow_action:'move_to_invoice'}
-    }).then(()=>createActivityNote(state.selectedBookingId,'Booking moved to Invoice status.')).then(()=>refreshAdmin('Booking moved to Invoice.')),'Status update failed.','Moving to Invoice')
+      body:{payment_status:'invoice',workflow_action:'move_to_invoice'}
+    }).then(()=>createActivityNote(state.selectedBookingId,'Booking moved to Invoice.')).then(()=>refreshAdmin('Booking moved to Invoice.')),'Status update failed.','Moving to Invoice')
     return
   }
   if(inlineAction==='reinstate-booking'){
@@ -9323,7 +9356,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
         await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
           method:'PATCH',
           headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-          body:{status:'pending',payment_status:'pending',reason:values.reason,workflow_action:'reinstate'}
+          body:{status:'provisional',payment_status:'',reason:values.reason,workflow_action:'reinstate'}
         })
         await createActivityNote(state.selectedBookingId,`Booking reinstated: ${values.reason}`)
         await refreshAdmin('Booking reinstated successfully.')
@@ -9603,48 +9636,10 @@ document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)void syncAdminInBackground()
 })
 
-// ── Email preview ──────────────────────────────────────────────────────────
-const buildEmailPreviewVars=booking=>{
-  const brandCode=booking?.brand_code||'true-travel'
-  const currency=booking?.currency||state.settings.currency||'NAD'
-  return {
-    booking_reference:booking?.reference||'',
-    customer_name:booking?.customer_name||'',
-    service_name:booking?.service_name||'',
-    booking_date:booking?.preferred_date||'',
-    total_amount:booking ? bookingAdminShared.formatMoney(booking.total_amount||0,currency) : '',
-    payment_status:booking?.payment_status||'',
-    brand_name:getBrandName(brandCode),
-    brand_support_email:getBrandSupportEmailSetting(brandCode,state.settings.supportEmail||'bookings@truetravelnam.net'),
-    brand_support_phone:state.settings.supportPhone||''
-  }
-}
-const renderEmailPreview=()=>{
-  if(!nodes.emailPreviewTemplate||!nodes.emailPreviewSubject||!nodes.emailPreviewBody)return
-  const templateKey=nodes.emailPreviewTemplate.value||'booking_received'
-  const mergedTemplates={...bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),...(state.emailTemplates||{})}
-  const template=mergedTemplates[templateKey]||{subject:'',body:''}
-  const booking=state.bookings.find(b=>b.id===state.selectedBookingId)||null
-  const vars=buildEmailPreviewVars(booking)
-  nodes.emailPreviewSubject.textContent=bookingAdminShared.renderTemplate(template.subject,vars)
-  nodes.emailPreviewBody.textContent=bookingAdminShared.renderTemplate(template.body,vars)
-}
-nodes.bookingPreviewEmailButton?.addEventListener('click',()=>{
-  if(!nodes.emailPreviewModal)return
-  nodes.emailPreviewModal.hidden=false
-  nodes.emailPreviewModal.setAttribute('aria-hidden','false')
-  renderEmailPreview()
-})
 nodes.bookingSaveProvisionalButton?.addEventListener('click',()=>{
   if(nodes.bookingStatus)nodes.bookingStatus.value='provisional'
   nodes.bookingForm?.requestSubmit()
 })
-nodes.emailPreviewClose?.addEventListener('click',()=>{
-  if(!nodes.emailPreviewModal)return
-  nodes.emailPreviewModal.hidden=true
-  nodes.emailPreviewModal.setAttribute('aria-hidden','true')
-})
-nodes.emailPreviewTemplate?.addEventListener('change',renderEmailPreview)
 
 // ── Session auto-renewal (silent, no banner) ────────────────────────────────
 let sessionTimeoutCheckTimer=null
