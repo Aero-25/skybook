@@ -893,42 +893,79 @@ body.skybook-auth-page{
 .bm-content .bm-sub-section>*+*{margin-top:16px;}
 .client-profile-card{
   display:flex;
-  gap:14px;
-  padding:16px;
-  background:linear-gradient(135deg,rgba(219,234,254,.55),rgba(224,242,254,.45));
-  border:1px solid rgba(30,91,147,.14);
-  border-radius:16px;
+  gap:18px;
+  padding:22px 24px;
+  background:#ffffff;
+  border:1px solid rgba(200,215,235,.6);
+  border-radius:20px;
   margin-bottom:16px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(180,200,225,.35) inset,
+    0 4px 0 rgba(170,195,225,.28),
+    0 8px 20px rgba(30,70,140,.09),
+    0 2px 6px rgba(30,70,140,.06);
+  transform:translateY(0);
+  transition:box-shadow .18s,transform .18s;
+  position:relative;
+}
+.client-profile-card::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:20px;
+  background:linear-gradient(180deg,rgba(255,255,255,.7) 0%,rgba(240,247,255,.2) 100%);
+  pointer-events:none;
+}
+.client-profile-card:hover{
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(180,200,225,.35) inset,
+    0 6px 0 rgba(155,185,220,.32),
+    0 14px 32px rgba(30,70,140,.13),
+    0 4px 10px rgba(30,70,140,.08);
+  transform:translateY(-2px);
 }
 .client-avatar{
-  width:46px;
-  height:46px;
+  width:54px;
+  height:54px;
   border-radius:50%;
-  background:linear-gradient(135deg,#1769aa,#2b8fd8);
+  background:linear-gradient(145deg,#1a6dd8 0%,#1055bb 100%);
   color:#fff;
-  font-size:16px;
+  font-size:18px;
   font-weight:800;
   display:flex;
   align-items:center;
   justify-content:center;
   flex-shrink:0;
   letter-spacing:-.01em;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.3) inset,
+    0 3px 0 rgba(10,45,110,.35),
+    0 6px 16px rgba(26,109,216,.35);
+  position:relative;
+  z-index:1;
 }
 .client-profile-body{
   flex:1;
   min-width:0;
+  position:relative;
+  z-index:1;
 }
 .client-profile-name{
-  margin:0 0 2px;
-  font-size:15px;
-  font-weight:700;
-  color:var(--booking-ink);
+  margin:0 0 3px;
+  font-size:16px;
+  font-weight:800;
+  color:#0b1d38;
+  letter-spacing:-.02em;
+  font-family:'Manrope',sans-serif;
 }
 .client-profile-contact{
-  margin:0 0 8px;
-  font-size:12px;
-  color:var(--booking-muted);
-  line-height:1.5;
+  margin:0 0 10px;
+  font-size:12.5px;
+  color:#2c3e5a;
+  line-height:1.55;
+  font-weight:500;
 }
 .client-profile-chips{
   display:flex;
@@ -940,26 +977,33 @@ body.skybook-auth-page{
 .client-stat-chip{
   display:inline-flex;
   align-items:center;
-  padding:3px 10px;
+  padding:4px 12px;
   border-radius:999px;
   font-size:11px;
   font-weight:700;
-  background:rgba(30,91,147,.09);
-  color:var(--booking-ocean);
+  background:rgba(30,91,147,.08);
+  color:#1055bb;
   letter-spacing:.04em;
+  border:1px solid rgba(30,91,147,.12);
+  box-shadow:0 1px 3px rgba(30,91,147,.08),0 1px 0 rgba(255,255,255,.8) inset;
 }
-.client-stat-chip.is-spend{background:rgba(21,128,61,.09);color:#15803d}
+.client-stat-chip.is-spend{
+  background:rgba(21,128,61,.08);
+  color:#15803d;
+  border-color:rgba(21,128,61,.15);
+  box-shadow:0 1px 3px rgba(21,128,61,.1),0 1px 0 rgba(255,255,255,.8) inset;
+}
 .client-prev-bookings{
-  margin-top:8px;
-  border-top:1px solid rgba(30,91,147,.10);
-  padding-top:8px;
+  margin-top:10px;
+  border-top:1px solid rgba(30,70,140,.08);
+  padding-top:10px;
 }
 .client-prev-label{
   font-size:10px;
-  font-weight:700;
+  font-weight:800;
   letter-spacing:.12em;
   text-transform:uppercase;
-  color:var(--booking-muted);
+  color:#6b82a0;
   margin-bottom:6px;
 }
 .client-prev-row{
@@ -967,15 +1011,15 @@ body.skybook-auth-page{
   grid-template-columns:90px 1fr auto auto;
   align-items:center;
   gap:8px;
-  padding:4px 6px;
-  border-radius:6px;
+  padding:5px 8px;
+  border-radius:8px;
   font-size:12px;
-  color:var(--booking-muted);
+  color:#4a6080;
   cursor:pointer;
-  transition:background .1s;
+  transition:background .12s,color .12s;
 }
-.client-prev-row:hover{background:rgba(30,91,147,.06);color:var(--booking-ink)}
-.client-prev-row > :first-child{font-weight:600;color:var(--booking-ocean);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.client-prev-row:hover{background:rgba(26,109,216,.07);color:#0b1d38}
+.client-prev-row > :first-child{font-weight:700;color:#1055bb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .client-prev-row > :nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .client-prev-row > :nth-child(3){white-space:nowrap;font-size:11px}
 .panel-switcher-group{
