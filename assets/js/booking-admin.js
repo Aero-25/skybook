@@ -9390,9 +9390,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
     void runWithActionLoading(actionButton,task,label).catch(error=>setAdminStatus(error.message||errorMessage,true))
   }
   if(inlineAction==='back-to-list'){
-    const workspace=nodes.bookingDetail?.closest('.booking-workspace')
-    workspace?.classList.remove('is-detail-open')
-    state.selectedBookingId=''
+    window.close()
     return
   }
   if(inlineAction==='toggle-functions'){
