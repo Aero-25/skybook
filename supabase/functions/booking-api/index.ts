@@ -3471,6 +3471,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     preferred_date:normalizeText(payload.preferred_date) || null,
     confirmed_date:bookingStatus==='confirmed' ? (normalizeText(payload.preferred_date)||null) : null,
     quantity:finalPricingCreate.quantity,
+    adult_quantity:Number(payload.adult_quantity||0)||null,
+    child_quantity:Number(payload.child_quantity||0)||null,
+    infant_quantity:Number(payload.infant_quantity||requestMetadata.infant_quantity||0)||null,
     currency_code:service.currency,
     subtotal_amount:finalPricingCreate.subtotalAmount,
     addons_amount:0-finalPricingCreate.discountAmount,
@@ -3483,6 +3486,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     lookup_email:customer.email,
     metadata:{
       ...requestMetadata,
+      ...(normalizeText(payload.guide_name) ? {guide_name:normalizeText(payload.guide_name)} : {}),
       source:bookingSource,
       brand_code:String(brand.code || brandCode),
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
@@ -3546,7 +3550,34 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     createdBy:userId || null
   })
   const consultantWhatsApp=normalizeText(brand.support_whatsapp) || '+264813224270'
-  const waBody=`New ${normalizeText(brand.name)||'True Travel'} booking!\n\nCustomer: ${normalizeText(customer.full_name)||'Guest'}\nPhone: ${normalizeText(customer.phone)||'Not provided'}\nTour: ${normalizeText(service.name)||'Service'}\nDate: ${normalizeText(payload.preferred_date)||'TBC'}\nGuests: ${pricing.quantity}\nTotal: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}\nRef: ${reference}`
+  const waMeta=normalizeJsonRecord(requestMetadata)
+  const waOpDetails=normalizeJsonRecord(waMeta.operational_details??waMeta)
+  const waAdults=Number(payload.adult_quantity||0)
+  const waChildren=Number(payload.child_quantity||0)
+  const waPaxLabel=waAdults+waChildren>0 ? `${waAdults+waChildren} (${waAdults} adult${waAdults!==1?'s':''}, ${waChildren} child${waChildren!==1?'ren':''})` : String(pricing.quantity||1)
+  const waLines=[
+    `New ${normalizeText(brand.name)||'True Travel'} booking!`,
+    '',
+    `Customer: ${normalizeText(customer.full_name)||'Guest'}`,
+    `Phone: ${normalizeText(customer.phone)||'Not provided'}`,
+    normalizeText(customer.email) ? `Email: ${normalizeText(customer.email)}` : '',
+    `Tour: ${normalizeText(service.name)||'Service'}`,
+    `Date: ${normalizeText(payload.preferred_date)||'TBC'}`,
+    `Guests: ${waPaxLabel}`,
+    normalizeText(String(waOpDetails.accommodation||waMeta.pickup_location||waMeta.hotel||'')) ? `Accommodation: ${normalizeText(String(waOpDetails.accommodation||waMeta.pickup_location||waMeta.hotel||''))}` : '',
+    normalizeText(String(waOpDetails.pickup_location||waMeta.pickup_location||'')) ? `Pick-up: ${normalizeText(String(waOpDetails.pickup_location||waMeta.pickup_location||''))}` : '',
+    normalizeText(String(waOpDetails.dropoff_location||waMeta.dropoff_location||'')) ? `Drop-off: ${normalizeText(String(waOpDetails.dropoff_location||waMeta.dropoff_location||''))}` : '',
+    normalizeText(String(waOpDetails.departure_time||waOpDetails.departure_window||waMeta.departure_label||'')) ? `Departure: ${normalizeText(String(waOpDetails.departure_time||waOpDetails.departure_window||waMeta.departure_label||''))}` : '',
+    normalizeText(String(waOpDetails.nationality||waMeta.nationality||'')) ? `Nationality: ${normalizeText(String(waOpDetails.nationality||waMeta.nationality||''))}` : '',
+    normalizeText(String(waOpDetails.dietary_requirements||waMeta.dietary_requirements||'')) ? `Dietary: ${normalizeText(String(waOpDetails.dietary_requirements||waMeta.dietary_requirements||''))}` : '',
+    normalizeText(String(waMeta.booked_by||waOpDetails.booked_by||'')) ? `Booked by: ${normalizeText(String(waMeta.booked_by||waOpDetails.booked_by||''))}` : '',
+    normalizeText(String(waMeta.guide_name||payload.guide_name||'')) ? `Guide: ${normalizeText(String(waMeta.guide_name||payload.guide_name||''))}` : '',
+    normalizeText(payload.notes) ? `Notes: ${normalizeText(payload.notes)}` : '',
+    '',
+    `Total: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}`,
+    `Ref: ${reference}`
+  ].filter(line=>line!==undefined&&line!=='')
+  const waBody=waLines.join('\n')
   void sendWhatsAppMessage(consultantWhatsApp,waBody).catch(err=>console.error('WhatsApp alert failed:',err?.message))
   await enqueueSystemJob({
     job_type:'status_automation',
@@ -3678,6 +3709,9 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     preferred_date:nextPreferredDate,
     confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
     quantity:nextQuantity,
+    adult_quantity:Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? (Number(payload.adult_quantity||0)||null) : (existing.adult_quantity??null),
+    child_quantity:Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? (Number(payload.child_quantity||0)||null) : (existing.child_quantity??null),
+    infant_quantity:Number(payload.infant_quantity||requestMetadata.infant_quantity||existing.infant_quantity||0)||null,
     subtotal_amount:priceOverride>0 ? priceOverride : pricing.subtotalAmount,
     tax_amount:priceOverride>0 ? 0 : pricing.taxAmount,
     service_fee_amount:priceOverride>0 ? 0 : pricing.serviceFeeAmount,
@@ -3693,6 +3727,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     metadata:{
       ...existingMetadata,
       ...requestMetadata,
+      ...(normalizeText(payload.guide_name) ? {guide_name:normalizeText(payload.guide_name)} : {}),
       source:nextSource,
       brand_code:nextBrandCode,
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existingMetadata.source_page),
