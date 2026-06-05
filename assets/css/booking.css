@@ -752,6 +752,11 @@ body.skybook-auth-page{
   padding:0;
   background:rgba(248,250,252,.75);
 }
+.booking-list-pagination{flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 10px;border-top:1px solid rgba(83,115,148,.10);}
+.bl-pg-btn{height:26px;min-width:26px;padding:0 8px;border-radius:6px;border:1px solid rgba(83,115,148,.18);background:rgba(255,255,255,.8);color:var(--booking-ocean);font-size:12px;cursor:pointer;}
+.bl-pg-btn:hover:not(:disabled){background:rgba(30,91,147,.08);}
+.bl-pg-btn:disabled{opacity:.35;cursor:default;}
+.bl-pg-label{font-size:11px;color:var(--booking-muted);font-weight:600;}
 .booking-list-top{
   flex-shrink:0;
   padding:14px 14px 0;

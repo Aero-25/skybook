@@ -127,7 +127,7 @@ const state={
   },
   calendarView:'month',
   calendarFocusDate:bookingAdminShared.currentDate(),
-  bookingQuickFilter:'',
+  bookingQuickFilter:'today',
   selectedBookingId:'',
   selectedCustomerId:'',
   selectedPartnerId:'',
@@ -141,6 +141,7 @@ const state={
   workflowModalConfig:null,
   bookingFunctionsCollapsed:false,
   bookingDetailTab:'overview',
+  bookingListPage:0,
   notificationAudioUnlocked:false,
   lastNotificationSoundAt:0,
   bookingEditor:{
@@ -356,6 +357,7 @@ const nodes={
   toggleBookingFilters:document.getElementById('toggleBookingFilters'),
   bookingFiltersPanel:document.getElementById('bookingFiltersPanel'),
   bookingsTable:document.getElementById('adminBookingsTable'),
+  bookingListPagination:document.getElementById('bookingListPagination'),
   bookingTrashTable:document.getElementById('adminBookingTrashTable'),
   bookingDetail:document.getElementById('adminBookingDetail'),
   bookingForm:document.getElementById('adminBookingForm'),
@@ -2027,12 +2029,16 @@ const bookingHasOpenOperationalWork=booking=>{
 const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   const key=normalizeText(filter)
   if(!key)return true
+  if(key==='today'){
+    const n=new Date()
+    const todayStr=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`
+    return String(booking?.preferred_date||'').slice(0,10)===todayStr
+  }
   const status=normalizeText(booking?.status||'')
   const payment=normalizeText(booking?.payment_status||'')
   if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
   if(key==='provisional')return status==='provisional'
   if(key==='confirmed')return status==='confirmed'
-  // payment status quick filters — match confirmed bookings by payment status
   if(['invoice','invoiced','partially_paid','fully_paid'].includes(key))return status==='confirmed'&&payment===key
   return status===key||payment===key
 }
@@ -2044,6 +2050,7 @@ const updateBookingQuickFilterBar=()=>{
   })
   const operationalBookings=getOperationalBookings()
   const countMap={
+    today:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'today')).length,
     all:operationalBookings.length,
     provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
     confirmed:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'confirmed')).length,
@@ -2876,9 +2883,9 @@ const getFilteredBookings=()=>{
     if(!bookingMatchesQuickFilter(booking))return false
     return true
   }).sort((a,b)=>{
-    const da=parseDateValue(a.preferred_date)?.getTime()||0
-    const db=parseDateValue(b.preferred_date)?.getTime()||0
-    return da-db
+    const ca=new Date(a.created_at||0).getTime()
+    const cb=new Date(b.created_at||0).getTime()
+    return cb-ca
   })
 }
 
@@ -3727,10 +3734,15 @@ const repairStatusConflicts=async()=>{
   else{showToast(`Migrated ${fixed} booking${fixed>1?'s':''} to new status system.`,'success')}
 }
 
+const PAGE_SIZE=10
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   updateBookingQuickFilterBar()
-  nodes.bookingsTable.innerHTML=filtered.map(booking=>{
+  const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE))
+  if(state.bookingListPage>=totalPages)state.bookingListPage=totalPages-1
+  const page=state.bookingListPage
+  const pageItems=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE)
+  nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
     const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))
@@ -3745,6 +3757,17 @@ const renderBookings=()=>{
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
+  if(nodes.bookingListPagination){
+    if(totalPages<=1){
+      nodes.bookingListPagination.innerHTML=''
+    } else {
+      nodes.bookingListPagination.innerHTML=`
+        <button class="bl-pg-btn" data-bl-pg="prev" ${page===0?'disabled':''}>&#8592;</button>
+        <span class="bl-pg-label">${page+1} / ${totalPages}</span>
+        <button class="bl-pg-btn" data-bl-pg="next" ${page>=totalPages-1?'disabled':''}>&#8594;</button>
+      `
+    }
+  }
 }
 
 const filterTrashRows=(rows,{search='',archivedBy=''})=>{
@@ -4982,17 +5005,29 @@ const setWorkflowModalState=isOpen=>{
   syncModalBodyState()
 }
 
+const updateCruisePaxPerCar=()=>{
+  const pax=Number(document.getElementById('cruisePax')?.value||0)
+  const cars=Number(document.getElementById('cruiseCars')?.value||0)
+  const label=document.getElementById('cruisePaxPerCarValue')
+  if(label)label.textContent=cars>0?String(Math.ceil(pax/cars)):'—'
+}
 const openCruiseLinerModal=(dateKey='')=>{
   const modal=document.getElementById('cruiseLinerModal')
   if(!modal)return
   const dateField=document.getElementById('cruiseDate')
   if(dateField)dateField.value=dateKey||bookingAdminShared.currentDate()
-  ;['cruiseActivity','cruiseInv','cruiseBookingRef','cruiseTime'].forEach(id=>{
+  ;['cruiseActivity','cruiseInv','cruiseBookingRef','cruiseTime','cruiseNotes'].forEach(id=>{
     const el=document.getElementById(id)
     if(el)el.value=''
   })
-  const paxEl=document.getElementById('cruisePax')
-  if(paxEl)paxEl.value='1'
+  ;['cruisePax','cruiseBuses','cruiseCars'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='cruisePax'?'1':'0'})
+  const boatsEl=document.getElementById('cruiseBoats')
+  if(boatsEl)boatsEl.value='1'
+  const typeEl=document.getElementById('cruiseBookingType')
+  if(typeEl)typeEl.value='pax'
+  const boatsField=document.getElementById('cruiseBoatsField')
+  if(boatsField)boatsField.hidden=true
+  updateCruisePaxPerCar()
   modal.hidden=false
   modal.setAttribute('aria-hidden','false')
 }
@@ -5008,6 +5043,9 @@ const handleCruiseLinerSubmit=async event=>{
   const pax=Math.max(1,Number(document.getElementById('cruisePax')?.value||1))
   const buses=Number(document.getElementById('cruiseBuses')?.value||0)
   const cars=Number(document.getElementById('cruiseCars')?.value||0)
+  const boats=Number(document.getElementById('cruiseBoats')?.value||0)
+  const bookingType=(document.getElementById('cruiseBookingType')?.value||'pax')
+  const paxPerCar=cars>0?Math.ceil(pax/cars):0
   const inv=(document.getElementById('cruiseInv')?.value||'').trim()
   const bookingRef=(document.getElementById('cruiseBookingRef')?.value||'').trim()
   const activityText=(document.getElementById('cruiseActivity')?.value||'').trim()
@@ -5015,16 +5053,18 @@ const handleCruiseLinerSubmit=async event=>{
   if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
   if(!date){showToast('Select a date.','info');return}
   const companyLabel=company==='akron' ? 'Akron' : 'ATC'
+  const bookingTypeLabel=bookingType==='full_boat' ? `Full Boat (${boats} boat${boats!==1?'s':''})` : 'Per PAX'
   const tourName=activityText ? `${activityText} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
   const serviceSlug=state.services.find(s=>s.is_active!==false)?.slug||''
   if(!serviceSlug){showToast('No services loaded — please reload.','info');return}
-  const noteParts=[tourName,`PAX: ${pax}`,`Buses: ${buses} | Cars: ${cars}`,time?`Time: ${time}`:'',inv?`Inv: ${inv}`:'',bookingRef?`Booking Ref: ${bookingRef}`:'',notes].filter(Boolean)
+  const noteParts=[tourName,`PAX: ${pax}`,`Buses: ${buses} | Cars: ${cars}${paxPerCar>0?` (${paxPerCar} PAX/car)`:''}`,bookingType==='full_boat'?`Boats: ${boats}`:'',time?`Time: ${time}`:'',inv?`Inv: ${inv}`:'',bookingRef?`Booking Ref: ${bookingRef}`:'',notes].filter(Boolean)
   try{
     const payload={
       brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
       service_slug:serviceSlug,
-      status:'invoice',
-      payment_status:'pending',
+      status:'confirmed',
+      payment_status:'invoice',
+      total_amount:0,
       preferred_date:date,
       quantity:pax,
       adult_quantity:pax,
@@ -5036,9 +5076,12 @@ const handleCruiseLinerSubmit=async event=>{
         cruise_liner:true,
         cruise_company:company,
         cruise_company_label:companyLabel,
+        booking_type:bookingType,
         buses,
         cars,
+        boats:bookingType==='full_boat'?boats:0,
         pax,
+        pax_per_car:paxPerCar,
         time,
         inv,
         booking_ref:bookingRef,
@@ -8925,22 +8968,32 @@ nodes.reservationPipeline?.addEventListener('click',event=>{
 })
 nodes.toggleTableDensity?.addEventListener('click',toggleTableDensity)
 nodes.toggleBookingFilters?.addEventListener('click',toggleBookingFiltersPanel)
-nodes.bookingFilterSearch.addEventListener('input',renderBookings)
-nodes.bookingFilterBrand.addEventListener('change',renderBookings)
-nodes.bookingFilterSource?.addEventListener('change',renderBookings)
-nodes.bookingFilterStatus?.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.addEventListener('change',()=>{updateStatusFilterHint();renderBookings()}))
-nodes.bookingFilterPaymentStatus?.addEventListener('change',renderBookings)
-nodes.bookingFilterService?.addEventListener('change',renderBookings)
-nodes.bookingFilterOperator?.addEventListener('change',renderBookings)
-nodes.bookingFilterAgent?.addEventListener('change',renderBookings)
-nodes.bookingFilterDateFrom?.addEventListener('change',renderBookings)
-nodes.bookingFilterDateTo?.addEventListener('change',renderBookings)
+const resetPageAndRender=()=>{state.bookingListPage=0;renderBookings()}
+nodes.bookingFilterSearch.addEventListener('input',resetPageAndRender)
+nodes.bookingFilterBrand.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterSource?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterStatus?.querySelectorAll('input[type="checkbox"]').forEach(cb=>cb.addEventListener('change',()=>{updateStatusFilterHint();resetPageAndRender()}))
+nodes.bookingFilterPaymentStatus?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterService?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterOperator?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterAgent?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterDateFrom?.addEventListener('change',resetPageAndRender)
+nodes.bookingFilterDateTo?.addEventListener('change',resetPageAndRender)
 document.querySelectorAll('[data-booking-quick-filter]').forEach(button=>button.addEventListener('click',()=>{
   state.bookingQuickFilter=button.dataset.bookingQuickFilter||''
+  state.bookingListPage=0
   renderBookings()
 }))
+nodes.bookingListPagination?.addEventListener('click',event=>{
+  const btn=event.target.closest('[data-bl-pg]')
+  if(!btn||btn.disabled)return
+  if(btn.dataset.blPg==='prev')state.bookingListPage=Math.max(0,state.bookingListPage-1)
+  else state.bookingListPage=state.bookingListPage+1
+  renderBookings()
+})
 document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',()=>{
-  state.bookingQuickFilter=''
+  state.bookingQuickFilter='today'
+  state.bookingListPage=0
   if(nodes.bookingFilterSearch)nodes.bookingFilterSearch.value=''
   if(nodes.bookingFilterBrand)nodes.bookingFilterBrand.value=''
   if(nodes.bookingFilterSource)nodes.bookingFilterSource.value=''
@@ -9073,6 +9126,13 @@ nodes.closeCustomerModalButton?.addEventListener('click',closeCustomerModal)
 document.getElementById('closeCruiseLinerModal')?.addEventListener('click',closeCruiseLinerModal)
 document.getElementById('closeCruiseLinerModal2')?.addEventListener('click',closeCruiseLinerModal)
 document.getElementById('cruiseLinerForm')?.addEventListener('submit',event=>void handleCruiseLinerSubmit(event).catch(error=>showToast(error?.message||'Cruise Liner booking failed.','info')))
+document.getElementById('cruiseBookingType')?.addEventListener('change',event=>{
+  const isFullBoat=event.target.value==='full_boat'
+  const boatsField=document.getElementById('cruiseBoatsField')
+  if(boatsField)boatsField.hidden=!isFullBoat
+})
+document.getElementById('cruisePax')?.addEventListener('input',updateCruisePaxPerCar)
+document.getElementById('cruiseCars')?.addEventListener('input',updateCruisePaxPerCar)
 document.getElementById('closeManualInvoiceModal')?.addEventListener('click',closeManualInvoiceModal)
 document.getElementById('closeManualInvoiceModal2')?.addEventListener('click',closeManualInvoiceModal)
 document.getElementById('printManualInvoiceButton')?.addEventListener('click',printManualInvoice)

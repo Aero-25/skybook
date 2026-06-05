@@ -597,7 +597,8 @@
                 <button class="booking-button compact-button" type="button" id="adminBookingNewButton">+ New</button>
               </div>
               <div class="booking-quick-filter-bar" aria-label="Booking quick filters">
-                <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="">All <span data-filter-count="all">0</span></button>
+                <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="today">Today <span data-filter-count="today">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="">All <span data-filter-count="all">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
@@ -686,6 +687,7 @@
                 <tbody id="adminBookingsTable"></tbody>
               </table>
             </div>
+            <div id="bookingListPagination" class="booking-list-pagination"></div>
           </article>
 
           <article class="booking-panel booking-detail-panel">
@@ -1709,16 +1711,19 @@
                 <input id="cruiseTime" type="time" placeholder="e.g. 08:00">
               </label>
               <label class="booking-field">
+                <span>Booking Type</span>
+                <select id="cruiseBookingType">
+                  <option value="pax">Per PAX</option>
+                  <option value="full_boat">Full Boat</option>
+                </select>
+              </label>
+              <label class="booking-field">
                 <span>PAX</span>
                 <input id="cruisePax" type="number" min="1" value="1" placeholder="Total passengers">
               </label>
-              <label class="booking-field">
-                <span>Inv</span>
-                <input id="cruiseInv" type="text" placeholder="Invoice number" autocomplete="off">
-              </label>
-              <label class="booking-field">
-                <span>Booking Ref</span>
-                <input id="cruiseBookingRef" type="text" placeholder="Reference from cruise company" autocomplete="off">
+              <label class="booking-field" id="cruiseBoatsField" hidden>
+                <span>Number of Boats</span>
+                <input id="cruiseBoats" type="number" min="1" value="1" placeholder="1">
               </label>
               <label class="booking-field">
                 <span>Number of Buses</span>
@@ -1727,6 +1732,18 @@
               <label class="booking-field">
                 <span>Number of Cars</span>
                 <input id="cruiseCars" type="number" min="0" value="0" placeholder="0">
+              </label>
+              <div class="booking-field" id="cruisePaxPerCarDisplay" style="align-self:center;font-size:12px;color:var(--booking-muted);padding:8px 0;">
+                <span>PAX per Car</span>
+                <strong id="cruisePaxPerCarValue">—</strong>
+              </div>
+              <label class="booking-field">
+                <span>Inv</span>
+                <input id="cruiseInv" type="text" placeholder="Invoice number" autocomplete="off">
+              </label>
+              <label class="booking-field">
+                <span>Booking Ref</span>
+                <input id="cruiseBookingRef" type="text" placeholder="Reference from cruise company" autocomplete="off">
               </label>
               <label class="booking-field-full">
                 <span>Activity (optional)</span>
