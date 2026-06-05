@@ -3902,30 +3902,32 @@ const buildClientProfileCard=(booking)=>{
   ].filter(Boolean).join(' &nbsp;·&nbsp; ')
   return `
     <div class="client-profile-card">
-      <div class="client-avatar">${bookingAdminShared.escapeHtml(initials)}</div>
-      <div class="client-profile-body">
-        <p class="client-profile-name">${bookingAdminShared.escapeHtml(name)}</p>
-        <p class="client-profile-contact">${bookingLine||'<span style="opacity:.5">No booking info</span>'}</p>
-        ${contactLine ? `<p class="client-profile-contact" style="opacity:.72;font-size:11.5px">${contactLine}</p>` : ''}
-        <div class="client-profile-chips">
-          <span class="client-stat-chip">${bookingAdminShared.escapeHtml(String(bookingCount))} booking${bookingCount!==1?'s':''}</span>
-          ${lifetimeSpend>0 ? `<span class="client-stat-chip is-spend">Lifetime ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(lifetimeSpend,currency))}</span>` : ''}
-          ${customer ? `<button type="button" class="booking-button ghost compact-button" style="font-size:11px;padding:4px 10px;min-height:26px" data-booking-inline-action="view-customer-profile">View Full Profile</button>` : ''}
+      <div class="client-profile-top">
+        <div class="client-avatar">${bookingAdminShared.escapeHtml(initials)}</div>
+        <div class="client-profile-body">
+          <p class="client-profile-name">${bookingAdminShared.escapeHtml(name)}</p>
+          <p class="client-profile-contact">${bookingLine||'<span style="opacity:.5">No booking info</span>'}</p>
+          ${contactLine ? `<p class="client-profile-contact" style="font-size:11.5px;opacity:.7;margin-top:2px">${contactLine}</p>` : ''}
         </div>
-        ${otherBookings.length ? `
-          <div class="client-prev-bookings">
-            <div class="client-prev-label">Other bookings by this guest</div>
-            ${otherBookings.slice(0,5).map(b=>`
-              <div class="client-prev-row" data-booking-id="${bookingAdminShared.escapeHtml(b.id)}">
-                <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
-                <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
-                <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
-                ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':'Payment '+String(b.payment_status||b.status||'').replace(/_/g,' '))}
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
+        ${customer ? `<button type="button" class="client-profile-view-btn" data-booking-inline-action="view-customer-profile">View Profile →</button>` : ''}
       </div>
+      <div class="client-profile-footer">
+        <span class="client-stat-chip">${bookingAdminShared.escapeHtml(String(bookingCount))} booking${bookingCount!==1?'s':''}</span>
+        ${lifetimeSpend>0 ? `<span class="client-stat-chip is-spend">Lifetime ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(lifetimeSpend,currency))}</span>` : ''}
+      </div>
+      ${otherBookings.length ? `
+        <div class="client-prev-bookings">
+          <div class="client-prev-label">Other bookings by this guest</div>
+          ${otherBookings.slice(0,5).map(b=>`
+            <div class="client-prev-row" data-booking-id="${bookingAdminShared.escapeHtml(b.id)}">
+              <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
+              <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
+              <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
+              ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':'Payment '+String(b.payment_status||b.status||'').replace(/_/g,' '))}
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
   `
 }
@@ -4053,11 +4055,13 @@ const renderBookingDetail=()=>{
       </div>
       <div class="bm-body">
         <nav class="bm-nav" aria-label="Booking sections">
-          <button type="button" class="bm-nav-item${activeTab==='client'?' is-active':''}" data-bm-nav="client">Client</button>
-          <button type="button" class="bm-nav-item${activeTab==='finance'?' is-active':''}" data-bm-nav="finance">Finance</button>
-          <button type="button" class="bm-nav-item${activeTab==='tasks'?' is-active':''}" data-bm-nav="tasks">Tasks${openTasks.length ? ` <span class="bm-nav-badge">${openTasks.length}</span>` : ''}</button>
-          <button type="button" class="bm-nav-item${activeTab==='documents'?' is-active':''}" data-bm-nav="documents">Documents</button>
-          <button type="button" class="bm-nav-item${activeTab==='commercial'?' is-active':''}" data-bm-nav="commercial">Commercial</button>
+          <div class="bm-nav-card">
+            <button type="button" class="bm-nav-item${activeTab==='client'?' is-active':''}" data-bm-nav="client">Client</button>
+            <button type="button" class="bm-nav-item${activeTab==='finance'?' is-active':''}" data-bm-nav="finance">Finance</button>
+            <button type="button" class="bm-nav-item${activeTab==='tasks'?' is-active':''}" data-bm-nav="tasks">Tasks${openTasks.length ? ` <span class="bm-nav-badge">${openTasks.length}</span>` : ''}</button>
+            <button type="button" class="bm-nav-item${activeTab==='documents'?' is-active':''}" data-bm-nav="documents">Documents</button>
+            <button type="button" class="bm-nav-item${activeTab==='commercial'?' is-active':''}" data-bm-nav="commercial">Commercial</button>
+          </div>
         </nav>
         <div class="bm-content">
 
