@@ -729,15 +729,13 @@ body.skybook-auth-page{
 .admin-panel-grid-single{grid-template-columns:repeat(3,minmax(0,1fr))}
 .admin-spacer{margin-top:18px}
 .booking-workspace{
-  display:grid;
-  grid-template-columns:360px 1fr;
-  gap:0;
+  display:block;
   min-width:0;
-  overflow:hidden;
   border-radius:20px;
   border:1px solid var(--booking-glass-border);
   box-shadow:0 16px 40px rgba(20,60,130,.07),0 2px 8px rgba(20,60,130,.04);
   margin-top:18px;
+  overflow:hidden;
 }
 .booking-list-panel{
   display:flex;
@@ -747,10 +745,28 @@ body.skybook-auth-page{
   overflow:hidden;
   border:0;
   border-radius:0;
-  border-right:1px solid rgba(83,115,148,.14);
   box-shadow:none;
   padding:0;
   background:rgba(248,250,252,.75);
+  width:100%;
+}
+.booking-detail-panel{
+  display:none;
+  flex-direction:column;
+  height:calc(100vh - 195px);
+  overflow:hidden;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  padding:0;
+  background:#f4f8fc;
+  width:100%;
+}
+.booking-workspace.is-detail-open .booking-list-panel{
+  display:none;
+}
+.booking-workspace.is-detail-open .booking-detail-panel{
+  display:flex;
 }
 .booking-list-pagination{flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px;padding:6px 10px;border-top:1px solid rgba(83,115,148,.10);}
 .bl-pg-btn{height:26px;min-width:26px;padding:0 8px;border-radius:6px;border:1px solid rgba(83,115,148,.18);background:rgba(255,255,255,.8);color:var(--booking-ocean);font-size:12px;cursor:pointer;}
@@ -806,17 +822,6 @@ body.skybook-auth-page{
 .booking-list-panel tbody tr td:first-child{border-radius:8px 0 0 8px}
 .booking-list-panel tbody tr td:last-child{border-radius:0 8px 8px 0}
 .booking-list-panel .table-subline{font-size:11px;margin-top:2px}
-.booking-detail-panel{
-  height:calc(100vh - 195px);
-  overflow:hidden;
-  border:0;
-  border-radius:0;
-  box-shadow:none;
-  padding:0;
-  background:#f4f8fc;
-  display:flex;
-  flex-direction:column;
-}
 /* ═══ BM-SHELL — Glassmorphism Booking Detail ═══ */
 .bm-shell{display:flex;flex-direction:column;height:100%;overflow:hidden;background:linear-gradient(145deg,#cde3f7 0%,#b8d4f0 35%,#c2dcf5 65%,#d4e9ff 100%);}
 /* ── Header ── */
@@ -829,6 +834,7 @@ body.skybook-auth-page{
 .bm-header-badges{display:flex;align-items:center;gap:5px;flex-shrink:0;}
 .bm-header-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto;}
 .bm-header-actions .booking-button{min-height:32px;padding:0 13px;font-size:10px;}
+.bm-back-btn{margin-right:4px;border-right:1px solid rgba(83,115,148,.18)!important;padding-right:16px!important;}
 /* ── Body ── */
 .bm-body{display:flex;flex:1;overflow:hidden;min-height:0;}
 /* ── Nav ── */
@@ -3116,9 +3122,9 @@ textarea:focus-visible{
 
 .admin-toolbar h2{
   color:var(--sky-text);
-  font-size:clamp(36px,4vw,56px);
-  line-height:.96;
-  letter-spacing:-.07em;
+  font-size:clamp(22px,2.8vw,32px);
+  line-height:1.1;
+  letter-spacing:-.04em;
 }
 
 .toolbar-subtitle{
@@ -3133,7 +3139,6 @@ textarea:focus-visible{
   display:grid;
   gap:10px;
   min-width:0;
-  overflow:hidden;
 }
 
 .module-breadcrumb{
@@ -3143,9 +3148,6 @@ textarea:focus-visible{
   font-weight:800;
   letter-spacing:.16em;
   text-transform:uppercase;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
 }
 
 .toolbar-title-row{

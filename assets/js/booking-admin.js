@@ -4028,6 +4028,7 @@ const renderBookingDetail=()=>{
           ${booking.payment_status ? renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' ')) : ''}
         </div>
         <div class="bm-header-actions">
+          <button type="button" class="booking-button ghost compact-button bm-back-btn" data-booking-inline-action="back-to-list">← Back</button>
           <button type="button" class="booking-button ghost compact-button" data-booking-inline-action="edit-booking">Edit</button>
           ${normalizeText(booking.status)==='provisional' ? `<button type="button" class="booking-button compact-button" data-booking-inline-action="confirm-booking" ${canConfirmBooking(booking)?'':'disabled title="Complete guest name, tour, brand, and date before confirming"'}>${canConfirmBooking(booking)?'Confirm':'Confirm?'}</button>` : ''}
           ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button compact-button" data-booking-inline-action="reinstate-booking">Reinstate</button>` : ''}
@@ -4813,8 +4814,10 @@ const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   fillBookingForm(booking)
   if(!document.body.classList.contains('is-booking-record-page'))renderBookings()
   renderBookingDetail()
-  if(!document.body.classList.contains('is-booking-record-page'))showSwitcherPanel(nodes.bookingDetail?.closest('.booking-detail-panel'),1)
   const detailPanel=nodes.bookingDetail?.closest('.booking-detail-panel')
+  const workspace=detailPanel?.closest('.booking-workspace')
+  workspace?.classList.add('is-detail-open')
+  if(!document.body.classList.contains('is-booking-record-page'))showSwitcherPanel(detailPanel,1)
   detailPanel?.classList.add('is-management-open')
   if(scroll){
     window.setTimeout(()=>detailPanel?.scrollIntoView?.({behavior:'smooth',block:'start'}),80)
@@ -9319,6 +9322,12 @@ nodes.bookingDetail.addEventListener('click',event=>{
   const inlineAction=actionElement?.dataset.bookingInlineAction
   const runDetailButtonAction=(task,errorMessage,label='Working')=>{
     void runWithActionLoading(actionButton,task,label).catch(error=>setAdminStatus(error.message||errorMessage,true))
+  }
+  if(inlineAction==='back-to-list'){
+    const workspace=nodes.bookingDetail?.closest('.booking-workspace')
+    workspace?.classList.remove('is-detail-open')
+    state.selectedBookingId=''
+    return
   }
   if(inlineAction==='toggle-functions'){
     state.bookingFunctionsCollapsed=!state.bookingFunctionsCollapsed
