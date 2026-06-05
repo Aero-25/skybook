@@ -1276,14 +1276,7 @@ body.skybook-auth-page{
 .pipeline-stage.is-paid{border-color:#c8ead2;background:#f1fbf4}
 .pipeline-stage.is-good{border-color:#bfe1ce;background:#eefaf3}
 .pipeline-stage.is-done{border-color:#d1d9e2;background:#f7fafc}
-.booking-row.is-true-travel td:first-child,
-.reservation-row.is-true-travel td:first-child{
-  box-shadow:inset 4px 0 0 #1799b7;
-}
-.booking-row.is-iventure td:first-child,
-.reservation-row.is-iventure td:first-child{
-  box-shadow:inset 4px 0 0 #ffb000;
-}
+/* Brand box-shadows removed — status colours now handle row indicators */
 .customer-row,
 .reservation-row{
   cursor:pointer;
