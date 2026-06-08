@@ -4883,17 +4883,20 @@ const openReservationManagementScreen=(booking,{scroll=true}={})=>{
 
 const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   if(!booking)return
+  if(!document.body.classList.contains('is-booking-record-page')){
+    window.open(getRecordPageUrl('bookings',booking.id),'_blank','noopener,noreferrer')
+    return
+  }
   state.preBookingTab=state.activeTab||'bookings'
   if(booking.id!==state.selectedBookingId)state.bookingDetailTab='client'
   state.selectedBookingId=booking.id
   switchTab('bookings')
   fillBookingForm(booking)
-  if(!document.body.classList.contains('is-booking-record-page'))renderBookings()
   renderBookingDetail()
   const detailPanel=nodes.bookingDetail?.closest('.booking-detail-panel')
   const workspace=detailPanel?.closest('.booking-workspace')
   workspace?.classList.add('is-detail-open')
-  if(!document.body.classList.contains('is-booking-record-page'))showSwitcherPanel(detailPanel,1)
+  showSwitcherPanel(detailPanel,1)
   detailPanel?.classList.add('is-management-open')
   if(scroll){
     window.setTimeout(()=>detailPanel?.scrollIntoView?.({behavior:'smooth',block:'start'}),80)
