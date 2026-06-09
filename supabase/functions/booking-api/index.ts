@@ -2306,14 +2306,15 @@ const insertStatusHistory=async(bookingId:string,fromStatus:string|null,toStatus
 }
 
 const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:number,currencyCode:string,provider='manual_eft')=>{
+  const paymentsStatus=paymentStatus||'pending'
   const { data:existing }=await adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle()
   if(existing){
     const { error }=await adminClient.from('payments').update({
       provider,
-      status:paymentStatus,
+      status:paymentsStatus,
       amount,
-      amount_received:paymentStatus==='paid' ? amount : Number(existing.amount_received||0),
-      paid_at:paymentStatus==='paid' ? nowIso() : null
+      amount_received:paymentsStatus==='paid' ? amount : Number(existing.amount_received||0),
+      paid_at:paymentsStatus==='paid' ? nowIso() : null
     }).eq('id',existing.id)
     if(error)throw error
     return
@@ -2321,11 +2322,11 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
   const { error }=await adminClient.from('payments').insert({
     booking_id:bookingId,
     provider,
-    status:paymentStatus,
+    status:paymentsStatus,
     currency_code:currencyCode,
     amount,
-    amount_received:paymentStatus==='paid' ? amount : 0,
-    paid_at:paymentStatus==='paid' ? nowIso() : null,
+    amount_received:paymentsStatus==='paid' ? amount : 0,
+    paid_at:paymentsStatus==='paid' ? nowIso() : null,
     metadata:{source:'booking-api'}
   })
   if(error)throw error
@@ -3672,11 +3673,12 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
     && normalizeText(existing.status)==='confirmed'
     && ['invoice','invoiced','partially_paid','fully_paid'].includes(nextPaymentStatus)
-  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow&&!isConfirmBookingWorkflow&&!isMoveToInvoiceWorkflow&&!isUpdatePaymentStatusWorkflow){
+  const isAdminEditWorkflow=workflowAction==='admin_edit'
+  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow&&!isConfirmBookingWorkflow&&!isMoveToInvoiceWorkflow&&!isUpdatePaymentStatusWorkflow){
     throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, reinstate, or automation actions.')
   }
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'
-  validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
+  if(!isAdminEditWorkflow)validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
   if(nextStatus==='finalised'&&normalizeText(existing.status)!=='finalised'){
     const preferredDate=parseDateValue(normalizeText(existing.preferred_date))
     const hasDeparted=preferredDate && preferredDate < new Date()
@@ -3720,9 +3722,9 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     preferred_date:nextPreferredDate,
     confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
     quantity:nextQuantity,
-    adult_quantity:Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? (Number(payload.adult_quantity||0)||null) : (existing.adult_quantity??null),
-    child_quantity:Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? (Number(payload.child_quantity||0)||null) : (existing.child_quantity??null),
-    infant_quantity:Number(payload.infant_quantity||requestMetadata.infant_quantity||existing.infant_quantity||0)||null,
+    adult_quantity:Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? Number(payload.adult_quantity||0) : Number(existing.adult_quantity||0),
+    child_quantity:Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? Number(payload.child_quantity||0) : Number(existing.child_quantity||0),
+    infant_quantity:Number(payload.infant_quantity||requestMetadata.infant_quantity||existing.infant_quantity||0),
     subtotal_amount:priceOverride>0 ? priceOverride : pricing.subtotalAmount,
     tax_amount:priceOverride>0 ? 0 : pricing.taxAmount,
     service_fee_amount:priceOverride>0 ? 0 : pricing.serviceFeeAmount,

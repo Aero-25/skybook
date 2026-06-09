@@ -8235,6 +8235,7 @@ const handleBookingSave=async event=>{
     }
   }
   if(isReservationAcceptanceWorkflow)payload.workflow_action='accept_reservation'
+  else if(wasEditing)payload.workflow_action='admin_edit'
   const shouldOpenAcceptedBookingRecord=isReservationAcceptanceWorkflow
   const pendingAcceptedBookingWindow=shouldOpenAcceptedBookingRecord
     ? openPendingBookingRecordWindow({
