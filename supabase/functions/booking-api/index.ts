@@ -2578,6 +2578,80 @@ const applyPromotions=async(service:Json,payload:Json,pricingBase:{ totalAmount:
   }
 }
 
+const CROCKFORD='0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+const generateCouponCode=(len=11)=>{
+  const bytes=new Uint8Array(len)
+  crypto.getRandomValues(bytes)
+  let out=''
+  for(let i=0;i<len;i++)out+=CROCKFORD[bytes[i]%32]
+  return out
+}
+
+const brandBookingBaseUrl=async(brandCode:string)=>{
+  const map=await getSettingValue<Record<string,string>>('brand_booking_urls',{})
+  const base=normalizeText(map?.[brandCode])
+  if(!base)throw new Error(`No booking URL configured for brand ${brandCode}. Set the booking 'brand_booking_urls' setting.`)
+  return base.replace(/\/+$/,'')
+}
+
+const createDiscountQr=async(payload:Json)=>{
+  const brand=normalizeText(payload.brand_code)
+  if(!['true-travel','iventure'].includes(brand))throw new Error('A valid brand_code is required.')
+  const discountType=normalizeText(payload.discount_type)||'percentage'
+  if(!['percentage','fixed'].includes(discountType))throw new Error('discount_type must be percentage or fixed.')
+  const discountValue=Number(payload.discount_value||0)
+  if(!(discountValue>0))throw new Error('discount_value must be greater than zero.')
+  const kind=normalizeText(payload.kind)||'campaign'
+  if(!['single_use','campaign'].includes(kind))throw new Error('kind must be single_use or campaign.')
+  const maxRedemptions=payload.max_redemptions==null||payload.max_redemptions==='' ? null : Number(payload.max_redemptions)
+  if(maxRedemptions!=null&&!(maxRedemptions>0))throw new Error('max_redemptions must be a positive number.')
+  const endsAt=normalizeText(payload.ends_at)||null
+  const serviceId=normalizeText(payload.service_id)||null
+  const label=normalizeText(payload.label)||null
+
+  let code=generateCouponCode()
+  for(let attempt=0;attempt<5;attempt++){
+    const clash=await safeMaybeSingle<Json>(adminClient.from('coupons').select('id').eq('code',code).maybeSingle())
+    if(!clash)break
+    code=generateCouponCode()
+  }
+
+  const insert=await adminClient.from('coupons').insert({
+    code,
+    description:label||`${brand} ${discountType==='percentage'?discountValue+'%':discountValue} discount`,
+    discount_type:discountType,
+    discount_value:discountValue,
+    is_active:true,
+    is_qr:true,
+    kind,
+    brand_code:brand,
+    service_id:serviceId,
+    label,
+    usage_limit:kind==='single_use' ? 1 : maxRedemptions,
+    usage_count:0,
+    ends_at:endsAt
+  }).select('*').single()
+  if(insert.error)throw new Error(insert.error.message)
+
+  const base=await brandBookingBaseUrl(brand)
+  const url=`${base}/booking.html?promo=${encodeURIComponent(code)}`
+  return { coupon:insert.data, code, url }
+}
+
+const listDiscountQr=async()=>{
+  const rows=await safeTableSelect<Json>(
+    adminClient.from('coupons').select('*').eq('is_qr',true).order('created_at',{ascending:false}),
+    []
+  )
+  return { discount_qr:rows }
+}
+
+const disableDiscountQr=async(id:string)=>{
+  const update=await adminClient.from('coupons').update({is_active:false}).eq('id',id).eq('is_qr',true).select('id').single()
+  if(update.error)throw new Error(update.error.message)
+  return { success:true }
+}
+
 type BookingDiscountInput={
   source_type:string
   source_id:string | null
@@ -4731,6 +4805,19 @@ Deno.serve(async request=>{
         return json(200,await upsertEngineRow('coupons',{...requestBody,id:subresource},[
           'id','code','description','discount_type','discount_value','starts_at','ends_at','usage_limit','usage_count','is_active','metadata'
         ]))
+      }
+
+      if(request.method==='POST'&&id==='discount-qr'&&!subresource){
+        requireSkybookPermission(adminProfile,'engine')
+        return json(201,await createDiscountQr(requestBody))
+      }
+      if(request.method==='GET'&&id==='discount-qr'&&!subresource){
+        requireSkybookPermission(adminProfile,'engine')
+        return json(200,await listDiscountQr())
+      }
+      if(request.method==='POST'&&id==='discount-qr'&&parts[3]==='disable'){
+        requireSkybookPermission(adminProfile,'engine')
+        return json(200,await disableDiscountQr(subresource))
       }
 
       if(request.method==='POST'&&id==='vouchers'){
