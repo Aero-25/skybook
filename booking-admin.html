@@ -77,6 +77,7 @@
           <summary><span>04</span> Revenue</summary>
           <div class="admin-subnav">
             <button class="admin-tab" data-admin-tab="payments" type="button"><span class="admin-tab-icon">PY</span><span>Payments</span></button>
+            <button class="admin-tab" data-admin-tab="discount-qr" type="button"><span class="admin-tab-icon">QR</span><span>Discount QR</span></button>
             <button class="admin-tab" data-admin-tab="refunds" type="button"><span class="admin-tab-icon">RF</span><span>Refunds</span></button>
             <button class="admin-tab" data-admin-tab="reconciliation" type="button"><span class="admin-tab-icon">RC</span><span>Reconciliation</span></button>
             <button class="admin-tab" data-admin-tab="invoices" type="button"><span class="admin-tab-icon">FN</span><span>Debtors & Creditors</span></button>
@@ -755,6 +756,39 @@
             </table>
           </div>
         </article>
+      </section>
+
+      <section class="admin-view" data-admin-view="discount-qr">
+        <section class="qr-gen-panel" id="discountQrPanel">
+          <header class="qr-gen-header"><h3>Discount QR Codes</h3></header>
+          <form id="discountQrForm" class="qr-gen-form">
+            <label>Brand
+              <select name="brand_code" required>
+                <option value="true-travel">True Travel</option>
+                <option value="iventure">Iventure</option>
+              </select>
+            </label>
+            <label>Discount type
+              <select name="discount_type"><option value="percentage">Percentage %</option><option value="fixed">Fixed amount</option></select>
+            </label>
+            <label>Value <input name="discount_value" type="number" min="0.01" step="0.01" required></label>
+            <label>Kind
+              <select name="kind"><option value="campaign">Campaign (multi-use)</option><option value="single_use">Single use</option></select>
+            </label>
+            <label>Max redemptions (campaign) <input name="max_redemptions" type="number" min="1" step="1" placeholder="Unlimited"></label>
+            <label>Expires <input name="ends_at" type="datetime-local"></label>
+            <label>Restrict to service (optional) <input name="service_id" placeholder="service UUID or leave blank"></label>
+            <label>Label <input name="label" placeholder="e.g. Summer flyer"></label>
+            <button type="submit" class="booking-button">Generate QR</button>
+          </form>
+          <div class="qr-gen-result" id="discountQrResult" hidden>
+            <div id="discountQrCanvas"></div>
+            <p class="qr-gen-url"><strong>Code:</strong> <span id="discountQrCode"></span></p>
+            <p class="qr-gen-url"><a id="discountQrLink" target="_blank" rel="noopener"></a></p>
+            <button type="button" class="booking-button ghost" id="discountQrDownload">Download PNG</button>
+          </div>
+          <div class="qr-gen-list" id="discountQrList"></div>
+        </section>
       </section>
 
       <section class="admin-view" data-admin-view="refunds">
@@ -1838,6 +1872,7 @@
     }
   </script>
   <script src="assets/js/tenant.js"></script>
+  <script src="assets/js/vendor/qrcode.min.js"></script>
   <script src="assets/js/booking-admin.js?v=20260602-updates" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

@@ -6231,3 +6231,14 @@ body.skybook-auth-page{
   .skybook-login-form input{min-height:46px;font-size:16px;} /* 16px avoids iOS zoom */
   .skybook-login-form .booking-button{min-height:48px;font-size:15px;}
 }
+
+/* Discount QR generator */
+.qr-gen-panel{display:flex;flex-direction:column;gap:18px;max-width:680px}
+.qr-gen-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.qr-gen-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--sky-muted,#667789)}
+.qr-gen-form input,.qr-gen-form select{min-height:40px;border:1px solid var(--sky-line,#d8e5ef);border-radius:10px;padding:0 10px}
+.qr-gen-form button[type=submit]{grid-column:1/-1}
+.qr-gen-result{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:18px;border:1px solid var(--sky-line,#d8e5ef);border-radius:16px;background:#f8fbff}
+.qr-gen-url{font-size:13px;word-break:break-all}
+.qr-list-row{display:grid;grid-template-columns:1.4fr 1.4fr 1fr .7fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--sky-line,#d8e5ef);border-radius:12px;margin-bottom:8px;font-size:13px}
+@media(max-width:768px){.qr-gen-form{grid-template-columns:1fr}.qr-list-row{grid-template-columns:1fr 1fr;gap:6px}}

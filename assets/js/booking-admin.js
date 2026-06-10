@@ -734,6 +734,12 @@ const MODULE_META={
     title:'Payments',
     subtitle:'Payment status, guest balances, deposits, provider timelines, and incoming payment activity across the booking system.'
   },
+  'discount-qr':{
+    group:'Revenue',
+    eyebrow:'Promotional Codes',
+    title:'Discount QR',
+    subtitle:'Generate scannable discount QR codes and shareable links for campaigns and single-use offers across True Travel and Iventure.'
+  },
   refunds:{
     group:'Revenue',
     eyebrow:'Refund Control',
@@ -2590,6 +2596,7 @@ const TAB_ROUTE_MAP={
   bookings:{view:'bookings',permission:'bookings'},
   'booking-trash':{view:'booking-trash',permission:'bookings'},
   payments:{view:'payments',permission:'payments'},
+  'discount-qr':{view:'discount-qr',permission:'payments'},
   refunds:{view:'refunds',permission:'finance'},
   customers:{view:'customers',permission:'customers'},
   services:{view:'services',permission:'services'},
@@ -2781,6 +2788,7 @@ const switchTab=(tab,{scrollToFocus=true}={})=>{
     ensurePanelSwitchers()
   }
   if(nextTab==='manifest')renderManifest()
+  if(nextTab==='discount-qr')void renderDiscountQrList()
   if(nextTab==='reviews')void loadReviews()
   if(nextTab==='invoices')showSwitcherPanel(nodes.platformPrimaryPanel,0)
   syncManagementActionHeaders()
@@ -8599,6 +8607,60 @@ const handleCouponSave=async event=>{
   nodes.couponForm.reset()
   await refreshAdmin('Coupon saved.')
 }
+
+const renderDiscountQrList=async()=>{
+  const wrap=document.getElementById('discountQrList')
+  if(!wrap)return
+  const {discount_qr=[]}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'GET'})
+  wrap.innerHTML=discount_qr.map(c=>`
+    <div class="qr-list-row">
+      <strong>${bookingAdminShared.escapeHtml(c.label||c.code)}</strong>
+      <span>${bookingAdminShared.escapeHtml(c.brand_code)} · ${bookingAdminShared.escapeHtml(c.discount_type)} ${c.discount_value}</span>
+      <span>${c.usage_count||0}${c.usage_limit?'/'+c.usage_limit:''} used</span>
+      <span>${c.is_active?'Active':'Disabled'}</span>
+      ${c.is_active?`<button class="booking-button ghost compact-button" data-qr-disable="${bookingAdminShared.escapeHtml(c.id)}">Disable</button>`:''}
+    </div>`).join('')||'<p>No discount QR codes yet.</p>'
+}
+
+const handleDiscountQrSubmit=async event=>{
+  event.preventDefault()
+  const data=new FormData(event.target)
+  const body={
+    brand_code:data.get('brand_code'),
+    discount_type:data.get('discount_type'),
+    discount_value:Number(data.get('discount_value')||0),
+    kind:data.get('kind'),
+    max_redemptions:data.get('max_redemptions')||null,
+    ends_at:data.get('ends_at')||null,
+    service_id:data.get('service_id')||null,
+    label:data.get('label')||null
+  }
+  const {code,url}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'POST',body})
+  const canvas=document.getElementById('discountQrCanvas')
+  canvas.innerHTML=''
+  new QRCode(canvas,{text:url,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})
+  document.getElementById('discountQrCode').textContent=code
+  const link=document.getElementById('discountQrLink')
+  link.textContent=url; link.href=url
+  document.getElementById('discountQrResult').hidden=false
+  showToast('Discount QR generated.','success')
+  renderDiscountQrList()
+}
+
+document.getElementById('discountQrForm')?.addEventListener('submit',event=>{void handleDiscountQrSubmit(event)})
+document.getElementById('discountQrList')?.addEventListener('click',async event=>{
+  const id=event.target.closest('[data-qr-disable]')?.dataset.qrDisable
+  if(!id)return
+  await bookingAdminShared.apiRequest(`admin/discount-qr/${encodeURIComponent(id)}/disable`,{method:'POST',body:{}})
+  showToast('Discount QR disabled.','info')
+  renderDiscountQrList()
+})
+document.getElementById('discountQrDownload')?.addEventListener('click',()=>{
+  const img=document.querySelector('#discountQrCanvas img')||document.querySelector('#discountQrCanvas canvas')
+  if(!img)return
+  const src=img.tagName==='IMG'?img.src:img.toDataURL('image/png')
+  const a=document.createElement('a');a.href=src;a.download='discount-qr.png';a.click()
+})
 
 const handleVoucherSave=async event=>{
   event.preventDefault()
