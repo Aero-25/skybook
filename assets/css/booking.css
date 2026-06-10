@@ -6215,3 +6215,19 @@ body.skybook-auth-page{
   }
   .booking-list-wrap tr.booking-row td:empty{display:none;}
 }
+
+/* ---- Admin gateway hub & login polish (Task 7) ---- */
+@media(max-width:768px){
+  /* Gateway hub: single-column tappable cards */
+  .admin-gateway-grid{grid-template-columns:1fr!important;gap:14px;}
+  .admin-gateway-card{
+    padding:20px;border-radius:16px;min-height:84px;
+    box-shadow:0 6px 20px rgba(26,109,216,.10);
+  }
+  .admin-gateway-hero{flex-direction:column;align-items:flex-start;gap:12px;}
+  /* Login: centered full-width card, large fields */
+  .skybook-login-shell{padding:18px;min-height:100dvh;align-items:center;}
+  .skybook-login-card{width:100%;max-width:420px;border-radius:18px;}
+  .skybook-login-form input{min-height:46px;font-size:16px;} /* 16px avoids iOS zoom */
+  .skybook-login-form .booking-button{min-height:48px;font-size:15px;}
+}
