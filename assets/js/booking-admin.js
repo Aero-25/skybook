@@ -2596,7 +2596,7 @@ const TAB_ROUTE_MAP={
   bookings:{view:'bookings',permission:'bookings'},
   'booking-trash':{view:'booking-trash',permission:'bookings'},
   payments:{view:'payments',permission:'payments'},
-  'discount-qr':{view:'discount-qr',permission:'payments'},
+  'discount-qr':{view:'discount-qr',permission:'engine'},
   refunds:{view:'refunds',permission:'finance'},
   customers:{view:'customers',permission:'customers'},
   services:{view:'services',permission:'services'},
