@@ -2524,19 +2524,24 @@ const applyPromotions=async(service:Json,payload:Json,pricingBase:{ totalAmount:
   const discounts:{ source_type:string, source_id:string | null, code:string, description:string, amount:number }[]=[]
   let voucherRow:Json | null=null
   let agentRow:Json | null=null
+  let couponReserved:{id:string,amount:number}|null=null
 
   if(couponCode){
-    const coupon=await safeMaybeSingle<Json>(
-      adminClient
-        .from('coupons')
-        .select('*')
-        .eq('code',couponCode)
-        .eq('is_active',true)
-        .maybeSingle()
-    )
-    if(coupon){
-      const amount=normalizeDiscountAmount(pricingBase.totalAmount,String(coupon.discount_type || 'percentage'),Number(coupon.discount_value || 0))
-      if(amount>0)discounts.push({source_type:'coupon',source_id:String(coupon.id),code:couponCode,description:String(coupon.description || `Coupon ${couponCode}`),amount})
+    const brandForCoupon=normalizeText(payload.brand_code)||'true-travel'
+    const serviceIdForCoupon=String((service as Json)?.id || '')||null
+    const { data:redeemRows, error:redeemError }=await adminClient.rpc('redeem_coupon',{
+      p_code:couponCode, p_brand:brandForCoupon, p_service_id:serviceIdForCoupon
+    })
+    if(redeemError)throw new Error(redeemError.message)
+    const reserved=Array.isArray(redeemRows)?redeemRows[0]:redeemRows
+    if(reserved){
+      const amount=normalizeDiscountAmount(pricingBase.totalAmount,String(reserved.discount_type || 'percentage'),Number(reserved.discount_value || 0))
+      if(amount>0){
+        discounts.push({source_type:'coupon',source_id:String(reserved.id),code:couponCode,description:String(reserved.description || `Coupon ${couponCode}`),amount})
+        couponReserved={id:String(reserved.id),amount}
+      }else{
+        await adminClient.rpc('release_coupon',{p_coupon_id:String(reserved.id)})
+      }
     }
   }
 
@@ -2574,7 +2579,8 @@ const applyPromotions=async(service:Json,payload:Json,pricingBase:{ totalAmount:
     discounts,
     totalDiscountAmount:Number(discounts.reduce((sum,item)=>sum+item.amount,0).toFixed(2)),
     voucherRow,
-    agentRow
+    agentRow,
+    couponReserved
   }
 }
 
@@ -3540,6 +3546,8 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   validatePublicBookingPayload(service,{...payload,admin_created:isAdmin})
   const basePricing=calculatePricing(service,payload,settings as Json)
   const promotionState=await applyPromotions(service as unknown as Json,payload,basePricing)
+  let bookingPersisted=false
+  try{
   const pricing=calculatePricing(service,payload,settings as Json,promotionState.totalDiscountAmount)
   const requestMetadata=(payload.metadata && typeof payload.metadata==='object' && !Array.isArray(payload.metadata) ? payload.metadata : {}) as Json
   await validateCustomBookingFields(String(brand.code || brandCode),requestMetadata,true)
@@ -3623,6 +3631,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   if(!booking)throw new Error(((lastInsertError as {message?:string})?.message) || 'Unable to create booking with a unique reference.')
   const bookingId=String(booking.id || '')
   if(!bookingId)throw new Error('Booking was created without an id.')
+  bookingPersisted=true
 
   await syncBookingItems(bookingId,service,pricing)
   await createOrUpdatePayment(
@@ -3633,6 +3642,17 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     selectedPaymentProvider
   )
   await maybeCreateBookingDiscounts(bookingId,promotionState.discounts)
+  if(promotionState.couponReserved){
+    const auditInsert=await adminClient.from('coupon_redemptions').insert({
+      coupon_id:promotionState.couponReserved.id,
+      booking_id:bookingId,
+      brand_code:brandCode,
+      amount:promotionState.couponReserved.amount
+    })
+    if(auditInsert.error && !String(auditInsert.error.code||'').includes('23505')){
+      console.error('coupon_redemptions insert failed',auditInsert.error.message)
+    }
+  }
   const voucherDiscount=promotionState.discounts.find(item=>item.source_type==='voucher')?.amount || 0
   const agentDiscount=promotionState.discounts.find(item=>item.source_type==='agent')?.amount || 0
   await maybeApplyVoucherRedemption(bookingId,promotionState.voucherRow,voucherDiscount)
@@ -3703,7 +3723,14 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     status:bookingStatus,
     payment_status:paymentStatus,
     total_amount:pricing.totalAmount,
-    currency:service.currency
+    currency:service.currency,
+    discount_applied:Boolean(promotionState.couponReserved)
+  }
+  }catch(err){
+    if(!bookingPersisted && promotionState?.couponReserved){
+      await adminClient.rpc('release_coupon',{p_coupon_id:promotionState.couponReserved.id})
+    }
+    throw err
   }
 }
 
