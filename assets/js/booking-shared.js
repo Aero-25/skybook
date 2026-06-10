@@ -983,6 +983,46 @@ window.TrueTravelBooking=(()=>{
       writeDemoDb(db)
       return {success:true}
     }
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='payments'){
+      const booking=db.bookings.find(item=>item.id===parts[2])
+      if(!booking)throw new Error('Booking not found.')
+      const amount=Number(body?.amount||0)
+      if(!Number.isFinite(amount)||amount<=0)throw new Error('Payment amount must be greater than zero.')
+      const paymentType=safeText(body?.payment_type)||'eft'
+      if(paymentType==='card'&&(!safeText(body?.terminal_serial_number)||!safeText(body?.batch_number))){
+        throw new Error('Card payments require terminal serial number and batch number.')
+      }
+      const previousStatus=safeText(booking.status)
+      const existingPayment=db.payments.find(item=>item.booking_id===booking.id)
+      const previousReceived=Number(existingPayment?.amount_received||0)
+      const nextReceived=Number((previousReceived+amount).toFixed(2))
+      const totalAmount=Number(booking.total_amount||nextReceived||0)
+      const nextPaymentStatus=nextReceived>0&&nextReceived+0.01>=totalAmount ? 'paid' : 'partially_paid'
+      const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
+      const providerReference=safeText(body?.provider_reference)||`MAN-${Date.now()}`
+      const manualPaymentMeta={payment_type:paymentType,provider_reference:providerReference,received_at:nowIso(),notes:safeText(body?.notes)}
+      if(existingPayment){
+        existingPayment.status=nextPaymentStatus
+        existingPayment.amount_received=nextReceived
+        existingPayment.metadata={...(existingPayment.metadata||{}),source:'manual_admin_payment',latest_manual_payment:manualPaymentMeta}
+      }else{
+        db.payments.unshift({id:uid('pay'),booking_id:booking.id,provider:'manual_eft',status:nextPaymentStatus,amount:totalAmount,amount_received:nextReceived,provider_reference:providerReference,currency_code:booking.currency||'NAD',metadata:{source:'manual_admin_payment',latest_manual_payment:manualPaymentMeta},created_at:nowIso()})
+      }
+      const nextBookingStatus=nextPaymentStatus==='paid'&&['provisional','payment_pending','invoice','invoiced','draft','pending','awaiting_payment','payment_request_sent'].includes(previousStatus) ? 'fully_paid' : (nextPaymentStatus==='partially_paid'&&['provisional','payment_pending','invoice','invoiced','draft','pending','awaiting_payment'].includes(previousStatus) ? 'partially_paid' : previousStatus)
+      booking.status=nextBookingStatus
+      booking.payment_status=nextPaymentStatus
+      booking.amount_due_now=outstandingAmount
+      booking.amount_due_later=0
+      booking.metadata={...(booking.metadata||{}),latest_manual_payment:manualPaymentMeta}
+      booking.updated_at=nowIso()
+      const payment=db.payments.find(item=>item.booking_id===booking.id)
+      if(!db.payment_transactions)db.payment_transactions=[]
+      db.payment_transactions.unshift({id:uid('txn'),payment_id:payment?.id||'',provider:'manual_eft',transaction_reference:providerReference,transaction_type:'manual_payment',status:'paid',amount,currency_code:booking.currency||'NAD',raw_payload:{...manualPaymentMeta,booking_reference:booking.reference},reconciled_at:nowIso(),created_at:nowIso()})
+      db.status_history.unshift({id:uid('hist'),booking_id:booking.id,from_status:previousStatus,to_status:nextBookingStatus,reason:`Manual ${paymentType} payment recorded: ${amount.toFixed(2)} ${booking.currency||'NAD'}`,actor_label:'admin',created_at:nowIso()})
+      db.notes.unshift({id:uid('note'),booking_id:booking.id,customer_id:booking.customer_id,note:`Manual ${paymentType} payment recorded for ${amount.toFixed(2)} ${booking.currency||'NAD'}.`,is_private:true,created_at:nowIso()})
+      writeDemoDb(db)
+      return {success:true}
+    }
     if(method==='POST'&&parts[0]==='admin'&&parts[1]==='bookings'&&parts[2]&&parts[3]==='discount'){
       const booking=db.bookings.find(item=>item.id===parts[2])
       if(!booking)throw new Error('Booking not found.')

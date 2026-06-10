@@ -4204,7 +4204,12 @@ const renderBookingDetail=()=>{
                     <p>${bookingAdminShared.escapeHtml(invoice?.status||'Unissued')}</p>
                   </article>
                   <article class="detail-card">
-                    <span>Guest balance</span>
+                    <span>Amount received</span>
+                    <strong>${bookingAdminShared.formatMoney(payments[0]?.amount_received||0,booking.currency||state.settings.currency)}</strong>
+                    <p>${bookingAdminShared.escapeHtml(transactions.length ? `${transactions.length} payment${transactions.length===1?'':'s'} recorded` : 'No payments recorded')}</p>
+                  </article>
+                  <article class="detail-card">
+                    <span>Outstanding balance</span>
                     <strong>${bookingAdminShared.formatMoney(guestBalance,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
                     <p>${renderStatusBadge(booking.payment_status)}</p>
                   </article>
@@ -4239,8 +4244,9 @@ const renderBookingDetail=()=>{
             <div class="bm-sub-section" data-bm-sub-section="record" hidden>
               <section class="detail-section">
                 <div class="section-heading">
-                  <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments received outside the online payment flow.</p></div>
+                  <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments. Partial amounts are fine — the outstanding balance updates automatically after each payment.</p></div>
                 </div>
+                ${transactions.length ? `<div class="detail-callout" style="margin-bottom:12px"><strong>Already received: ${bookingAdminShared.formatMoney(payments[0]?.amount_received||0,booking.currency||state.settings.currency)}</strong> across ${transactions.length} payment${transactions.length===1?'':'s'} — outstanding: ${bookingAdminShared.formatMoney(guestBalance,booking.currency||state.settings.currency)}</div>` : ''}
                 <form class="booking-inline-form booking-inline-form-wide" data-inline-form="manual-payment">
                   <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
                   <label class="booking-field">
@@ -4255,7 +4261,7 @@ const renderBookingDetail=()=>{
                   </label>
                   <label class="booking-field">
                     <span>Amount Received</span>
-                    <input name="amount" type="number" min="0.01" step="0.01" value="${bookingAdminShared.escapeHtml(String(Math.max(0,guestBalance||booking.amount_due_now||booking.total_amount||0)))}" required>
+                    <input name="amount" type="number" min="0.01" step="0.01" value="${bookingAdminShared.escapeHtml(String(Math.max(0,guestBalance||booking.amount_due_now||booking.total_amount||0)))}" placeholder="Enter partial or full amount" required>
                   </label>
                   <label class="booking-field">
                     <span>Reference</span>
@@ -4277,6 +4283,23 @@ const renderBookingDetail=()=>{
                     <button class="booking-button" type="submit">Load Payment</button>
                   </div>
                 </form>
+                ${transactions.length ? `
+                <div class="section-heading" style="margin-top:20px">
+                  <div><h4>Payment history</h4><p class="muted-copy">All payments recorded on this booking.</p></div>
+                </div>
+                <div class="table-wrap">
+                  <table class="booking-table">
+                    <thead><tr><th>Date</th><th>Method</th><th>Reference</th><th style="text-align:right">Amount</th></tr></thead>
+                    <tbody>
+                      ${transactions.map(txn=>`<tr>
+                        <td>${bookingAdminShared.escapeHtml(formatDateTimeLabel(txn.created_at))}</td>
+                        <td>${bookingAdminShared.escapeHtml(String(txn.raw_payload?.payment_type||txn.provider||'').replace(/_/g,' '))}</td>
+                        <td>${bookingAdminShared.escapeHtml(txn.transaction_reference||txn.raw_payload?.provider_reference||'—')}</td>
+                        <td style="text-align:right">${bookingAdminShared.formatMoney(txn.amount||0,txn.currency_code||booking.currency||state.settings.currency)}</td>
+                      </tr>`).join('')}
+                    </tbody>
+                  </table>
+                </div>` : ''}
               </section>
             </div>
             ` : ''}
@@ -4819,13 +4842,12 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'confirmed'
   nodes.bookingPaymentStatus.value=booking?.payment_status||'pending'
-  const statusIsSystemManaged=Boolean(booking)
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
-    input.disabled=statusIsSystemManaged
-    input.setAttribute('aria-disabled',String(statusIsSystemManaged))
-    input.title=statusIsSystemManaged ? 'Booking status is updated by SkyBook workflows.' : ''
-    input.closest('.booking-field')?.classList.toggle('is-system-managed-field',statusIsSystemManaged)
+    input.disabled=false
+    input.removeAttribute('aria-disabled')
+    input.title=''
+    input.closest('.booking-field')?.classList.remove('is-system-managed-field')
   })
   nodes.bookingDate.value=booking?.preferred_date||''
   syncBookingDepartureFields(booking?.service_slug||'',booking?.metadata?.departure_label||'',booking?.metadata?.pickup_time||'')
