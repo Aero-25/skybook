@@ -14,3 +14,4 @@ test-results/
 playwright-report/
 node_modules/
 supabase/.temp/
+.superpowers/
