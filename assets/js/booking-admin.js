@@ -3761,8 +3761,8 @@ const renderBookings=()=>{
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
       </td>
-      <td style="white-space:nowrap">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td>${paymentBadge}</td>
+      <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+      <td data-label="Status">${paymentBadge}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
