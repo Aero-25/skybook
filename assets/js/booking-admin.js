@@ -2785,6 +2785,7 @@ const switchTab=(tab,{scrollToFocus=true}={})=>{
   if(nextTab==='invoices')showSwitcherPanel(nodes.platformPrimaryPanel,0)
   syncManagementActionHeaders()
   closeMobileSidebar()
+  if(typeof syncSkyTabbar==='function')syncSkyTabbar()
   if(scrollToFocus&&route.focusId){
     window.setTimeout(()=>document.getElementById(route.focusId)?.scrollIntoView?.({behavior:'smooth',block:'start'}),90)
   }
@@ -9780,6 +9781,35 @@ nodes.toolbarCommandPalette?.addEventListener('click',openCommandPalette)
 nodes.desktopSidebarToggle?.addEventListener('click',toggleDesktopSidebar)
 nodes.sidebarToggle?.addEventListener('click',toggleMobileSidebar)
 nodes.sidebarBackdrop?.addEventListener('click',closeMobileSidebar)
+// ----- Mobile bottom tab bar -----
+const skyTabbar=document.getElementById('skyMobileTabbar')
+const syncSkyTabbar=()=>{
+  if(!skyTabbar)return
+  const active=state.activeTab
+  const primary={calendar:'calendar',bookings:'bookings'}
+  skyTabbar.querySelectorAll('.sky-tab').forEach(btn=>{
+    const key=btn.dataset.skyTab
+    const isActive=key==='more'
+      ? !(active in primary)
+      : active===primary[key]
+    btn.classList.toggle('is-active',isActive)
+    if(key==='more')btn.classList.toggle('has-active-dot',!(active in primary))
+  })
+}
+skyTabbar?.addEventListener('click',event=>{
+  const btn=event.target.closest('.sky-tab')
+  if(!btn)return
+  const key=btn.dataset.skyTab
+  if(key==='more'){openMobileSidebar();return}
+  switchTab(key)
+  syncSkyTabbar()
+})
+// ----- Booking-detail tab strip: keep active tab visible on phones -----
+const scrollActiveTabIntoView=()=>{
+  if(window.innerWidth>768)return
+  const active=nodes.bookingDetail?.querySelector('.bm-nav-item.is-active')
+  active?.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})
+}
 nodes.commandPalette?.addEventListener('click',event=>{
   if(event.target.dataset.commandDismiss==='true')closeCommandPalette()
 })
