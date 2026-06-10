@@ -6165,3 +6165,21 @@ body.skybook-auth-page{
   .bm-shell .bm-header-name small{color:#fff;}
   .bm-shell .bm-header-name small{opacity:.7;}
 }
+
+/* ---- Sky Premium stat cards & status pills (Task 5) ---- */
+@media(max-width:768px){
+  /* Floating stat cards (match existing .bm-content .detail-card specificity) */
+  .bm-content .detail-card{
+    border-radius:14px;border:1px solid #e2ecf8;
+    box-shadow:0 4px 16px rgba(26,109,216,.08);
+    background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+  }
+  .bm-content .detail-card strong{color:#0d2d6e;}
+  .bm-content .detail-card span:first-child{color:var(--sky-blue,#1769aa);}
+  /* Status pills: rounded, bold, semantic */
+  .status-badge,.booking-chip{
+    border-radius:999px;font-weight:700;letter-spacing:.01em;
+  }
+  /* Section titles get the brand accent */
+  .bm-content h3{color:var(--sky-blue,#1769aa);}
+}
