@@ -9400,6 +9400,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const tab=navBtn.dataset.bmNav
     state.bookingDetailTab=tab
     nodes.bookingDetail.querySelectorAll('.bm-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmNav===tab))
+    scrollActiveTabIntoView()
     nodes.bookingDetail.querySelectorAll('.bm-section').forEach(el=>{el.hidden=el.dataset.bmSection!==tab})
     const tabLabel=nodes.bookingDetail.querySelector('.bm-mobile-tab-label')
     if(tabLabel)tabLabel.textContent={client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[tab]||tab

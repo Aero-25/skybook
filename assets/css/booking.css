@@ -6130,3 +6130,38 @@ body.skybook-auth-page{
     -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
   }
 }
+
+/* ---- Booking detail: full-screen tab strip (Task 4) ---- */
+@media(max-width:768px){
+  /* Booking-detail nav becomes a top tab strip, not a drawer */
+  .bm-shell .bm-nav{
+    position:static;transform:none!important;width:auto;height:auto;
+    inset:auto;border-radius:0;box-shadow:none;background:#fff;
+    border-bottom:1px solid #e2ecf8;padding:0;overflow:visible;
+  }
+  .bm-shell .bm-nav .bm-nav-mobile-hdr{display:none;}
+  .bm-shell .bm-nav-card{
+    display:flex;gap:4px;overflow-x:auto;scroll-snap-type:x proximity;
+    -webkit-overflow-scrolling:touch;padding:8px 10px;scrollbar-width:none;
+  }
+  .bm-shell .bm-nav-card::-webkit-scrollbar{display:none;}
+  .bm-shell .bm-nav-item{
+    flex:0 0 auto;scroll-snap-align:start;white-space:nowrap;
+    min-height:38px;padding:6px 14px;border-radius:9px;font-size:13px;
+    background:#f0f7ff;color:#5a80aa;border:1px solid transparent;
+  }
+  .bm-shell .bm-nav-item.is-active{
+    background:var(--sky-blue,#1769aa);color:#fff;
+  }
+  /* Retire the FAB + overlay on phones */
+  .bm-shell .bm-mobile-fab{display:none!important;}
+  .bm-shell .bm-nav-overlay{display:none!important;}
+  /* Sky Premium detail header */
+  .bm-shell .bm-header{
+    background:linear-gradient(160deg,#1a6dd8 0%,#0d4fa8 60%,#0a3d8a 100%);
+    color:#fff;
+  }
+  .bm-shell .bm-header-name strong,
+  .bm-shell .bm-header-name small{color:#fff;}
+  .bm-shell .bm-header-name small{opacity:.7;}
+}
