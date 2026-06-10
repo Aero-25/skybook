@@ -6050,3 +6050,19 @@ body.skybook-auth-page{
 .skybook-admin-page .admin-grid.is-sidebar-collapsed .sidebar-desktop-download{
   display:none;
 }
+
+/* ============================================================
+   MOBILE EXPERIENCE 2026-06 — see docs/superpowers/specs/2026-06-10-skybook-mobile-design.md
+   All rules below are phone-scoped. Desktop (>=769px) is untouched.
+   ============================================================ */
+:root{
+  --sky-tabbar-h:60px;
+}
+@media(max-width:768px){
+  /* Reserve space so fixed bottom bar never hides the last row */
+  body.skybook-admin-page .admin-content{
+    padding-bottom:calc(var(--sky-tabbar-h) + env(safe-area-inset-bottom) + 12px);
+  }
+  /* The legacy hamburger is redundant once the bottom bar exists at phone width */
+  body.skybook-admin-page .admin-toolbar-sidebar-toggle{display:none;}
+}
