@@ -1658,7 +1658,8 @@ const applyRequestedRoute=(routeState=getAdminRouteState(),{scrollToFocus=true}=
   if(requestedBookingId){
     const requestedBooking=state.bookings.find(item=>String(item.id)===String(requestedBookingId))
     if(requestedBooking){
-      openBookingManagementScreen(requestedBooking,{scroll:false})
+      const focusPayment=new URLSearchParams(window.location.search).get('focus')==='payment'
+      openBookingManagementScreen(requestedBooking,{scroll:false,focusPayment})
       return true
     }
     state.selectedBookingId=requestedBookingId
@@ -3209,6 +3210,7 @@ const renderCalendar=()=>{
                 <div class="calendar-entry-badges">
                   ${renderStatusBadge(booking.status)}
                   ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+                  ${renderToPayTag(booking)}
                 </div>
               </div>
               <div class="calendar-entry-meta">
@@ -3243,6 +3245,7 @@ const renderCalendar=()=>{
                     <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
                     <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                     ${renderStatusBadge(booking.status)}
+                    ${renderToPayTag(booking)}
                   </article>
                 `}).join('') : '<p class="muted-copy">No bookings</p>'}
               </div>
@@ -3702,6 +3705,28 @@ const getBookingChangelogPageUrl=bookingId=>{
   return `${url.pathname}${url.search}${url.hash}`
 }
 
+const getBookingOutstanding=booking=>Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)
+
+const renderToPayTag=booking=>{
+  const outstanding=getBookingOutstanding(booking)
+  if(!(outstanding>0))return ''
+  const href=`${getRecordPageUrl('bookings',booking.id)}&focus=payment`
+  const amountLabel=bookingAdminShared.formatMoney(outstanding,booking.currency||state.settings.currency)
+  return `<a class="to-pay-tag" href="${htmlAttribute(href)}" target="_blank" rel="noopener noreferrer" title="Outstanding ${bookingAdminShared.escapeHtml(amountLabel)} — click to load a payment">To Pay</a>`
+}
+
+const focusBookingPaymentSection=()=>{
+  if(!nodes.bookingDetail)return
+  state.bookingDetailTab='finance'
+  nodes.bookingDetail.querySelectorAll('.bm-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmNav==='finance'))
+  nodes.bookingDetail.querySelectorAll('.bm-section').forEach(el=>{el.hidden=el.dataset.bmSection!=='finance'})
+  const finance=nodes.bookingDetail.querySelector('.bm-section[data-bm-section="finance"]')
+  if(!finance)return
+  finance.querySelectorAll('.bm-sub-nav-item').forEach(el=>el.classList.toggle('is-active',el.dataset.bmSubNav==='record'))
+  finance.querySelectorAll('.bm-sub-section').forEach(el=>{el.hidden=el.dataset.bmSubSection!=='record'})
+  window.setTimeout(()=>finance.querySelector('[data-bm-sub-section="record"]')?.scrollIntoView?.({behavior:'smooth',block:'start'}),120)
+}
+
 const openBookingChangelogPage=bookingId=>{
   if(!bookingId)return
   const opened=window.open(getBookingChangelogPageUrl(bookingId),'_blank','noopener')
@@ -3770,7 +3795,7 @@ const renderBookings=()=>{
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${paymentBadge}</td>
+      <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
@@ -4256,6 +4281,7 @@ const renderBookingDetail=()=>{
                   <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments. Partial amounts are fine — the outstanding balance updates automatically after each payment.</p></div>
                 </div>
                 ${transactions.length ? `<div class="detail-callout" style="margin-bottom:12px"><strong>Already received: ${bookingAdminShared.formatMoney(payments[0]?.amount_received||0,booking.currency||state.settings.currency)}</strong> across ${transactions.length} payment${transactions.length===1?'':'s'} — outstanding: ${bookingAdminShared.formatMoney(guestBalance,booking.currency||state.settings.currency)}</div>` : ''}
+                ${guestBalance<=0 ? `<div class="detail-callout is-warning" style="margin-bottom:12px"><strong>⚠ This booking's balance is ${bookingAdminShared.formatMoney(0,booking.currency||state.settings.currency)}.</strong> It is already settled — any payment loaded now will put the booking in credit.</div>` : ''}
                 <form class="booking-inline-form booking-inline-form-wide" data-inline-form="manual-payment">
                   <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
                   <label class="booking-field">
@@ -4270,7 +4296,7 @@ const renderBookingDetail=()=>{
                   </label>
                   <label class="booking-field">
                     <span>Amount Received</span>
-                    <input name="amount" type="number" min="0.01" step="0.01" value="${bookingAdminShared.escapeHtml(String(Math.max(0,guestBalance||booking.amount_due_now||booking.total_amount||0)))}" placeholder="Enter partial or full amount" required>
+                    <input name="amount" type="number" min="0.01" step="0.01" placeholder="Outstanding ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(Math.max(0,guestBalance),booking.currency||state.settings.currency))} — enter amount" autocomplete="off" required>
                   </label>
                   <label class="booking-field">
                     <span>Reference</span>
@@ -4912,14 +4938,15 @@ const openReservationManagementScreen=(booking,{scroll=true}={})=>{
   }
 }
 
-const openBookingManagementScreen=(booking,{scroll=true}={})=>{
+const openBookingManagementScreen=(booking,{scroll=true,focusPayment=false}={})=>{
   if(!booking)return
   if(!document.body.classList.contains('is-booking-record-page')){
-    window.open(getRecordPageUrl('bookings',booking.id),'_blank','noopener,noreferrer')
+    const url=focusPayment ? `${getRecordPageUrl('bookings',booking.id)}&focus=payment` : getRecordPageUrl('bookings',booking.id)
+    window.open(url,'_blank','noopener,noreferrer')
     return
   }
   state.preBookingTab=state.activeTab||'bookings'
-  if(booking.id!==state.selectedBookingId)state.bookingDetailTab='client'
+  if(booking.id!==state.selectedBookingId)state.bookingDetailTab=focusPayment ? 'finance' : 'client'
   state.selectedBookingId=booking.id
   switchTab('bookings')
   fillBookingForm(booking)
@@ -4929,6 +4956,7 @@ const openBookingManagementScreen=(booking,{scroll=true}={})=>{
   workspace?.classList.add('is-detail-open')
   showSwitcherPanel(detailPanel,1)
   detailPanel?.classList.add('is-management-open')
+  if(focusPayment)focusBookingPaymentSection()
   if(scroll){
     window.setTimeout(()=>detailPanel?.scrollIntoView?.({behavior:'smooth',block:'start'}),80)
   }
@@ -8024,6 +8052,14 @@ const handleManualPaymentSave=async form=>{
   }
   if(paymentType==='card'&&(!body.terminal_serial_number||!body.batch_number)){
     throw new Error('Card payments require terminal serial number and batch number.')
+  }
+  const paymentBooking=state.bookings.find(item=>String(item.id)===String(bookingId))
+  const outstanding=paymentBooking?getBookingOutstanding(paymentBooking):0
+  const ccy=paymentBooking?.currency||state.settings.currency
+  if(body.amount>outstanding+0.01){
+    const credit=Number((body.amount-outstanding).toFixed(2))
+    const ok=window.confirm(`Outstanding balance is ${bookingAdminShared.formatMoney(Math.max(0,outstanding),ccy)}.\nYou are loading ${bookingAdminShared.formatMoney(body.amount,ccy)}.\n\nThis will put the booking in CREDIT of ${bookingAdminShared.formatMoney(credit,ccy)}.\n\nContinue?`)
+    if(!ok)throw new Error('Payment cancelled — the amount is more than the outstanding balance.')
   }
   await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
     method:'POST',
