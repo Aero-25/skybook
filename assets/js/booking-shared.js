@@ -1162,6 +1162,32 @@ window.TrueTravelBooking=(()=>{
     if(method==='PATCH'&&normalizedPath==='admin/email-templates'){
       return {success:true}
     }
+    // Discount QR — create
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='discount-qr'&&!parts[2]){
+      const brand=safeText(body?.brand_code)||'true-travel'
+      const kind=safeText(body?.kind)||'campaign'
+      const code=Array.from({length:11},()=>'0123456789ABCDEFGHJKMNPQRSTVWXYZ'[Math.floor(Math.random()*32)]).join('')
+      const row={id:'qr_'+Date.now(),code,description:safeText(body?.label)||`${brand} discount`,discount_type:safeText(body?.discount_type)||'percentage',discount_value:Number(body?.discount_value||0),is_active:true,is_qr:true,kind,brand_code:brand,service_id:safeText(body?.service_id)||null,label:safeText(body?.label)||null,usage_limit:kind==='single_use'?1:(body?.max_redemptions?Number(body.max_redemptions):null),usage_count:0,ends_at:safeText(body?.ends_at)||null,created_at:new Date().toISOString()}
+      db.coupons=db.coupons||[];db.coupons.unshift(row);writeDemoDb(db)
+      return {coupon:row,code,url:`https://demo.local/booking.html?promo=${code}`}
+    }
+    // Discount QR — list
+    if(method==='GET'&&parts[0]==='admin'&&parts[1]==='discount-qr'&&!parts[2]){
+      return {discount_qr:(db.coupons||[]).filter(c=>c.is_qr)}
+    }
+    // Discount QR — disable
+    if(method==='POST'&&parts[0]==='admin'&&parts[1]==='discount-qr'&&parts[2]&&parts[3]==='disable'){
+      const row=(db.coupons||[]).find(c=>c.id===parts[2]);if(row)row.is_active=false;writeDemoDb(db)
+      return {success:true}
+    }
+    // Discount QR — public preview
+    if(method==='GET'&&parts[0]==='discount-codes'&&parts[1]){
+      const row=(db.coupons||[]).find(c=>String(c.code).toUpperCase()===String(parts[1]).toUpperCase()&&c.is_active)
+      if(!row)return {valid:false}
+      if(row.ends_at&&new Date(row.ends_at).getTime()<=Date.now())return {valid:false}
+      if(row.usage_limit!=null&&Number(row.usage_count||0)>=Number(row.usage_limit))return {valid:false}
+      return {valid:true,discount_type:row.discount_type,discount_value:row.discount_value,label:row.description,service_slug:null}
+    }
     throw new Error('Demo route not implemented.')
   }
 
