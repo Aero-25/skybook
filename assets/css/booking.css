@@ -6099,3 +6099,34 @@ body.skybook-auth-page{
 }
 /* Bar is desktop-hidden by default; only the media query above shows it */
 .sky-mobile-tabbar{display:none;}
+
+/* ---- "More" drawer as Sky Premium bottom sheet (Task 3) ---- */
+@media(max-width:768px){
+  /* Turn the left slide-in into a bottom sheet on phones */
+  body.skybook-admin-page.is-sidebar-open .admin-sidebar-booking{
+    position:fixed;left:0;right:0;bottom:0;top:auto;
+    width:100%;max-height:82vh;border-radius:20px 20px 0 0;
+    padding:8px 14px calc(20px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,#ffffff 0%,#f3f9ff 100%);
+    box-shadow:0 -10px 40px rgba(10,30,70,.28);
+    overflow-y:auto;z-index:520;animation:skySheetUp .26s cubic-bezier(.3,0,.2,1);
+  }
+  @keyframes skySheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  /* Grab handle */
+  body.skybook-admin-page.is-sidebar-open .admin-sidebar-booking::before{
+    content:"";display:block;width:36px;height:4px;border-radius:99px;
+    background:#cbd9ea;margin:4px auto 12px;
+  }
+  /* Larger touch targets for every destination */
+  body.skybook-admin-page.is-sidebar-open .admin-sidebar-booking .admin-tab{
+    min-height:46px;font-size:14px;
+  }
+  body.skybook-admin-page.is-sidebar-open .admin-sidebar-booking .admin-menu-section summary{
+    min-height:44px;display:flex;align-items:center;font-size:13px;
+  }
+  /* Sheet backdrop reuses the existing backdrop element */
+  body.skybook-admin-page.is-sidebar-open .skybook-sidebar-backdrop{
+    position:fixed;inset:0;z-index:510;background:rgba(5,15,40,.45);
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  }
+}
