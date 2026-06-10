@@ -2652,6 +2652,37 @@ const disableDiscountQr=async(id:string)=>{
   return { success:true }
 }
 
+const previewHits=new Map<string,{count:number,reset:number}>()
+const previewRateLimited=(ip:string)=>{
+  const now=Date.now()
+  const slot=previewHits.get(ip)
+  if(!slot||now>slot.reset){previewHits.set(ip,{count:1,reset:now+60_000});return false}
+  slot.count++
+  return slot.count>30 // max 30 previews/min/IP
+}
+
+const previewDiscountCode=async(code:string,brand:string)=>{
+  const coupon=await safeMaybeSingle<Json>(
+    adminClient.from('coupons').select('*').eq('code',normalizeText(code).toUpperCase()).eq('is_active',true).maybeSingle()
+  )
+  if(!coupon)return { valid:false }
+  if(normalizeText(coupon.brand_code)!==brand)return { valid:false }
+  if(coupon.ends_at&&new Date(String(coupon.ends_at)).getTime()<=Date.now())return { valid:false }
+  if(coupon.usage_limit!=null&&Number(coupon.usage_count||0)>=Number(coupon.usage_limit))return { valid:false }
+  let serviceSlug:string|null=null
+  if(coupon.service_id){
+    const svc=await safeMaybeSingle<Json>(adminClient.from('services').select('slug').eq('id',String(coupon.service_id)).maybeSingle())
+    serviceSlug=svc?svc.slug as string:null
+  }
+  return {
+    valid:true,
+    discount_type:String(coupon.discount_type||'percentage'),
+    discount_value:Number(coupon.discount_value||0),
+    label:String(coupon.description||coupon.label||'Discount'),
+    service_slug:serviceSlug
+  }
+}
+
 type BookingDiscountInput={
   source_type:string
   source_id:string | null
@@ -4564,6 +4595,12 @@ Deno.serve(async request=>{
 
     if(request.method==='GET'&&resource==='booking-fields'&&!id){
       return json(200,{fields:await getBookingFormFields(brandCode,{publicOnly:true})})
+    }
+
+    if(request.method==='GET'&&resource==='discount-codes'&&id){
+      const ip=normalizeText(request.headers.get('x-forwarded-for')).split(',')[0]||'unknown'
+      if(previewRateLimited(ip))return json(429,{valid:false,error:'rate_limited'})
+      return json(200,await previewDiscountCode(id,brandCode))
     }
 
     if(request.method==='POST'&&resource==='bookings'&&!id){
