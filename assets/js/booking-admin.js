@@ -735,9 +735,9 @@ const MODULE_META={
     subtitle:'Payment status, guest balances, deposits, provider timelines, and incoming payment activity across the booking system.'
   },
   'discount-qr':{
-    group:'Revenue',
+    group:'Reservations',
     eyebrow:'Promotional Codes',
-    title:'Discount QR',
+    title:'Discounts',
     subtitle:'Generate scannable discount QR codes and shareable links for campaigns and single-use offers across True Travel and Iventure.'
   },
   refunds:{
