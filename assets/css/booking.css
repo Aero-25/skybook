@@ -6063,8 +6063,9 @@ body.skybook-auth-page{
   body.skybook-admin-page .admin-content{
     padding-bottom:calc(var(--sky-tabbar-h) + env(safe-area-inset-bottom) + 12px);
   }
-  /* The legacy hamburger is redundant once the bottom bar exists at phone width */
-  body.skybook-admin-page .admin-toolbar-sidebar-toggle{display:none;}
+  /* Keep the hamburger (full menu) visible on phones alongside the bottom bar,
+     so the complete app menu is always one tap away. */
+  body.skybook-admin-page .admin-toolbar-sidebar-toggle{display:inline-flex;}
 }
 
 /* ---- Bottom tab bar (Task 2) ---- */
