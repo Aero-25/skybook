@@ -2593,11 +2593,13 @@ const generateCouponCode=(len=11)=>{
   return out
 }
 
-const brandBookingBaseUrl=async(brandCode:string)=>{
+const brandBookingUrl=async(brandCode:string)=>{
+  // The stored value is the FULL booking page URL for the brand
+  // (e.g. True Travel -> homepage reservation form, Iventure -> /booking.html).
   const map=await getSettingValue<Record<string,string>>('brand_booking_urls',{})
   const base=normalizeText(map?.[brandCode])
   if(!base)throw new Error(`No booking URL configured for brand ${brandCode}. Set the booking 'brand_booking_urls' setting.`)
-  return base.replace(/\/+$/,'')
+  return base
 }
 
 const createDiscountQr=async(payload:Json)=>{
@@ -2639,8 +2641,8 @@ const createDiscountQr=async(payload:Json)=>{
   }).select('*').single()
   if(insert.error)throw new Error(insert.error.message)
 
-  const base=await brandBookingBaseUrl(brand)
-  const url=`${base}/booking.html?promo=${encodeURIComponent(code)}`
+  const bookingUrl=await brandBookingUrl(brand)
+  const url=`${bookingUrl}${bookingUrl.includes('?')?'&':'?'}promo=${encodeURIComponent(code)}`
   return { coupon:insert.data, code, url }
 }
 
