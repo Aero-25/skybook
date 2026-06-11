@@ -6132,39 +6132,65 @@ body.skybook-auth-page{
   }
 }
 
-/* ---- Booking detail: full-screen tab strip (Task 4) ---- */
+/* ---- Booking detail: full-screen, stacked tab strip (mobile redesign) ---- */
 @media(max-width:768px){
-  /* Booking-detail nav becomes a top tab strip, not a drawer */
-  .bm-shell .bm-nav{
-    position:static;transform:none!important;width:auto;height:auto;
-    inset:auto;border-radius:0;box-shadow:none;background:#fff;
-    border-bottom:1px solid #e2ecf8;padding:0;overflow:visible;
-  }
-  .bm-shell .bm-nav .bm-nav-mobile-hdr{display:none;}
-  .bm-shell .bm-nav-card{
-    display:flex;gap:4px;overflow-x:auto;scroll-snap-type:x proximity;
-    -webkit-overflow-scrolling:touch;padding:8px 10px;scrollbar-width:none;
-  }
-  .bm-shell .bm-nav-card::-webkit-scrollbar{display:none;}
-  .bm-shell .bm-nav-item{
-    flex:0 0 auto;scroll-snap-align:start;white-space:nowrap;
-    min-height:38px;padding:6px 14px;border-radius:9px;font-size:13px;
-    background:#f0f7ff;color:#5a80aa;border:1px solid transparent;
-  }
-  .bm-shell .bm-nav-item.is-active{
-    background:var(--sky-blue,#1769aa);color:#fff;
-  }
-  /* Retire the FAB + overlay on phones */
-  .bm-shell .bm-mobile-fab{display:none!important;}
-  .bm-shell .bm-nav-overlay{display:none!important;}
-  /* Sky Premium detail header */
+  /* CRITICAL: stack the body so the nav is a full-width strip ON TOP of content */
+  .bm-shell .bm-body{ flex-direction:column; overflow:visible; min-height:0; }
+
+  /* Header: clean gradient, organised rows (avatar+name / badges / actions) */
   .bm-shell .bm-header{
     background:linear-gradient(160deg,#1a6dd8 0%,#0d4fa8 60%,#0a3d8a 100%);
-    color:#fff;
+    color:#fff; display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px;
+    padding:12px 14px; min-height:0; overflow:visible;
   }
-  .bm-shell .bm-header-name strong,
-  .bm-shell .bm-header-name small{color:#fff;}
-  .bm-shell .bm-header-name small{opacity:.7;}
+  .bm-shell .bm-header-guest{ min-width:0; flex:1 1 100%; display:flex; align-items:center; gap:11px; }
+  .bm-shell .bm-header-avatar{ width:40px; height:40px; flex:0 0 40px; font-size:14px; background:rgba(255,255,255,.18); color:#fff; }
+  .bm-shell .bm-header-name{ min-width:0; }
+  .bm-shell .bm-header-name strong{ color:#fff; font-size:14px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bm-shell .bm-header-name small{ color:rgba(255,255,255,.72); font-size:11px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bm-shell .bm-header-badges{ display:flex; gap:6px; flex:0 0 auto; }
+  .bm-shell .bm-mobile-tab-label{ display:none; }
+  .bm-shell .bm-header-actions{ display:flex!important; flex:1 1 100%; flex-direction:row!important; flex-wrap:wrap; justify-content:flex-start; align-items:center; gap:6px; margin:0; padding:0!important; background:none!important; border:none!important; box-shadow:none!important; }
+  .bm-shell .bm-header-actions .booking-button{ flex:0 0 auto; width:auto!important; min-height:32px; font-size:10.5px; font-weight:700; padding:0 13px; background:rgba(255,255,255,.22); color:#fff!important; border:1px solid rgba(255,255,255,.45)!important; box-shadow:none; }
+  .bm-shell .bm-header-actions .bm-back-btn{ background:#fff!important; color:#0d4fa8!important; font-weight:800; border-color:#fff!important; }
+
+  /* Nav -> full-width horizontal scrolling tab strip */
+  .bm-shell .bm-nav{
+    position:static; transform:none!important; width:100%!important; height:auto;
+    inset:auto; border-radius:0; box-shadow:none; background:#fff;
+    border-right:0; border-bottom:1px solid #e2ecf8; padding:0; overflow:visible; flex:0 0 auto;
+  }
+  .bm-shell .bm-nav .bm-nav-mobile-hdr{ display:none; }
+  .bm-shell .bm-nav-card{
+    display:flex; flex-direction:row; flex-wrap:nowrap; gap:6px;
+    overflow-x:auto; -webkit-overflow-scrolling:touch; padding:10px 12px; scrollbar-width:none;
+  }
+  .bm-shell .bm-nav-card::-webkit-scrollbar{ display:none; }
+  .bm-shell .bm-nav-item{
+    flex:0 0 auto; width:auto; white-space:nowrap; min-height:36px;
+    padding:7px 15px; border-radius:999px; font-size:12.5px; font-weight:700;
+    background:#f0f7ff; color:#5a80aa; border:1px solid transparent;
+  }
+  .bm-shell .bm-nav-item.is-active{
+    background:linear-gradient(135deg,#1a6dd8,#0f4fa8); color:#fff; box-shadow:0 6px 14px rgba(26,109,216,.28);
+  }
+
+  /* Content + sub-nav as scrolling pills */
+  .bm-shell .bm-content{ padding:14px 12px; }
+  .bm-shell .bm-sub-nav{ display:flex; flex-wrap:nowrap; gap:6px; overflow-x:auto; scrollbar-width:none; padding-bottom:12px; }
+  .bm-shell .bm-sub-nav::-webkit-scrollbar{ display:none; }
+  .bm-shell .bm-sub-nav-item{ flex:0 0 auto; white-space:nowrap; }
+
+  /* Detail cards: 2-up, numbers never wrap */
+  .bm-content .detail-overview-grid,
+  .bm-content .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .bm-content .detail-card{ min-width:0; padding:13px 14px; }
+  .bm-content .detail-card strong{ font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bm-content .detail-card span{ font-size:9.5px; }
+
+  /* Retire the FAB + drawer overlay on phones */
+  .bm-shell .bm-mobile-fab{ display:none!important; }
+  .bm-shell .bm-nav-overlay{ display:none!important; }
 }
 
 /* ---- Sky Premium stat cards & status pills (Task 5) ---- */
