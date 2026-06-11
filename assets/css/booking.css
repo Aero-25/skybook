@@ -6461,3 +6461,27 @@ body.skybook-auth-page{
   .reservation-list-wrap tr.reservation-row td .badge-stack{ display:flex; align-items:center; gap:8px; flex-direction:row; }
   .reservation-list-wrap tr.reservation-row td .badge-stack .compact-button{ min-height:32px; }
 }
+
+/* ---- Customers table -> cards on phones ---- */
+@media(max-width:768px){
+  .customer-list-wrap tr.customer-row{
+    background:linear-gradient(180deg,#fff,#fbfdff); border:1px solid #e6eef8; border-radius:16px;
+    box-shadow:0 6px 18px rgba(26,109,216,.07); margin:0 0 10px; padding:14px 15px;
+  }
+  .customer-list-wrap tr.customer-row td{
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+    background:none!important; border:none; border-radius:0; padding:5px 0; font-size:13px;
+  }
+  .customer-list-wrap tr.customer-row td:first-child{
+    display:block; padding:0 0 10px; margin-bottom:8px; border-bottom:1px solid #eef4fb;
+  }
+  .customer-list-wrap tr.customer-row td:first-child strong{ font-size:15px; color:#0d2d6e; }
+  .customer-list-wrap tr.customer-row td:first-child .table-subline{ font-size:11.5px; color:#7990a8; }
+  .customer-list-wrap tr.customer-row td[data-label]::before{
+    content:attr(data-label); font-weight:700; color:#8aa0bb; font-size:10.5px;
+    text-transform:uppercase; letter-spacing:.04em; flex:0 0 auto;
+  }
+  .customer-list-wrap tr.customer-row td:empty{ display:none; }
+  .customer-list-wrap tr.customer-row td strong{ font-weight:600; text-align:right; }
+  .customer-list-wrap tr.customer-row td:first-child strong{ text-align:left; }
+}

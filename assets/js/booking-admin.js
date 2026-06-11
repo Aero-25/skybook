@@ -5741,15 +5741,15 @@ const renderCustomers=()=>{
         <strong>${bookingAdminShared.escapeHtml(customer.full_name)}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateLabel(customer.created_at))}</div>
       </td>
-      <td>
+      <td data-label="Email">
         <strong>${bookingAdminShared.escapeHtml(customer.email)}</strong>
       </td>
-      <td>
+      <td data-label="Phone">
         <strong>${bookingAdminShared.escapeHtml(customer.phone||'No phone captured')}</strong>
       </td>
-      <td>${renderChipGroup(customer.brand_codes,{formatter:formatBrandLabel,fallback:'No brand history yet'})}</td>
-      <td>${renderChipGroup(customer.booking_sources,{formatter:formatSourceLabel,fallback:'No source history yet'})}</td>
-      <td>
+      <td data-label="Brand">${renderChipGroup(customer.brand_codes,{formatter:formatBrandLabel,fallback:'No brand history yet'})}</td>
+      <td data-label="Source">${renderChipGroup(customer.booking_sources,{formatter:formatSourceLabel,fallback:'No source history yet'})}</td>
+      <td data-label="Last booking">
         <strong>${bookingAdminShared.escapeHtml(customer.last_booking_reference||'No booking yet')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatDateLabel(customer.last_booking_date||customer.created_at))}</div>
       </td>
