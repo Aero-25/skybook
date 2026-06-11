@@ -6249,3 +6249,110 @@ body.skybook-auth-page{
 .to-pay-tag:hover{background:#ffe2e2;transform:translateY(-1px)}
 .calendar-mini-card .to-pay-tag{margin-left:0;margin-top:2px}
 .detail-callout.is-warning{background:#fff7e8;border-color:#f0dca0;color:#8a6400}
+
+/* ---- Mobile toolbar + calendar controls polish (compact, tidy) ---- */
+@media(max-width:768px){
+  /* Smaller page header + status on phones */
+  body.skybook-admin-page .admin-toolbar h2{ font-size:23px; letter-spacing:-.02em; }
+  body.skybook-admin-page .admin-toolbar .toolbar-status,
+  body.skybook-admin-page .admin-toolbar .module-breadcrumb{ font-size:11px; }
+
+  /* Top toolbar actions: neat 2-column grid of compact buttons (was a full-width stack) */
+  body.skybook-admin-page .toolbar-actions{
+    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; width:100%; max-width:100%; margin-top:10px; box-sizing:border-box;
+  }
+  body.skybook-admin-page .toolbar-actions button,
+  body.skybook-admin-page .toolbar-actions .booking-button{
+    width:100%; min-width:0; min-height:38px; font-size:11px; font-weight:800; letter-spacing:.03em;
+    padding:0 10px; border-radius:11px; box-shadow:0 6px 14px rgba(23,105,170,.14);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* Brand dropdown spans the full width, compact height */
+  body.skybook-admin-page .toolbar-brand-switch{
+    grid-column:1 / -1; width:100%; min-height:38px; border-radius:11px; font-size:12px;
+  }
+
+  /* Calendar Day/Week/Month/Print: compact wrap row, not big stacked bars */
+  body.skybook-admin-page .admin-calendar-actions{
+    display:flex; flex-wrap:wrap; gap:6px; width:100%; margin-top:10px;
+  }
+  body.skybook-admin-page .admin-calendar-actions .calendar-view-button{
+    flex:1 1 22%; min-width:0; width:auto; min-height:34px; font-size:11px;
+    letter-spacing:.02em; padding:0 8px; border-radius:9px;
+  }
+  /* Date navigation sits on its own full-width row, spread out */
+  body.skybook-admin-page .admin-calendar-actions .cal-date-nav{
+    flex:1 1 100%; display:flex; justify-content:space-between; align-items:center;
+    gap:8px; margin-top:4px; width:100%;
+  }
+  body.skybook-admin-page .admin-calendar-actions .cal-date-nav-label{
+    flex:1; text-align:center; font-size:12px; font-weight:700; min-width:0;
+  }
+}
+
+/* ============================================================
+   MOBILE BOOKINGS OVERHAUL 2026-06 — friendly & beautiful on phones
+   ============================================================ */
+@media(max-width:768px){
+  /* Panels: lighter padding, rounded, airy */
+  body.skybook-admin-page .booking-panel{ padding:14px; border-radius:18px; }
+  body.skybook-admin-page .booking-list-top{ display:flex; flex-direction:column; gap:12px; }
+
+  /* --- Search row: full-width search, then Fix + New --- */
+  body.skybook-admin-page .booking-list-toolbar{
+    display:grid; grid-template-columns:1fr auto; gap:9px; align-items:center;
+  }
+  body.skybook-admin-page .booking-list-search{
+    grid-column:1 / -1; width:100%; min-height:44px; border-radius:13px;
+    border:1px solid var(--sky-line); padding:0 15px; font-size:14px; background:#fff;
+    box-shadow:0 2px 8px rgba(20,52,83,.04);
+  }
+  body.skybook-admin-page .booking-list-toolbar .compact-button{
+    min-height:40px; border-radius:12px; font-size:12px; font-weight:800; padding:0 14px; letter-spacing:.02em;
+  }
+  body.skybook-admin-page #repairStatusConflictsButton{ order:1; }
+  body.skybook-admin-page #adminBookingNewButton{ order:2; box-shadow:0 8px 18px rgba(23,105,170,.22); }
+
+  /* --- Quick filter chips: horizontal scroll pills with count badges --- */
+  body.skybook-admin-page .booking-quick-filter-bar{
+    display:flex; flex-wrap:nowrap; overflow-x:auto; gap:7px; padding:2px 2px 6px; margin:0 -2px;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity;
+  }
+  body.skybook-admin-page .booking-quick-filter-bar::-webkit-scrollbar{ display:none; }
+  body.skybook-admin-page .booking-quick-filter{
+    flex:0 0 auto; width:auto; justify-content:center; scroll-snap-align:start; white-space:nowrap; min-height:34px;
+    padding:5px 13px; border-radius:999px; font-size:11.5px; font-weight:700;
+    border:1px solid var(--sky-line); background:#fff; color:#41587a;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  body.skybook-admin-page .booking-quick-filter span[data-filter-count]{
+    background:#eef4fb; color:#5a80aa; border-radius:999px; padding:1px 7px; font-size:10px; font-weight:800; line-height:1.5;
+  }
+  body.skybook-admin-page .booking-quick-filter.is-active{
+    background:linear-gradient(135deg,#1a6dd8,#0f4fa8); color:#fff; border-color:transparent;
+    box-shadow:0 6px 14px rgba(26,109,216,.28);
+  }
+  body.skybook-admin-page .booking-quick-filter.is-active span[data-filter-count]{ background:rgba(255,255,255,.25); color:#fff; }
+  body.skybook-admin-page .booking-quick-filter.is-reset{ color:#9b2f35; border-color:#f1cdd1; background:#fff5f5; }
+
+  /* --- Advanced filters toggle: centered, subtle --- */
+  body.skybook-admin-page .booking-filter-toggle-row{ display:flex; justify-content:center; }
+  body.skybook-admin-page .booking-filter-toggle{ width:100%; min-height:36px !important; border-radius:11px !important; font-size:12px !important; }
+
+  /* --- Booking cards: premium, clear hierarchy --- */
+  .booking-list-wrap tr.booking-row{
+    padding:14px 15px; border-radius:16px; border:1px solid #e6eef8;
+    box-shadow:0 6px 18px rgba(26,109,216,.07); background:linear-gradient(180deg,#fff,#fbfdff);
+  }
+  .booking-list-wrap tr.booking-row td:first-child{
+    padding:0 0 10px; margin-bottom:8px; border-bottom:1px solid #eef4fb;
+  }
+  .booking-list-wrap tr.booking-row td:first-child strong{ font-size:15.5px; color:#0d2d6e; letter-spacing:-.01em; }
+  .booking-list-wrap tr.booking-row td:first-child .table-subline{ font-size:11.5px; color:#7990a8; margin-top:2px; }
+  .booking-list-wrap tr.booking-row td{ font-size:13px; padding:5px 0; }
+  .booking-list-wrap tr.booking-row td[data-label]::before{ color:#8aa0bb; font-size:10.5px; }
+  .booking-list-wrap tr.booking-row .status-badge{ font-size:10px; }
+
+  /* Pagination tidy */
+  body.skybook-admin-page .booking-list-pagination{ display:flex; justify-content:center; gap:10px; padding-top:8px; }
+}
