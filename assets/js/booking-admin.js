@@ -8644,52 +8644,76 @@ const handleCouponSave=async event=>{
   await refreshAdmin('Coupon saved.')
 }
 
+const discountQrAuthHeaders=()=>bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+
 const renderDiscountQrList=async()=>{
   const wrap=document.getElementById('discountQrList')
   if(!wrap)return
-  const {discount_qr=[]}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'GET'})
-  wrap.innerHTML=discount_qr.map(c=>`
-    <div class="qr-list-row">
-      <strong>${bookingAdminShared.escapeHtml(c.label||c.code)}</strong>
-      <span>${bookingAdminShared.escapeHtml(c.brand_code)} · ${bookingAdminShared.escapeHtml(c.discount_type)} ${c.discount_value}</span>
-      <span>${c.usage_count||0}${c.usage_limit?'/'+c.usage_limit:''} used</span>
-      <span>${c.is_active?'Active':'Disabled'}</span>
-      ${c.is_active?`<button class="booking-button ghost compact-button" data-qr-disable="${bookingAdminShared.escapeHtml(c.id)}">Disable</button>`:''}
-    </div>`).join('')||'<p>No discount QR codes yet.</p>'
+  try{
+    const {discount_qr=[]}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'GET',headers:discountQrAuthHeaders()})
+    wrap.innerHTML=discount_qr.map(c=>`
+      <div class="qr-list-row">
+        <strong>${bookingAdminShared.escapeHtml(c.label||c.code)}</strong>
+        <span>${bookingAdminShared.escapeHtml(c.brand_code)} · ${bookingAdminShared.escapeHtml(c.discount_type)} ${c.discount_value}</span>
+        <span>${c.usage_count||0}${c.usage_limit?'/'+c.usage_limit:''} used</span>
+        <span>${c.is_active?'Active':'Disabled'}</span>
+        ${c.is_active?`<button class="booking-button ghost compact-button" data-qr-disable="${bookingAdminShared.escapeHtml(c.id)}">Disable</button>`:''}
+      </div>`).join('')||'<p class="muted-copy">No discount QR codes yet.</p>'
+  }catch(error){
+    wrap.innerHTML=`<p class="muted-copy">Could not load discount codes: ${bookingAdminShared.escapeHtml(error?.message||'unknown error')}</p>`
+  }
 }
 
 const handleDiscountQrSubmit=async event=>{
   event.preventDefault()
-  const data=new FormData(event.target)
-  const body={
-    brand_code:data.get('brand_code'),
-    discount_type:data.get('discount_type'),
-    discount_value:Number(data.get('discount_value')||0),
-    kind:data.get('kind'),
-    max_redemptions:data.get('max_redemptions')||null,
-    ends_at:data.get('ends_at')||null,
-    service_id:data.get('service_id')||null,
-    label:data.get('label')||null
+  const submitButton=event.target.querySelector('button[type="submit"]')
+  setActionButtonLoading(submitButton,true,'Generating')
+  try{
+    const data=new FormData(event.target)
+    const body={
+      brand_code:data.get('brand_code'),
+      discount_type:data.get('discount_type'),
+      discount_value:Number(data.get('discount_value')||0),
+      kind:data.get('kind'),
+      max_redemptions:data.get('max_redemptions')||null,
+      ends_at:data.get('ends_at')||null,
+      service_id:data.get('service_id')||null,
+      label:data.get('label')||null
+    }
+    if(!(body.discount_value>0))throw new Error('Enter a discount value greater than zero.')
+    const {code,url}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'POST',headers:discountQrAuthHeaders(),body})
+    const canvas=document.getElementById('discountQrCanvas')
+    canvas.innerHTML=''
+    try{
+      if(typeof QRCode!=='function')throw new Error('QR library not loaded')
+      new QRCode(canvas,{text:url,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})
+    }catch(qrError){
+      canvas.innerHTML='<p class="muted-copy" style="margin:0">QR image could not be drawn — use the link below.</p>'
+    }
+    document.getElementById('discountQrCode').textContent=code
+    const link=document.getElementById('discountQrLink')
+    link.textContent=url; link.href=url
+    document.getElementById('discountQrResult').hidden=false
+    showToast('Discount QR generated.','success')
+    renderDiscountQrList()
+  }catch(error){
+    showToast(error?.message||'Could not generate the discount QR.','error')
+  }finally{
+    setActionButtonLoading(submitButton,false)
   }
-  const {code,url}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'POST',body})
-  const canvas=document.getElementById('discountQrCanvas')
-  canvas.innerHTML=''
-  new QRCode(canvas,{text:url,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})
-  document.getElementById('discountQrCode').textContent=code
-  const link=document.getElementById('discountQrLink')
-  link.textContent=url; link.href=url
-  document.getElementById('discountQrResult').hidden=false
-  showToast('Discount QR generated.','success')
-  renderDiscountQrList()
 }
 
 document.getElementById('discountQrForm')?.addEventListener('submit',event=>{void handleDiscountQrSubmit(event)})
 document.getElementById('discountQrList')?.addEventListener('click',async event=>{
   const id=event.target.closest('[data-qr-disable]')?.dataset.qrDisable
   if(!id)return
-  await bookingAdminShared.apiRequest(`admin/discount-qr/${encodeURIComponent(id)}/disable`,{method:'POST',body:{}})
-  showToast('Discount QR disabled.','info')
-  renderDiscountQrList()
+  try{
+    await bookingAdminShared.apiRequest(`admin/discount-qr/${encodeURIComponent(id)}/disable`,{method:'POST',headers:discountQrAuthHeaders(),body:{}})
+    showToast('Discount QR disabled.','info')
+    renderDiscountQrList()
+  }catch(error){
+    showToast(error?.message||'Could not disable the code.','error')
+  }
 })
 document.getElementById('discountQrDownload')?.addEventListener('click',()=>{
   const img=document.querySelector('#discountQrCanvas img')||document.querySelector('#discountQrCanvas canvas')
