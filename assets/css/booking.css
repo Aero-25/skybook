@@ -6356,3 +6356,36 @@ body.skybook-auth-page{
   /* Pagination tidy */
   body.skybook-admin-page .booking-list-pagination{ display:flex; justify-content:center; gap:10px; padding-top:8px; }
 }
+
+/* ============================================================
+   MOBILE DESIGN-SYSTEM POLISH 2026-06 — consistent cards/headers/stats
+   ============================================================ */
+@media(max-width:768px){
+  /* Panel headers: tidy stack, sized heading */
+  body.skybook-admin-page .widget-header{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:12px; }
+  body.skybook-admin-page .widget-header h3,
+  body.skybook-admin-page .booking-panel h3{ font-size:16px; letter-spacing:-.01em; color:#0d2d6e; }
+  body.skybook-admin-page .widget-header .booking-chip{ margin-left:auto; }
+
+  /* Stat / metric cards: premium, compact, clear hierarchy */
+  body.skybook-admin-page .metric-card,
+  body.skybook-admin-page .booking-stat{
+    border-radius:14px; border:1px solid #e6eef8; padding:13px 14px;
+    background:linear-gradient(180deg,#fff,#fbfdff); box-shadow:0 4px 14px rgba(26,109,216,.06);
+  }
+  body.skybook-admin-page .metric-card span:first-child,
+  body.skybook-admin-page .booking-stat span:first-child{ font-size:10px; letter-spacing:.1em; color:#8aa0bb; }
+  body.skybook-admin-page .metric-card strong,
+  body.skybook-admin-page .booking-stat strong{ font-size:19px; margin-top:5px; color:#0d2d6e; letter-spacing:-.02em; }
+
+  /* Chips */
+  body.skybook-admin-page .booking-chip{ font-size:9.5px; padding:4px 10px; }
+
+  /* Generic data tables that AREN'T converted to cards: comfortable + scrollable */
+  body.skybook-admin-page .table-wrap:not(.booking-list-wrap){ border-radius:14px; padding:6px; }
+  body.skybook-admin-page .table-wrap:not(.booking-list-wrap) table{ min-width:560px; }
+
+  /* Section/page headings inside content */
+  body.skybook-admin-page .admin-section-title,
+  body.skybook-admin-page .panel-header-inline h3{ font-size:16px; color:#0d2d6e; }
+}
