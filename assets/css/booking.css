@@ -6485,3 +6485,67 @@ body.skybook-auth-page{
   .customer-list-wrap tr.customer-row td strong{ font-weight:600; text-align:right; }
   .customer-list-wrap tr.customer-row td:first-child strong{ text-align:left; }
 }
+
+/* ============================================================
+   GLASSMORPHISM MOBILE THEME — frosted, premium, above & beyond
+   ============================================================ */
+@media(max-width:768px){
+  /* Colourful backdrop so the frosted glass refracts light */
+  body.booking-body.skybook-admin-page{
+    background:
+      radial-gradient(circle at 6% -2%, rgba(96,165,250,.42), transparent 38%),
+      radial-gradient(circle at 96% 5%, rgba(167,139,250,.34), transparent 40%),
+      radial-gradient(circle at 50% 108%, rgba(45,212,191,.28), transparent 46%),
+      linear-gradient(180deg,#e9f2ff 0%,#eef1fb 48%,#f4edfb 100%) !important;
+    background-attachment:fixed !important;
+  }
+
+  /* Frosted glass panels (few large containers -> blur is cheap here) */
+  body.skybook-admin-page .booking-panel,
+  body.skybook-admin-page .admin-command-lead{
+    background:rgba(255,255,255,.45) !important;
+    -webkit-backdrop-filter:blur(22px) saturate(180%); backdrop-filter:blur(22px) saturate(180%);
+    border:1px solid rgba(255,255,255,.6) !important;
+    box-shadow:0 12px 36px rgba(20,52,83,.13), inset 0 1px 0 rgba(255,255,255,.75) !important;
+    border-radius:20px !important;
+  }
+
+  /* Translucent glassy cards/tiles/rows — NO per-card blur (stays fast with many rows) */
+  body.skybook-admin-page .metric-card,
+  body.skybook-admin-page .queue-card,
+  body.skybook-admin-page .bm-content .detail-card,
+  body.skybook-admin-page .booking-list-wrap tr.booking-row,
+  body.skybook-admin-page .reservation-list-wrap tr.reservation-row,
+  body.skybook-admin-page .customer-list-wrap tr.customer-row{
+    background:linear-gradient(160deg, rgba(255,255,255,.74), rgba(255,255,255,.5)) !important;
+    border:1px solid rgba(255,255,255,.72) !important;
+    box-shadow:0 8px 24px rgba(20,52,83,.10), inset 0 1px 0 rgba(255,255,255,.8) !important;
+    border-radius:16px !important;
+  }
+
+  /* Keep the colour-coded tone accents on the glass metric tiles */
+  body.skybook-admin-page .metric-card.is-good{ border-left:3px solid rgba(22,163,74,.95) !important; }
+  body.skybook-admin-page .metric-card.is-warn{ border-left:3px solid rgba(217,146,10,.95) !important; }
+  body.skybook-admin-page .metric-card.is-risk{ border-left:3px solid rgba(212,69,59,.95) !important; }
+  body.skybook-admin-page .metric-card.is-blue,
+  body.skybook-admin-page .metric-card.is-info{ border-left:3px solid rgba(26,109,216,.95) !important; }
+
+  /* Glass filter pills (translucent, no blur) */
+  body.skybook-admin-page .booking-quick-filter{ background:rgba(255,255,255,.6); border:1px solid rgba(255,255,255,.7); }
+
+  /* Glass search + brand select */
+  body.skybook-admin-page .booking-list-search,
+  body.skybook-admin-page .toolbar-brand-switch{ background:rgba(255,255,255,.6); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+
+  /* Glass booking-detail header + tab strip */
+  .bm-shell .bm-header{
+    background:linear-gradient(160deg, rgba(26,109,216,.92), rgba(13,77,168,.94)) !important;
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    box-shadow:0 10px 30px rgba(13,45,110,.28);
+  }
+  .bm-shell .bm-nav{ background:rgba(255,255,255,.5) !important; -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); }
+  .bm-shell .bm-nav-item{ background:rgba(255,255,255,.6); }
+
+  /* Glass bottom bar (enhanced) */
+  .sky-mobile-tabbar{ background:rgba(255,255,255,.6) !important; -webkit-backdrop-filter:blur(24px) saturate(180%) !important; backdrop-filter:blur(24px) saturate(180%) !important; border-top:1px solid rgba(255,255,255,.6) !important; }
+}

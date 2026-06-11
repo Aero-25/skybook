@@ -3776,7 +3776,7 @@ const repairStatusConflicts=async()=>{
   else{showToast(`Migrated ${fixed} booking${fixed>1?'s':''} to new status system.`,'success')}
 }
 
-const PAGE_SIZE=10
+const PAGE_SIZE=25
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   updateBookingQuickFilterBar()
