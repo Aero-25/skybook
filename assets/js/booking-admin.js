@@ -3776,7 +3776,6 @@ const repairStatusConflicts=async()=>{
   else{showToast(`Migrated ${fixed} booking${fixed>1?'s':''} to new status system.`,'success')}
 }
 
-const PAGE_SIZE=25
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   updateBookingQuickFilterBar()
@@ -9131,13 +9130,6 @@ document.querySelectorAll('[data-booking-quick-filter]').forEach(button=>button.
   state.bookingListPage=0
   renderBookings()
 }))
-nodes.bookingListPagination?.addEventListener('click',event=>{
-  const btn=event.target.closest('[data-bl-pg]')
-  if(!btn||btn.disabled)return
-  if(btn.dataset.blPg==='prev')state.bookingListPage=Math.max(0,state.bookingListPage-1)
-  else state.bookingListPage=state.bookingListPage+1
-  renderBookings()
-})
 document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',()=>{
   state.bookingQuickFilter='today'
   state.bookingListPage=0
