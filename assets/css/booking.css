@@ -6377,6 +6377,28 @@ body.skybook-auth-page{
   body.skybook-admin-page .booking-stat span:first-child{ font-size:10px; letter-spacing:.1em; color:#8aa0bb; }
   body.skybook-admin-page .metric-card strong,
   body.skybook-admin-page .booking-stat strong{ font-size:19px; margin-top:5px; color:#0d2d6e; letter-spacing:-.02em; }
+  body.skybook-admin-page .metric-card small{ font-size:10.5px; color:#7990a8; margin-top:4px; display:block; line-height:1.4; }
+  /* Tone accents (left border) for at-a-glance reading */
+  body.skybook-admin-page .metric-card.is-good{ border-left:3px solid #16a34a; }
+  body.skybook-admin-page .metric-card.is-warn{ border-left:3px solid #d9920a; }
+  body.skybook-admin-page .metric-card.is-risk{ border-left:3px solid #d4453b; }
+  body.skybook-admin-page .metric-card.is-blue,
+  body.skybook-admin-page .metric-card.is-info{ border-left:3px solid #1a6dd8; }
+
+  /* Drop the decorative corner box + min-height on compact mobile tiles */
+  body.skybook-admin-page .metric-card{ min-height:0; padding:13px 14px; }
+  body.skybook-admin-page .metric-card:after,
+  body.skybook-admin-page .metric-card:before{ display:none !important; }
+  /* Stat-tile grids (dashboard cards / action queue): 2-up on phones */
+  body.skybook-admin-page .admin-panel-grid-single{ grid-template-columns:1fr 1fr !important; gap:10px; }
+  body.skybook-admin-page .queue-card{ border-radius:14px; border:1px solid #e6eef8; padding:12px 13px; background:#fff; box-shadow:0 4px 14px rgba(26,109,216,.06); }
+  /* Panel headers always left-aligned, title and chip on one row */
+  body.skybook-admin-page .widget-header,
+  body.skybook-admin-page .panel-header-inline{ flex-direction:row; flex-wrap:nowrap; justify-content:flex-start; align-items:center; text-align:left; }
+  body.skybook-admin-page .widget-header > div:first-child,
+  body.skybook-admin-page .panel-header-inline > div:first-child{ margin-right:auto; min-width:0; text-align:left; }
+  body.skybook-admin-page .widget-header h3,
+  body.skybook-admin-page .panel-header-inline h3{ text-align:left; margin:0; }
 
   /* Chips */
   body.skybook-admin-page .booking-chip{ font-size:9.5px; padding:4px 10px; }
