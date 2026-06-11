@@ -3472,18 +3472,18 @@ const renderReservationRow=booking=>`
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.service_name||'Tour not selected')}</div>
         <div class="table-subline" style="font-size:11px;opacity:.65">${bookingAdminShared.escapeHtml(booking.reference)}</div>
       </td>
-      <td>
+      <td data-label="Brand">
         ${renderBrandPill(booking.brand_code)}
         <div class="table-subline">${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</div>
       </td>
-      <td>
+      <td data-label="Contact">
         <strong>${bookingAdminShared.escapeHtml(booking.customer_email||'')}</strong>
         <div class="table-subline">${bookingAdminShared.escapeHtml(booking.customer_phone||'')}</div>
       </td>
-      <td>${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const p=[a>0?`${a}A`:'',c>0?`${c}C`:'',i>0?`${i}I`:''].filter(Boolean).join('+');return bookingAdminShared.escapeHtml(p?`${t} (${p})`:`${t} guest${t===1?'':'s'}`)})()}</td>
-      <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td>${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
-      <td>
+      <td data-label="Guests">${(()=>{const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0),t=a+c+i||Number(booking.quantity||1);const p=[a>0?`${a}A`:'',c>0?`${c}C`:'',i>0?`${i}I`:''].filter(Boolean).join('+');return bookingAdminShared.escapeHtml(p?`${t} (${p})`:`${t} guest${t===1?'':'s'}`)})()}</td>
+      <td data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+      <td data-label="Total">${bookingAdminShared.formatMoney(booking.total_amount,booking.currency||state.settings.currency)}</td>
+      <td data-label="Review">
         <div class="badge-stack">
           ${renderStatusBadge(booking.status)}
           <button class="booking-button ghost compact-button" type="button" data-reservation-open="${bookingAdminShared.escapeHtml(booking.id)}">Open</button>
