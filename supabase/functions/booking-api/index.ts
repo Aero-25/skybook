@@ -3535,6 +3535,35 @@ const buildReports=({
   }
 }
 
+const sendNewBookingPush=async(info:{reference:string, brandLabel:string, serviceName:string, bookingId:string})=>{
+  // Best-effort push for new GUEST bookings. Never throws — a push failure must not
+  // affect the booking. No-ops until the OneSignal secrets are configured.
+  try{
+    const appId=normalizeText(Deno.env.get('ONESIGNAL_APP_ID'))
+    const restKey=normalizeText(Deno.env.get('ONESIGNAL_REST_API_KEY'))
+    if(!appId||!restKey)return // feature dark until configured
+    const launchUrl=`https://skybook-8rd.pages.dev/booking-admin.html?tab=bookings&booking=${encodeURIComponent(info.bookingId)}&view=booking`
+    const body={
+      app_id:appId,
+      included_segments:['Subscribed Users'],
+      headings:{ en:`New ${info.brandLabel} booking` },
+      contents:{ en:`${info.reference}${info.serviceName?` · ${info.serviceName}`:''}` },
+      url:launchUrl
+    }
+    const res=await fetch('https://api.onesignal.com/notifications',{
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Basic ${restKey}` },
+      body:JSON.stringify(body)
+    })
+    if(!res.ok){
+      const txt=await res.text().catch(()=> '')
+      console.error('OneSignal push failed',res.status,txt)
+    }
+  }catch(err){
+    console.error('OneSignal push error',err instanceof Error ? err.message : String(err))
+  }
+}
+
 const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-travel'}={})=>{
   const settings=await getSettingValue('config',{
     currency:'NAD',
@@ -3717,6 +3746,15 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     created_by:userId || null
   })
   await processDueSystemJobs()
+
+  if(!isAdmin){
+    await sendNewBookingPush({
+      reference,
+      brandLabel:String((brand as Json)?.name || brand.code || brandCode),
+      serviceName:String((service as Json)?.name || ''),
+      bookingId
+    })
+  }
 
   return {
     id:bookingId,
