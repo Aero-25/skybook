@@ -6641,3 +6641,13 @@ body.skybook-auth-page{
   /* In the booking cards, the Open button gets its own full-width row */
   .booking-list-wrap tr.booking-row td[data-label="Status"] .open-booking-link{ margin-left:auto; }
 }
+
+/* ---- Payment summary bar (Amount paid / Outstanding to pay) ---- */
+.payment-summary-bar{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+.payment-summary-item{ border-radius:14px; padding:12px 15px; border:1px solid var(--sky-line,#d8e5ef); background:#fff; }
+.payment-summary-item span{ display:block; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--sky-muted,#667789); }
+.payment-summary-item strong{ display:block; margin-top:4px; font-size:20px; font-weight:800; letter-spacing:-.02em; }
+.payment-summary-item.is-paid{ background:linear-gradient(180deg,#effaf3,#ffffff); border-color:#b6e6c8; }
+.payment-summary-item.is-paid strong{ color:#16a34a; }
+.payment-summary-item.is-outstanding{ background:linear-gradient(180deg,#fff6e8,#ffffff); border-color:#f0dca0; }
+.payment-summary-item.is-outstanding strong{ color:#b7791f; }

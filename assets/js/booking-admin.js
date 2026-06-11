@@ -4036,6 +4036,11 @@ const renderBookingDetail=()=>{
   const agentCommission=getBookingAgentExposure(booking)
   const agentAssignmentAmount=getBookingAgentAssignmentAmount(booking)
   const guestBalance=Number(invoice?.balance_amount ?? (Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)))
+  // Reliable money figures derived from total - received, so they stay correct
+  // after each (split) payment regardless of how amount_due fields are stored.
+  const amountReceived=Number(payments[0]?.amount_received||sumAmounts(transactions,'amount')||0)
+  const bookingTotal=Number(invoice?.total_amount||booking.total_amount||0)
+  const outstandingAmount=Math.max(0,Number((bookingTotal-amountReceived).toFixed(2)))
   const officeExposure=sumAmounts(officeInvoices,'total_amount')
   const internalMargin=Number((Number(booking.total_amount||0)-agentCommission-operatorCommission).toFixed(2))
   const operatorOptions=state.operators.map(operator=>`<option value="${bookingAdminShared.escapeHtml(operator.id)}" ${operatorAssignment?.operator_id===operator.id ? 'selected' : ''}>${bookingAdminShared.escapeHtml(operator.company_name)}</option>`).join('')
@@ -4235,14 +4240,14 @@ const renderBookingDetail=()=>{
                     <p>${bookingAdminShared.escapeHtml(invoice?.status||'Unissued')}</p>
                   </article>
                   <article class="detail-card">
-                    <span>Amount received</span>
-                    <strong>${bookingAdminShared.formatMoney(payments[0]?.amount_received||0,booking.currency||state.settings.currency)}</strong>
+                    <span>Amount paid</span>
+                    <strong>${bookingAdminShared.formatMoney(amountReceived,booking.currency||state.settings.currency)}</strong>
                     <p>${bookingAdminShared.escapeHtml(transactions.length ? `${transactions.length} payment${transactions.length===1?'':'s'} recorded` : 'No payments recorded')}</p>
                   </article>
                   <article class="detail-card">
-                    <span>Outstanding balance</span>
-                    <strong>${bookingAdminShared.formatMoney(guestBalance,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
-                    <p>${renderStatusBadge(booking.payment_status)}</p>
+                    <span>Outstanding amount</span>
+                    <strong>${bookingAdminShared.formatMoney(outstandingAmount,invoice?.currency_code||booking.currency||state.settings.currency)}</strong>
+                    <p>${outstandingAmount>0 ? `Still to be paid · ${renderStatusBadge(booking.payment_status)}` : renderStatusBadge(booking.payment_status)}</p>
                   </article>
                   <article class="detail-card">
                     <span>Discounts</span>
@@ -4275,10 +4280,14 @@ const renderBookingDetail=()=>{
             <div class="bm-sub-section" data-bm-sub-section="record" hidden>
               <section class="detail-section">
                 <div class="section-heading">
-                  <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments. Partial amounts are fine — the outstanding balance updates automatically after each payment.</p></div>
+                  <div><h4>Record manual payment</h4><p class="muted-copy">Log EFT, cash, card, or voucher payments. Partial &amp; split payments are fine — load each tender (e.g. cash, then card) separately; the outstanding updates after each one.</p></div>
                 </div>
-                ${transactions.length ? `<div class="detail-callout" style="margin-bottom:12px"><strong>Already received: ${bookingAdminShared.formatMoney(payments[0]?.amount_received||0,booking.currency||state.settings.currency)}</strong> across ${transactions.length} payment${transactions.length===1?'':'s'} — outstanding: ${bookingAdminShared.formatMoney(guestBalance,booking.currency||state.settings.currency)}</div>` : ''}
-                ${guestBalance<=0 ? `<div class="detail-callout is-warning" style="margin-bottom:12px"><strong>⚠ This booking's balance is ${bookingAdminShared.formatMoney(0,booking.currency||state.settings.currency)}.</strong> It is already settled — any payment loaded now will put the booking in credit.</div>` : ''}
+                <div class="payment-summary-bar">
+                  <div class="payment-summary-item is-paid"><span>Amount paid</span><strong>${bookingAdminShared.formatMoney(amountReceived,booking.currency||state.settings.currency)}</strong></div>
+                  <div class="payment-summary-item is-outstanding"><span>Outstanding to pay</span><strong>${bookingAdminShared.formatMoney(outstandingAmount,booking.currency||state.settings.currency)}</strong></div>
+                </div>
+                ${transactions.length ? `<div class="detail-callout" style="margin-bottom:12px">Received <strong>${bookingAdminShared.formatMoney(amountReceived,booking.currency||state.settings.currency)}</strong> across ${transactions.length} payment${transactions.length===1?'':'s'}.${outstandingAmount>0 ? ` Load the remaining <strong>${bookingAdminShared.formatMoney(outstandingAmount,booking.currency||state.settings.currency)}</strong> below (split tenders welcome).` : ''}</div>` : ''}
+                ${(bookingTotal>0 && outstandingAmount<=0) ? `<div class="detail-callout is-warning" style="margin-bottom:12px"><strong>⚠ This booking is fully paid (outstanding ${bookingAdminShared.formatMoney(0,booking.currency||state.settings.currency)}).</strong> Any further payment will put it in credit.</div>` : ''}
                 <form class="booking-inline-form booking-inline-form-wide" data-inline-form="manual-payment">
                   <input type="hidden" name="booking_id" value="${bookingAdminShared.escapeHtml(booking.id)}">
                   <label class="booking-field">
@@ -4293,7 +4302,7 @@ const renderBookingDetail=()=>{
                   </label>
                   <label class="booking-field">
                     <span>Amount Received</span>
-                    <input name="amount" type="number" min="0.01" step="0.01" placeholder="Outstanding ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(Math.max(0,guestBalance),booking.currency||state.settings.currency))} — enter amount" autocomplete="off" required>
+                    <input name="amount" type="number" min="0.01" step="0.01" placeholder="Outstanding ${bookingAdminShared.escapeHtml(bookingAdminShared.formatMoney(outstandingAmount,booking.currency||state.settings.currency))} — enter this tender's amount" autocomplete="off" required>
                   </label>
                   <label class="booking-field">
                     <span>Reference</span>
@@ -4904,6 +4913,12 @@ const fillBookingForm=(booking=null)=>{
   if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=booking?.metadata?.dropoff_location||''
   renderAdminBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
+  // Always reset the price override to THIS booking's value (empty for a new booking)
+  // so it never carries over the amount from a previously opened booking.
+  if(nodes.bookingPriceOverride){
+    const override=booking?.price_override ?? booking?.metadata?.price_override ?? ''
+    nodes.bookingPriceOverride.value=Number(override)>0 ? String(override) : ''
+  }
   nodes.bookingSaveButton.textContent=booking ? 'Save Changes' : 'Create Booking'
 }
 
@@ -7191,10 +7206,11 @@ const handleMemoryUploadSave=async form=>{
 const openDocumentPrintWindow=(title,markup)=>{
   const nextWindow=window.open('','_blank','noopener,noreferrer,width=960,height=720')
   if(!nextWindow)throw new Error('Allow popups to generate documents from SkyBook.')
-  nextWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}</style></head><body>${markup}</body></html>`)
+  nextWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.sb-print-bar{position:sticky;top:0;z-index:10;display:flex;gap:12px;align-items:center;background:#0f4fa8;color:#fff;padding:12px 18px;margin:-40px -40px 26px;box-shadow:0 4px 16px rgba(13,45,110,.25)}.sb-print-bar .hint{margin-right:auto;font-size:13px;color:#dbe9ff}.sb-print-bar button{background:#fff;color:#0f4fa8;border:none;border-radius:9px;padding:10px 18px;font-weight:800;font-size:13px;cursor:pointer}.sb-print-bar button:hover{background:#eaf2ff}@media print{.sb-print-bar{display:none!important}body{padding:24px}}</style></head><body><div class="sb-print-bar"><span class="hint">To save as a PDF, choose <strong>“Save as PDF”</strong> as the destination in the dialog.</span><button type="button" onclick="window.print()">⬇ Save as PDF / Print</button></div>${markup}</body></html>`)
   nextWindow.document.close()
   nextWindow.focus()
-  nextWindow.print()
+  // Let the content render, then open the Save-as-PDF / Print dialog automatically.
+  nextWindow.setTimeout(()=>{ try{ nextWindow.print() }catch(e){} },350)
 }
 
 const printableMoney=(amount,currency)=>bookingAdminShared.formatMoney(Number(amount||0),currency||state.settings.currency||'NAD')
@@ -8051,7 +8067,10 @@ const handleManualPaymentSave=async form=>{
     throw new Error('Card payments require terminal serial number and batch number.')
   }
   const paymentBooking=state.bookings.find(item=>String(item.id)===String(bookingId))
-  const outstanding=paymentBooking?getBookingOutstanding(paymentBooking):0
+  const paidSoFar=Number(getBookingPayments(bookingId)[0]?.amount_received||0)
+  const paymentInvoice=getBookingInvoices(bookingId)[0]
+  const paymentTotal=Number(paymentInvoice?.total_amount||paymentBooking?.total_amount||0)
+  const outstanding=Math.max(0,Number((paymentTotal-paidSoFar).toFixed(2)))
   const ccy=paymentBooking?.currency||state.settings.currency
   if(body.amount>outstanding+0.01){
     const credit=Number((body.amount-outstanding).toFixed(2))
