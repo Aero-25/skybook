@@ -3548,7 +3548,9 @@ const sendNewBookingPush=async(info:{reference:string, brandLabel:string, servic
       included_segments:['Subscribed Users'],
       headings:{ en:`New ${info.brandLabel} booking` },
       contents:{ en:`${info.reference}${info.serviceName?` · ${info.serviceName}`:''}` },
-      url:launchUrl
+      // Sent as custom data (not top-level `url`) so the SkyBook app opens the
+      // booking inside its own WebView instead of the system browser.
+      data:{ open_url:launchUrl }
     }
     const res=await fetch('https://api.onesignal.com/notifications',{
       method:'POST',
