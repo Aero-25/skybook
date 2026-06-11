@@ -3218,6 +3218,7 @@ const renderCalendar=()=>{
                 <span>${bookingAdminShared.escapeHtml(getBookingOperatorName(booking))}</span>
                 <span>${bookingAdminShared.escapeHtml(allocations.map(item=>item.resource_name||item.resource_id).filter(Boolean).join(', ')||'No resources assigned')}</span>
               </div>
+              <div class="calendar-entry-actions">${renderOpenBookingLink(booking,'Open booking →')}</div>
             </article>
           `
         }).join('') : '<p class="muted-copy">No bookings are scheduled for the selected day.</p>'}
@@ -3371,6 +3372,7 @@ const renderCalendarDayBookings=dateKey=>{
         <dt>Drop Off</dt><dd>${bookingAdminShared.escapeHtml(meta.dropoff_location||'—')}</dd>
         <dt>Accommodation</dt><dd>${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</dd>
       </dl>
+      <div class="cal-day-block-actions">${renderOpenBookingLink(booking,'Open booking management →')}</div>
     </div>
   `}).join('')}</div>`
   dayBookingsEl.hidden=false
@@ -3712,8 +3714,11 @@ const renderToPayTag=booking=>{
   if(!(outstanding>0))return ''
   const href=`${getRecordPageUrl('bookings',booking.id)}&focus=payment`
   const amountLabel=bookingAdminShared.formatMoney(outstanding,booking.currency||state.settings.currency)
-  return `<a class="to-pay-tag" href="${htmlAttribute(href)}" target="_blank" rel="noopener noreferrer" title="Outstanding ${bookingAdminShared.escapeHtml(amountLabel)} — click to load a payment">To Pay</a>`
+  return `<a class="to-pay-tag" href="${htmlAttribute(href)}" title="Outstanding ${bookingAdminShared.escapeHtml(amountLabel)} — click to load a payment">To Pay</a>`
 }
+
+// Explicit "Open" button — a real link so it opens the full management page in the same window.
+const renderOpenBookingLink=(booking,label='Open →')=>`<a class="open-booking-link" href="${htmlAttribute(getRecordPageUrl('bookings',booking.id))}" title="Open booking management">${bookingAdminShared.escapeHtml(label)}</a>`
 
 const focusBookingPaymentSection=()=>{
   if(!nodes.bookingDetail)return
@@ -3793,7 +3798,7 @@ const renderBookings=()=>{
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}</td>
+      <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
@@ -4933,8 +4938,9 @@ const openReservationManagementScreen=(booking,{scroll=true}={})=>{
 const openBookingManagementScreen=(booking,{scroll=true,focusPayment=false}={})=>{
   if(!booking)return
   if(!document.body.classList.contains('is-booking-record-page')){
+    // Open the full booking management page on this page itself (same window, not inline).
     const url=focusPayment ? `${getRecordPageUrl('bookings',booking.id)}&focus=payment` : getRecordPageUrl('bookings',booking.id)
-    window.open(url,'_blank','noopener,noreferrer')
+    window.location.assign(url)
     return
   }
   state.preBookingTab=state.activeTab||'bookings'
@@ -9185,7 +9191,7 @@ nodes.calendarCanvas?.addEventListener('click',event=>{
   const card=event.target.closest('[data-open-booking]')
   if(card&&!event.target.closest('a')){
     const bookingId=card.dataset.openBooking
-    if(bookingId)window.open(getRecordPageUrl('bookings',bookingId),'_blank','noopener,noreferrer')
+    if(bookingId)window.location.assign(getRecordPageUrl('bookings',bookingId))
     return
   }
   const dayCell=event.target.closest('[data-cal-day]')
