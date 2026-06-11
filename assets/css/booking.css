@@ -6549,3 +6549,78 @@ body.skybook-auth-page{
   /* Glass bottom bar (enhanced) */
   .sky-mobile-tabbar{ background:rgba(255,255,255,.6) !important; -webkit-backdrop-filter:blur(24px) saturate(180%) !important; backdrop-filter:blur(24px) saturate(180%) !important; border-top:1px solid rgba(255,255,255,.6) !important; }
 }
+
+/* ---- Glass performance / compatibility fallbacks ---- */
+/* Browsers without backdrop-filter: make glass surfaces solid enough to read */
+@supports not ((-webkit-backdrop-filter: blur(2px)) or (backdrop-filter: blur(2px))){
+  @media(max-width:768px){
+    body.skybook-admin-page .booking-panel,
+    body.skybook-admin-page .admin-command-lead{ background:rgba(255,255,255,.92) !important; }
+    .bm-shell .bm-nav{ background:rgba(255,255,255,.96) !important; }
+    .sky-mobile-tabbar{ background:rgba(255,255,255,.97) !important; }
+    body.skybook-admin-page .booking-list-search,
+    body.skybook-admin-page .toolbar-brand-switch{ background:#fff !important; }
+  }
+}
+/* Data-saver / low-end devices: drop the blur entirely, keep a clean translucent look */
+@media(max-width:768px) and (prefers-reduced-data: reduce){
+  body.skybook-admin-page .booking-panel,
+  body.skybook-admin-page .admin-command-lead,
+  .bm-shell .bm-nav,
+  .bm-shell .bm-header,
+  .sky-mobile-tabbar,
+  body.skybook-admin-page .booking-list-search,
+  body.skybook-admin-page .toolbar-brand-switch{
+    -webkit-backdrop-filter:none !important; backdrop-filter:none !important;
+    background:rgba(255,255,255,.94) !important;
+  }
+  body.skybook-admin-page .booking-body,
+  body.booking-body.skybook-admin-page{ background:linear-gradient(180deg,#eaf3ff,#eef1fb) !important; }
+}
+/* Respect reduced-motion: no transform/transition flourishes */
+@media(max-width:768px) and (prefers-reduced-motion: reduce){
+  body.skybook-admin-page *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+
+/* ---- Services table -> cards on phones ---- */
+@media(max-width:768px){
+  .service-list-wrap tbody tr{
+    background:linear-gradient(160deg,rgba(255,255,255,.74),rgba(255,255,255,.5)); border:1px solid rgba(255,255,255,.72);
+    border-radius:16px; box-shadow:0 8px 24px rgba(20,52,83,.10),inset 0 1px 0 rgba(255,255,255,.8); margin:0 0 10px; padding:14px 15px;
+  }
+  .service-list-wrap tbody tr td{
+    display:flex; justify-content:space-between; align-items:center; gap:12px;
+    background:none!important; border:none; border-radius:0; padding:5px 0; font-size:13px;
+  }
+  .service-list-wrap tbody tr td:first-child{ display:block; padding:0 0 10px; margin-bottom:8px; border-bottom:1px solid #eef4fb; }
+  .service-list-wrap tbody tr td:first-child strong{ font-size:15px; color:#0d2d6e; }
+  .service-list-wrap tbody tr td:first-child .table-subline{ font-size:11.5px; color:#7990a8; text-transform:capitalize; }
+  .service-list-wrap tbody tr td[data-label]::before{
+    content:attr(data-label); font-weight:700; color:#8aa0bb; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; flex:0 0 auto;
+  }
+  .service-list-wrap tbody tr td:empty{ display:none; }
+  .service-list-wrap tbody tr td[data-label=""]{ justify-content:flex-end; padding-top:8px; }
+}
+
+/* ---- Touch-friendly, glassy form fields (Settings, Record Payment, New Booking, all forms) ---- */
+@media(max-width:768px){
+  body.skybook-admin-page .booking-form-grid,
+  body.skybook-admin-page .booking-inline-form{ grid-template-columns:1fr !important; gap:12px; }
+  body.skybook-admin-page .booking-field input,
+  body.skybook-admin-page .booking-field select,
+  body.skybook-admin-page .booking-field textarea,
+  body.skybook-admin-page .booking-form-grid input:not([type=checkbox]):not([type=radio]),
+  body.skybook-admin-page .booking-form-grid select,
+  body.skybook-admin-page .booking-form-grid textarea,
+  body.skybook-admin-page .booking-inline-form input:not([type=checkbox]):not([type=radio]),
+  body.skybook-admin-page .booking-inline-form select,
+  body.skybook-admin-page .booking-inline-form textarea{
+    min-height:46px; font-size:16px; border-radius:12px; /* 16px stops iOS auto-zoom */
+    background:rgba(255,255,255,.72); border:1px solid rgba(214,229,239,.9);
+  }
+  body.skybook-admin-page .booking-field textarea,
+  body.skybook-admin-page .booking-inline-form textarea{ min-height:84px; }
+  /* Primary submit buttons go full-width and comfortable */
+  body.skybook-admin-page .booking-inline-form button[type=submit],
+  body.skybook-admin-page .booking-form-grid button[type=submit]{ width:100%; min-height:48px; font-size:13px; }
+}

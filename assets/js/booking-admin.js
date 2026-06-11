@@ -3780,10 +3780,9 @@ const PAGE_SIZE=25
 const renderBookings=()=>{
   const filtered=getFilteredBookings()
   updateBookingQuickFilterBar()
-  const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE))
-  if(state.bookingListPage>=totalPages)state.bookingListPage=totalPages-1
-  const page=state.bookingListPage
-  const pageItems=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE)
+  // Show every booking that matches the current filters — no pagination, so a full
+  // day (or the whole list) is always visible by scrolling.
+  const pageItems=filtered
   nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
@@ -3800,15 +3799,9 @@ const renderBookings=()=>{
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
   if(nodes.bookingListPagination){
-    if(totalPages<=1){
-      nodes.bookingListPagination.innerHTML=''
-    } else {
-      nodes.bookingListPagination.innerHTML=`
-        <button class="bl-pg-btn" data-bl-pg="prev" ${page===0?'disabled':''}>&#8592;</button>
-        <span class="bl-pg-label">${page+1} / ${totalPages}</span>
-        <button class="bl-pg-btn" data-bl-pg="next" ${page>=totalPages-1?'disabled':''}>&#8594;</button>
-      `
-    }
+    nodes.bookingListPagination.innerHTML=filtered.length>40
+      ? `<span class="bl-pg-label">Showing all ${filtered.length} bookings</span>`
+      : ''
   }
 }
 
@@ -5003,13 +4996,12 @@ const renderServices=()=>{
   }
   nodes.servicesTable.innerHTML=filteredServices.map(service=>`
     <tr data-service-id="${bookingAdminShared.escapeHtml(service.id)}">
-      <td>${bookingAdminShared.escapeHtml(service.name)}</td>
-      <td>${bookingAdminShared.escapeHtml(service.category_slug)}</td>
-      <td>${bookingAdminShared.formatMoney(service.base_price,service.currency)}</td>
-      <td>${bookingAdminShared.escapeHtml(service.minimum_pax||1)}</td>
-      <td>${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
-      <td>${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
-      <td><button class="booking-button ghost compact" data-delete-service="${bookingAdminShared.escapeHtml(service.id)}" type="button">Delete</button></td>
+      <td><strong>${bookingAdminShared.escapeHtml(service.name)}</strong><div class="table-subline">${bookingAdminShared.escapeHtml(service.category_slug)}</div></td>
+      <td data-label="Price">${bookingAdminShared.formatMoney(service.base_price,service.currency)}</td>
+      <td data-label="Min pax">${bookingAdminShared.escapeHtml(service.minimum_pax||1)}</td>
+      <td data-label="Booking">${bookingAdminShared.escapeHtml(service.preferred_date_mode)}</td>
+      <td data-label="Visibility">${bookingAdminShared.escapeHtml(formatServiceVisibilityLabel(service))}</td>
+      <td data-label=""><button class="booking-button ghost compact" data-delete-service="${bookingAdminShared.escapeHtml(service.id)}" type="button">Delete</button></td>
     </tr>
   `).join('') || renderEmptyRow(7,'No tours match the selected visibility filter.')
 }
