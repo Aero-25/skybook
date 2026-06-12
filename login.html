@@ -2,82 +2,178 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light">
 <title>SkyBook Secure Sign In</title>
 <link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260522-visual-refresh">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1769aa">
+<meta name="theme-color" content="#eaf1fa">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="SkyBook">
 <link rel="apple-touch-icon" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  :root{
+    --ink:#0c2140; --muted:#546b82; --faint:#86a0b8;
+    --blue:#1769aa; --ocean:#1e5b93; --cyan:#2b8fd8; --green:#2e9e63;
+    --glass:linear-gradient(155deg, rgba(255,255,255,.72), rgba(255,255,255,.44) 60%, rgba(255,255,255,.56));
+    --glass-bd:rgba(255,255,255,.82);
+    --glass-sh:0 36px 80px rgba(22,62,120,.22), 0 10px 24px rgba(22,62,120,.12), inset 0 1px 0 rgba(255,255,255,.96), inset 0 0 0 1px rgba(255,255,255,.22);
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;min-height:100dvh;color:var(--ink);font-family:'Manrope',system-ui,sans-serif;background:#e9f0f8;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+  .field{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .field::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#eef5fc,#e4edf7 60%,#e0e9f5)}
+  .blob{position:absolute;border-radius:50%;filter:blur(55px)}
+  .b1{top:-12%;right:-6%;width:46vw;height:46vw;background:radial-gradient(circle,rgba(58,160,239,.34),transparent 66%);animation:f1 22s var(--ease) infinite alternate}
+  .b2{bottom:-16%;left:-10%;width:44vw;height:44vw;background:radial-gradient(circle,rgba(70,214,208,.26),transparent 66%);animation:f2 26s var(--ease) infinite alternate}
+  .b3{top:30%;left:40%;width:40vw;height:40vw;background:radial-gradient(circle,rgba(245,196,81,.16),transparent 62%);animation:f1 30s var(--ease) infinite alternate-reverse}
+  @keyframes f1{to{transform:translate(-5%,5%) scale(1.12)}}
+  @keyframes f2{to{transform:translate(7%,-5%) scale(1.12)}}
+  .bgmark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(92vw,760px);opacity:.13;mix-blend-mode:multiply}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .loginwrap{position:relative;z-index:2;min-height:100dvh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:16px;padding:clamp(20px,5vh,48px) 18px;perspective:1400px}
+  .backlink{font-size:12.5px;font-weight:700;letter-spacing:.04em;color:var(--ocean);text-decoration:none;opacity:.8;
+    display:inline-flex;align-items:center;gap:7px}
+  .backlink:hover{opacity:1}
+
+  .authcard{position:relative;overflow:hidden;width:min(452px,100%);padding:clamp(26px,5vw,40px);border-radius:26px;
+    background:var(--glass);-webkit-backdrop-filter:blur(30px) saturate(185%);backdrop-filter:blur(30px) saturate(185%);
+    border:1px solid var(--glass-bd);box-shadow:var(--glass-sh);
+    transform:translateY(var(--lift,0)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+    transition:transform .25s var(--ease), box-shadow .5s var(--ease);will-change:transform}
+  .authcard::before{content:'';position:absolute;left:0;top:0;width:100%;height:4px;
+    background:linear-gradient(90deg,var(--cyan),var(--blue))}
+  .authcard::after{content:'';position:absolute;top:-60%;left:-40%;width:55%;height:240%;pointer-events:none;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:translateX(-180%) rotate(8deg)}
+
+  .brandrow{display:flex;align-items:center;gap:13px;margin-bottom:22px}
+  .brandrow .mk{width:48px;height:48px;flex:0 0 auto;border-radius:14px;display:grid;place-items:center;background:#fff;
+    border:1px solid rgba(255,255,255,.9);box-shadow:0 8px 20px rgba(22,62,120,.14)}
+  .brandrow .mk img{width:32px;height:32px}
+  .brandrow .eyebrow{font-size:11px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ocean)}
+  .brandrow .chip{display:inline-block;margin-top:5px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--blue);background:rgba(23,105,170,.10);border:1px solid rgba(23,105,170,.22);padding:4px 9px;border-radius:999px}
+
+  .authcard h1{margin:0 0 4px;font-weight:800;letter-spacing:-.03em;line-height:1.05;font-size:clamp(26px,5.5vw,34px);color:var(--ink)}
+  .authcard .sub{margin:6px 0 0;font-size:13.5px;color:var(--muted);line-height:1.55}
+
+  form{margin-top:24px}
+  .fld{display:block;margin-bottom:15px}
+  .fld>span{display:block;font-size:12.5px;font-weight:700;color:#3a536e;margin-bottom:7px}
+  .fld input{width:100%;height:50px;padding:0 16px;border-radius:14px;border:1px solid rgba(150,180,212,.5);
+    background:rgba(255,255,255,.58);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    font:inherit;font-size:15px;color:var(--ink);transition:border-color .2s,box-shadow .2s,background .2s}
+  .fld input::placeholder{color:#9bb0c5}
+  .fld input:focus{outline:none;border-color:var(--blue);background:rgba(255,255,255,.85);box-shadow:0 0 0 4px rgba(23,105,170,.15)}
+  .hint{font-size:13px;color:var(--muted);line-height:1.55;margin:0 0 14px}
+  .signin{width:100%;height:52px;margin-top:6px;border:none;border-radius:14px;cursor:pointer;color:#fff;font:inherit;
+    font-weight:800;font-size:15px;letter-spacing:.04em;background:linear-gradient(120deg,#2b8fd8,#1769aa);
+    box-shadow:0 16px 32px rgba(23,105,170,.34), inset 0 1px 0 rgba(255,255,255,.42);
+    transition:transform .2s var(--ease), filter .2s var(--ease)}
+  .signin:hover{filter:brightness(1.06);transform:translateY(-2px)}
+  .signin:active{transform:translateY(0)}
+
+  .authstatus{margin-top:16px;padding:11px 14px;border-radius:12px;font-size:13px;font-weight:600;line-height:1.5;
+    background:rgba(23,105,170,.09);border:1px solid rgba(23,105,170,.20);color:var(--ocean)}
+  .authstatus.is-error{background:rgba(214,69,69,.09);border-color:rgba(214,69,69,.26);color:#b3261e}
+
+  .authcard,.brandrow,form{position:relative;z-index:1}
+
+  .rise{opacity:0;transform:translateY(16px) scale(.98);animation:rise .7s var(--ease) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+
+  @media (max-width:480px){
+    .authcard{border-radius:22px}
+    .brandrow .mk{width:44px;height:44px}
+  }
+  @media (prefers-reduced-motion:reduce){ .rise{animation:none;opacity:1;transform:none} .blob{animation:none} }
+</style>
 </head>
-<body class="booking-body skybook-auth-page">
-  <main class="skybook-login-shell">
-    <section class="skybook-login-card skybook-login-card-solo" aria-labelledby="skybookLoginTitle">
-      <div class="skybook-login-atmosphere" aria-hidden="true">
-        <span class="skybook-login-orb skybook-login-orb-one"></span>
-        <span class="skybook-login-orb skybook-login-orb-two"></span>
-        <span class="skybook-login-orb skybook-login-orb-three"></span>
-      </div>
+<body>
+  <div class="field" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+    <img class="bgmark" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="">
+  </div>
+  <div class="grain" aria-hidden="true"></div>
 
-      <div class="skybook-login-content">
-        <div class="skybook-login-hero">
-          <div class="skybook-auth-brand">
-            <img class="admin-brand-mark admin-brand-mark-image" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook logo">
-            <div>
-              <p class="toolbar-eyebrow">SkyBook Enterprise</p>
-              <span class="booking-chip">Production Workspace</span>
-            </div>
-          </div>
-          <div class="skybook-login-copy">
-            <h1 id="skybookLoginTitle">Secure operations sign in</h1>
-            <p id="skybookLoginSubtitle" style="margin-top:6px;font-size:14px;opacity:.65" hidden></p>
-          </div>
+  <main class="loginwrap">
+    <a class="backlink rise" href="admin.html">&#8592; Back to workspace</a>
+
+    <section class="authcard rise" id="authCard" aria-labelledby="skybookLoginTitle">
+      <div class="brandrow">
+        <span class="mk"><img src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook logo"></span>
+        <div>
+          <span class="eyebrow">SkyBook Enterprise</span>
+          <span class="chip">Production Workspace</span>
         </div>
-
-        <form id="loginForm" class="booking-form-grid skybook-login-form">
-          <label class="booking-field-full">
-            <span>Username</span>
-            <input type="text" name="username" autocomplete="username" placeholder="Email or username" required>
-          </label>
-          <label class="booking-field-full">
-            <span>Password</span>
-            <input type="password" name="password" autocomplete="current-password" placeholder="Enter password" required>
-          </label>
-          <div class="booking-field-full">
-            <button class="booking-button" type="submit">Sign In</button>
-          </div>
-        </form>
-
-        <form id="changePasswordForm" class="booking-form-grid skybook-login-form" hidden>
-          <div class="booking-field-full" style="margin-bottom:4px">
-            <p style="font-size:13px;opacity:.75;line-height:1.5">Your account requires a new password before you can continue. Choose something secure that you haven't used before.</p>
-          </div>
-          <label class="booking-field-full">
-            <span>New password</span>
-            <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" required>
-          </label>
-          <label class="booking-field-full">
-            <span>Confirm password</span>
-            <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repeat new password" required>
-          </label>
-          <div class="booking-field-full">
-            <button class="booking-button" type="submit">Set New Password</button>
-          </div>
-        </form>
-
-        <div class="status-banner" id="authStatus" hidden></div>
       </div>
+
+      <h1 id="skybookLoginTitle">Secure operations sign in</h1>
+      <p class="sub" id="skybookLoginSubtitle" hidden></p>
+
+      <form id="loginForm">
+        <label class="fld">
+          <span>Username</span>
+          <input type="text" name="username" autocomplete="username" placeholder="Email or username" required>
+        </label>
+        <label class="fld">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" placeholder="Enter password" required>
+        </label>
+        <button class="signin" type="submit">Sign In</button>
+      </form>
+
+      <form id="changePasswordForm" hidden>
+        <p class="hint">Your account requires a new password before you can continue. Choose something secure you haven't used before.</p>
+        <label class="fld">
+          <span>New password</span>
+          <input id="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" required>
+        </label>
+        <label class="fld">
+          <span>Confirm password</span>
+          <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="Repeat new password" required>
+        </label>
+        <button class="signin" type="submit">Set New Password</button>
+      </form>
+
+      <div class="authstatus" id="authStatus" hidden></div>
     </section>
   </main>
 
+  <script>
+    // 3D tilt on the glass panel — paused while a field is focused so typing stays steady.
+    (function(){
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var card = document.getElementById('authCard');
+      if (reduce || !card) return;
+      var locked = false;
+      function reset(){ card.style.setProperty('--rx','0deg'); card.style.setProperty('--ry','0deg'); card.style.setProperty('--lift','0px'); }
+      card.addEventListener('focusin', function(){ locked = true; reset(); });
+      card.addEventListener('focusout', function(){ locked = false; });
+      card.addEventListener('pointermove', function(e){
+        if (locked) return;
+        var r = card.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+        card.style.setProperty('--ry', ((px - 0.5) * 7).toFixed(2) + 'deg');
+        card.style.setProperty('--rx', ((0.5 - py) * 7).toFixed(2) + 'deg');
+        card.style.setProperty('--lift', '-4px');
+      });
+      card.addEventListener('pointerleave', reset);
+    })();
+  </script>
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260421-enterprise-polish"></script>
   <script src="assets/js/skybook-login.js?v=20260527-mustchange"></script>

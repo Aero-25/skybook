@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/admin.css?v=20260507-navigation">
+<script>document.documentElement.classList.add('sb-gate')</script>
+<style>.sb-gate body{visibility:hidden}</style>
 </head>
 <body class="design-admin-page">
   <script>
@@ -247,5 +249,25 @@
   <script src="assets/js/shared.js?v=20260408tourtypes" defer></script>
   <script src="assets/js/booking-shared.js?v=20260421-centralcatalog" defer></script>
   <script src="assets/js/admin.js?v=20260507-navigation" defer></script>
+  <script>
+    // Gate the Design Studio behind a SkyBook sign-in.
+    (function(){
+      var revealed=false;
+      function reveal(){ if(revealed)return; revealed=true; document.documentElement.classList.remove('sb-gate'); }
+      function gate(){
+        var api=window.TrueTravelBooking||window.skybookShared||window.bookingAdminShared;
+        if(!api||!api.createSupabaseClient){ reveal(); return; } // shared not ready — admin.js still gates writes
+        Promise.resolve(api.createSupabaseClient())
+          .then(function(c){ return c.auth.getSession(); })
+          .then(function(res){
+            if(res&&res.data&&res.data.session){ reveal(); }
+            else{ window.location.replace('login.html?next=design-admin.html'); }
+          })
+          .catch(function(){ reveal(); });
+      }
+      if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',gate); } else { gate(); }
+      setTimeout(reveal,5000); // safety: never leave the page blank
+    })();
+  </script>
 </body>
 </html>
