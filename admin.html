@@ -82,12 +82,18 @@
     transform:translateX(-180%) rotate(8deg);transition:transform .9s var(--ease);opacity:.0}
   .glass:hover::after{transform:translateX(360%) rotate(8deg);opacity:1}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,20px)}
-  .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,20px);perspective:1300px}
+  .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;will-change:transform;
     padding:clamp(22px,2.6vw,30px);border-radius:24px;
-    transition:transform .5s var(--ease), box-shadow .5s var(--ease)}
+    transform:translateY(var(--lift,0)) scale(var(--sc,1)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
+    transition:transform .2s var(--ease), box-shadow .5s var(--ease)}
   .card::before{content:'';position:absolute;left:0;top:0;width:100%;height:4px;z-index:2;background:var(--accent)}
-  .card:hover{transform:translateY(-6px);box-shadow:var(--glass-sh-lift)}
+  .card:hover{--lift:-12px;--sc:1.018;box-shadow:var(--glass-sh-lift)}
+  /* pointer-tracking glass hotspot (overrides the diagonal sweep on cards) */
+  .card.glass::after{top:0;left:0;width:100%;height:100%;transform:none;opacity:0;
+    background:radial-gradient(300px circle at var(--mx,50%) var(--my,0%), rgba(255,255,255,.6), transparent 60%);
+    transition:opacity .3s var(--ease)}
+  .card.glass:hover::after{opacity:1;transform:none}
   .card-icon{position:relative;z-index:1;width:52px;height:52px;border-radius:15px;display:grid;place-items:center;margin-bottom:18px;
     color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.7);transition:transform .5s var(--ease)}
@@ -241,17 +247,30 @@
   </main>
 
   <script>
-    // Subtle parallax on the aurora field — gives the glass real depth.
-    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce) {
+      // Parallax on the aurora field — gives the lifted glass real depth behind it.
       var blobs = [].slice.call(document.querySelectorAll('.blob'));
       var depth = [22, -16, 14, -20];
       window.addEventListener('pointermove', function (e) {
-        var x = (e.clientX / window.innerWidth - 0.5);
-        var y = (e.clientY / window.innerHeight - 0.5);
-        blobs.forEach(function (b, i) {
-          b.style.translate = (x * depth[i]) + 'px ' + (y * depth[i]) + 'px';
-        });
+        var x = (e.clientX / window.innerWidth - 0.5), y = (e.clientY / window.innerHeight - 0.5);
+        blobs.forEach(function (b, i) { b.style.translate = (x * depth[i]) + 'px ' + (y * depth[i]) + 'px'; });
       }, { passive: true });
+
+      // 3D tilt + tracking glass hotspot on the panels.
+      [].slice.call(document.querySelectorAll('.card')).forEach(function (card) {
+        card.addEventListener('pointermove', function (e) {
+          var r = card.getBoundingClientRect();
+          var px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+          card.style.setProperty('--ry', ((px - 0.5) * 10).toFixed(2) + 'deg');
+          card.style.setProperty('--rx', ((0.5 - py) * 10).toFixed(2) + 'deg');
+          card.style.setProperty('--mx', (px * 100).toFixed(1) + '%');
+          card.style.setProperty('--my', (py * 100).toFixed(1) + '%');
+        });
+        card.addEventListener('pointerleave', function () {
+          card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg');
+        });
+      });
     }
     if (navigator.userAgent.includes('Electron')) {
       var dl = document.getElementById('appDownloads');
