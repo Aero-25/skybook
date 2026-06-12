@@ -3213,9 +3213,9 @@ textarea:focus-visible{
 .admin-toolbar{
   position:relative;
   overflow:hidden;
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  align-items:start;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
   gap:16px 28px;
   padding:28px;
   border:1px solid #d7e7f3;
@@ -3267,6 +3267,7 @@ textarea:focus-visible{
   display:grid;
   gap:10px;
   min-width:0;
+  flex:1 1 340px;
 }
 
 .module-breadcrumb{
@@ -3297,6 +3298,8 @@ textarea:focus-visible{
   flex-wrap:wrap;
   min-width:0;
   padding-top:6px;
+  flex:0 1 auto;
+  margin-left:auto;
 }
 
 .toolbar-side-divider{
