@@ -3552,9 +3552,11 @@ const sendNewBookingPush=async(info:{reference:string, brandLabel:string, servic
       // booking inside its own WebView instead of the system browser.
       data:{ open_url:launchUrl }
     }
+    // Newer OneSignal keys (os_v2_...) use "Key", legacy keys use "Basic".
+    const authHeader=restKey.startsWith('os_v2_') ? `Key ${restKey}` : `Basic ${restKey}`
     const res=await fetch('https://api.onesignal.com/notifications',{
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Basic ${restKey}` },
+      headers:{ 'Content-Type':'application/json', 'Authorization':authHeader },
       body:JSON.stringify(body)
     })
     if(!res.ok){
