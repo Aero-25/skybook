@@ -1,0 +1,32 @@
+{
+  "name": "SkyBook Operations Console",
+  "short_name": "SkyBook",
+  "description": "SkyBook tour operations, bookings, calendar and finance console.",
+  "id": "/booking-admin.html",
+  "start_url": "/booking-admin.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d2d6e",
+  "theme_color": "#1769aa",
+  "icons": [
+    {
+      "src": "https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
