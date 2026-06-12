@@ -8,6 +8,10 @@
  *   • Never touch cross-origin requests (Supabase API, fonts, OneSignal, etc.).
  *   • Versioned cache + skipWaiting/clients.claim so updates take effect at once.
  */
+// OneSignal web-push worker — gives the iPad PWA (and desktop browsers) push.
+// Wrapped so a CDN hiccup can never break the offline logic below.
+try { importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js'); } catch (e) {}
+
 const CACHE = 'skybook-offline-v1';
 
 self.addEventListener('install', event => {

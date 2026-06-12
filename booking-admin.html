@@ -16,7 +16,27 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="SkyBook">
 <link rel="apple-touch-icon" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
-<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  // Web push for the iPad PWA and desktop browsers. Registers our sw.js (which
+  // imports the OneSignal worker) and prompts for permission. Skipped inside the
+  // SkyBook Android app — its UA carries "SkyBookApp" and it uses the native SDK.
+  if (!/SkyBookApp/.test(navigator.userAgent)) {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function (OneSignal) {
+      try {
+        await OneSignal.init({
+          appId: "335a7927-cac2-43b6-a901-66f8d23d901d",
+          serviceWorkerParam: { scope: "/" },
+          serviceWorkerPath: "sw.js"
+        });
+        OneSignal.Slidedown.promptPush();
+      } catch (e) { /* web platform not yet enabled / unsupported browser */ }
+    });
+  } else if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+  }
+</script>
 </head>
 <body class="booking-body skybook-admin-page">
   <section class="admin-loading-screen" id="adminLoadingScreen" aria-live="polite">
