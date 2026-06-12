@@ -3718,7 +3718,7 @@ const renderToPayTag=booking=>{
 }
 
 // Explicit "Open" button — a real link so it opens the full management page in the same window.
-const renderOpenBookingLink=(booking,label='Open →')=>`<a class="open-booking-link" href="${htmlAttribute(getRecordPageUrl('bookings',booking.id))}" title="Open booking management">${bookingAdminShared.escapeHtml(label)}</a>`
+const renderOpenBookingLink=(booking,label='Open →')=>`<a class="open-booking-link" href="${htmlAttribute(getRecordPageUrl('bookings',booking.id))}" target="_blank" rel="noopener noreferrer" title="Open booking management (new tab)">${bookingAdminShared.escapeHtml(label)}</a>`
 
 const focusBookingPaymentSection=()=>{
   if(!nodes.bookingDetail)return
@@ -9364,7 +9364,14 @@ nodes.bookingsTable.addEventListener('click',event=>{
   const row=event.target.closest('[data-booking-id]')
   if(!row)return
   const booking=state.bookings.find(item=>item.id===row.dataset.bookingId)
-  if(booking)openBookingManagementScreen(booking,{scroll:false})
+  if(!booking)return
+  // Open the booking management page in a NEW TAB. Inside the Android app the
+  // WebView can't open tabs, so fall back to same-window navigation there.
+  if(/SkyBookApp/.test(navigator.userAgent)){
+    openBookingManagementScreen(booking,{scroll:false})
+  }else{
+    window.open(getRecordPageUrl('bookings',booking.id),'_blank','noopener')
+  }
 })
 
 nodes.reservationsTable?.addEventListener('click',event=>{
