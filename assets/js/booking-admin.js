@@ -5320,7 +5320,7 @@ tbody tr:last-child td{border-bottom:none}
 <div class="footer">Banking details will be provided by your True Travel consultant.<br>Thank you for booking with True Travel Namibia.</div>
 <div class="print-actions"><button onclick="window.print()">Print / Save PDF</button></div>
 </body></html>`
-  const win=window.open('','_blank','noopener,noreferrer,width=800,height=900')
+  const win=sbPdfWindow(('Invoice '+(booking.reference||'')).trim())
   if(!win){showToast('Pop-up blocked. Please allow pop-ups to print the invoice.','info');return}
   win.document.write(html)
   win.document.close()
@@ -5598,7 +5598,7 @@ const printPartnerStatement=()=>{
         <td>${bookingAdminShared.escapeHtml(formatDateLabel(invoice.due_at||invoice.issued_at||invoice.created_at))}</td>
       </tr>
     `}).join('') || '<tr><td colspan="5">No statements logged yet.</td></tr>'
-  const printWindow=window.open('','_blank','noopener,noreferrer,width=1180,height=820')
+  const printWindow=sbPdfWindow(title)
   if(!printWindow)throw new Error('Pop-up blocked while opening the statement.')
   printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>
     body{font-family:Arial,sans-serif;padding:28px;color:#132433}
@@ -7210,7 +7210,50 @@ const handleMemoryUploadSave=async form=>{
   }
 }
 
-const openDocumentPrintWindow=(title,markup)=>{
+const SB_PDF_LIB_URL='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
+const sbPdfLoadingDoc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Generating PDF…</title></head><body style="margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#0d2d6e;color:#fff"><div style="text-align:center"><div style="font-size:15px;font-weight:700">Generating PDF…</div><div style="margin-top:6px;font-size:12px;opacity:.7">SkyBook</div></div></body></html>'
+// Render a full HTML document to a real PDF (html2pdf inside an isolated iframe so
+// the report's own styles apply) and open it in a NEW TAB. Falls back to the print
+// dialog if the PDF library can't load. The destination tab is opened synchronously
+// in the click gesture so it isn't caught by the pop-up blocker.
+const openDocAsPdf=(title,fullHtml)=>{
+  const tab=window.open('','_blank')
+  if(tab){ try{ tab.document.open(); tab.document.write(sbPdfLoadingDoc); tab.document.close() }catch(e){} }
+  const printFallback=()=>{
+    const w=tab||window.open('','_blank','noopener,noreferrer,width=960,height=720')
+    if(!w)return
+    try{ w.document.open(); w.document.write(fullHtml); w.document.close(); w.focus(); w.setTimeout(()=>{ try{ w.print() }catch(e){} },400) }catch(e){}
+  }
+  let done=false
+  const cb='__sbPdf'+Math.random().toString(36).slice(2)
+  const iframe=document.createElement('iframe')
+  iframe.setAttribute('aria-hidden','true')
+  iframe.style.cssText='position:fixed;left:-12000px;top:0;width:820px;height:1160px;border:0;z-index:-1;pointer-events:none'
+  const finish=blob=>{
+    if(done)return
+    done=true
+    try{ delete window[cb] }catch(e){ try{ window[cb]=undefined }catch(_){} }
+    try{ iframe.remove() }catch(e){}
+    if(blob){
+      const url=URL.createObjectURL(blob)
+      if(tab){ try{ tab.location.href=url }catch(e){ window.open(url,'_blank') } }else{ window.open(url,'_blank') }
+    }else{ printFallback() }
+  }
+  window[cb]=finish
+  window.setTimeout(()=>{ if(!done)finish(null) },20000)
+  document.body.appendChild(iframe)
+  const gen='<script src="'+SB_PDF_LIB_URL+'"></script><script>window.addEventListener("load",function(){try{var o={margin:[6,6,8,6],image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}};html2pdf().set(o).from(document.body).toPdf().get("pdf").then(function(p){var b=p.output("blob");parent["'+cb+'"]&&parent["'+cb+'"](b)}).catch(function(){parent["'+cb+'"]&&parent["'+cb+'"](null)})}catch(e){parent["'+cb+'"]&&parent["'+cb+'"](null)}})</script>'
+  let docHtml=String(fullHtml||'').replace(/<script[\s\S]*?<\/script>/gi,'')
+  docHtml=docHtml.includes('</body>') ? docHtml.replace(/<\/body>/i,gen+'</body>') : docHtml+gen
+  try{ const idoc=iframe.contentWindow.document; idoc.open(); idoc.write(docHtml); idoc.close() }catch(e){ finish(null) }
+}
+// Drop-in replacement for the old print-window object: anything written to it is
+// rendered to a PDF and opened in a new tab instead.
+const sbPdfWindow=title=>({document:{write(html){ openDocAsPdf(title,html) },writeln(html){ openDocAsPdf(title,html) },close(){}},focus(){},print(){},close(){}})
+const SB_DOC_BASE_CSS='body{font-family:Arial,Helvetica,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}'
+const sbWrapDoc=(title,markup)=>'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>'+bookingAdminShared.escapeHtml(String(title||'SkyBook'))+'</title><style>'+SB_DOC_BASE_CSS+'</style></head><body>'+markup+'</body></html>'
+const openDocumentPrintWindow=(title,markup)=>openDocAsPdf(title,sbWrapDoc(title,markup))
+const _legacyOpenDocumentPrintWindow=(title,markup)=>{
   const nextWindow=window.open('','_blank','noopener,noreferrer,width=960,height=720')
   if(!nextWindow)throw new Error('Allow popups to generate documents from SkyBook.')
   nextWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${bookingAdminShared.escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.sb-print-bar{position:sticky;top:0;z-index:10;display:flex;gap:12px;align-items:center;background:#0f4fa8;color:#fff;padding:12px 18px;margin:-40px -40px 26px;box-shadow:0 4px 16px rgba(13,45,110,.25)}.sb-print-bar .hint{margin-right:auto;font-size:13px;color:#dbe9ff}.sb-print-bar button{background:#fff;color:#0f4fa8;border:none;border-radius:9px;padding:10px 18px;font-weight:800;font-size:13px;cursor:pointer}.sb-print-bar button:hover{background:#eaf2ff}@media print{.sb-print-bar{display:none!important}body{padding:24px}}</style></head><body><div class="sb-print-bar"><span class="hint">To save as a PDF, choose <strong>“Save as PDF”</strong> as the destination in the dialog.</span><button type="button" onclick="window.print()">⬇ Save as PDF / Print</button></div>${markup}</body></html>`)
@@ -7387,7 +7430,7 @@ const printArrivalsForDate=(selectedDate='')=>{
     `
   }).join('') : `<div class="no-arrivals">No arrivals scheduled for ${bookingAdminShared.escapeHtml(dateLabel)}.</div>`
 
-  const win=window.open('','_blank','width=900,height=860')
+  const win=sbPdfWindow('Arrivals — '+dateLabel)
   if(!win)throw new Error('Allow popups to print the arrivals list.')
   win.document.write(`<!DOCTYPE html>
 <html lang="en">
@@ -9247,9 +9290,9 @@ nodes.manifestPickupButton?.addEventListener('click',()=>{
 nodes.manifestPrintButton?.addEventListener('click',()=>{
   const area=document.getElementById('manifestPrintArea')
   if(!area)return
-  const printWindow=window.open('','_blank','noopener,noreferrer,width=900,height=700')
+  const printWindow=sbPdfWindow('Manifest')
   if(!printWindow)return
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>Manifest</title><style>body{font-family:system-ui,sans-serif;padding:24px;color:#1a2a35}strong{font-weight:700}.manifest-entry{margin-bottom:20px;padding:18px;border:1px solid #dde;border-radius:14px;page-break-inside:avoid}@media print{.manifest-entry{border:1px solid #bbb}}</style></head><body>${area.innerHTML}</body></html>`)
+  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Manifest</title><style>body{font-family:system-ui,sans-serif;padding:24px;color:#1a2a35}strong{font-weight:700}.manifest-entry{margin-bottom:20px;padding:18px;border:1px solid #dde;border-radius:14px;page-break-inside:avoid}@media print{.manifest-entry{border:1px solid #bbb}}</style></head><body>${area.innerHTML}</body></html>`)
   printWindow.document.close()
   printWindow.focus()
   window.setTimeout(()=>printWindow.print(),400)
