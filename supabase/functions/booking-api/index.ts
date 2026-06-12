@@ -3545,7 +3545,10 @@ const sendNewBookingPush=async(info:{reference:string, brandLabel:string, servic
     const launchUrl=`https://skybook-8rd.pages.dev/booking-admin.html?tab=bookings&booking=${encodeURIComponent(info.bookingId)}&view=booking`
     const body={
       app_id:appId,
-      included_segments:['Subscribed Users'],
+      // This OneSignal app's default broadcast segment is "Total Subscriptions"
+      // (newer naming). The legacy "Subscribed Users" segment is empty here and
+      // returns "All included players are not subscribed".
+      included_segments:['Total Subscriptions'],
       headings:{ en:`New ${info.brandLabel} booking` },
       contents:{ en:`${info.reference}${info.serviceName?` · ${info.serviceName}`:''}` },
       // Sent as custom data (not top-level `url`) so the SkyBook app opens the
