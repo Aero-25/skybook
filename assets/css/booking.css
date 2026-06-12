@@ -6732,3 +6732,37 @@ body.skybook-auth-page{
     backdrop-filter:blur(3px) saturate(115%);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Calendar header controls — mobile fix
+   The generic ".toolbar-actions button{width:100%}" was forcing the ← →
+   arrows to full width, crushing the month/year label to "Ju 2". Reset the
+   arrows to fixed size and give the label room on its own full-width row.
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width:768px){
+  body.skybook-admin-page .admin-calendar-actions{
+    display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:12px;
+  }
+  /* Day / Week / Month — three equal pills on one row */
+  body.skybook-admin-page .admin-calendar-actions .calendar-view-button[data-calendar-view]{
+    flex:1 1 0; min-width:0; width:auto; min-height:38px; padding:0 6px;
+    font-size:12px; font-weight:700; border-radius:11px; box-shadow:none; white-space:nowrap;
+  }
+  /* Print Arrivals — its own full-width row */
+  body.skybook-admin-page .admin-calendar-actions #printArrivalsList{
+    order:8; flex:1 1 100%; width:100%; min-height:38px; font-size:12px;
+    border-radius:11px; box-shadow:none;
+  }
+  /* Date nav — own full-width row; arrows fixed, label never clipped */
+  body.skybook-admin-page .admin-calendar-actions .cal-date-nav{
+    order:9; flex:1 1 100%; width:100%; display:flex; align-items:center; gap:10px; margin-top:2px;
+  }
+  body.skybook-admin-page .admin-calendar-actions .cal-date-nav-btn{
+    flex:0 0 42px; width:42px; min-width:42px; height:42px; padding:0;
+    border-radius:12px; box-shadow:none; font-size:18px;
+  }
+  body.skybook-admin-page .admin-calendar-actions .cal-date-nav-label{
+    flex:1 1 auto; min-width:0; text-align:center; font-size:14px; font-weight:700;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+}
