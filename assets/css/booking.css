@@ -5320,16 +5320,22 @@ body.is-compact-tables .status-badge{
   .booking-workspace{
     grid-template-columns:1fr;
     gap:0;
-    border-radius:16px;
+    margin-top:6px;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+    background:transparent;
+    overflow:visible;
   }
   .booking-list-panel{
     height:auto;
     max-height:none;
     overflow:visible;
-    border-right:0;
-    border-bottom:1px solid rgba(83,115,148,.14);
+    background:transparent;
+    border:0;
     border-radius:0;
   }
+  .booking-list-top{padding:10px 2px 0;}
   .booking-detail-panel{
     height:60vh;
     max-height:none;

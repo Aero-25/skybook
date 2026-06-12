@@ -2805,7 +2805,7 @@ const requireClient=async()=>{
   return bookingAdminShared.createSupabaseClient()
 }
 
-const LOADER_MIN_MS=5000
+const LOADER_MIN_MS=500
 const loaderShownAt=Date.now()
 const hideLoaderAfterMinimum=()=>{
   const elapsed=Date.now()-loaderShownAt
