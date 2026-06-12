@@ -3535,7 +3535,7 @@ const buildReports=({
   }
 }
 
-const sendNewBookingPush=async(info:{reference:string, brandLabel:string, serviceName:string, bookingId:string})=>{
+const sendNewBookingPush=async(info:{guestName:string, brandLabel:string, serviceName:string, bookingId:string})=>{
   // Best-effort push for new GUEST bookings. Never throws — a push failure must not
   // affect the booking. No-ops until the OneSignal secrets are configured.
   try{
@@ -3550,7 +3550,7 @@ const sendNewBookingPush=async(info:{reference:string, brandLabel:string, servic
       // returns "All included players are not subscribed".
       included_segments:['Total Subscriptions'],
       headings:{ en:`New ${info.brandLabel} booking` },
-      contents:{ en:`${info.reference}${info.serviceName?` · ${info.serviceName}`:''}` },
+      contents:{ en:`${info.guestName}${info.serviceName?` · ${info.serviceName}`:''}` },
       // Sent as custom data (not top-level `url`) so the SkyBook app opens the
       // booking inside its own WebView instead of the system browser.
       data:{ open_url:launchUrl }
@@ -3756,7 +3756,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
 
   if(!isAdmin){
     await sendNewBookingPush({
-      reference,
+      guestName:normalizeText(customer.full_name) || 'Guest',
       brandLabel:String((brand as Json)?.name || brand.code || brandCode),
       serviceName:String((service as Json)?.name || ''),
       bookingId
