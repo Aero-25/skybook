@@ -1694,6 +1694,12 @@ const applyRequestedRoute=(routeState=getAdminRouteState(),{scrollToFocus=true}=
     return Boolean(requestedService)
   }
   if(routeState.tab){
+    // Daily-brief deep link: ?tab=manifest&date=YYYY-MM-DD opens the Arrivals
+    // list pre-set to that date so it renders straight away.
+    if(routeState.tab==='manifest'){
+      const manifestDateParam=String(new URLSearchParams(window.location.search).get('date')||'').trim()
+      if(manifestDateParam&&nodes.manifestDate)nodes.manifestDate.value=manifestDateParam
+    }
     switchTab(routeState.tab,{scrollToFocus})
     return true
   }
