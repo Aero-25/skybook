@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="color-scheme" content="light">
-<meta name="theme-color" content="#eef3f9">
+<meta name="theme-color" content="#eaf1fa">
 <title>SkyBook Workspace</title>
 <link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,98 +13,123 @@
 <style>
   *,*::before,*::after{box-sizing:border-box}
   :root{
-    --bg:#eef3f9; --bg-2:#e6edf6;
-    --card:#ffffff; --line:#dbe6f1; --line-soft:#e8eff7;
-    --ink:#0c2140; --muted:#5d7388; --faint:#8a9fb4;
+    --ink:#0c2140; --muted:#546b82; --faint:#86a0b8;
+    --line:rgba(255,255,255,.75); --line-soft:rgba(160,190,220,.30);
     --blue:#1769aa; --ocean:#1e5b93; --cyan:#2b8fd8; --amber:#c07d12; --green:#2e9e63;
-    --shadow:0 18px 44px rgba(20,60,120,.09), 0 2px 8px rgba(20,60,120,.05);
-    --shadow-lift:0 26px 60px rgba(20,60,120,.16), 0 4px 12px rgba(20,60,120,.08);
+    /* glass */
+    --glass:linear-gradient(155deg, rgba(255,255,255,.68), rgba(255,255,255,.40) 60%, rgba(255,255,255,.52));
+    --glass-2:linear-gradient(155deg, rgba(255,255,255,.78), rgba(255,255,255,.52));
+    --glass-bd:rgba(255,255,255,.8);
+    --glass-sh:0 28px 60px rgba(22,62,120,.16), 0 6px 16px rgba(22,62,120,.08), inset 0 1px 0 rgba(255,255,255,.95), inset 0 0 0 1px rgba(255,255,255,.18);
+    --glass-sh-lift:0 40px 90px rgba(22,62,120,.24), 0 10px 24px rgba(22,62,120,.12), inset 0 1px 0 rgba(255,255,255,1), inset 0 0 0 1px rgba(255,255,255,.3);
     --ease:cubic-bezier(.22,1,.36,1);
   }
   html{-webkit-text-size-adjust:100%}
   body{
     margin:0;min-height:100dvh;color:var(--ink);
-    font-family:'Manrope',system-ui,sans-serif;
-    background:
-      radial-gradient(60% 50% at 85% -8%, rgba(43,143,216,.10), transparent 60%),
-      radial-gradient(50% 45% at 5% 0%, rgba(23,105,170,.08), transparent 55%),
-      linear-gradient(180deg, #f2f7fc 0%, var(--bg) 40%, var(--bg-2) 100%);
-    background-attachment:fixed;
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    font-family:'Manrope',system-ui,sans-serif;background:#e9f0f8;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;
   }
-  .wrap{max-width:1080px;margin:0 auto;padding:clamp(20px,4vw,36px) clamp(18px,4vw,34px) 56px}
+
+  /* ── Pastel aurora field (so glass has colour to refract) ── */
+  .field{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .field::before{content:'';position:absolute;inset:0;
+    background:linear-gradient(180deg,#eef5fc 0%, #e7eff8 45%, #e2ebf6 100%)}
+  .blob{position:absolute;border-radius:50%;filter:blur(50px);will-change:transform}
+  .blob.b1{top:-10%;right:-4%;width:42vw;height:42vw;background:radial-gradient(circle, rgba(58,160,239,.34), transparent 66%);animation:float1 20s var(--ease) infinite alternate}
+  .blob.b2{top:24%;left:-12%;width:40vw;height:40vw;background:radial-gradient(circle, rgba(70,214,208,.28), transparent 66%);animation:float2 24s var(--ease) infinite alternate}
+  .blob.b3{bottom:-18%;left:30%;width:48vw;height:40vw;background:radial-gradient(circle, rgba(245,196,81,.20), transparent 62%);animation:float3 28s var(--ease) infinite alternate}
+  .blob.b4{bottom:6%;right:6%;width:30vw;height:30vw;background:radial-gradient(circle, rgba(124,140,232,.18), transparent 64%);animation:float1 26s var(--ease) infinite alternate-reverse}
+  @keyframes float1{to{transform:translate(-5%,5%) scale(1.1)}}
+  @keyframes float2{to{transform:translate(7%,-4%) scale(1.12)}}
+  @keyframes float3{to{transform:translate(-6%,-4%) scale(1.14)}}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.04;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  .wrap{position:relative;z-index:2;max-width:1080px;margin:0 auto;padding:clamp(20px,4vw,36px) clamp(18px,4vw,34px) 56px}
 
   /* ── Top bar ── */
   .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:clamp(28px,5vh,46px)}
   .brand{display:flex;align-items:center;gap:12px}
-  .brand .mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#fff;
-    border:1px solid var(--line);box-shadow:0 6px 16px rgba(20,60,120,.10)}
-  .brand .mark img{width:28px;height:28px;display:block}
-  .brand .word{font-weight:800;letter-spacing:.02em;font-size:17px;color:var(--ink)}
+  .brand .mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;
+    background:var(--glass-2);-webkit-backdrop-filter:blur(16px) saturate(170%);backdrop-filter:blur(16px) saturate(170%);
+    border:1px solid var(--glass-bd);box-shadow:var(--glass-sh)}
+  .brand .mark img{width:28px;height:28px;display:block;filter:drop-shadow(0 2px 4px rgba(20,60,120,.18))}
+  .brand .word{font-weight:800;letter-spacing:.01em;font-size:17px;color:var(--ink)}
   .status{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.12em;
-    text-transform:uppercase;color:#1c7a4a;padding:7px 13px;border-radius:999px;
-    background:rgba(46,158,99,.10);border:1px solid rgba(46,158,99,.22)}
+    text-transform:uppercase;color:#1c7a4a;padding:8px 14px;border-radius:999px;
+    background:linear-gradient(160deg,rgba(255,255,255,.7),rgba(232,248,239,.5));
+    -webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);
+    border:1px solid rgba(255,255,255,.7);box-shadow:0 8px 20px rgba(22,62,120,.10), inset 0 1px 0 rgba(255,255,255,.9)}
   .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,158,99,.45)}70%{box-shadow:0 0 0 6px rgba(46,158,99,0)}100%{box-shadow:0 0 0 0 rgba(46,158,99,0)}}
 
-  /* ── Intro (restrained, not a hero) ── */
+  /* ── Intro ── */
   .intro{margin-bottom:clamp(22px,3.5vh,32px)}
   .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--blue);
     display:flex;align-items:center;gap:11px;margin-bottom:14px}
   .eyebrow::before{content:'';width:26px;height:2px;border-radius:2px;background:var(--blue);opacity:.6}
-  .intro h1{margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.04;
-    font-size:clamp(30px,4.6vw,46px);color:var(--ink)}
+  .intro h1{margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.04;font-size:clamp(30px,4.6vw,46px);color:var(--ink)}
   .intro p{margin:12px 0 0;max-width:560px;color:var(--muted);font-size:clamp(14px,1.5vw,16px);line-height:1.6}
 
-  /* ── Workspace cards ── */
+  /* ── Glass panels ── */
+  .glass{position:relative;overflow:hidden;background:var(--glass);
+    -webkit-backdrop-filter:blur(28px) saturate(185%);backdrop-filter:blur(28px) saturate(185%);
+    border:1px solid var(--glass-bd);box-shadow:var(--glass-sh)}
+  /* moving specular sweep */
+  .glass::after{content:'';position:absolute;top:-60%;left:-40%;width:55%;height:240%;pointer-events:none;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);
+    transform:translateX(-180%) rotate(8deg);transition:transform .9s var(--ease);opacity:.0}
+  .glass:hover::after{transform:translateX(360%) rotate(8deg);opacity:1}
+
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,20px)}
-  .card{position:relative;display:flex;flex-direction:column;text-decoration:none;color:inherit;overflow:hidden;
-    padding:clamp(22px,2.6vw,30px);border-radius:22px;background:var(--card);border:1px solid var(--line);
-    box-shadow:var(--shadow);transition:transform .42s var(--ease), box-shadow .42s var(--ease), border-color .42s var(--ease)}
-  .card::after{content:'';position:absolute;left:0;top:0;width:100%;height:4px;background:var(--accent)}
-  .card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lift);border-color:var(--accent-line)}
-  .card-icon{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;margin-bottom:18px;
-    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);transition:transform .42s var(--ease)}
-  .card:hover .card-icon{transform:scale(1.05)}
-  .chip{align-self:flex-start;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;
+    padding:clamp(22px,2.6vw,30px);border-radius:24px;
+    transition:transform .5s var(--ease), box-shadow .5s var(--ease)}
+  .card::before{content:'';position:absolute;left:0;top:0;width:100%;height:4px;z-index:2;background:var(--accent)}
+  .card:hover{transform:translateY(-6px);box-shadow:var(--glass-sh-lift)}
+  .card-icon{position:relative;z-index:1;width:52px;height:52px;border-radius:15px;display:grid;place-items:center;margin-bottom:18px;
     color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);
-    padding:5px 10px;border-radius:999px;margin-bottom:14px}
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.7);transition:transform .5s var(--ease)}
+  .card:hover .card-icon{transform:translateY(-2px) scale(1.05)}
+  .chip{position:relative;z-index:1;align-self:flex-start;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);padding:5px 11px;border-radius:999px;margin-bottom:14px}
+  .card h3,.card .desc,.card .feat,.card .cta{position:relative;z-index:1}
   .card h3{margin:0 0 8px;font-weight:800;letter-spacing:-.02em;font-size:clamp(19px,2vw,23px);color:var(--ink)}
   .card .desc{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.6;max-width:44ch}
   .feat{list-style:none;margin:0 0 24px;padding:0;display:flex;flex-direction:column;gap:8px}
-  .feat li{display:flex;align-items:center;gap:10px;color:#33485f;font-size:13.5px;font-weight:500}
-  .feat li::before{content:'';flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .feat li{display:flex;align-items:center;gap:10px;color:#2c4763;font-size:13.5px;font-weight:600}
+  .feat li::before{content:'';flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
   .cta{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:9px;
-    font-weight:700;font-size:14px;color:#fff;text-decoration:none;padding:12px 20px;border-radius:12px;
-    background:var(--accent);box-shadow:0 10px 24px var(--accent-shadow);
+    font-weight:700;font-size:14px;color:#fff;text-decoration:none;padding:12px 20px;border-radius:13px;
+    background:var(--accent-grad);box-shadow:0 12px 26px var(--accent-shadow), inset 0 1px 0 rgba(255,255,255,.4);
     transition:gap .3s var(--ease), filter .3s var(--ease)}
   .card:hover .cta{gap:13px;filter:brightness(1.05)}
   .cta svg{transition:transform .3s var(--ease)}
   .card:hover .cta svg{transform:translateX(3px)}
-  .card.studio{--accent:#c07d12;--accent-soft:rgba(192,125,18,.10);--accent-line:rgba(192,125,18,.26);--accent-shadow:rgba(192,125,18,.26)}
-  .card.ops{--accent:#1769aa;--accent-soft:rgba(23,105,170,.09);--accent-line:rgba(23,105,170,.24);--accent-shadow:rgba(23,105,170,.26)}
+  .card.studio{--accent:#c07d12;--accent-soft:rgba(192,125,18,.13);--accent-line:rgba(192,125,18,.30);--accent-grad:linear-gradient(120deg,#e09a2a,#c07d12);--accent-shadow:rgba(192,125,18,.30)}
+  .card.ops{--accent:#1769aa;--accent-soft:rgba(23,105,170,.12);--accent-line:rgba(23,105,170,.28);--accent-grad:linear-gradient(120deg,#2b8fd8,#1769aa);--accent-shadow:rgba(23,105,170,.30)}
 
-  /* ── Apps strip ── */
+  /* ── Apps strip (glass tiles) ── */
   .apps{margin-top:clamp(34px,5vh,54px)}
   .apps-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
-  .apps-head h2{margin:0;font-size:15px;font-weight:800;letter-spacing:.01em;color:var(--ink)}
+  .apps-head h2{margin:0;font-size:15px;font-weight:800;color:var(--ink)}
   .apps-head .sub{font-size:12.5px;color:var(--faint)}
   .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-  .tile{display:flex;flex-direction:column;gap:3px;padding:16px 16px 15px;border-radius:15px;text-decoration:none;color:inherit;
-    background:var(--card);border:1px solid var(--line);box-shadow:0 6px 16px rgba(20,60,120,.05);
-    transition:transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease)}
-  .tile:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:#cfddec}
-  .tile .pico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:9px;
-    color:var(--ocean);background:rgba(23,105,170,.07);border:1px solid var(--line-soft)}
+  .tile{display:flex;flex-direction:column;gap:3px;padding:16px;border-radius:16px;text-decoration:none;color:inherit;
+    transition:transform .42s var(--ease), box-shadow .42s var(--ease)}
+  .tile:hover{transform:translateY(-4px);box-shadow:var(--glass-sh-lift)}
+  .tile .pico{position:relative;z-index:1;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:9px;
+    color:var(--ocean);background:rgba(23,105,170,.10);border:1px solid rgba(255,255,255,.6)}
+  .tile .pname,.tile .psub,.tile .pget{position:relative;z-index:1}
   .tile .pname{font-weight:700;font-size:14px;color:var(--ink)}
-  .tile .psub{font-size:11px;color:var(--faint);line-height:1.45}
+  .tile .psub{font-size:11px;color:var(--muted);line-height:1.45}
   .tile .pget{margin-top:9px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}
-  .tile.android .pico{color:var(--green);background:rgba(46,158,99,.08)}
+  .tile.android .pico{color:var(--green);background:rgba(46,158,99,.10)}
   .tile.android .pget{color:var(--green)}
 
-  footer{margin-top:clamp(30px,5vh,46px);padding-top:18px;border-top:1px solid var(--line);
-    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
-    font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
+  footer{margin-top:clamp(30px,5vh,46px);padding-top:18px;border-top:1px solid var(--line-soft);
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
 
   /* ── Motion ── */
   .rise{opacity:0;transform:translateY(14px);animation:rise .7s var(--ease) forwards}
@@ -115,14 +140,22 @@
   @media (max-width:840px){ .grid{grid-template-columns:1fr} .tiles{grid-template-columns:1fr 1fr} }
   @media (max-width:540px){
     .wrap{padding:18px 16px 46px}
-    .status .label{display:none}.status{padding:7px 10px}
+    .status .label{display:none}.status{padding:8px 11px}
     .tiles{grid-template-columns:1fr}
     footer{flex-direction:column;gap:6px}
   }
-  @media (prefers-reduced-motion:reduce){ .rise{animation:none;opacity:1;transform:none} .status .dot{animation:none} }
+  @media (prefers-reduced-motion:reduce){
+    .rise{animation:none;opacity:1;transform:none}
+    .blob{animation:none}.status .dot{animation:none}.glass::after{display:none}
+  }
 </style>
 </head>
 <body>
+  <div class="field" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+
   <main class="wrap">
     <header class="topbar rise d1">
       <div class="brand">
@@ -139,7 +172,7 @@
     </section>
 
     <section class="grid" aria-label="Workspaces">
-      <a class="card studio rise d4" href="design-admin.html">
+      <a class="card glass studio rise d4" href="design-admin.html">
         <span class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
         <span class="chip">Design Studio</span>
         <h3>Content &amp; Visual Editing</h3>
@@ -153,7 +186,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
       </a>
 
-      <a class="card ops rise d5" href="login.html?next=booking-admin.html">
+      <a class="card glass ops rise d5" href="login.html?next=booking-admin.html">
         <span class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
         <span class="chip">Booking Admin</span>
         <h3>Operations &amp; Finance</h3>
@@ -174,25 +207,25 @@
         <span class="sub">Open straight to your live workspace.</span>
       </div>
       <div class="tiles">
-        <a class="tile rise d6" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
+        <a class="tile glass rise d6" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
           <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.2 10.2 4v7.2H3V5.2Zm0 13.6V11.6h7.2V20L3 18.8ZM11.2 3.9 21 2.5v8.7h-9.8V3.9Zm0 8.7H21V21.5l-9.8-1.4v-7.5Z"/></svg></span>
           <span class="pname">Windows</span>
           <span class="psub">Desktop · 64-bit</span>
           <span class="pget">Download .exe</span>
         </a>
-        <a class="tile rise d7" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
+        <a class="tile glass rise d7" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
           <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
           <span class="pname">macOS</span>
           <span class="psub">Intel &amp; Apple Silicon</span>
           <span class="pget">Download .dmg</span>
         </a>
-        <a class="tile android rise d7" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
+        <a class="tile glass android rise d7" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
           <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 9h12v8.5A1.5 1.5 0 0 1 16.5 19H15v2.2a1.3 1.3 0 0 1-2.6 0V19h-1.8v2.2a1.3 1.3 0 0 1-2.6 0V19H6.5A1.5 1.5 0 0 1 5 17.5V9h1Zm-2.7.2a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2Zm15.2 0a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2ZM7.7 8a4.5 4.5 0 0 1 1.8-3.3l-.9-1.4a.3.3 0 0 1 .5-.3l1 1.5a5.4 5.4 0 0 1 4 0l1-1.5a.3.3 0 0 1 .5.3l-.9 1.4A4.5 4.5 0 0 1 16.3 8H7.7Zm2.1-2.3a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Zm4.4 0a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Z"/></svg></span>
           <span class="pname">Android</span>
           <span class="psub">No store · Android 8.0+</span>
           <span class="pget">Download .apk</span>
         </a>
-        <a class="tile rise d7" href="login.html?next=booking-admin.html">
+        <a class="tile glass rise d7" href="login.html?next=booking-admin.html">
           <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
           <span class="pname">iPhone &amp; iPad</span>
           <span class="psub">Safari → Add to Home Screen</span>
@@ -208,6 +241,18 @@
   </main>
 
   <script>
+    // Subtle parallax on the aurora field — gives the glass real depth.
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var blobs = [].slice.call(document.querySelectorAll('.blob'));
+      var depth = [22, -16, 14, -20];
+      window.addEventListener('pointermove', function (e) {
+        var x = (e.clientX / window.innerWidth - 0.5);
+        var y = (e.clientY / window.innerHeight - 0.5);
+        blobs.forEach(function (b, i) {
+          b.style.translate = (x * depth[i]) + 'px ' + (y * depth[i]) + 'px';
+        });
+      }, { passive: true });
+    }
     if (navigator.userAgent.includes('Electron')) {
       var dl = document.getElementById('appDownloads');
       if (dl) dl.hidden = true;
