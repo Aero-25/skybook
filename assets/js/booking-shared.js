@@ -1243,6 +1243,9 @@ window.TrueTravelBooking=(()=>{
       }
       const response=await fetch(getApiUrl(path),{
         method,
+        // Never serve a cached API response — otherwise a read right after a write
+        // (e.g. reloading bookings after an edit) can show stale pre-edit data.
+        cache:'no-store',
         headers:{...defaultHeaders,...headers},
         body:isFormData ? rawBody : (body ? JSON.stringify(body) : undefined)
       })
