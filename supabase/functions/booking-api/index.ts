@@ -3551,9 +3551,12 @@ const sendNewBookingPush=async(info:{guestName:string, brandLabel:string, servic
       included_segments:['Total Subscriptions'],
       headings:{ en:`New ${info.brandLabel} booking` },
       contents:{ en:`${info.guestName}${info.serviceName?` · ${info.serviceName}`:''}` },
-      // Sent as custom data (not top-level `url`) so the SkyBook app opens the
+      // Sent as custom data (not top-level `url`) so the Android app opens the
       // booking inside its own WebView instead of the system browser.
-      data:{ open_url:launchUrl }
+      data:{ open_url:launchUrl },
+      // web_url is WEB-ONLY: makes a tap on the iPad PWA / desktop browser open
+      // the booking. The native Android app ignores it (it uses data.open_url).
+      web_url:launchUrl
     }
     // Newer OneSignal keys (os_v2_...) use "Key", legacy keys use "Basic".
     const authHeader=restKey.startsWith('os_v2_') ? `Key ${restKey}` : `Basic ${restKey}`
