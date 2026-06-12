@@ -6766,3 +6766,70 @@ body.skybook-auth-page{
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Frosted-glass pass — modals, calendar day panel, booking detail.
+   Carries the iPhone-glass language from the sidebar through every overlay.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Modals ── */
+.admin-modal-backdrop{
+  background:rgba(10,22,40,.46);
+  -webkit-backdrop-filter:blur(20px) saturate(150%);
+  backdrop-filter:blur(20px) saturate(150%);
+}
+.admin-modal-panel{
+  background:linear-gradient(165deg,rgba(255,255,255,.88),rgba(244,249,253,.78) 55%,rgba(235,243,252,.85));
+  -webkit-backdrop-filter:blur(34px) saturate(185%);
+  backdrop-filter:blur(34px) saturate(185%);
+  border:1px solid rgba(255,255,255,.6);
+  border-radius:26px;
+  box-shadow:0 40px 90px rgba(11,28,50,.34),0 8px 24px rgba(11,28,50,.18),inset 0 1px 0 rgba(255,255,255,.85);
+}
+.admin-modal-header{
+  background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(255,255,255,.6));
+  -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,.55);
+  border-radius:26px 26px 0 0;
+}
+.admin-modal-close{
+  background:rgba(255,255,255,.55);
+  border:1px solid rgba(255,255,255,.62);
+  border-radius:14px;
+  -webkit-backdrop-filter:blur(8px);
+  backdrop-filter:blur(8px);
+}
+.admin-modal-close:hover{background:rgba(255,255,255,.85)}
+
+/* ── Calendar day panel (bottom sheet) ── */
+.calendar-day-panel-backdrop{
+  background:rgba(10,22,40,.42);
+  -webkit-backdrop-filter:blur(16px) saturate(140%);
+  backdrop-filter:blur(16px) saturate(140%);
+}
+.calendar-day-panel-content{
+  background:linear-gradient(165deg,rgba(255,255,255,.9),rgba(244,249,253,.8) 55%,rgba(234,243,252,.88));
+  -webkit-backdrop-filter:blur(34px) saturate(185%);
+  backdrop-filter:blur(34px) saturate(185%);
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 -12px 54px rgba(11,28,50,.3),inset 0 1px 0 rgba(255,255,255,.85);
+}
+/* iOS grabber on the day sheet */
+.calendar-day-panel-content::before{
+  content:"";
+  position:sticky;
+  top:0;
+  display:block;
+  width:40px;
+  height:5px;
+  margin:-6px auto 14px;
+  border-radius:999px;
+  background:rgba(20,52,83,.2);
+}
+
+/* ── Booking detail: deepen the existing glass for cohesion ── */
+.bm-content{
+  -webkit-backdrop-filter:blur(16px) saturate(165%);
+  backdrop-filter:blur(16px) saturate(165%);
+}

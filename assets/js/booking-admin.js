@@ -323,6 +323,7 @@ const nodes={
   manifestCanvas:document.getElementById('manifestCanvas'),
   manifestDate:document.getElementById('manifestDate'),
   manifestPrintButton:document.getElementById('manifestPrintButton'),
+  manifestPickupButton:document.getElementById('manifestPickupButton'),
   calendarFocusDate:document.getElementById('calendarFocusDate'),
   calendarSummaryCards:document.getElementById('calendarSummaryCards'),
   calendarCanvas:document.getElementById('calendarCanvas'),
@@ -7245,6 +7246,65 @@ const openSkyBookPrintWindow=(title,markup)=>{
   `)
 }
 
+// Driver / pickup route sheet — the day's bookings grouped by pickup location,
+// each group sorted by departure time, so a driver gets a clean stop-by-stop list.
+const openPickupSheet=(selectedDate='')=>{
+  const esc=value=>bookingAdminShared.escapeHtml(String(value??''))
+  const dateKey=normalizeDateKey(selectedDate||nodes.manifestDate?.value||getTodayKey())
+  const dateLabel=formatDateLabel(dateKey)
+  const dayBookings=state.bookings.filter(b=>normalizeText(b.status)!=='cancelled'&&normalizeDateKey(b.preferred_date)===dateKey)
+  const paxOf=b=>{const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0),i=Number(b.infant_quantity||0);return a+c+i||Number(b.quantity||1)}
+  const timeOf=b=>{const m=normalizeJsonRecord(b.metadata);return String(m.departure_label||m.pickup_time||'').trim()}
+  if(!dayBookings.length){
+    openSkyBookPrintWindow(`Pickup Sheet — ${dateLabel}`,`<section><p>No active bookings scheduled for ${esc(dateLabel)}.</p></section>`)
+    return
+  }
+  const groups=new Map()
+  dayBookings.forEach(b=>{
+    const m=normalizeJsonRecord(b.metadata)
+    const loc=String(m.pickup_location||m.accommodation||m.hotel||'').trim()||'Pickup to confirm'
+    if(!groups.has(loc))groups.set(loc,[])
+    groups.get(loc).push(b)
+  })
+  const keys=[...groups.keys()].sort((a,b)=>{
+    const ap=/confirm/i.test(a)?1:0,bp=/confirm/i.test(b)?1:0
+    return ap!==bp?ap-bp:a.localeCompare(b)
+  })
+  let totalGuests=0
+  const sections=keys.map(loc=>{
+    const items=groups.get(loc).slice().sort((x,y)=>timeOf(x).localeCompare(timeOf(y)))
+    const groupGuests=items.reduce((sum,b)=>sum+paxOf(b),0)
+    totalGuests+=groupGuests
+    const rows=items.map(b=>{
+      const m=normalizeJsonRecord(b.metadata)
+      const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0),i=Number(b.infant_quantity||0)
+      const paxBreak=[a&&`${a}A`,c&&`${c}C`,i&&`${i}I`].filter(Boolean).join(' / ')
+      const point=m.pickup_point?` · ${esc(m.pickup_point)}`:''
+      const notes=String(b.customer_notes||b.notes||m.notes||'').trim()
+      return `<tr>
+        <td style="white-space:nowrap;font-weight:800;font-size:15px">${esc(timeOf(b)||'—')}</td>
+        <td><strong>${esc(b.customer_name||'Guest')}</strong><div style="font-size:11px;color:#5f6f80">${esc(b.reference||'')}${point}</div></td>
+        <td style="white-space:nowrap"><strong>${paxOf(b)}</strong>${paxBreak?` <small style="color:#5f6f80">(${esc(paxBreak)})</small>`:''}</td>
+        <td>${esc(b.service_name||'—')}</td>
+        <td style="white-space:nowrap">${esc(b.customer_phone||'—')}</td>
+        <td style="font-size:12px;color:#5f6f80">${notes?esc(notes):''}</td>
+      </tr>`
+    }).join('')
+    return `<section style="page-break-inside:avoid">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;margin:0 0 6px">
+        <span>📍 ${esc(loc)}</span>
+        <span style="font-size:12px;font-weight:700;color:#1e5b93;background:#e8f4ff;padding:5px 11px;border-radius:999px;white-space:nowrap">${items.length} stop${items.length>1?'s':''} · ${groupGuests} guest${groupGuests>1?'s':''}</span>
+      </h2>
+      <table>
+        <thead><tr><th>Time</th><th>Guest</th><th>Pax</th><th>Tour</th><th>Phone</th><th>Notes</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>`
+  }).join('')
+  const summary=`<div class="meta"><div class="card"><small>Date</small><div style="font-size:16px;font-weight:800">${esc(dateLabel)}</div></div><div class="card"><small>Totals</small><div style="font-size:16px;font-weight:800">${dayBookings.length} booking${dayBookings.length>1?'s':''} · ${totalGuests} guest${totalGuests>1?'s':''} · ${keys.length} pickup point${keys.length>1?'s':''}</div></div></div>`
+  openSkyBookPrintWindow(`Pickup / Driver Sheet — ${dateLabel}`,summary+sections)
+}
+
 const printArrivalsForDate=(selectedDate='')=>{
   const dateKey=selectedDate||nodes.calendarFocusDate?.value||state.calendarFocusDate||getTodayKey()
   const arrivals=buildArrivalsManifestRows(dateKey)
@@ -9181,6 +9241,9 @@ nodes.customerFilterSearch?.addEventListener('input',renderCustomers)
 nodes.customerFilterBrand?.addEventListener('change',renderCustomers)
 nodes.customerFilterSource?.addEventListener('change',renderCustomers)
 nodes.manifestDate?.addEventListener('change',renderManifest)
+nodes.manifestPickupButton?.addEventListener('click',()=>{
+  try{ openPickupSheet(nodes.manifestDate?.value||'') }catch(error){ setAdminStatus(error.message||'Could not open pickup sheet.',true) }
+})
 nodes.manifestPrintButton?.addEventListener('click',()=>{
   const area=document.getElementById('manifestPrintArea')
   if(!area)return
