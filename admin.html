@@ -2,248 +2,281 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkyBook Gateway</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050f1b">
+<title>SkyBook Workspace</title>
 <link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260604-toolbar">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  :root{
+    --bg:#050f1b; --bg-2:#081c30;
+    --text:#e9f1fb; --muted:#9db4cc; --faint:#6c87a1;
+    --stroke:rgba(150,190,230,.14); --stroke-strong:rgba(160,200,240,.30);
+    --glass:rgba(255,255,255,.045); --glass-2:rgba(255,255,255,.07);
+    --sky:#3aa0ef; --cyan:#46d6d0; --gold:#f5c451; --green:#43c47e; --rose:#f08aa0;
+    --shadow:0 40px 90px rgba(3,12,24,.55), 0 8px 24px rgba(3,12,24,.30);
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; min-height:100dvh; color:var(--text);
+    font-family:'Hanken Grotesk',system-ui,sans-serif;
+    background:var(--bg);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+
+  /* ── Atmosphere ─────────────────────────────────────────────── */
+  .sky{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .sky::before{ /* base ocean gradient */
+    content:'';position:absolute;inset:0;
+    background:
+      radial-gradient(120% 90% at 50% -20%, #0c2c4d 0%, transparent 60%),
+      linear-gradient(180deg, #061322 0%, #06182b 45%, #040d18 100%);
+  }
+  .glow{position:absolute;border-radius:50%;filter:blur(60px);opacity:.6;will-change:transform}
+  .glow.a{ top:-12%;  right:-6%;  width:46vw;  height:46vw;  background:radial-gradient(circle, rgba(58,160,239,.55), transparent 65%); animation:drift1 22s var(--ease) infinite alternate }
+  .glow.b{ top:18%;   left:-12%;  width:42vw;  height:42vw;  background:radial-gradient(circle, rgba(70,214,208,.34), transparent 65%); animation:drift2 26s var(--ease) infinite alternate }
+  .glow.c{ bottom:-22%;left:24%;   width:54vw;  height:40vw;  background:radial-gradient(circle, rgba(245,196,81,.16), transparent 60%); animation:drift3 30s var(--ease) infinite alternate }
+  @keyframes drift1{ to{ transform:translate(-5%,6%) scale(1.12) } }
+  @keyframes drift2{ to{ transform:translate(8%,-4%) scale(1.1) } }
+  @keyframes drift3{ to{ transform:translate(-6%,-5%) scale(1.15) } }
+  .horizon{position:absolute;left:0;right:0;bottom:0;height:38vh;
+    background:linear-gradient(0deg, rgba(70,214,208,.10), transparent 70%);
+    mask:linear-gradient(0deg,#000,transparent)}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+  /* ── Shell ──────────────────────────────────────────────────── */
+  .wrap{position:relative;z-index:2;max-width:1160px;margin:0 auto;
+    padding:clamp(20px,4vw,40px) clamp(18px,4vw,40px) 64px}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:clamp(40px,8vh,84px)}
+  .brand{display:flex;align-items:center;gap:13px}
+  .brand .mark{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
+    background:linear-gradient(150deg, rgba(58,160,239,.30), rgba(70,214,208,.12));
+    border:1px solid var(--stroke-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 8px 22px rgba(8,28,52,.5)}
+  .brand .mark img{width:30px;height:30px;display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35))}
+  .brand .word{font-family:'Spline Sans Mono',monospace;font-weight:600;letter-spacing:.42em;
+    font-size:13px;color:#cfe2f5;padding-left:2px}
+  .status{display:inline-flex;align-items:center;gap:9px;font-family:'Spline Sans Mono',monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fcabd;
+    padding:8px 14px;border-radius:999px;background:rgba(67,196,126,.08);border:1px solid rgba(67,196,126,.24)}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);
+    box-shadow:0 0 0 0 rgba(67,196,126,.6);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(67,196,126,.5)}70%{box-shadow:0 0 0 7px rgba(67,196,126,0)}100%{box-shadow:0 0 0 0 rgba(67,196,126,0)}}
+
+  /* ── Hero ───────────────────────────────────────────────────── */
+  .hero{max-width:760px;margin-bottom:clamp(36px,6vh,60px)}
+  .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.36em;
+    text-transform:uppercase;color:var(--cyan);margin-bottom:20px;display:flex;align-items:center;gap:14px}
+  .eyebrow::before{content:'';width:34px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent)}
+  .hero h1{font-family:'Fraunces',serif;font-weight:500;margin:0;line-height:.96;
+    font-size:clamp(48px,9vw,104px);letter-spacing:-.025em}
+  .hero h1 .b{font-weight:600;color:#f3f8ff}
+  .hero h1 .w{display:block;font-style:italic;font-weight:400;
+    background:linear-gradient(100deg,#7fd9ff 0%, #46d6d0 45%, #9fe6c8 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{margin:24px 0 0;max-width:560px;color:var(--muted);font-size:clamp(15px,1.6vw,18px);line-height:1.7}
+
+  /* ── Launch cards ───────────────────────────────────────────── */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(16px,2.2vw,24px)}
+  .card{position:relative;display:flex;flex-direction:column;
+    padding:clamp(24px,3vw,34px);border-radius:24px;overflow:hidden;text-decoration:none;color:inherit;
+    background:linear-gradient(170deg, var(--glass-2), var(--glass));
+    border:1px solid var(--stroke);box-shadow:var(--shadow);
+    -webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);
+    transition:transform .5s var(--ease), border-color .4s var(--ease), box-shadow .5s var(--ease)}
+  .card::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:radial-gradient(120% 80% at 100% 0%, var(--accent-soft), transparent 55%);opacity:.7;transition:opacity .5s var(--ease)}
+  .card::after{content:'';position:absolute;left:0;top:0;height:100%;width:3px;
+    background:linear-gradient(180deg,var(--accent),transparent);opacity:.8}
+  .card:hover{transform:translateY(-6px);border-color:var(--stroke-strong);
+    box-shadow:0 50px 110px rgba(3,12,24,.6), 0 0 0 1px var(--stroke-strong)}
+  .card:hover::before{opacity:1}
+  .card-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;margin-bottom:22px;
+    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14);transition:transform .5s var(--ease)}
+  .card:hover .card-icon{transform:translateY(-3px) scale(1.04)}
+  .chip{align-self:flex-start;font-family:'Spline Sans Mono',monospace;font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--accent);padding:6px 11px;border-radius:999px;
+    background:var(--accent-soft);border:1px solid var(--accent-line);margin-bottom:16px}
+  .card h3{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(24px,2.6vw,30px);
+    letter-spacing:-.02em;margin:0 0 10px;line-height:1.1}
+  .card .desc{margin:0 0 20px;color:var(--muted);font-size:14.5px;line-height:1.65;max-width:42ch}
+  .feat{list-style:none;margin:0 0 26px;padding:0;display:flex;flex-direction:column;gap:9px}
+  .feat li{display:flex;align-items:center;gap:11px;color:#c4d6e8;font-size:13.5px}
+  .feat li::before{content:'';flex:0 0 auto;width:6px;height:6px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 10px var(--accent)}
+  .cta{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:10px;
+    font-weight:700;font-size:14px;letter-spacing:.01em;color:#06131f;text-decoration:none;
+    padding:13px 22px;border-radius:13px;background:var(--accent-grad);
+    box-shadow:0 14px 30px var(--accent-shadow);transition:gap .3s var(--ease), transform .3s var(--ease), filter .3s var(--ease)}
+  .cta svg{transition:transform .3s var(--ease)}
+  .card:hover .cta{gap:14px;filter:brightness(1.06)}
+  .card:hover .cta svg{transform:translateX(3px)}
+
+  .card.studio{--accent:#f5c451;--accent-soft:rgba(245,196,81,.12);--accent-line:rgba(245,196,81,.28);
+    --accent-grad:linear-gradient(120deg,#f6c95a,#f0a93e);--accent-shadow:rgba(240,169,62,.32)}
+  .card.ops{--accent:#46d6d0;--accent-soft:rgba(70,214,208,.12);--accent-line:rgba(70,214,208,.30);
+    --accent-grad:linear-gradient(120deg,#43b6ef,#46d6d0);--accent-shadow:rgba(58,160,239,.32)}
+
+  /* ── Apps ───────────────────────────────────────────────────── */
+  .apps{margin-top:clamp(48px,8vh,84px)}
+  .apps-head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+  .apps-head h2{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(22px,2.4vw,28px);
+    letter-spacing:-.02em;margin:0}
+  .apps-head .sub{color:var(--faint);font-size:13.5px}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .tile{position:relative;display:flex;flex-direction:column;gap:4px;padding:20px;border-radius:18px;
+    text-decoration:none;color:inherit;background:var(--glass);border:1px solid var(--stroke);
+    transition:transform .4s var(--ease), border-color .4s var(--ease), background .4s var(--ease)}
+  .tile:hover{transform:translateY(-4px);border-color:var(--stroke-strong);background:var(--glass-2)}
+  .tile .pico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px;
+    color:#dbe9f7;background:rgba(255,255,255,.06);border:1px solid var(--stroke)}
+  .tile .pname{font-weight:700;font-size:14.5px;color:#eef5fc}
+  .tile .psub{font-size:11.5px;color:var(--faint);line-height:1.5}
+  .tile .pget{margin-top:12px;font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--cyan);display:inline-flex;align-items:center;gap:7px}
+  .tile.android:hover{box-shadow:0 18px 40px rgba(67,196,126,.16)}
+  .tile.android .pget{color:var(--green)}
+  .tile.ios .pget{color:#bcd2e8}
+
+  footer{margin-top:clamp(44px,7vh,72px);padding-top:24px;border-top:1px solid var(--stroke);
+    display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--faint)}
+  footer a{color:var(--muted);text-decoration:none}
+  footer a:hover{color:#fff}
+
+  /* ── Entrance motion ────────────────────────────────────────── */
+  .rise{opacity:0;transform:translateY(20px);animation:rise .9s var(--ease) forwards}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .d1{animation-delay:.05s}.d2{animation-delay:.13s}.d3{animation-delay:.22s}.d4{animation-delay:.31s}
+  .d5{animation-delay:.40s}.d6{animation-delay:.48s}.d7{animation-delay:.55s}.d8{animation-delay:.62s}.d9{animation-delay:.69s}
+
+  /* ── Responsive ─────────────────────────────────────────────── */
+  @media (max-width:880px){
+    .grid{grid-template-columns:1fr}
+    .tiles{grid-template-columns:1fr 1fr}
+  }
+  @media (max-width:540px){
+    .wrap{padding:18px 16px 52px}
+    .topbar{margin-bottom:34px}
+    .brand .word{letter-spacing:.34em;font-size:12px}
+    .status .label{display:none}
+    .status{padding:8px 11px}
+    .hero h1{font-size:clamp(44px,15vw,68px)}
+    .card{padding:22px;border-radius:22px}
+    .tiles{grid-template-columns:1fr}
+    footer{flex-direction:column;gap:8px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .rise{animation:none;opacity:1;transform:none}
+    .glow{animation:none}
+    .status .dot{animation:none}
+  }
+</style>
 </head>
-<body class="booking-body gateway-page">
-  <main class="booking-shell-page">
-    <section class="booking-hero admin-gateway-hero">
-      <div>
-        <div class="skybook-gateway-brand">
-          <img class="skybook-gateway-logo" src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook logo">
-          <span>SkyBook</span>
-        </div>
-        <div class="booking-summary">SkyBook Control Center</div>
-        <h1>SkyBook Workspace</h1>
+<body>
+  <div class="sky" aria-hidden="true">
+    <span class="glow a"></span><span class="glow b"></span><span class="glow c"></span>
+    <span class="horizon"></span>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <main class="wrap">
+    <header class="topbar rise d1">
+      <div class="brand">
+        <span class="mark"><img src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook"></span>
+        <span class="word">SKYBOOK</span>
       </div>
+      <span class="status"><span class="dot"></span><span class="label">Live workspace</span></span>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow rise d2">SkyBook Control Center</div>
+      <h1 class="rise d3"><span class="b">SkyBook</span><span class="w">Workspace</span></h1>
+      <p class="rise d4">One calm command deck for everything SkyBook — design your public storefront, run live operations and finance, and take it with you on every device.</p>
     </section>
 
-    <section class="booking-grid admin-gateway-grid">
-      <article class="booking-panel admin-gateway-card">
-        <div class="gateway-card-icon" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </div>
-        <span class="booking-chip">Design Studio</span>
-        <h3>Content & Visual Editing</h3>
-        <p>Edit public-facing content and layout without mixing that workflow into the booking and finance system.</p>
-        <ul class="booking-highlight-list">
+    <section class="grid" aria-label="Workspaces">
+      <a class="card studio rise d5" href="design-admin.html">
+        <span class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+        <span class="chip">Design Studio</span>
+        <h3>Content &amp; Visual Editing</h3>
+        <p class="desc">Shape public-facing content and layout — kept cleanly apart from the booking and finance system.</p>
+        <ul class="feat">
           <li>Homepage editor</li>
           <li>Tour editor</li>
-          <li>Image/content workflow</li>
+          <li>Image &amp; content workflow</li>
         </ul>
-        <a class="booking-button" href="design-admin.html">Open Design Studio</a>
-      </article>
+        <span class="cta">Open Design Studio
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
 
-      <article class="booking-panel admin-gateway-card">
-        <div class="gateway-card-icon" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        </div>
-        <span class="booking-chip">Booking Admin</span>
-        <h3>Operations & Finance</h3>
-        <p>Manage bookings, reports, guest invoices, office invoices, agents, operators, payments, schedules, and operational automation from a dedicated shared admin.</p>
-        <ul class="booking-highlight-list">
-          <li>Reports and live operations</li>
-          <li>Guest and office invoicing</li>
-          <li>Payments, commissions, and settlements</li>
+      <a class="card ops rise d6" href="login.html?next=booking-admin.html">
+        <span class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+        <span class="chip">Booking Admin</span>
+        <h3>Operations &amp; Finance</h3>
+        <p class="desc">Run bookings, calendar, reports, guest &amp; office invoicing, payments, partners, and automation from one live console.</p>
+        <ul class="feat">
+          <li>Reports &amp; live operations</li>
+          <li>Guest &amp; office invoicing</li>
+          <li>Payments, commissions &amp; settlements</li>
         </ul>
-        <a class="booking-button" href="login.html?next=booking-admin.html">Open Booking Admin</a>
-      </article>
+        <span class="cta">Open Booking Admin
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
     </section>
 
-    <section class="admin-download-section">
-      <div class="admin-download-inner">
-        <div class="admin-download-copy">
-          <span class="booking-chip">Desktop App</span>
-          <h2>SkyBook for Desktop</h2>
-          <p>Install SkyBook as a native desktop application. Opens directly to your workspace — no browser tab, no distractions. Always connected to your live account.</p>
-          <ul class="booking-highlight-list admin-download-features">
-            <li>Dedicated window with keyboard shortcuts</li>
-            <li>Always up to date — loads your live workspace</li>
-            <li>Windows &amp; macOS installers</li>
-          </ul>
-        </div>
-        <div class="admin-download-buttons">
-          <a class="booking-button admin-download-btn" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download for Windows
-            <span class="admin-download-sub">.exe installer · 64-bit</span>
-          </a>
-          <a class="booking-button admin-download-btn admin-download-btn-outline" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download for Mac
-            <span class="admin-download-sub">.dmg · Intel &amp; Apple Silicon</span>
-          </a>
-        </div>
+    <section class="apps" id="appDownloads" aria-label="Install SkyBook">
+      <div class="apps-head rise d7">
+        <h2>Take SkyBook anywhere</h2>
+        <span class="sub">Native apps that open straight to your live workspace.</span>
+      </div>
+      <div class="tiles">
+        <a class="tile rise d7" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
+          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.2 10.2 4v7.2H3V5.2Zm0 13.6V11.6h7.2V20L3 18.8ZM11.2 3.9 21 2.5v8.7h-9.8V3.9Zm0 8.7H21V21.5l-9.8-1.4v-7.5Z"/></svg></span>
+          <span class="pname">Windows</span>
+          <span class="psub">Desktop app · 64-bit installer</span>
+          <span class="pget">Download .exe</span>
+        </a>
+        <a class="tile rise d8" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
+          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
+          <span class="pname">macOS</span>
+          <span class="psub">Intel &amp; Apple Silicon</span>
+          <span class="pget">Download .dmg</span>
+        </a>
+        <a class="tile android rise d8" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
+          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 9h12v8.5A1.5 1.5 0 0 1 16.5 19H15v2.2a1.3 1.3 0 0 1-2.6 0V19h-1.8v2.2a1.3 1.3 0 0 1-2.6 0V19H6.5A1.5 1.5 0 0 1 5 17.5V9h1Zm-2.7.2a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2Zm15.2 0a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2ZM7.7 8a4.5 4.5 0 0 1 1.8-3.3l-.9-1.4a.3.3 0 0 1 .5-.3l1 1.5a5.4 5.4 0 0 1 4 0l1-1.5a.3.3 0 0 1 .5.3l-.9 1.4A4.5 4.5 0 0 1 16.3 8H7.7Zm2.1-2.3a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Zm4.4 0a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Z"/></svg></span>
+          <span class="pname">Android</span>
+          <span class="psub">No store needed · Android 8.0+</span>
+          <span class="pget">Download .apk</span>
+        </a>
+        <a class="tile ios rise d9" href="login.html?next=booking-admin.html">
+          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
+          <span class="pname">iPhone &amp; iPad</span>
+          <span class="psub">In Safari: Share → Add to Home Screen</span>
+          <span class="pget">Install web app</span>
+        </a>
       </div>
     </section>
 
-    <section class="admin-download-section admin-mobile-section">
-      <div class="admin-download-inner admin-mobile-inner">
-        <div class="admin-download-copy">
-          <span class="booking-chip">Mobile App</span>
-          <h2>SkyBook for Android</h2>
-          <p>Install SkyBook on your Android phone or tablet. Opens directly to your workspace — always connected to your live account, no browser needed.</p>
-          <ul class="booking-highlight-list admin-download-features">
-            <li>Install directly — no app store required</li>
-            <li>Always up to date — loads your live workspace</li>
-            <li>Requires Android 8.0 or later</li>
-          </ul>
-        </div>
-        <div class="admin-download-buttons">
-          <a class="booking-button admin-download-btn admin-mobile-btn" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download for Android
-            <span class="admin-download-sub">.apk · Android 8.0+</span>
-          </a>
-          <p class="admin-mobile-hint">After downloading, open the file and tap <strong>Install</strong>. You may need to allow installs from unknown sources in your Android settings.</p>
-        </div>
-      </div>
-    </section>
-
-    <style>
-      .admin-download-section {
-        margin: 0 auto 48px;
-        padding: 0 clamp(16px, 4vw, 40px);
-        max-width: 1200px;
-      }
-      .admin-download-inner {
-        position: relative;
-        overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 40px;
-        padding: 44px 48px;
-        background:
-          radial-gradient(ellipse 60% 100% at 94% -10%, rgba(43,143,216,.32), transparent 55%),
-          radial-gradient(ellipse 40% 70% at 2% 110%, rgba(244,186,24,.14), transparent 50%),
-          linear-gradient(145deg, #071828 0%, #0d2d4a 55%, #091f38 100%);
-        border-radius: 28px;
-        box-shadow: 0 40px 100px rgba(4,16,32,.36), 0 6px 20px rgba(4,16,32,.14);
-      }
-      .admin-download-inner::before {
-        content: '';
-        position: absolute;
-        right: -100px;
-        top: -100px;
-        width: 420px;
-        height: 420px;
-        border: 52px solid rgba(255,255,255,.035);
-        border-radius: 50%;
-        pointer-events: none;
-      }
-      .admin-download-copy { flex: 1; min-width: 0; position: relative; z-index: 1 }
-      .admin-download-copy .booking-chip {
-        background: rgba(255,255,255,.12);
-        border-color: rgba(255,255,255,.18);
-        color: rgba(164,210,248,.90);
-      }
-      .admin-download-copy h2 {
-        margin: 14px 0 10px;
-        font-size: clamp(24px, 3vw, 34px);
-        letter-spacing: -.04em;
-        line-height: 1.05;
-        color: #fff;
-      }
-      .admin-download-copy p {
-        margin: 0 0 18px;
-        color: rgba(200,225,248,.72);
-        line-height: 1.7;
-        max-width: 480px;
-      }
-      .admin-download-features { margin: 0; color: rgba(180,215,245,.68) }
-      .admin-download-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        flex-shrink: 0;
-        position: relative;
-        z-index: 1;
-      }
-      .admin-download-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 14px 24px;
-        min-width: 248px;
-        border-radius: 14px;
-        font-size: 14px;
-        font-weight: 700;
-        letter-spacing: .01em;
-        text-decoration: none;
-        flex-direction: row;
-        position: relative;
-        background: #fff;
-        color: #0d2d4a;
-        border: none;
-        box-shadow: 0 16px 36px rgba(0,0,0,.22);
-        transition: transform .18s ease, box-shadow .18s ease;
-      }
-      .admin-download-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 22px 48px rgba(0,0,0,.28);
-        color: #0d2d4a;
-      }
-      .admin-download-btn-outline {
-        background: rgba(255,255,255,.10);
-        color: rgba(255,255,255,.90);
-        border: 1px solid rgba(255,255,255,.20);
-        box-shadow: none;
-      }
-      .admin-download-btn-outline:hover {
-        background: rgba(255,255,255,.16);
-        color: #fff;
-        box-shadow: none;
-      }
-      .admin-download-sub {
-        display: block;
-        font-size: 11px;
-        font-weight: 500;
-        opacity: .62;
-        margin-left: auto;
-        white-space: nowrap;
-      }
-      .admin-mobile-inner {
-        background:
-          radial-gradient(ellipse 60% 100% at 94% -10%, rgba(61,194,120,.28), transparent 55%),
-          radial-gradient(ellipse 40% 70% at 2% 110%, rgba(244,186,24,.12), transparent 50%),
-          linear-gradient(145deg, #071828 0%, #0d2d4a 55%, #091f38 100%);
-      }
-      .admin-mobile-btn {
-        background: #3dc278;
-        color: #fff;
-        box-shadow: 0 16px 36px rgba(61,194,120,.30);
-      }
-      .admin-mobile-btn:hover {
-        background: #34b06c;
-        color: #fff;
-        box-shadow: 0 22px 48px rgba(61,194,120,.38);
-      }
-      .admin-mobile-hint {
-        margin: 4px 0 0;
-        font-size: 12px;
-        color: rgba(180,215,245,.52);
-        line-height: 1.6;
-        max-width: 260px;
-      }
-      .admin-mobile-hint strong { color: rgba(180,215,245,.78); font-weight: 600 }
-      @media (max-width: 840px) {
-        .admin-download-inner { flex-direction: column; align-items: stretch; padding: 32px 28px }
-        .admin-download-buttons { flex-direction: row; flex-wrap: wrap }
-        .admin-download-btn { flex: 1; min-width: 180px; justify-content: center }
-        .admin-download-sub { display: none }
-        .admin-mobile-hint { max-width: 100% }
-      }
-    </style>
+    <footer class="rise d9">
+      <span>SKYBOOK · TRUE SKY VENTURES</span>
+      <span>WALVIS BAY · NAMIBIA</span>
+    </footer>
   </main>
+
   <script>
+    // Inside the desktop app there's no need to advertise downloads.
     if (navigator.userAgent.includes('Electron')) {
-      document.querySelectorAll('.admin-download-section').forEach(el => el.hidden = true);
+      var dl = document.getElementById('appDownloads');
+      if (dl) dl.hidden = true;
     }
   </script>
 </body>
