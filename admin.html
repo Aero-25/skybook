@@ -3,277 +3,211 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#050f1b">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#eef3f9">
 <title>SkyBook Workspace</title>
 <link rel="icon" type="image/png" href="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&family=Spline+Sans+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   *,*::before,*::after{box-sizing:border-box}
   :root{
-    --bg:#050f1b; --bg-2:#081c30;
-    --text:#e9f1fb; --muted:#9db4cc; --faint:#6c87a1;
-    --stroke:rgba(150,190,230,.14); --stroke-strong:rgba(160,200,240,.30);
-    --glass:rgba(255,255,255,.045); --glass-2:rgba(255,255,255,.07);
-    --sky:#3aa0ef; --cyan:#46d6d0; --gold:#f5c451; --green:#43c47e; --rose:#f08aa0;
-    --shadow:0 40px 90px rgba(3,12,24,.55), 0 8px 24px rgba(3,12,24,.30);
+    --bg:#eef3f9; --bg-2:#e6edf6;
+    --card:#ffffff; --line:#dbe6f1; --line-soft:#e8eff7;
+    --ink:#0c2140; --muted:#5d7388; --faint:#8a9fb4;
+    --blue:#1769aa; --ocean:#1e5b93; --cyan:#2b8fd8; --amber:#c07d12; --green:#2e9e63;
+    --shadow:0 18px 44px rgba(20,60,120,.09), 0 2px 8px rgba(20,60,120,.05);
+    --shadow-lift:0 26px 60px rgba(20,60,120,.16), 0 4px 12px rgba(20,60,120,.08);
     --ease:cubic-bezier(.22,1,.36,1);
   }
-  html{ -webkit-text-size-adjust:100%; }
+  html{-webkit-text-size-adjust:100%}
   body{
-    margin:0; min-height:100dvh; color:var(--text);
-    font-family:'Hanken Grotesk',system-ui,sans-serif;
-    background:var(--bg);
-    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
-    overflow-x:hidden;
-  }
-
-  /* ── Atmosphere ─────────────────────────────────────────────── */
-  .sky{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-  .sky::before{ /* base ocean gradient */
-    content:'';position:absolute;inset:0;
+    margin:0;min-height:100dvh;color:var(--ink);
+    font-family:'Manrope',system-ui,sans-serif;
     background:
-      radial-gradient(120% 90% at 50% -20%, #0c2c4d 0%, transparent 60%),
-      linear-gradient(180deg, #061322 0%, #06182b 45%, #040d18 100%);
+      radial-gradient(60% 50% at 85% -8%, rgba(43,143,216,.10), transparent 60%),
+      radial-gradient(50% 45% at 5% 0%, rgba(23,105,170,.08), transparent 55%),
+      linear-gradient(180deg, #f2f7fc 0%, var(--bg) 40%, var(--bg-2) 100%);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
   }
-  .glow{position:absolute;border-radius:50%;filter:blur(60px);opacity:.6;will-change:transform}
-  .glow.a{ top:-12%;  right:-6%;  width:46vw;  height:46vw;  background:radial-gradient(circle, rgba(58,160,239,.55), transparent 65%); animation:drift1 22s var(--ease) infinite alternate }
-  .glow.b{ top:18%;   left:-12%;  width:42vw;  height:42vw;  background:radial-gradient(circle, rgba(70,214,208,.34), transparent 65%); animation:drift2 26s var(--ease) infinite alternate }
-  .glow.c{ bottom:-22%;left:24%;   width:54vw;  height:40vw;  background:radial-gradient(circle, rgba(245,196,81,.16), transparent 60%); animation:drift3 30s var(--ease) infinite alternate }
-  @keyframes drift1{ to{ transform:translate(-5%,6%) scale(1.12) } }
-  @keyframes drift2{ to{ transform:translate(8%,-4%) scale(1.1) } }
-  @keyframes drift3{ to{ transform:translate(-6%,-5%) scale(1.15) } }
-  .horizon{position:absolute;left:0;right:0;bottom:0;height:38vh;
-    background:linear-gradient(0deg, rgba(70,214,208,.10), transparent 70%);
-    mask:linear-gradient(0deg,#000,transparent)}
-  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{max-width:1080px;margin:0 auto;padding:clamp(20px,4vw,36px) clamp(18px,4vw,34px) 56px}
 
-  /* ── Shell ──────────────────────────────────────────────────── */
-  .wrap{position:relative;z-index:2;max-width:1160px;margin:0 auto;
-    padding:clamp(20px,4vw,40px) clamp(18px,4vw,40px) 64px}
+  /* ── Top bar ── */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:clamp(28px,5vh,46px)}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .mark{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#fff;
+    border:1px solid var(--line);box-shadow:0 6px 16px rgba(20,60,120,.10)}
+  .brand .mark img{width:28px;height:28px;display:block}
+  .brand .word{font-weight:800;letter-spacing:.02em;font-size:17px;color:var(--ink)}
+  .status{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:#1c7a4a;padding:7px 13px;border-radius:999px;
+    background:rgba(46,158,99,.10);border:1px solid rgba(46,158,99,.22)}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,158,99,.45)}70%{box-shadow:0 0 0 6px rgba(46,158,99,0)}100%{box-shadow:0 0 0 0 rgba(46,158,99,0)}}
 
-  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:clamp(40px,8vh,84px)}
-  .brand{display:flex;align-items:center;gap:13px}
-  .brand .mark{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
-    background:linear-gradient(150deg, rgba(58,160,239,.30), rgba(70,214,208,.12));
-    border:1px solid var(--stroke-strong);box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 8px 22px rgba(8,28,52,.5)}
-  .brand .mark img{width:30px;height:30px;display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,.35))}
-  .brand .word{font-family:'Spline Sans Mono',monospace;font-weight:600;letter-spacing:.42em;
-    font-size:13px;color:#cfe2f5;padding-left:2px}
-  .status{display:inline-flex;align-items:center;gap:9px;font-family:'Spline Sans Mono',monospace;
-    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fcabd;
-    padding:8px 14px;border-radius:999px;background:rgba(67,196,126,.08);border:1px solid rgba(67,196,126,.24)}
-  .status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);
-    box-shadow:0 0 0 0 rgba(67,196,126,.6);animation:pulse 2.4s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(67,196,126,.5)}70%{box-shadow:0 0 0 7px rgba(67,196,126,0)}100%{box-shadow:0 0 0 0 rgba(67,196,126,0)}}
+  /* ── Intro (restrained, not a hero) ── */
+  .intro{margin-bottom:clamp(22px,3.5vh,32px)}
+  .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--blue);
+    display:flex;align-items:center;gap:11px;margin-bottom:14px}
+  .eyebrow::before{content:'';width:26px;height:2px;border-radius:2px;background:var(--blue);opacity:.6}
+  .intro h1{margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.04;
+    font-size:clamp(30px,4.6vw,46px);color:var(--ink)}
+  .intro p{margin:12px 0 0;max-width:560px;color:var(--muted);font-size:clamp(14px,1.5vw,16px);line-height:1.6}
 
-  /* ── Hero ───────────────────────────────────────────────────── */
-  .hero{max-width:760px;margin-bottom:clamp(36px,6vh,60px)}
-  .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.36em;
-    text-transform:uppercase;color:var(--cyan);margin-bottom:20px;display:flex;align-items:center;gap:14px}
-  .eyebrow::before{content:'';width:34px;height:1px;background:linear-gradient(90deg,var(--cyan),transparent)}
-  .hero h1{font-family:'Fraunces',serif;font-weight:500;margin:0;line-height:.96;
-    font-size:clamp(48px,9vw,104px);letter-spacing:-.025em}
-  .hero h1 .b{font-weight:600;color:#f3f8ff}
-  .hero h1 .w{display:block;font-style:italic;font-weight:400;
-    background:linear-gradient(100deg,#7fd9ff 0%, #46d6d0 45%, #9fe6c8 100%);
-    -webkit-background-clip:text;background-clip:text;color:transparent}
-  .hero p{margin:24px 0 0;max-width:560px;color:var(--muted);font-size:clamp(15px,1.6vw,18px);line-height:1.7}
-
-  /* ── Launch cards ───────────────────────────────────────────── */
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(16px,2.2vw,24px)}
-  .card{position:relative;display:flex;flex-direction:column;
-    padding:clamp(24px,3vw,34px);border-radius:24px;overflow:hidden;text-decoration:none;color:inherit;
-    background:linear-gradient(170deg, var(--glass-2), var(--glass));
-    border:1px solid var(--stroke);box-shadow:var(--shadow);
-    -webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);
-    transition:transform .5s var(--ease), border-color .4s var(--ease), box-shadow .5s var(--ease)}
-  .card::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-    background:radial-gradient(120% 80% at 100% 0%, var(--accent-soft), transparent 55%);opacity:.7;transition:opacity .5s var(--ease)}
-  .card::after{content:'';position:absolute;left:0;top:0;height:100%;width:3px;
-    background:linear-gradient(180deg,var(--accent),transparent);opacity:.8}
-  .card:hover{transform:translateY(-6px);border-color:var(--stroke-strong);
-    box-shadow:0 50px 110px rgba(3,12,24,.6), 0 0 0 1px var(--stroke-strong)}
-  .card:hover::before{opacity:1}
-  .card-icon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;margin-bottom:22px;
+  /* ── Workspace cards ── */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,20px)}
+  .card{position:relative;display:flex;flex-direction:column;text-decoration:none;color:inherit;overflow:hidden;
+    padding:clamp(22px,2.6vw,30px);border-radius:22px;background:var(--card);border:1px solid var(--line);
+    box-shadow:var(--shadow);transition:transform .42s var(--ease), box-shadow .42s var(--ease), border-color .42s var(--ease)}
+  .card::after{content:'';position:absolute;left:0;top:0;width:100%;height:4px;background:var(--accent)}
+  .card:hover{transform:translateY(-5px);box-shadow:var(--shadow-lift);border-color:var(--accent-line)}
+  .card-icon{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;margin-bottom:18px;
+    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);transition:transform .42s var(--ease)}
+  .card:hover .card-icon{transform:scale(1.05)}
+  .chip{align-self:flex-start;font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.14);transition:transform .5s var(--ease)}
-  .card:hover .card-icon{transform:translateY(-3px) scale(1.04)}
-  .chip{align-self:flex-start;font-family:'Spline Sans Mono',monospace;font-size:10.5px;letter-spacing:.2em;
-    text-transform:uppercase;color:var(--accent);padding:6px 11px;border-radius:999px;
-    background:var(--accent-soft);border:1px solid var(--accent-line);margin-bottom:16px}
-  .card h3{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(24px,2.6vw,30px);
-    letter-spacing:-.02em;margin:0 0 10px;line-height:1.1}
-  .card .desc{margin:0 0 20px;color:var(--muted);font-size:14.5px;line-height:1.65;max-width:42ch}
-  .feat{list-style:none;margin:0 0 26px;padding:0;display:flex;flex-direction:column;gap:9px}
-  .feat li{display:flex;align-items:center;gap:11px;color:#c4d6e8;font-size:13.5px}
-  .feat li::before{content:'';flex:0 0 auto;width:6px;height:6px;border-radius:50%;
-    background:var(--accent);box-shadow:0 0 10px var(--accent)}
-  .cta{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:10px;
-    font-weight:700;font-size:14px;letter-spacing:.01em;color:#06131f;text-decoration:none;
-    padding:13px 22px;border-radius:13px;background:var(--accent-grad);
-    box-shadow:0 14px 30px var(--accent-shadow);transition:gap .3s var(--ease), transform .3s var(--ease), filter .3s var(--ease)}
+    padding:5px 10px;border-radius:999px;margin-bottom:14px}
+  .card h3{margin:0 0 8px;font-weight:800;letter-spacing:-.02em;font-size:clamp(19px,2vw,23px);color:var(--ink)}
+  .card .desc{margin:0 0 18px;color:var(--muted);font-size:14px;line-height:1.6;max-width:44ch}
+  .feat{list-style:none;margin:0 0 24px;padding:0;display:flex;flex-direction:column;gap:8px}
+  .feat li{display:flex;align-items:center;gap:10px;color:#33485f;font-size:13.5px;font-weight:500}
+  .feat li::before{content:'';flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .cta{margin-top:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:9px;
+    font-weight:700;font-size:14px;color:#fff;text-decoration:none;padding:12px 20px;border-radius:12px;
+    background:var(--accent);box-shadow:0 10px 24px var(--accent-shadow);
+    transition:gap .3s var(--ease), filter .3s var(--ease)}
+  .card:hover .cta{gap:13px;filter:brightness(1.05)}
   .cta svg{transition:transform .3s var(--ease)}
-  .card:hover .cta{gap:14px;filter:brightness(1.06)}
   .card:hover .cta svg{transform:translateX(3px)}
+  .card.studio{--accent:#c07d12;--accent-soft:rgba(192,125,18,.10);--accent-line:rgba(192,125,18,.26);--accent-shadow:rgba(192,125,18,.26)}
+  .card.ops{--accent:#1769aa;--accent-soft:rgba(23,105,170,.09);--accent-line:rgba(23,105,170,.24);--accent-shadow:rgba(23,105,170,.26)}
 
-  .card.studio{--accent:#f5c451;--accent-soft:rgba(245,196,81,.12);--accent-line:rgba(245,196,81,.28);
-    --accent-grad:linear-gradient(120deg,#f6c95a,#f0a93e);--accent-shadow:rgba(240,169,62,.32)}
-  .card.ops{--accent:#46d6d0;--accent-soft:rgba(70,214,208,.12);--accent-line:rgba(70,214,208,.30);
-    --accent-grad:linear-gradient(120deg,#43b6ef,#46d6d0);--accent-shadow:rgba(58,160,239,.32)}
-
-  /* ── Apps ───────────────────────────────────────────────────── */
-  .apps{margin-top:clamp(48px,8vh,84px)}
-  .apps-head{display:flex;align-items:baseline;gap:16px;margin-bottom:22px;flex-wrap:wrap}
-  .apps-head h2{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(22px,2.4vw,28px);
-    letter-spacing:-.02em;margin:0}
-  .apps-head .sub{color:var(--faint);font-size:13.5px}
-  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  .tile{position:relative;display:flex;flex-direction:column;gap:4px;padding:20px;border-radius:18px;
-    text-decoration:none;color:inherit;background:var(--glass);border:1px solid var(--stroke);
-    transition:transform .4s var(--ease), border-color .4s var(--ease), background .4s var(--ease)}
-  .tile:hover{transform:translateY(-4px);border-color:var(--stroke-strong);background:var(--glass-2)}
-  .tile .pico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;margin-bottom:12px;
-    color:#dbe9f7;background:rgba(255,255,255,.06);border:1px solid var(--stroke)}
-  .tile .pname{font-weight:700;font-size:14.5px;color:#eef5fc}
-  .tile .psub{font-size:11.5px;color:var(--faint);line-height:1.5}
-  .tile .pget{margin-top:12px;font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--cyan);display:inline-flex;align-items:center;gap:7px}
-  .tile.android:hover{box-shadow:0 18px 40px rgba(67,196,126,.16)}
+  /* ── Apps strip ── */
+  .apps{margin-top:clamp(34px,5vh,54px)}
+  .apps-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .apps-head h2{margin:0;font-size:15px;font-weight:800;letter-spacing:.01em;color:var(--ink)}
+  .apps-head .sub{font-size:12.5px;color:var(--faint)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .tile{display:flex;flex-direction:column;gap:3px;padding:16px 16px 15px;border-radius:15px;text-decoration:none;color:inherit;
+    background:var(--card);border:1px solid var(--line);box-shadow:0 6px 16px rgba(20,60,120,.05);
+    transition:transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease)}
+  .tile:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:#cfddec}
+  .tile .pico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:9px;
+    color:var(--ocean);background:rgba(23,105,170,.07);border:1px solid var(--line-soft)}
+  .tile .pname{font-weight:700;font-size:14px;color:var(--ink)}
+  .tile .psub{font-size:11px;color:var(--faint);line-height:1.45}
+  .tile .pget{margin-top:9px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}
+  .tile.android .pico{color:var(--green);background:rgba(46,158,99,.08)}
   .tile.android .pget{color:var(--green)}
-  .tile.ios .pget{color:#bcd2e8}
 
-  footer{margin-top:clamp(44px,7vh,72px);padding-top:24px;border-top:1px solid var(--stroke);
-    display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
-    font-family:'Spline Sans Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--faint)}
-  footer a{color:var(--muted);text-decoration:none}
-  footer a:hover{color:#fff}
+  footer{margin-top:clamp(30px,5vh,46px);padding-top:18px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint)}
 
-  /* ── Entrance motion ────────────────────────────────────────── */
-  .rise{opacity:0;transform:translateY(20px);animation:rise .9s var(--ease) forwards}
+  /* ── Motion ── */
+  .rise{opacity:0;transform:translateY(14px);animation:rise .7s var(--ease) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
-  .d1{animation-delay:.05s}.d2{animation-delay:.13s}.d3{animation-delay:.22s}.d4{animation-delay:.31s}
-  .d5{animation-delay:.40s}.d6{animation-delay:.48s}.d7{animation-delay:.55s}.d8{animation-delay:.62s}.d9{animation-delay:.69s}
+  .d1{animation-delay:.04s}.d2{animation-delay:.10s}.d3{animation-delay:.16s}.d4{animation-delay:.22s}
+  .d5{animation-delay:.28s}.d6{animation-delay:.34s}.d7{animation-delay:.40s}
 
-  /* ── Responsive ─────────────────────────────────────────────── */
-  @media (max-width:880px){
-    .grid{grid-template-columns:1fr}
-    .tiles{grid-template-columns:1fr 1fr}
-  }
+  @media (max-width:840px){ .grid{grid-template-columns:1fr} .tiles{grid-template-columns:1fr 1fr} }
   @media (max-width:540px){
-    .wrap{padding:18px 16px 52px}
-    .topbar{margin-bottom:34px}
-    .brand .word{letter-spacing:.34em;font-size:12px}
-    .status .label{display:none}
-    .status{padding:8px 11px}
-    .hero h1{font-size:clamp(44px,15vw,68px)}
-    .card{padding:22px;border-radius:22px}
+    .wrap{padding:18px 16px 46px}
+    .status .label{display:none}.status{padding:7px 10px}
     .tiles{grid-template-columns:1fr}
-    footer{flex-direction:column;gap:8px}
+    footer{flex-direction:column;gap:6px}
   }
-  @media (prefers-reduced-motion:reduce){
-    .rise{animation:none;opacity:1;transform:none}
-    .glow{animation:none}
-    .status .dot{animation:none}
-  }
+  @media (prefers-reduced-motion:reduce){ .rise{animation:none;opacity:1;transform:none} .status .dot{animation:none} }
 </style>
 </head>
 <body>
-  <div class="sky" aria-hidden="true">
-    <span class="glow a"></span><span class="glow b"></span><span class="glow c"></span>
-    <span class="horizon"></span>
-  </div>
-  <div class="grain" aria-hidden="true"></div>
-
   <main class="wrap">
     <header class="topbar rise d1">
       <div class="brand">
         <span class="mark"><img src="https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook"></span>
-        <span class="word">SKYBOOK</span>
+        <span class="word">SkyBook</span>
       </div>
       <span class="status"><span class="dot"></span><span class="label">Live workspace</span></span>
     </header>
 
-    <section class="hero">
+    <section class="intro">
       <div class="eyebrow rise d2">SkyBook Control Center</div>
-      <h1 class="rise d3"><span class="b">SkyBook</span><span class="w">Workspace</span></h1>
-      <p class="rise d4">One calm command deck for everything SkyBook — design your public storefront, run live operations and finance, and take it with you on every device.</p>
+      <h1 class="rise d2">SkyBook Workspace</h1>
+      <p class="rise d3">Pick a workspace to get to work — design your public storefront, or run live operations and finance.</p>
     </section>
 
     <section class="grid" aria-label="Workspaces">
-      <a class="card studio rise d5" href="design-admin.html">
-        <span class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
+      <a class="card studio rise d4" href="design-admin.html">
+        <span class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span>
         <span class="chip">Design Studio</span>
         <h3>Content &amp; Visual Editing</h3>
-        <p class="desc">Shape public-facing content and layout — kept cleanly apart from the booking and finance system.</p>
+        <p class="desc">Edit public-facing content and layout, kept cleanly apart from the booking and finance system.</p>
         <ul class="feat">
           <li>Homepage editor</li>
           <li>Tour editor</li>
           <li>Image &amp; content workflow</li>
         </ul>
         <span class="cta">Open Design Studio
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
       </a>
 
-      <a class="card ops rise d6" href="login.html?next=booking-admin.html">
-        <span class="card-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
+      <a class="card ops rise d5" href="login.html?next=booking-admin.html">
+        <span class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
         <span class="chip">Booking Admin</span>
         <h3>Operations &amp; Finance</h3>
-        <p class="desc">Run bookings, calendar, reports, guest &amp; office invoicing, payments, partners, and automation from one live console.</p>
+        <p class="desc">Run bookings, calendar, reports, guest &amp; office invoicing, payments, partners, and automation.</p>
         <ul class="feat">
           <li>Reports &amp; live operations</li>
           <li>Guest &amp; office invoicing</li>
           <li>Payments, commissions &amp; settlements</li>
         </ul>
         <span class="cta">Open Booking Admin
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
       </a>
     </section>
 
     <section class="apps" id="appDownloads" aria-label="Install SkyBook">
-      <div class="apps-head rise d7">
-        <h2>Take SkyBook anywhere</h2>
-        <span class="sub">Native apps that open straight to your live workspace.</span>
+      <div class="apps-head rise d6">
+        <h2>Get the apps</h2>
+        <span class="sub">Open straight to your live workspace.</span>
       </div>
       <div class="tiles">
-        <a class="tile rise d7" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
-          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.2 10.2 4v7.2H3V5.2Zm0 13.6V11.6h7.2V20L3 18.8ZM11.2 3.9 21 2.5v8.7h-9.8V3.9Zm0 8.7H21V21.5l-9.8-1.4v-7.5Z"/></svg></span>
+        <a class="tile rise d6" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook-Setup.exe" download>
+          <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.2 10.2 4v7.2H3V5.2Zm0 13.6V11.6h7.2V20L3 18.8ZM11.2 3.9 21 2.5v8.7h-9.8V3.9Zm0 8.7H21V21.5l-9.8-1.4v-7.5Z"/></svg></span>
           <span class="pname">Windows</span>
-          <span class="psub">Desktop app · 64-bit installer</span>
+          <span class="psub">Desktop · 64-bit</span>
           <span class="pget">Download .exe</span>
         </a>
-        <a class="tile rise d8" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
-          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
+        <a class="tile rise d7" href="https://github.com/Aero-25/skybook/releases/latest/download/SkyBook.dmg" download>
+          <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
           <span class="pname">macOS</span>
           <span class="psub">Intel &amp; Apple Silicon</span>
           <span class="pget">Download .dmg</span>
         </a>
-        <a class="tile android rise d8" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
-          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 9h12v8.5A1.5 1.5 0 0 1 16.5 19H15v2.2a1.3 1.3 0 0 1-2.6 0V19h-1.8v2.2a1.3 1.3 0 0 1-2.6 0V19H6.5A1.5 1.5 0 0 1 5 17.5V9h1Zm-2.7.2a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2Zm15.2 0a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2ZM7.7 8a4.5 4.5 0 0 1 1.8-3.3l-.9-1.4a.3.3 0 0 1 .5-.3l1 1.5a5.4 5.4 0 0 1 4 0l1-1.5a.3.3 0 0 1 .5.3l-.9 1.4A4.5 4.5 0 0 1 16.3 8H7.7Zm2.1-2.3a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Zm4.4 0a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Z"/></svg></span>
+        <a class="tile android rise d7" href="https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk" download>
+          <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 9h12v8.5A1.5 1.5 0 0 1 16.5 19H15v2.2a1.3 1.3 0 0 1-2.6 0V19h-1.8v2.2a1.3 1.3 0 0 1-2.6 0V19H6.5A1.5 1.5 0 0 1 5 17.5V9h1Zm-2.7.2a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2Zm15.2 0a1.3 1.3 0 0 1 2.6 0v5.4a1.3 1.3 0 0 1-2.6 0V9.2ZM7.7 8a4.5 4.5 0 0 1 1.8-3.3l-.9-1.4a.3.3 0 0 1 .5-.3l1 1.5a5.4 5.4 0 0 1 4 0l1-1.5a.3.3 0 0 1 .5.3l-.9 1.4A4.5 4.5 0 0 1 16.3 8H7.7Zm2.1-2.3a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Zm4.4 0a.7.7 0 1 0 0-1.4.7.7 0 0 0 0 1.4Z"/></svg></span>
           <span class="pname">Android</span>
-          <span class="psub">No store needed · Android 8.0+</span>
+          <span class="psub">No store · Android 8.0+</span>
           <span class="pget">Download .apk</span>
         </a>
-        <a class="tile ios rise d9" href="login.html?next=booking-admin.html">
-          <span class="pico"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
+        <a class="tile rise d7" href="login.html?next=booking-admin.html">
+          <span class="pico"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.04c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.79 1.3 10.34.86 1.25 1.89 2.65 3.24 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.39.81 1.4-.02 2.29-1.27 3.14-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.75-4.13Zm-2.45-7.44c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-2.99 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.01-1.44Z"/></svg></span>
           <span class="pname">iPhone &amp; iPad</span>
-          <span class="psub">In Safari: Share → Add to Home Screen</span>
+          <span class="psub">Safari → Add to Home Screen</span>
           <span class="pget">Install web app</span>
         </a>
       </div>
     </section>
 
-    <footer class="rise d9">
-      <span>SKYBOOK · TRUE SKY VENTURES</span>
-      <span>WALVIS BAY · NAMIBIA</span>
+    <footer class="rise d7">
+      <span>SkyBook · True Sky Ventures</span>
+      <span>Walvis Bay · Namibia</span>
     </footer>
   </main>
 
   <script>
-    // Inside the desktop app there's no need to advertise downloads.
     if (navigator.userAgent.includes('Electron')) {
       var dl = document.getElementById('appDownloads');
       if (dl) dl.hidden = true;
