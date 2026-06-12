@@ -10121,3 +10121,63 @@ startSessionTimeoutCheck()
     setAuthStatus(error.message||'Admin authentication is not configured.',true)
   }
 })()
+
+/* ── Android "Install the app" banner ─────────────────────────────────────
+   Shows a one-tap APK download prompt when the booking admin is opened in an
+   Android browser. Hidden inside the app itself (UA carries "SkyBookApp"), on
+   non-Android devices, and for 14 days after the user dismisses it. */
+;(function installAppBanner(){
+  try{
+    var APK_URL='https://github.com/Aero-25/skybook-mobile/releases/latest/download/SkyBook.apk'
+    var DISMISS_KEY='skybook_apk_banner_dismissed_until'
+    var ua=navigator.userAgent||''
+    var isAndroid=/android/i.test(ua)
+    var inApp=/SkyBookApp/.test(ua)||/;\s*wv\)/.test(ua)   // our app or any Android WebView
+    if(!isAndroid||inApp) return
+    var until=Number(localStorage.getItem(DISMISS_KEY)||0)
+    if(until&&Date.now()<until) return
+
+    function build(){
+      if(document.getElementById('skybook-apk-banner')) return
+      var style=document.createElement('style')
+      style.textContent=''
+        +'#skybook-apk-banner{position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483000;'
+        +'display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:16px;'
+        +'background:rgba(20,28,46,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);'
+        +'border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 34px rgba(0,0,0,.38);'
+        +'color:#f5f7fb;font-family:inherit;animation:skybookApkUp .35s ease both}'
+        +'@keyframes skybookApkUp{from{transform:translateY(120%);opacity:0}to{transform:translateY(0);opacity:1}}'
+        +'#skybook-apk-banner .sb-apk-ic{width:40px;height:40px;flex:0 0 40px;border-radius:11px;'
+        +'display:flex;align-items:center;justify-content:center;font-size:22px;'
+        +'background:linear-gradient(135deg,#3b82f6,#22d3ee)}'
+        +'#skybook-apk-banner .sb-apk-tx{flex:1;min-width:0;line-height:1.25}'
+        +'#skybook-apk-banner .sb-apk-tx b{display:block;font-size:14px}'
+        +'#skybook-apk-banner .sb-apk-tx span{font-size:12px;opacity:.72}'
+        +'#skybook-apk-banner .sb-apk-dl{flex:0 0 auto;text-decoration:none;font-weight:700;font-size:13px;'
+        +'padding:9px 16px;border-radius:11px;color:#06223e;background:linear-gradient(135deg,#7dd3fc,#38bdf8);'
+        +'box-shadow:0 4px 14px rgba(56,189,248,.4)}'
+        +'#skybook-apk-banner .sb-apk-x{flex:0 0 auto;background:none;border:none;color:#cdd6e6;'
+        +'font-size:20px;line-height:1;padding:4px 6px;cursor:pointer;border-radius:8px}'
+        +'#skybook-apk-banner .sb-apk-x:active{background:rgba(255,255,255,.12)}'
+      document.head.appendChild(style)
+
+      var bar=document.createElement('div')
+      bar.id='skybook-apk-banner'
+      bar.innerHTML=''
+        +'<div class="sb-apk-ic">📲</div>'
+        +'<div class="sb-apk-tx"><b>Install the SkyBook app</b>'
+        +'<span>Get booking alerts on your phone — even when closed.</span></div>'
+        +'<a class="sb-apk-dl" href="'+APK_URL+'" download>Download</a>'
+        +'<button class="sb-apk-x" aria-label="Dismiss">&times;</button>'
+      document.body.appendChild(bar)
+
+      bar.querySelector('.sb-apk-x').addEventListener('click',function(){
+        try{localStorage.setItem(DISMISS_KEY,String(Date.now()+14*24*60*60*1000))}catch(e){}
+        bar.remove()
+      })
+    }
+
+    if(document.body) build()
+    else document.addEventListener('DOMContentLoaded',build)
+  }catch(e){/* never break the admin over a banner */}
+})();
