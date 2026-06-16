@@ -6856,3 +6856,98 @@ body.skybook-auth-page{
   -webkit-backdrop-filter:blur(16px) saturate(165%);
   backdrop-filter:blur(16px) saturate(165%);
 }
+
+/* ============================================================
+   BOOKING LIST — ALWAYS HORIZONTAL (never stacked cards)
+   Override all responsive card-stacking rules so booking rows
+   stay in a normal scrollable table at every viewport width.
+   Only affects .booking-list-wrap / .booking-row — reservation,
+   customer, and service tables are untouched.
+   ============================================================ */
+
+/* 1. Let the panel's table-wrap scroll horizontally */
+.booking-list-panel .table-wrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+/* Also catch the wrap element itself if it's the scroll container */
+.booking-list-wrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+@media(max-width:768px){
+  /* 2. Restore tabular display — undo the block/flex card layout */
+  .booking-list-wrap table{
+    display:table !important;
+    min-width:760px !important;
+    border-spacing:0 !important;
+    width:100% !important;
+  }
+  .booking-list-wrap thead{
+    display:table-header-group !important;
+    position:static !important;
+    left:auto !important;
+  }
+  .booking-list-wrap tbody{
+    display:table-row-group !important;
+  }
+  .booking-list-wrap tr.booking-row{
+    display:table-row !important;
+    background:none !important;
+    border:none !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+    margin:0 !important;
+    padding:0 !important;
+  }
+  .booking-list-wrap tr.booking-row td{
+    display:table-cell !important;
+    white-space:nowrap !important;
+    flex:none !important;
+    justify-content:initial !important;
+    align-items:initial !important;
+    gap:initial !important;
+    background:revert !important;
+    border:revert !important;
+    border-radius:revert !important;
+    padding:7px 10px !important;
+    font-size:13px !important;
+  }
+  .booking-list-wrap tr.booking-row td:first-child{
+    display:table-cell !important;
+    padding:7px 10px !important;
+    margin:0 !important;
+    border-bottom:none !important;
+  }
+  .booking-list-wrap tr.booking-row td:empty{
+    display:table-cell !important;
+  }
+
+  /* 3. Hide the data-label pseudo-element labels — not needed in table mode */
+  .booking-list-wrap tr.booking-row td[data-label]::before{
+    content:none !important;
+    display:none !important;
+  }
+
+  /* 4. Status cell cluster: never wrap, keep badges inline */
+  .booking-list-wrap tr.booking-row td[data-label="Status"]{
+    white-space:nowrap !important;
+    flex-wrap:nowrap !important;
+  }
+  .booking-list-wrap tr.booking-row td[data-label="Status"] .open-booking-link{
+    margin-left:6px !important;
+  }
+}
+
+/* Apply the same horizontal-table override for the ≤980px range
+   used by the glassmorphism block that also touches .booking-row */
+@media(max-width:980px){
+  .booking-list-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .booking-list-wrap table{
+    min-width:760px;
+  }
+}
