@@ -3822,6 +3822,7 @@ const renderBookings=()=>{
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
+        <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
       <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
