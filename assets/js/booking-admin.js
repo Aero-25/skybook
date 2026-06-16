@@ -2078,8 +2078,10 @@ const updateBookingQuickFilterBar=()=>{
   const countMap={
     today:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'today')).length,
     all:operationalBookings.length,
+    awaiting_details:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'awaiting_details')).length,
     provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
     confirmed:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'confirmed')).length,
+    to_pay:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'to_pay')).length,
     invoice:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoice')).length,
     invoiced:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoiced')).length,
     partially_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'partially_paid')).length,
