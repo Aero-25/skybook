@@ -3817,6 +3817,10 @@ const renderBookings=()=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
     const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))
+    const isInvoiceState=['invoice','invoiced'].includes(normalizeText(booking.payment_status||''))
+    const paymentBadgeCell=isInvoiceState
+      ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${paymentBadge}</button>`
+      : paymentBadge
     return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
@@ -3825,7 +3829,7 @@ const renderBookings=()=>{
         <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
+      <td data-label="Status">${paymentBadgeCell}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
@@ -7689,8 +7693,7 @@ const buildDocumentMarkup=(documentType,booking)=>{
   return { title, documentNumber:numberMap[documentType]||booking.reference, markup:body }
 }
 
-const handleDocumentGeneration=async documentType=>{
-  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+const generateBookingDocument=async(documentType,booking)=>{
   if(!booking)return
   const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/documents`,{
     method:'POST',
@@ -7709,6 +7712,11 @@ const handleDocumentGeneration=async documentType=>{
     window.open(response.version.signed_url,'_blank','noopener,noreferrer')
   }
   await refreshAdmin(`${formatDisplayLabel(documentType)} generated and stored.`)
+}
+
+const handleDocumentGeneration=async documentType=>{
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+  await generateBookingDocument(documentType,booking)
 }
 
 const handlePortalAction=async requestType=>{
@@ -9504,6 +9512,15 @@ nodes.bookingsTable.addEventListener('click',event=>{
   }else{
     window.open(getRecordPageUrl('bookings',booking.id),'_blank','noopener')
   }
+})
+
+nodes.bookingsTable.addEventListener('click',event=>{
+  const trigger=event.target.closest('[data-grid-action="generate-guest-invoice"]')
+  if(!trigger)return
+  event.preventDefault();event.stopPropagation()
+  const booking=state.bookings.find(item=>String(item.id)===String(trigger.dataset.bookingId))
+  if(!booking)return
+  void generateBookingDocument('guest_invoice',booking).catch(error=>setAdminStatus(error.message||'Invoice generation failed.',true))
 })
 
 nodes.reservationsTable?.addEventListener('click',event=>{
