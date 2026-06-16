@@ -6529,7 +6529,9 @@ const fillAdminUserForm=(user=null)=>{
 
 const renderAdminUsers=()=>{
   if(!nodes.adminUsersTable)return
-  nodes.adminUsersTable.innerHTML=state.adminUsers.map(user=>`
+  nodes.adminUsersTable.innerHTML=state.adminUsers.map(user=>{
+    const bookingCount=state.bookings.filter(b=>String(getBookingConsultantOwnerId(b))===String(user.id)).length
+    return `
     <tr data-admin-user-id="${bookingAdminShared.escapeHtml(user.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(user.full_name||'')}</strong>
@@ -6537,10 +6539,11 @@ const renderAdminUsers=()=>{
       </td>
       <td>${bookingAdminShared.escapeHtml(user.username||String(user.email||'').split('@')[0]||'')}</td>
       <td>${bookingAdminShared.escapeHtml(String(user.role||'').replace(/_/g,' '))}</td>
+      <td data-label="Bookings">${bookingCount}</td>
       <td>${renderStatusBadge(user.is_active ? 'active' : 'inactive',user.is_active ? 'Active' : 'Inactive')}</td>
       <td>${bookingAdminShared.escapeHtml(Object.entries(user.effective_permissions||({...state.roleDefaults?.[user.role],...(user.permissions||{})})).filter(([,allowed])=>allowed).map(([key])=>key.replace(/_/g,' ')).slice(0,3).join(', ')||'No access')}</td>
     </tr>
-  `).join('') || renderEmptyRow(5,'No admin users loaded yet.')
+  `}).join('') || renderEmptyRow(6,'No admin users loaded yet.')
 }
 
 const renderEngineWorkbench=()=>{
