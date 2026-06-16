@@ -1527,6 +1527,8 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
 .status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
 .status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
+.status-badge.is-awaiting-details{background:#fdecc8;color:#7a5b12;border-color:#e9c46a}
+.status-badge.is-to-pay{background:#e7e0f7;color:#5b3fa0;border-color:#c4b5e8}
 .booking-row{cursor:pointer}
 /* ── Row colours: STATUS = full border colour | PAYMENT = background ── */
 /* Helpers — apply border-top/bottom to every td, left to first, right to last */
@@ -3880,6 +3882,8 @@ tbody tr:hover td{
 .status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
 .status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
 .status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
+.status-badge.is-awaiting-details{background:#fdecc8;color:#7a5b12;border-color:#e9c46a}
+.status-badge.is-to-pay{background:#e7e0f7;color:#5b3fa0;border-color:#c4b5e8}
 
 .booking-form-grid{
   gap:14px;

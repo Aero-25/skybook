@@ -1512,6 +1512,8 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
+  if(normalized==='awaiting_details')return 'is-awaiting-details'
+  if(normalized==='to_pay')return 'is-to-pay'
   if(normalized==='provisional')return 'is-provisional'
   if(normalized==='confirmed')return 'is-confirmed'
   if(normalized==='invoice')return 'is-invoice'
@@ -1530,12 +1532,14 @@ const getStatusRowClass=booking=>{
   const status=normalizeText(booking?.status||'')
   const payment=normalizeText(booking?.payment_status||'')
   if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
+  if(status==='awaiting_details')return 'status-awaiting-details'
   if(status==='provisional')return 'status-provisional'
   if(status==='confirmed'){
     if(payment==='invoice')return 'status-confirmed-invoice'
     if(payment==='invoiced')return 'status-confirmed-invoiced'
     if(payment==='partially_paid')return 'status-confirmed-partially-paid'
     if(payment==='fully_paid')return 'status-confirmed-fully-paid'
+    if(payment==='to_pay')return 'status-confirmed-to-pay'
     return 'status-confirmed'
   }
   return ''
