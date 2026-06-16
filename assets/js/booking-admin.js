@@ -1181,6 +1181,8 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Drop-off location',metadata.dropoff_location)
   addRow('Nationality',metadata.nationality||booking?.nationality)
   addRow('Booked by',metadata.booked_by||booking?.booked_by)
+  addRow('Agent / Reseller',getBookingAgentResellerLabel(booking))
+  addRow('Consultant',getBookingConsultantOwnerName(booking))
   addRow('Dietary requirements',metadata.dietary_requirements||metadata.dietary)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
@@ -1889,6 +1891,17 @@ const getBookingConsultantOwnerId=booking=>{
 const getBookingConsultantOwnerName=booking=>{
   const ownerId=getBookingConsultantOwnerId(booking)
   return getStaffName(ownerId)||'Unassigned'
+}
+const getBookingAgentResellerLabel=booking=>{
+  const assignment=getBookingAgentAssignment(booking?.id)
+  const agent=assignment ? state.agents.find(item=>String(item.id)===String(assignment.agent_id)) : null
+  const metadata=normalizeJsonRecord(booking?.metadata)
+  return String(
+    agent?.company_name || agent?.code
+    || metadata.agent || booking?.agent
+    || metadata.booked_by || booking?.booked_by
+    || ''
+  ).trim() || '—'
 }
 const resolveConsultantOwnerName=(ownerId,booking=null)=>{
   if(ownerId&&ownerId!=='unassigned'){
