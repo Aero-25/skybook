@@ -629,8 +629,10 @@
               <div class="booking-quick-filter-bar" aria-label="Booking quick filters">
                 <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="today">Today <span data-filter-count="today">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="">All <span data-filter-count="all">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="awaiting_details">Awaiting Details <span data-filter-count="awaiting_details">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="to_pay">To Pay <span data-filter-count="to_pay">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoiced">Invoiced <span data-filter-count="invoiced">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Part Paid <span data-filter-count="partially_paid">0</span></button>
@@ -667,6 +669,7 @@
                   <div class="booking-field">
                     <label>Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
                     <div class="status-pill-filter" id="bookingFilterStatus">
+                      <label class="status-pill-option"><input type="checkbox" value="awaiting_details"><span class="status-pill-label status-pill-awaiting-details">Awaiting Details</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="provisional"><span class="status-pill-label status-pill-provisional">Provisional</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="confirmed"><span class="status-pill-label status-pill-confirmed">Confirmed</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="cancelled"><span class="status-pill-label status-pill-cancelled">Cancelled</span></label>
@@ -676,6 +679,7 @@
                     <label for="bookingFilterPaymentStatus">Payment</label>
                     <select id="bookingFilterPaymentStatus">
                       <option value="">All payment states</option>
+                      <option value="to_pay">To Pay</option>
                       <option value="invoice">Invoice</option>
                       <option value="invoiced">Invoiced</option>
                       <option value="partially_paid">Partially Paid</option>

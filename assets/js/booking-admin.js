@@ -1181,6 +1181,8 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Drop-off location',metadata.dropoff_location)
   addRow('Nationality',metadata.nationality||booking?.nationality)
   addRow('Booked by',metadata.booked_by||booking?.booked_by)
+  addRow('Agent / Reseller',getBookingAgentResellerLabel(booking))
+  addRow('Consultant',getBookingConsultantOwnerName(booking))
   addRow('Dietary requirements',metadata.dietary_requirements||metadata.dietary)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
@@ -1512,6 +1514,8 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
+  if(normalized==='awaiting_details')return 'is-awaiting-details'
+  if(normalized==='to_pay')return 'is-to-pay'
   if(normalized==='provisional')return 'is-provisional'
   if(normalized==='confirmed')return 'is-confirmed'
   if(normalized==='invoice')return 'is-invoice'
@@ -1530,12 +1534,14 @@ const getStatusRowClass=booking=>{
   const status=normalizeText(booking?.status||'')
   const payment=normalizeText(booking?.payment_status||'')
   if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
+  if(status==='awaiting_details')return 'status-awaiting-details'
   if(status==='provisional')return 'status-provisional'
   if(status==='confirmed'){
     if(payment==='invoice')return 'status-confirmed-invoice'
     if(payment==='invoiced')return 'status-confirmed-invoiced'
     if(payment==='partially_paid')return 'status-confirmed-partially-paid'
     if(payment==='fully_paid')return 'status-confirmed-fully-paid'
+    if(payment==='to_pay')return 'status-confirmed-to-pay'
     return 'status-confirmed'
   }
   return ''
@@ -1886,6 +1892,17 @@ const getBookingConsultantOwnerName=booking=>{
   const ownerId=getBookingConsultantOwnerId(booking)
   return getStaffName(ownerId)||'Unassigned'
 }
+const getBookingAgentResellerLabel=booking=>{
+  const assignment=getBookingAgentAssignment(booking?.id)
+  const agent=assignment ? state.agents.find(item=>String(item.id)===String(assignment.agent_id)) : null
+  const metadata=normalizeJsonRecord(booking?.metadata)
+  return String(
+    agent?.company_name || agent?.code
+    || metadata.agent || booking?.agent
+    || metadata.booked_by || booking?.booked_by
+    || ''
+  ).trim() || '—'
+}
 const resolveConsultantOwnerName=(ownerId,booking=null)=>{
   if(ownerId&&ownerId!=='unassigned'){
     return getStaffName(ownerId)||String(ownerId)
@@ -2074,8 +2091,10 @@ const updateBookingQuickFilterBar=()=>{
   const countMap={
     today:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'today')).length,
     all:operationalBookings.length,
+    awaiting_details:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'awaiting_details')).length,
     provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
     confirmed:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'confirmed')).length,
+    to_pay:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'to_pay')).length,
     invoice:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoice')).length,
     invoiced:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoiced')).length,
     partially_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'partially_paid')).length,
@@ -3717,6 +3736,7 @@ const getBookingChangelogPageUrl=bookingId=>{
 const getBookingOutstanding=booking=>Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)
 
 const renderToPayTag=booking=>{
+  if(normalizeText(booking?.payment_status||'')==='to_pay')return ''
   const outstanding=getBookingOutstanding(booking)
   if(!(outstanding>0))return ''
   const href=`${getRecordPageUrl('bookings',booking.id)}&focus=payment`
@@ -3798,14 +3818,19 @@ const renderBookings=()=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
     const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))
+    const isInvoiceState=['invoice','invoiced'].includes(normalizeText(booking.payment_status||''))
+    const paymentBadgeCell=isInvoiceState
+      ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${paymentBadge}</button>`
+      : paymentBadge
     return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
+        <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
+      <td data-label="Status">${paymentBadgeCell}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
@@ -7669,8 +7694,7 @@ const buildDocumentMarkup=(documentType,booking)=>{
   return { title, documentNumber:numberMap[documentType]||booking.reference, markup:body }
 }
 
-const handleDocumentGeneration=async documentType=>{
-  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+const generateBookingDocument=async(documentType,booking)=>{
   if(!booking)return
   const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/documents`,{
     method:'POST',
@@ -7689,6 +7713,11 @@ const handleDocumentGeneration=async documentType=>{
     window.open(response.version.signed_url,'_blank','noopener,noreferrer')
   }
   await refreshAdmin(`${formatDisplayLabel(documentType)} generated and stored.`)
+}
+
+const handleDocumentGeneration=async documentType=>{
+  const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+  await generateBookingDocument(documentType,booking)
 }
 
 const handlePortalAction=async requestType=>{
@@ -8393,7 +8422,7 @@ const handleBookingSave=async event=>{
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
-    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'invoice' : requestedPaymentStatus),
+    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -9486,6 +9515,15 @@ nodes.bookingsTable.addEventListener('click',event=>{
   }
 })
 
+nodes.bookingsTable.addEventListener('click',event=>{
+  const trigger=event.target.closest('[data-grid-action="generate-guest-invoice"]')
+  if(!trigger)return
+  event.preventDefault();event.stopPropagation()
+  const booking=state.bookings.find(item=>String(item.id)===String(trigger.dataset.bookingId))
+  if(!booking)return
+  void generateBookingDocument('guest_invoice',booking).catch(error=>setAdminStatus(error.message||'Invoice generation failed.',true))
+})
+
 nodes.reservationsTable?.addEventListener('click',event=>{
   const reservationId=event.target.closest('[data-reservation-open]')?.dataset.reservationOpen
     || event.target.closest('[data-reservation-id]')?.dataset.reservationId
@@ -9785,10 +9823,11 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
     if(!booking){setAdminStatus('No booking selected.',true);return}
     if(!canConfirmBooking(booking)){setAdminStatus('Complete guest name, tour, brand, and date before confirming.',true);return}
+    const confirmPaymentStatus=['invoice','invoiced','partially_paid','fully_paid'].includes(normalizeText(booking.payment_status||''))?booking.payment_status:'to_pay'
     runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{status:'confirmed',payment_status:'invoice',workflow_action:'confirm_booking'}
+      body:{status:'confirmed',payment_status:confirmPaymentStatus,workflow_action:'confirm_booking'}
     }).then(()=>createActivityNote(state.selectedBookingId,'Booking confirmed.')).then(()=>refreshAdmin('Booking confirmed.')),'Confirmation failed.','Confirming booking')
     return
   }
