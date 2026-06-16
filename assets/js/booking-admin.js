@@ -8422,7 +8422,7 @@ const handleBookingSave=async event=>{
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
-    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'invoice' : requestedPaymentStatus),
+    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
