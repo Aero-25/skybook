@@ -371,10 +371,10 @@
                 <h3>Reports Overview</h3>
               </div>
               <div class="toolbar-actions">
-                <button type="button" class="booking-button ghost" data-print-report="bookings">Print Booking Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="financial">Print Financial Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="commissions">Print Commission Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="consultants">Print Consultant Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="bookings">Download Booking PDF</button>
+                <button type="button" class="booking-button ghost" data-print-report="financial">Download Financial PDF</button>
+                <button type="button" class="booking-button ghost" data-print-report="commissions">Download Commission PDF</button>
+                <button type="button" class="booking-button ghost" data-print-report="consultants">Download Consultant PDF</button>
               </div>
             </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
@@ -1893,9 +1893,9 @@
       </div>
 
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
-  <script src="assets/js/booking-shared.js?v=20260612-nostore"></script>
+  <script src="assets/js/booking-shared.js?v=20260619-ipadfix"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
-  <script src="assets/js/admin-modules/reports.js?v=20260424"></script>
+  <script src="assets/js/admin-modules/reports.js?v=20260619-finance"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -1906,7 +1906,7 @@
   </script>
   <script src="assets/js/tenant.js"></script>
   <script src="assets/js/vendor/qrcode.min.js"></script>
-  <script src="assets/js/booking-admin.js?v=20260612-pdf" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260619-finance" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 

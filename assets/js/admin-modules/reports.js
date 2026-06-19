@@ -31,8 +31,10 @@
       if(status==='completed')bucket.completed+=1
       if(status==='cancelled')bucket.cancelled+=1
       if(status==='no_show')bucket.noShows+=1
-      bucket.gross+=Number(booking?.total_amount||0)
-      if(['paid','partially_paid'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
+      if(status!=='cancelled'&&paymentStatus!=='cancelled'){
+        bucket.gross+=Number(booking?.total_amount||0)
+        if(['paid','partially_paid'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
+      }
       accumulator[ownerId]=bucket
       return accumulator
     },{})

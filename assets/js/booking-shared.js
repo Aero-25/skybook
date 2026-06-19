@@ -173,9 +173,41 @@ window.TrueTravelBooking=(()=>{
     writeJson(STORAGE_KEYS.BOOKING_CONFIG_KEY,nextConfig)
   }
   let supabaseBrowserModulePromise=null
+  let supabaseClassicScriptPromise=null
+  const loadClassicScriptOnce=src=>new Promise((resolve,reject)=>{
+    const existing=[...document.scripts].find(script=>script.src===src)
+    if(existing){
+      if(existing.dataset.loaded==='true'){
+        resolve()
+        return
+      }
+      existing.addEventListener('load',()=>resolve(),{once:true})
+      existing.addEventListener('error',()=>reject(new Error('Supabase browser client could not load.')),{once:true})
+      return
+    }
+    const script=document.createElement('script')
+    script.src=src
+    script.async=true
+    script.addEventListener('load',()=>{
+      script.dataset.loaded='true'
+      resolve()
+    },{once:true})
+    script.addEventListener('error',()=>reject(new Error('Supabase browser client could not load.')),{once:true})
+    document.head.append(script)
+  })
+  const loadSupabaseClassicClient=async()=>{
+    if(!supabaseClassicScriptPromise){
+      supabaseClassicScriptPromise=loadClassicScriptOnce('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js')
+    }
+    await supabaseClassicScriptPromise
+    const createClient=window.supabase?.createClient
+    if(typeof createClient!=='function')throw new Error('Supabase browser client is unavailable.')
+    return { createClient }
+  }
   const loadSupabaseBrowserModule=()=>{
     if(supabaseBrowserModulePromise)return supabaseBrowserModulePromise
     supabaseBrowserModulePromise=import('https://esm.sh/@supabase/supabase-js@2.49.4')
+      .catch(()=>loadSupabaseClassicClient())
     return supabaseBrowserModulePromise
   }
   const createSupabaseClient=async()=>{

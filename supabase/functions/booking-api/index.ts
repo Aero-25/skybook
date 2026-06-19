@@ -198,6 +198,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     website_url:'https://truetravelnam.net',
     document_company_line:'True Travel coastal reservations',
     document_footer:'Atlantic Street, Waterfront, Walvis Bay, Namibia',
+    document_banking_line:'True Travel invoices show the latest SkyBook balance. Use the invoice number or booking reference as payment reference.',
     document_support_line:'bookings@truetravelnam.net · +264 81 322 4270'
   },
   iventure:{
@@ -212,6 +213,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     website_url:'https://iventuretours.net',
     document_company_line:'Iventure desert-coast expedition desk',
     document_footer:'Walvis Bay, Namibia',
+    document_banking_line:'Iventure invoices show the latest SkyBook balance. Use the invoice number or booking reference as payment reference.',
     document_support_line:'info@iventuretours.net · +264 81 322 4270'
   }
 }
@@ -2313,7 +2315,7 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
       provider,
       status:paymentsStatus,
       amount,
-      amount_received:paymentsStatus==='paid' ? amount : Number(existing.amount_received||0),
+      amount_received:paymentsStatus==='paid' ? Math.max(Number(existing.amount_received||0),Number(amount||0)) : Number(existing.amount_received||0),
       paid_at:paymentsStatus==='paid' ? nowIso() : null
     }).eq('id',existing.id)
     if(error)throw error
@@ -3504,15 +3506,22 @@ const buildReports=({
   officeInvoices,
   refunds
 }:{ bookings:Json[], payments:Json[], invoices:Json[], officeInvoices:Json[], refunds:Json[] })=>{
-  const grossRevenue=bookings.reduce((sum,booking)=>sum+Number(booking.total_amount || 0),0)
-  const paidRevenue=payments
+  const isCancelledBooking=(booking:Json)=>['cancelled','refunded'].includes(normalizeText(booking.status)) || normalizeText(booking.payment_status)==='cancelled'
+  const liveBookings=bookings.filter(booking=>!isCancelledBooking(booking))
+  const liveBookingIds=new Set(liveBookings.map(booking=>String(booking.id || '')))
+  const livePayments=payments.filter(payment=>liveBookingIds.has(String(payment.booking_id || '')))
+  const liveInvoices=invoices.filter(invoice=>liveBookingIds.has(String(invoice.booking_id || '')))
+  const liveOfficeInvoices=officeInvoices.filter(invoice=>!invoice.booking_id || liveBookingIds.has(String(invoice.booking_id || '')))
+  const liveRefunds=refunds.filter(refund=>!refund.booking_id || liveBookingIds.has(String(refund.booking_id || '')))
+  const grossRevenue=liveBookings.reduce((sum,booking)=>sum+Number(booking.total_amount || 0),0)
+  const paidRevenue=livePayments
     .filter(payment=>['paid','partially_paid'].includes(String(payment.status || '')))
-    .reduce((sum,payment)=>sum+Number(payment.amount || 0),0)
-  const refundExposure=refunds.reduce((sum,refund)=>sum+Number(refund.amount || 0),0)
-  const guestOutstanding=invoices
+    .reduce((sum,payment)=>sum+Number(payment.amount_received || payment.amount || 0),0)
+  const refundExposure=liveRefunds.reduce((sum,refund)=>sum+Number(refund.amount || 0),0)
+  const guestOutstanding=liveInvoices
     .filter(invoice=>!['paid','cancelled','refunded'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.balance_amount || 0),0)
-  const officePayables=officeInvoices
+  const officePayables=liveOfficeInvoices
     .filter(invoice=>!['paid','cancelled'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.total_amount || 0),0)
   const statusBreakdown=['provisional','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'].map(status=>({
@@ -3521,7 +3530,8 @@ const buildReports=({
   }))
   return {
     overview:{
-      total_bookings:bookings.length,
+      total_bookings:liveBookings.length,
+      cancelled_bookings:bookings.length-liveBookings.length,
       gross_revenue:Number(grossRevenue.toFixed(2)),
       paid_revenue:Number(paidRevenue.toFixed(2)),
       guest_outstanding:Number(guestOutstanding.toFixed(2)),
@@ -3529,9 +3539,9 @@ const buildReports=({
       refund_exposure:Number(refundExposure.toFixed(2))
     },
     status_breakdown:statusBreakdown,
-    recent_guest_invoices:invoices.slice(0,8),
-    recent_office_invoices:officeInvoices.slice(0,8),
-    recent_refunds:refunds.slice(0,8)
+    recent_guest_invoices:liveInvoices.slice(0,8),
+    recent_office_invoices:liveOfficeInvoices.slice(0,8),
+    recent_refunds:liveRefunds.slice(0,8)
   }
 }
 
@@ -3787,7 +3797,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
 const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const { data:existing,error:existingError }=await adminClient.from('bookings').select('*').eq('id',id).single()
   if(existingError||!existing)throw new Error('Booking not found.')
-  const { data:existingPayment }=await adminClient.from('payments').select('provider').eq('booking_id',id).maybeSingle()
+  const { data:existingPayment }=await adminClient.from('payments').select('*').eq('booking_id',id).maybeSingle()
   const settings=await getSettingValue('config',{
     currency:'NAD',
     paymentMode:'deposit',
@@ -3829,7 +3839,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   }
   if(!service)throw new Error('Service not found.')
   const nextStatus=normalizeText(payload.status)||existing.status
-  const nextPaymentStatus=normalizeText(payload.payment_status)||existing.payment_status
+  let nextPaymentStatus=normalizeText(payload.payment_status)||existing.payment_status
   const workflowAction=normalizeText(payload.workflow_action || payload.workflow || payload.system_action)
   const statusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'status')&&nextStatus!==normalizeText(existing.status)
   const paymentStatusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'payment_status')&&nextPaymentStatus!==normalizeText(existing.payment_status)
@@ -3885,10 +3895,16 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const pricing=calculatePricing(service,pricingPayload,settings as Json,storedDiscountAmount)
   const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
   const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
-  const finalOutstandingAmounts=priceOverride>0
+  const receivedAmount=Number(existingPayment?.amount_received || 0)
+  if(receivedAmount>0 && !['cancelled','refunded'].includes(normalizeText(nextPaymentStatus))){
+    nextPaymentStatus=receivedAmount+0.01>=Number(finalTotalAmount || 0) ? 'paid' : 'partially_paid'
+  }
+  const calculatedOutstandingAmounts=priceOverride>0
     ? resolveOutstandingAmounts({...pricing,totalAmount:priceOverride,subtotalAmount:priceOverride,amountDueNow:priceOverride,amountDueLater:0},nextPaymentStatus)
     : resolveOutstandingAmounts(pricing,nextPaymentStatus)
-  const outstandingAmounts=finalOutstandingAmounts
+  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid'].includes(normalizeText(nextPaymentStatus))
+    ? { amountDueNow:Math.max(0,Number((Number(finalTotalAmount || 0)-receivedAmount).toFixed(2))), amountDueLater:0 }
+    : calculatedOutstandingAmounts
   const existingMetadata=normalizeJsonRecord(existing.metadata)
   const cancellationReason=normalizeText(payload.reason)
   const cancellationCategory=normalizeText(payload.cancellation_reason_type || payload.reason_type || requestMetadata.cancellation_reason_type)
@@ -3952,7 +3968,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   await createOrUpdatePayment(
     id,
     String(updatePayload.payment_status),
-    String(updatePayload.payment_status)==='paid' ? Number(pricing.totalAmount || 0) : Number(outstandingAmounts.amountDueNow || 0),
+    Number(updatePayload.total_amount || finalTotalAmount || 0),
     String(updatePayload.currency_code || existing.currency_code || 'NAD'),
     selectedPaymentProvider
   )
