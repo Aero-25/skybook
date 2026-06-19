@@ -1048,12 +1048,14 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
   )
   if(!booking)throw new Error('Booking not found.')
   const brand=await getBrandByCode(normalizeText(booking.brand_code) || 'true-travel')
+  const bookingMetadata=normalizeJsonRecord(booking.metadata)
+  const customerSnapshot=normalizeJsonRecord(bookingMetadata.customer_snapshot)
   return {
     booking,
     brand,
-    customer_name:normalizeText((booking.customers as Json | null)?.full_name),
-    customer_email:normalizeText((booking.customers as Json | null)?.email),
-    customer_phone:normalizeText((booking.customers as Json | null)?.phone),
+    customer_name:normalizeText(customerSnapshot.full_name) || normalizeText((booking.customers as Json | null)?.full_name),
+    customer_email:normalizeText(customerSnapshot.email) || normalizeText((booking.customers as Json | null)?.email),
+    customer_phone:normalizeText(customerSnapshot.phone) || normalizeText((booking.customers as Json | null)?.phone),
     service_name:normalizeText((booking.services as Json | null)?.name)
   }
 }
@@ -1783,22 +1785,36 @@ const buildCustomerMetadata=(existingMetadata:Json,context:{
   }
 }
 
+const buildBookingCustomerSnapshot=(customer:Json={})=>({
+  full_name:normalizeText(customer.full_name),
+  email:normalizeText(customer.email),
+  phone:normalizeText(customer.phone),
+  whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone),
+  snapshot_at:nowIso()
+})
+
 const upsertCustomer=async(customer:Json,context:{
   brandCode?:string
   bookingSource?:string
   sourcePage?:string
   createdVia?:string
   notes?:string
+  preserveExistingIdentity?:boolean
 }={})=>{
   const rawEmail=normalizeText(customer.email).toLowerCase()
   const email=rawEmail||`noemail-${crypto.randomUUID()}@skybook.placeholder`
   const { data:existing }=await adminClient.from('customers').select('*').ilike('email',rawEmail?email:'').maybeSingle()
   if(existing){
     const existingMetadata=normalizeJsonRecord(existing.metadata)
+    const identityPayload=context.preserveExistingIdentity
+      ? {}
+      : {
+        full_name:normalizeText(customer.full_name)||existing.full_name,
+        phone:normalizeText(customer.phone)||existing.phone,
+        whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone)||existing.whatsapp
+      }
     const { data,error }=await adminClient.from('customers').update({
-      full_name:normalizeText(customer.full_name)||existing.full_name,
-      phone:normalizeText(customer.phone)||existing.phone,
-      whatsapp:normalizeText(customer.whatsapp)||normalizeText(customer.phone)||existing.whatsapp,
+      ...identityPayload,
       metadata:buildCustomerMetadata(existingMetadata,context)
     }).eq('id',existing.id).select().single()
     if(error)throw error
@@ -3604,6 +3620,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await validateCustomBookingFields(String(brand.code || brandCode),requestMetadata,true)
   const requestSource=normalizeText(payload.source) || normalizeText(requestMetadata.source)
   const bookingSource=requestSource || (isAdmin ? 'admin' : 'website')
+  const customerSnapshot=buildBookingCustomerSnapshot(payload.customer as Json||{})
   const customer=await upsertCustomer(payload.customer as Json||{},{
     brandCode:String(brand.code || brandCode),
     bookingSource,
@@ -3657,7 +3674,8 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
       source:bookingSource,
       brand_code:String(brand.code || brandCode),
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
-      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || (isAdmin ? 'skybook_admin' : 'website')
+      created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || (isAdmin ? 'skybook_admin' : 'website'),
+      customer_snapshot:customerSnapshot
     }
   })
 
@@ -3817,12 +3835,14 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     phone:normalizeText(incomingCustomer.phone ?? payload.customer_phone ?? currentCustomer.data?.phone),
     whatsapp:normalizeText(incomingCustomer.whatsapp ?? payload.customer_phone ?? currentCustomer.data?.whatsapp)
   }
+  const customerSnapshot=buildBookingCustomerSnapshot(nextCustomerPayload)
   const customer=await upsertCustomer(nextCustomerPayload,{
     brandCode:nextBrandCode,
     bookingSource:nextSource,
     sourcePage:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existing.metadata?.source_page),
     createdVia:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existing.metadata?.created_via) || 'skybook_admin',
-    notes:normalizeText(incomingCustomer.notes) || normalizeText(payload.notes) || normalizeText(existing.customer_notes)
+    notes:normalizeText(incomingCustomer.notes) || normalizeText(payload.notes) || normalizeText(existing.customer_notes),
+    preserveExistingIdentity:true
   })
   let serviceId=existing.service_id
   let serviceSlug=''
@@ -3943,6 +3963,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
       brand_code:nextBrandCode,
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existingMetadata.source_page),
       created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existingMetadata.created_via) || 'skybook_admin',
+      customer_snapshot:customerSnapshot,
       ...(nextStatus==='cancelled' ? {
         cancellation:{
           reason_type:cancellationCategory,
@@ -4394,34 +4415,38 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   if(customersResult.error)throw customersResult.error
   if(paymentsResult.error)throw paymentsResult.error
 
-  const bookings=(bookingsResult.data||[]).map(row=>({
-    id:row.id,
-    reference:row.reference,
-    brand_code:row.brand_code || 'true-travel',
-    status:row.status,
-    payment_status:row.payment_status,
-    preferred_date:row.preferred_date,
-    confirmed_date:row.confirmed_date,
-    quantity:row.quantity,
-    total_amount:Number(row.total_amount||0),
-    currency:row.currency_code,
-    amount_due_now:Number(row.amount_due_now||0),
-    amount_due_later:Number(row.amount_due_later||0),
-    source:row.source || 'website',
-    cancellation_reason:row.cancellation_reason || '',
-    metadata:row.metadata || {},
-    customer_name:row.customers?.full_name||'',
-    customer_email:row.customers?.email||'',
-    customer_phone:row.customers?.phone||'',
-    service_name:row.services?.name||'',
-    service_slug:row.services?.slug||'',
-    customer_notes:row.customer_notes||'',
-    customer_id:row.customer_id || null,
-    service_id:row.service_id || null,
-    updated_at:row.updated_at || row.created_at,
-    updated_by:row.updated_by || null,
-    created_at:row.created_at
-  }))
+  const bookings=(bookingsResult.data||[]).map(row=>{
+    const metadata=normalizeJsonRecord(row.metadata)
+    const customerSnapshot=normalizeJsonRecord(metadata.customer_snapshot)
+    return {
+      id:row.id,
+      reference:row.reference,
+      brand_code:row.brand_code || 'true-travel',
+      status:row.status,
+      payment_status:row.payment_status,
+      preferred_date:row.preferred_date,
+      confirmed_date:row.confirmed_date,
+      quantity:row.quantity,
+      total_amount:Number(row.total_amount||0),
+      currency:row.currency_code,
+      amount_due_now:Number(row.amount_due_now||0),
+      amount_due_later:Number(row.amount_due_later||0),
+      source:row.source || 'website',
+      cancellation_reason:row.cancellation_reason || '',
+      metadata,
+      customer_name:normalizeText(customerSnapshot.full_name)||row.customers?.full_name||'',
+      customer_email:normalizeText(customerSnapshot.email)||row.customers?.email||'',
+      customer_phone:normalizeText(customerSnapshot.phone)||row.customers?.phone||'',
+      service_name:row.services?.name||'',
+      service_slug:row.services?.slug||'',
+      customer_notes:row.customer_notes||'',
+      customer_id:row.customer_id || null,
+      service_id:row.service_id || null,
+      updated_at:row.updated_at || row.created_at,
+      updated_by:row.updated_by || null,
+      created_at:row.created_at
+    }
+  })
   const bookingsByCustomer=new Map<string,{
     booking_count:number
     last_booking_reference:string

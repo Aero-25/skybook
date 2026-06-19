@@ -146,6 +146,7 @@ const state={
   lastNotificationSoundAt:0,
   bookingEditor:{
     draftKey:'',
+    editingBookingId:'',
     baseline:'',
     isDirty:false,
     restoredDraft:false,
@@ -1467,6 +1468,7 @@ const resetBookingEditorState=()=>{
   window.clearTimeout(state.bookingEditor.autosaveTimer)
   state.bookingEditor={
     draftKey:'',
+    editingBookingId:'',
     baseline:'',
     isDirty:false,
     restoredDraft:false,
@@ -1507,6 +1509,7 @@ const restoreBookingEditorDraftIfAvailable=()=>{
 }
 const initialiseBookingEditorSession=()=>{
   state.bookingEditor.draftKey=getBookingEditorDraftKey()
+  state.bookingEditor.editingBookingId=state.selectedBookingId||''
   state.bookingEditor.baseline=createBookingFormSnapshot()
   state.bookingEditor.isDirty=false
   state.bookingEditor.restoredDraft=false
@@ -8573,7 +8576,14 @@ const handleBookingSave=async event=>{
     }
   }
   const previousSelectedId=state.selectedBookingId
+  const editorBookingId=state.bookingEditor.editingBookingId||''
+  if(wasEditing&&editorBookingId&&editorBookingId!==previousSelectedId){
+    throw new Error('SkyBook stopped this save because the open editor no longer matches the selected booking. Close the editor, reopen the exact booking, and save again.')
+  }
   const existingBooking=state.bookings.find(item=>item.id===previousSelectedId)||null
+  if(wasEditing&&!existingBooking){
+    throw new Error('SkyBook could not find the booking record being edited. Refresh and reopen the exact booking before saving.')
+  }
   const requestedStatus=nodes.bookingStatus.value
   const requestedPaymentStatus=nodes.bookingPaymentStatus.value
   const isReservationAcceptanceWorkflow=returnToReservationManagement&&wasEditing&&!isReviewReservation({status:requestedStatus})
@@ -8641,9 +8651,12 @@ const handleBookingSave=async event=>{
   const savedReference=normalizeText(response?.booking?.reference)||normalizeText(response?.reference)||normalizeText(payload.reference)
   const savedBookingId=normalizeText(response?.booking?.id)||normalizeText(response?.id)||previousSelectedId
   await loadAdminData()
-  const savedBooking=state.bookings.find(booking=>booking.id===savedBookingId)
-    || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
-    || (wasEditing ? state.bookings.find(booking=>booking.id===previousSelectedId) : null)
+  const savedBooking=wasEditing
+    ? state.bookings.find(booking=>booking.id===previousSelectedId)
+    : (
+      state.bookings.find(booking=>booking.id===savedBookingId)
+      || state.bookings.find(booking=>savedReference&&normalizeText(booking.reference)===savedReference)
+    )
   const tourName=state.services.find(s=>s.slug===payload.service_slug)?.name||payload.service_slug||'Unknown tour'
   const guestName=payload.customer.full_name||'Guest'
   const refLabel=savedReference ? ` · Ref ${String(savedReference).toUpperCase()}` : ''
