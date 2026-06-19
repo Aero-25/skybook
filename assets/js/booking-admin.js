@@ -296,6 +296,7 @@ const nodes={
   authEnvironmentMeta:document.getElementById('authEnvironmentMeta'),
   loginForm:document.getElementById('loginForm'),
   logoutButton:document.getElementById('logoutButton'),
+  skybookBrandReload:document.getElementById('skybookBrandReload'),
   sessionLabel:document.getElementById('sessionLabel'),
   topSessionLabel:document.getElementById('topSessionLabel'),
   adminStatus:document.getElementById('bookingAdminStatus'),
@@ -9427,6 +9428,7 @@ document.querySelectorAll('.admin-menu-section').forEach(section=>section.addEve
 }))
 nodes.loginForm?.addEventListener('submit',handleLogin)
 nodes.logoutButton?.addEventListener('click',()=>{void handleLogout()})
+nodes.skybookBrandReload?.addEventListener('click',()=>window.location.reload())
 nodes.resetAuthCacheButton?.addEventListener('click',handleAuthCacheReset)
 nodes.exportButton.addEventListener('click',exportBookingsCsv)
 nodes.quickCreateBooking?.addEventListener('click',openNewBookingWorkspace)

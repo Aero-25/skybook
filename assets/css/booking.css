@@ -2862,6 +2862,20 @@ textarea:focus-visible{
   padding-bottom:18px;
   border-bottom:1px solid var(--sky-line);
 }
+.admin-brand-reload{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:inherit;
+  text-align:left;
+  cursor:pointer;
+  font:inherit;
+}
+.admin-brand-reload:focus-visible{
+  outline:2px solid rgba(23,105,170,.42);
+  outline-offset:6px;
+  border-radius:14px;
+}
 
 .admin-sidebar-collapse-toggle{
   display:flex;
