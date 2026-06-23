@@ -46,7 +46,7 @@ from recalculated r
 left join lateral (
   select amount_received
   from public.payments p2
-  where p2.booking_id = b.id
+  where p2.booking_id = r.id
   order by p2.created_at asc
   limit 1
 ) p on true
