@@ -1537,6 +1537,7 @@ const getStatusBadgeClass=value=>{
   if(normalized==='invoiced')return 'is-invoiced'
   if(normalized==='partially_paid')return 'is-partially-paid'
   if(normalized==='fully_paid')return 'is-fully-paid'
+  if(normalized==='foc')return 'is-foc'
   if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
   if(['draft','pending','awaiting_payment'].includes(normalized))return 'is-neutral'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
@@ -1562,7 +1563,10 @@ const getStatusRowClass=booking=>{
   return ''
 }
 
-const renderStatusBadge=(value,label='')=>`<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(label||String(value||'—').replace(/_/g,' '))}</span>`
+const renderStatusBadge=(value,label='')=>{
+  const text=String(label||String(value||'—').replace(/_/g,' ')).replace(/\bfoc\b/gi,'FOC')
+  return `<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(text)}</span>`
+}
 
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
   const leftStamp=parseDateValue(left?.[key])?.getTime()||0
@@ -9673,6 +9677,15 @@ nodes.agentForm.addEventListener('submit',event=>handleFormSubmitWithLoading(eve
 nodes.resourceForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleResourceSave,'Saving resource'))
 nodes.resourceAbundant?.addEventListener('change',syncResourceCapacityState)
 nodes.refundForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleRefundSave,'Saving refund'))
+let lastPaymentStatusValue=nodes.bookingPaymentStatus?.value||''
+nodes.bookingPaymentStatus?.addEventListener('focus',()=>{lastPaymentStatusValue=nodes.bookingPaymentStatus.value})
+nodes.bookingPaymentStatus?.addEventListener('change',()=>{
+  if(nodes.bookingPaymentStatus.value==='foc'){
+    const ok=window.confirm('Set this booking to Free of Charge? The total and balance will be set to 0 and no payment will be due.')
+    if(!ok){nodes.bookingPaymentStatus.value=lastPaymentStatusValue;return}
+  }
+  lastPaymentStatusValue=nodes.bookingPaymentStatus.value
+})
 nodes.automationRulesForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleAutomationSave,'Saving rules'))
 nodes.portalSettingsForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handlePortalSave,'Saving portal settings'))
 nodes.webhookForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleWebhookSave,'Saving webhook'))
