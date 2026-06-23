@@ -7302,18 +7302,28 @@ const handleMemoryUploadSave=async form=>{
   }
 }
 
-const SB_PDF_LIB_URL='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
-const SB_XLSX_LIB_URL='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+// Report libraries are vendored locally so exports work offline (PWA) and survive CDN outages;
+// the public CDN is kept only as a secondary fallback. The PDF lib is injected into a written
+// iframe, so it needs an ABSOLUTE url (relative paths don't resolve against about:blank).
+const SB_PDF_LIB_URL=(()=>{try{return new URL('assets/js/vendor/html2pdf.bundle.min.js',document.baseURI).href}catch(e){return 'assets/js/vendor/html2pdf.bundle.min.js'}})()
+const SB_PDF_LIB_FALLBACK_URL='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
+const SB_XLSX_LIB_URLS=['assets/js/vendor/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js']
 let _xlsxPromise=null
 const ensureXlsx=()=>{
   if(window.XLSX)return Promise.resolve(window.XLSX)
   if(_xlsxPromise)return _xlsxPromise
   _xlsxPromise=new Promise((resolve,reject)=>{
-    const s=document.createElement('script')
-    s.src=SB_XLSX_LIB_URL
-    s.onload=()=>resolve(window.XLSX)
-    s.onerror=()=>reject(new Error('Could not load the Excel export library. Check your connection.'))
-    document.head.appendChild(s)
+    let index=0
+    const tryNext=()=>{
+      if(window.XLSX)return resolve(window.XLSX)
+      if(index>=SB_XLSX_LIB_URLS.length)return reject(new Error('Could not load the Excel export library — you appear to be offline and no local copy was found.'))
+      const s=document.createElement('script')
+      s.src=SB_XLSX_LIB_URLS[index++]
+      s.onload=()=>resolve(window.XLSX)
+      s.onerror=()=>{try{s.remove()}catch(e){} tryNext()}
+      document.head.appendChild(s)
+    }
+    tryNext()
   })
   return _xlsxPromise
 }
@@ -7357,7 +7367,7 @@ const openDocAsPdf=(title,fullHtml,options={})=>{
   window[cb]=finish
   window.setTimeout(()=>{ if(!done)finish(null) },20000)
   document.body.appendChild(iframe)
-  const gen='<script src="'+SB_PDF_LIB_URL+'"></script><script>window.addEventListener("load",function(){try{var o={margin:[6,6,8,6],image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}};html2pdf().set(o).from(document.body).toPdf().get("pdf").then(function(p){var b=p.output("blob");parent["'+cb+'"]&&parent["'+cb+'"](b)}).catch(function(){parent["'+cb+'"]&&parent["'+cb+'"](null)})}catch(e){parent["'+cb+'"]&&parent["'+cb+'"](null)}})</script>'
+  const gen='<script src="'+SB_PDF_LIB_URL+'"></script><script>(function(){var CB=parent["'+cb+'"];function run(){try{var o={margin:[6,6,8,6],image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},pagebreak:{mode:["css","legacy"]}};html2pdf().set(o).from(document.body).toPdf().get("pdf").then(function(p){CB&&CB(p.output("blob"))}).catch(function(){CB&&CB(null)})}catch(e){CB&&CB(null)}}window.addEventListener("load",function(){if(typeof html2pdf!=="undefined")return run();var f=document.createElement("script");f.src="'+SB_PDF_LIB_FALLBACK_URL+'";f.onload=run;f.onerror=function(){CB&&CB(null)};document.body.appendChild(f)})})()</script>'
   let docHtml=String(fullHtml||'').replace(/<script[\s\S]*?<\/script>/gi,'')
   docHtml=docHtml.includes('</body>') ? docHtml.replace(/<\/body>/i,gen+'</body>') : docHtml+gen
   try{ const idoc=iframe.contentWindow.document; idoc.open(); idoc.write(docHtml); idoc.close() }catch(e){ finish(null) }
@@ -9812,7 +9822,12 @@ let lastPaymentStatusValue=nodes.bookingPaymentStatus?.value||''
 nodes.bookingPaymentStatus?.addEventListener('focus',()=>{lastPaymentStatusValue=nodes.bookingPaymentStatus.value})
 nodes.bookingPaymentStatus?.addEventListener('change',()=>{
   if(nodes.bookingPaymentStatus.value==='foc'){
-    const ok=window.confirm('Set this booking to Free of Charge? The total and balance will be set to 0 and no payment will be due.')
+    const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
+    const paid=Number(getBookingPayments(state.selectedBookingId)[0]?.amount_received||0)
+    const currency=booking?.currency||state.settings.currency
+    const ok=window.confirm(paid>0
+      ? `This booking already has ${bookingAdminShared.formatMoney(paid,currency)} received. Setting it to Free of Charge sets the total and balance to 0, leaving that ${bookingAdminShared.formatMoney(paid,currency)} as a CREDIT/overpayment that may need refunding. Continue?`
+      : 'Set this booking to Free of Charge? The total and balance will be set to 0 and no payment will be due.')
     if(!ok){nodes.bookingPaymentStatus.value=lastPaymentStatusValue;return}
   }
   lastPaymentStatusValue=nodes.bookingPaymentStatus.value
