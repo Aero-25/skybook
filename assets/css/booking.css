@@ -1528,6 +1528,8 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
 .status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
 .status-badge.is-foc{background:#e6f7f4;color:#0f766e;border-color:#5eead4}
+.status-badge.is-custom-price{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.booking-override-tag-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 .status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
 .status-badge.is-awaiting-details{background:#fdecc8;color:#7a5b12;border-color:#e9c46a}
 .status-badge.is-to-pay{background:#e7e0f7;color:#5b3fa0;border-color:#c4b5e8}
@@ -3913,6 +3915,8 @@ tbody tr:hover td{
 .status-badge.is-partially-paid{background:#bbf7d0;color:#065f46;border-color:#16a34a}
 .status-badge.is-fully-paid{background:#dbeafe;color:#1e3a8a;border-color:#3b82f6}
 .status-badge.is-foc{background:#e6f7f4;color:#0f766e;border-color:#5eead4}
+.status-badge.is-custom-price{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.booking-override-tag-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 .status-badge.is-cancelled{background:#fee2e2;color:#991b1b;border-color:#ef4444}
 .status-badge.is-awaiting-details{background:#fdecc8;color:#7a5b12;border-color:#e9c46a}
 .status-badge.is-to-pay{background:#e7e0f7;color:#5b3fa0;border-color:#c4b5e8}

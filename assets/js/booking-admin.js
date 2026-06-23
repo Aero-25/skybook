@@ -2502,6 +2502,7 @@ const renderReconciliationWorkbench=()=>{
         </td>
         <td>
           <strong>${bookingAdminShared.escapeHtml(booking?.reference||record.booking_id||'')}</strong>
+          ${bookingHasPriceOverride(booking)?'<span class="status-badge is-custom-price">Custom price</span>':''}
           <div class="table-subline">${bookingAdminShared.escapeHtml(booking?.customer_name||record.assigned_team||'')}</div>
         </td>
         <td>${bookingAdminShared.formatMoney(record.mismatch_amount||0,booking?.currency||state.settings.currency)}</td>
@@ -4969,6 +4970,7 @@ const fillBookingForm=(booking=null)=>{
   if(nodes.bookingPriceOverride){
     const override=booking?.price_override ?? booking?.metadata?.price_override ?? ''
     nodes.bookingPriceOverride.value=Number(override)>0 ? String(override) : ''
+    updateAdminOverrideTag()
   }
   nodes.bookingSaveButton.textContent=booking ? 'Save Changes' : 'Create Booking'
 }
@@ -8596,7 +8598,19 @@ const syncBookingQuantityMode=()=>{
   updateAdminPricePreview()
 }
 
+// A booking carries a deliberate manual price when price_override (column or metadata) > 0.
+const getBookingPriceOverride=booking=>Number(booking?.price_override ?? booking?.metadata?.price_override ?? 0)||0
+const bookingHasPriceOverride=booking=>getBookingPriceOverride(booking)>0
+
+// Show/hide the "Custom price" tag + revert button on the edit screen based on the override field.
+const updateAdminOverrideTag=()=>{
+  const row=document.getElementById('adminBookingOverrideTagRow')
+  if(!row)return
+  row.hidden=!(Number(nodes.bookingPriceOverride?.value||0)>0)
+}
+
 const updateAdminPricePreview=()=>{
+  updateAdminOverrideTag()
   const breakdownEl=document.getElementById('adminBookingPriceBreakdown')
   const totalEl=document.getElementById('adminBookingPriceTotal')
   if(!breakdownEl||!totalEl)return
@@ -9693,6 +9707,12 @@ nodes.bookingForm.addEventListener('submit',event=>handleFormSubmitWithLoading(e
 nodes.bookingForm.addEventListener('input',event=>{
   scheduleBookingEditorAutosave()
   if([nodes.bookingAdultQuantity,nodes.bookingChildQuantity,nodes.bookingInfantQuantity].includes(event.target))updateAdminPricePreview()
+  if(event.target===nodes.bookingPriceOverride)updateAdminOverrideTag()
+})
+document.getElementById('adminBookingRevertPricing')?.addEventListener('click',()=>{
+  if(nodes.bookingPriceOverride)nodes.bookingPriceOverride.value=''
+  updateAdminPricePreview()
+  setAdminStatus('Reverted to calculated pax pricing — save the booking to apply.')
 })
 window.addEventListener('pointerdown',unlockSkybookNotificationSound,{once:true,passive:true})
 window.addEventListener('pagehide',stopLiveAdminSync,{once:true})

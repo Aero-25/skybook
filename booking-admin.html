@@ -1619,6 +1619,10 @@
               <span>Total Price Override (NAD)</span>
               <input id="adminBookingPriceOverride" type="number" min="0" step="0.01" placeholder="Leave blank to use calculated price">
               <p class="field-hint" style="margin:0;font-size:11px">Only fill this to override the calculated price above.</p>
+              <div id="adminBookingOverrideTagRow" class="booking-override-tag-row" hidden>
+                <span class="status-badge is-custom-price">Custom price</span>
+                <button class="booking-button ghost compact-button" type="button" id="adminBookingRevertPricing">Revert to pax pricing</button>
+              </div>
             </label>
             <div class="booking-field-full booking-action-row">
               <button class="booking-button ghost" type="button" id="adminBookingSaveProvisionalButton">Save as Provisional</button>
