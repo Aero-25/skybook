@@ -2373,8 +2373,21 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
     adminClient.from('payments').select('*').eq('booking_id',bookingId).order('created_at',{ascending:true}).limit(1).maybeSingle()
   )
   const previousReceived=Number(existingPayment?.amount_received || 0)
+  const totalAmount=Number(booking.total_amount || existingPayment?.amount || 0)
+  const allowOverpayment=payload.allow_overpayment===true
+  const outstandingBeforeThis=Number(Math.max(0,(totalAmount-previousReceived)).toFixed(2))
+  if(!allowOverpayment){
+    if(normalizeText(booking.payment_status)==='foc' || totalAmount<=0){
+      throw new Error('This booking is Free of Charge — there is nothing to pay. Tick "Allow overpayment" only if you must record money against it.')
+    }
+    if(previousReceived+0.01>=totalAmount && totalAmount>0){
+      throw new Error(`Booking is already fully paid (received ${previousReceived.toFixed(2)} of ${totalAmount.toFixed(2)}). Tick "Allow overpayment" to record an additional amount.`)
+    }
+    if(amount>outstandingBeforeThis+0.01){
+      throw new Error(`Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${outstandingBeforeThis.toFixed(2)}. Reduce the amount or tick "Allow overpayment".`)
+    }
+  }
   const nextReceived=Number((previousReceived+amount).toFixed(2))
-  const totalAmount=Number(booking.total_amount || existingPayment?.amount || nextReceived || 0)
   const nextPaymentStatus=nextReceived>0 && nextReceived+0.01>=totalAmount ? 'paid' : 'partially_paid'
   const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
   const providerReference=normalizeText(payload.provider_reference || payload.reference) || `MAN-${Date.now()}`
