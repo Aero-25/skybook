@@ -8364,7 +8364,8 @@ const handleManualPaymentSave=async form=>{
     provider_reference:String(data.get('provider_reference')||'').trim(),
     terminal_serial_number:String(data.get('terminal_serial_number')||'').trim(),
     batch_number:String(data.get('batch_number')||'').trim(),
-    notes:String(data.get('notes')||'').trim()
+    notes:String(data.get('notes')||'').trim(),
+    allow_overpayment:false
   }
   if(paymentType==='card'&&(!body.terminal_serial_number||!body.batch_number)){
     throw new Error('Card payments require terminal serial number and batch number.')
@@ -8379,6 +8380,8 @@ const handleManualPaymentSave=async form=>{
     const credit=Number((body.amount-outstanding).toFixed(2))
     const ok=window.confirm(`Outstanding balance is ${bookingAdminShared.formatMoney(Math.max(0,outstanding),ccy)}.\nYou are loading ${bookingAdminShared.formatMoney(body.amount,ccy)}.\n\nThis will put the booking in CREDIT of ${bookingAdminShared.formatMoney(credit,ccy)}.\n\nContinue?`)
     if(!ok)throw new Error('Payment cancelled — the amount is more than the outstanding balance.')
+    // The admin deliberately approved the overpayment, so authorise the backend guard to accept it.
+    body.allow_overpayment=true
   }
   await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
     method:'POST',
