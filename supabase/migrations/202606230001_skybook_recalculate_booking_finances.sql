@@ -53,4 +53,26 @@ left join lateral (
 where b.id = r.id
   and abs(coalesce(b.total_amount,0) - r.new_total) > 0.01;
 
+-- Keep guest invoices in sync with the corrected booking totals (clients see the invoice,
+-- not the booking record). Preserve any amount already paid; flip to 'paid' when settled.
+with calc as (
+  select i.id,
+         b.total_amount as new_total,
+         greatest(0, coalesce(i.total_amount,0) - coalesce(i.balance_amount,0)) as amount_paid
+  from public.invoices i
+  join public.bookings b on b.id = i.booking_id
+  where abs(coalesce(i.total_amount,0) - coalesce(b.total_amount,0)) > 0.01
+)
+update public.invoices i
+set total_amount = c.new_total,
+    balance_amount = greatest(0, round(c.new_total - c.amount_paid, 2)),
+    status = case
+               when round(c.new_total - c.amount_paid, 2) <= 0.01 and c.amount_paid > 0 then 'paid'
+               when c.amount_paid > 0 then 'partially_paid'
+               else i.status
+             end,
+    updated_at = now()
+from calc c
+where i.id = c.id;
+
 commit;
