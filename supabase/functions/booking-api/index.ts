@@ -3941,12 +3941,11 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const basePricing=calculatePricing(service,pricingPayload,settings as Json)
   const storedDiscountAmount=await syncStoredBookingDiscountAmounts(id,basePricing.totalAmount)
   const pricing=calculatePricing(service,pricingPayload,settings as Json,storedDiscountAmount)
-  const submittedOverride=Number(payload.price_override||requestMetadata.price_override||0)
-  const previousTotal=Number(existing.total_amount||0)
-  // A submitted override equal to the existing total is the auto-prefilled value, not a
-  // deliberate one — treat it as stale so a pax change reprices instead of pinning the total.
-  const overrideIsDeliberate=submittedOverride>0 && Math.abs(submittedOverride-previousTotal)>0.01
-  const priceOverride=overrideIsDeliberate ? submittedOverride : 0
+  // price_override is a DELIBERATE admin-typed manual price ("only fill this to override the
+  // calculated price"). Honour it whenever set; a booking with no override reprices from pax.
+  // (Do NOT treat override==total as "stale" — ~69 prod bookings are intentionally custom-priced
+  // and that heuristic would wipe their price on the next edit.)
+  const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
   const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
   const receivedAmount=Number(existingPayment?.amount_received || 0)
   if(receivedAmount>0 && !['cancelled','refunded'].includes(normalizeText(nextPaymentStatus))){
