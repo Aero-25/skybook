@@ -2373,8 +2373,21 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
     adminClient.from('payments').select('*').eq('booking_id',bookingId).order('created_at',{ascending:true}).limit(1).maybeSingle()
   )
   const previousReceived=Number(existingPayment?.amount_received || 0)
+  const totalAmount=Number(booking.total_amount || existingPayment?.amount || 0)
+  const allowOverpayment=payload.allow_overpayment===true
+  const outstandingBeforeThis=Number(Math.max(0,(totalAmount-previousReceived)).toFixed(2))
+  if(!allowOverpayment){
+    if(normalizeText(booking.payment_status)==='foc' || totalAmount<=0){
+      throw new Error('This booking is Free of Charge — there is nothing to pay. Tick "Allow overpayment" only if you must record money against it.')
+    }
+    if(previousReceived+0.01>=totalAmount && totalAmount>0){
+      throw new Error(`Booking is already fully paid (received ${previousReceived.toFixed(2)} of ${totalAmount.toFixed(2)}). Tick "Allow overpayment" to record an additional amount.`)
+    }
+    if(amount>outstandingBeforeThis+0.01){
+      throw new Error(`Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${outstandingBeforeThis.toFixed(2)}. Reduce the amount or tick "Allow overpayment".`)
+    }
+  }
   const nextReceived=Number((previousReceived+amount).toFixed(2))
-  const totalAmount=Number(booking.total_amount || existingPayment?.amount || nextReceived || 0)
   const nextPaymentStatus=nextReceived>0 && nextReceived+0.01>=totalAmount ? 'paid' : 'partially_paid'
   const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
   const providerReference=normalizeText(payload.provider_reference || payload.reference) || `MAN-${Date.now()}`
@@ -2478,7 +2491,7 @@ const resolveOutstandingAmounts=(pricing:{
   amountDueLater:number
 },paymentStatus:string)=>{
   const normalized=normalizeText(paymentStatus).toLowerCase()
-  if(['paid','refunded','cancelled'].includes(normalized)){
+  if(['paid','refunded','cancelled','foc'].includes(normalized)){
     return { amountDueNow:0, amountDueLater:0 }
   }
   return {
@@ -3219,11 +3232,26 @@ const maybeAllocateResources=async(bookingId:string,serviceId:string,preferredDa
   if(error && !['42P01','PGRST205'].includes(String(error.code || '')))throw error
 }
 
-const createRefund=async(bookingId:string,payload:Json,userId:string)=>{
-  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
-  if(!booking)throw new Error('Booking not found.')
+const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const resolveBookingByIdOrReference=async(value:string):Promise<Json>=>{
+  const raw=String(value||'').trim()
+  if(!raw)throw new Error('A booking ID or reference is required.')
+  if(UUID_RE.test(raw)){
+    const byId=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',raw).maybeSingle())
+    if(byId)return byId
+  }
+  const byRef=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').ilike('reference',raw).maybeSingle())
+  if(byRef)return byRef
+  throw new Error(`No booking found for "${raw}".`)
+}
+const createRefund=async(bookingIdOrRef:string,payload:Json,userId:string)=>{
+  const booking=await resolveBookingByIdOrReference(bookingIdOrRef)
+  const bookingId=String(booking.id)
   const payment=await safeMaybeSingle<Json>(adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle())
-  const amount=Math.max(0,Number(payload.amount || booking.total_amount || 0))
+  const amountPaid=Number(Math.max(0,Number(payment?.amount_received || payment?.amount || 0)))
+  const requested=Math.max(0,Number(payload.amount || booking.total_amount || 0))
+  if(amountPaid<=0)throw new Error('Nothing has been paid on this booking, so there is nothing to refund.')
+  const amount=Number(Math.min(requested,amountPaid).toFixed(2))
   const { data:refund,error }=await adminClient.from('refunds').insert({
     booking_id:bookingId,
     payment_id:payment?.id || null,
@@ -3913,7 +3941,12 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const basePricing=calculatePricing(service,pricingPayload,settings as Json)
   const storedDiscountAmount=await syncStoredBookingDiscountAmounts(id,basePricing.totalAmount)
   const pricing=calculatePricing(service,pricingPayload,settings as Json,storedDiscountAmount)
-  const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
+  const submittedOverride=Number(payload.price_override||requestMetadata.price_override||0)
+  const previousTotal=Number(existing.total_amount||0)
+  // A submitted override equal to the existing total is the auto-prefilled value, not a
+  // deliberate one — treat it as stale so a pax change reprices instead of pinning the total.
+  const overrideIsDeliberate=submittedOverride>0 && Math.abs(submittedOverride-previousTotal)>0.01
+  const priceOverride=overrideIsDeliberate ? submittedOverride : 0
   const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
   const receivedAmount=Number(existingPayment?.amount_received || 0)
   if(receivedAmount>0 && !['cancelled','refunded'].includes(normalizeText(nextPaymentStatus))){
@@ -3925,6 +3958,13 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid'].includes(normalizeText(nextPaymentStatus))
     ? { amountDueNow:Math.max(0,Number((Number(finalTotalAmount || 0)-receivedAmount).toFixed(2))), amountDueLater:0 }
     : calculatedOutstandingAmounts
+  const isFoc=normalizeText(nextPaymentStatus)==='foc'
+  const focTotal=isFoc ? 0 : finalTotalAmount
+  const focSubtotal=isFoc ? 0 : (priceOverride>0 ? priceOverride : pricing.subtotalAmount)
+  const focTax=isFoc ? 0 : (priceOverride>0 ? 0 : pricing.taxAmount)
+  const focServiceFee=isFoc ? 0 : (priceOverride>0 ? 0 : pricing.serviceFeeAmount)
+  const focDueNow=isFoc ? 0 : outstandingAmounts.amountDueNow
+  const focDueLater=isFoc ? 0 : outstandingAmounts.amountDueLater
   const existingMetadata=normalizeJsonRecord(existing.metadata)
   const cancellationReason=normalizeText(payload.reason)
   const cancellationCategory=normalizeText(payload.cancellation_reason_type || payload.reason_type || requestMetadata.cancellation_reason_type)
@@ -3943,12 +3983,12 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     adult_quantity:Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? Number(payload.adult_quantity||0) : Number(existing.adult_quantity||0),
     child_quantity:Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? Number(payload.child_quantity||0) : Number(existing.child_quantity||0),
     infant_quantity:Number(payload.infant_quantity||requestMetadata.infant_quantity||existing.infant_quantity||0),
-    subtotal_amount:priceOverride>0 ? priceOverride : pricing.subtotalAmount,
-    tax_amount:priceOverride>0 ? 0 : pricing.taxAmount,
-    service_fee_amount:priceOverride>0 ? 0 : pricing.serviceFeeAmount,
-    total_amount:finalTotalAmount,
-    amount_due_now:outstandingAmounts.amountDueNow,
-    amount_due_later:outstandingAmounts.amountDueLater,
+    subtotal_amount:focSubtotal,
+    tax_amount:focTax,
+    service_fee_amount:focServiceFee,
+    total_amount:focTotal,
+    amount_due_now:focDueNow,
+    amount_due_later:focDueLater,
     currency_code:String(service.currency || existing.currency_code || 'NAD'),
     customer_notes:Object.prototype.hasOwnProperty.call(payload,'notes') ? normalizeText(payload.notes) : existing.customer_notes,
     lookup_email:customer.email,
@@ -3964,6 +4004,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existingMetadata.source_page),
       created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existingMetadata.created_via) || 'skybook_admin',
       customer_snapshot:customerSnapshot,
+      price_override:priceOverride,
       ...(nextStatus==='cancelled' ? {
         cancellation:{
           reason_type:cancellationCategory,

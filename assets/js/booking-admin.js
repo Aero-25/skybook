@@ -1537,6 +1537,7 @@ const getStatusBadgeClass=value=>{
   if(normalized==='invoiced')return 'is-invoiced'
   if(normalized==='partially_paid')return 'is-partially-paid'
   if(normalized==='fully_paid')return 'is-fully-paid'
+  if(normalized==='foc')return 'is-foc'
   if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
   if(['draft','pending','awaiting_payment'].includes(normalized))return 'is-neutral'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
@@ -1562,7 +1563,10 @@ const getStatusRowClass=booking=>{
   return ''
 }
 
-const renderStatusBadge=(value,label='')=>`<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(label||String(value||'—').replace(/_/g,' '))}</span>`
+const renderStatusBadge=(value,label='')=>{
+  const text=String(label||String(value||'—').replace(/_/g,' ')).replace(/\bfoc\b/gi,'FOC')
+  return `<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(text)}</span>`
+}
 
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
   const leftStamp=parseDateValue(left?.[key])?.getTime()||0
@@ -7297,6 +7301,20 @@ const handleMemoryUploadSave=async form=>{
 }
 
 const SB_PDF_LIB_URL='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
+const SB_XLSX_LIB_URL='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
+let _xlsxPromise=null
+const ensureXlsx=()=>{
+  if(window.XLSX)return Promise.resolve(window.XLSX)
+  if(_xlsxPromise)return _xlsxPromise
+  _xlsxPromise=new Promise((resolve,reject)=>{
+    const s=document.createElement('script')
+    s.src=SB_XLSX_LIB_URL
+    s.onload=()=>resolve(window.XLSX)
+    s.onerror=()=>reject(new Error('Could not load the Excel export library. Check your connection.'))
+    document.head.appendChild(s)
+  })
+  return _xlsxPromise
+}
 const sbPdfLoadingDoc='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Generating PDF…</title></head><body style="margin:0;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;background:#0d2d6e;color:#fff"><div style="text-align:center"><div style="font-size:15px;font-weight:700">Generating PDF…</div><div style="margin-top:6px;font-size:12px;opacity:.7">SkyBook</div></div></body></html>'
 // Render a full HTML document to a real PDF (html2pdf inside an isolated iframe so
 // the report's own styles apply) and open it in a NEW TAB. Falls back to the print
@@ -7345,7 +7363,7 @@ const openDocAsPdf=(title,fullHtml,options={})=>{
 // Drop-in replacement for the old print-window object: anything written to it is
 // rendered to a PDF and opened in a new tab instead.
 const sbPdfWindow=title=>({document:{write(html){ openDocAsPdf(title,html) },writeln(html){ openDocAsPdf(title,html) },close(){}},focus(){},print(){},close(){}})
-const SB_DOC_BASE_CSS='body{font-family:Arial,Helvetica,sans-serif;padding:40px;color:#142438;background:#fff}h1,h2,h3{margin:0 0 12px}section{margin-top:24px;padding-top:18px;border-top:1px solid #d8e4ef}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:14px;border:1px solid #d9e6f0;border-radius:12px;background:#f7fbff}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:10px;border-bottom:1px solid #d9e6f0;text-align:left}small{color:#5f6f80}.pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}'
+const SB_DOC_BASE_CSS='*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;padding:36px 40px;color:#142438;background:#fff;line-height:1.45}h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}h2{font-size:17px;margin:0 0 12px;color:#0f4fa8}h3{margin:0 0 12px}header{background:linear-gradient(120deg,#0f4fa8,#1976d2);color:#fff;padding:22px 26px;border-radius:14px;margin-bottom:8px;box-shadow:0 8px 20px rgba(15,79,168,.18)}header h1{color:#fff}header small{color:#dbe9ff;display:block;margin-top:6px;font-size:12px}section{margin-top:22px;padding-top:18px;border-top:1px solid #e1ecf6;page-break-inside:avoid}.meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.card{padding:16px;border:1px solid #dbe8f4;border-radius:12px;background:#f7fbff;box-shadow:0 2px 6px rgba(15,79,168,.06)}.card strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5f7383;margin-bottom:6px}.card>div{font-size:18px;font-weight:700;color:#0f2b52}table{width:100%;border-collapse:collapse;margin-top:14px;border:1px solid #dbe8f4;border-radius:10px;overflow:hidden}thead th{background:#0f4fa8;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.05em}th,td{padding:10px 12px;border-bottom:1px solid #e1ecf6;text-align:left}tbody tr:nth-child(even){background:#f7fbff}tbody tr:last-child td{border-bottom:none}small{color:#5f6f80}.pill{display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}@media print{body{padding:18px}header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}thead th{-webkit-print-color-adjust:exact;print-color-adjust:exact}section{page-break-inside:avoid}}'
 const sbWrapDoc=(title,markup)=>'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>'+bookingAdminShared.escapeHtml(String(title||'SkyBook'))+'</title><style>'+SB_DOC_BASE_CSS+'</style></head><body>'+markup+'</body></html>'
 const openDocumentPrintWindow=(title,markup)=>openDocAsPdf(title,sbWrapDoc(title,markup))
 const _legacyOpenDocumentPrintWindow=(title,markup)=>{
@@ -7437,6 +7455,24 @@ const downloadSkyBookReportPdf=(title,markup,filename)=>{
     </header>
     ${markup}
   `),{download:true,filename})
+}
+
+const downloadReportAsWord=(title,bodyHtml,filename)=>{
+  const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>'+bookingAdminShared.escapeHtml(title)+'</title><style>'+SB_DOC_BASE_CSS+'</style></head><body>'+bodyHtml+'</body></html>'
+  const blob=new Blob(['﻿',html],{type:'application/msword'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=filename.replace(/\.(pdf|doc|xlsx)$/i,'')+'.doc';a.click();a.remove()
+  window.setTimeout(()=>URL.revokeObjectURL(url),15000)
+}
+const downloadReportAsExcel=async(title,sheets,filename)=>{
+  const XLSX=await ensureXlsx()
+  const wb=XLSX.utils.book_new()
+  ;(sheets&&sheets.length?sheets:[{sheetName:'Report',columns:['No data'],rows:[]}]).forEach(sheet=>{
+    const aoa=[sheet.columns,...(sheet.rows||[])]
+    const ws=XLSX.utils.aoa_to_sheet(aoa)
+    XLSX.utils.book_append_sheet(wb,ws,String(sheet.sheetName||'Sheet').replace(/[\\/?*\[\]:]/g,' ').slice(0,31))
+  })
+  XLSX.writeFile(wb,filename.replace(/\.(pdf|doc|xlsx)$/i,'')+'.xlsx')
 }
 
 // Driver / pickup route sheet — the day's bookings grouped by pickup location,
@@ -7668,7 +7704,9 @@ const getReportDateRange=period=>{
   return {label:start.toLocaleDateString('en-NA',{month:'long',year:'numeric'}),start,end}
 }
 
-const groupReportRows=(bookings,keyGetter)=>{
+// Group bookings by a key, returning a sorted array of {name,count,revenue}.
+// Single source of truth used by BOTH the HTML rows and the Excel sheets.
+const groupReportData=(bookings,keyGetter)=>{
   const grouped=bookings.reduce((accumulator,booking)=>{
     const key=keyGetter(booking)||'Unassigned'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
@@ -7676,16 +7714,17 @@ const groupReportRows=(bookings,keyGetter)=>{
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  return Object.entries(grouped).sort((left,right)=>right[1].revenue-left[1].revenue).map(([label,metrics])=>`
+  return Object.entries(grouped).sort((left,right)=>right[1].revenue-left[1].revenue).map(([name,metrics])=>({name,count:metrics.count,revenue:metrics.revenue}))
+}
+const groupReportRows=(bookings,keyGetter)=>groupReportData(bookings,keyGetter).map(row=>`
     <tr>
-      <td>${bookingAdminShared.escapeHtml(label)}</td>
-      <td>${bookingAdminShared.escapeHtml(String(metrics.count))}</td>
-      <td>${printableMoney(metrics.revenue)}</td>
+      <td>${bookingAdminShared.escapeHtml(row.name)}</td>
+      <td>${bookingAdminShared.escapeHtml(String(row.count))}</td>
+      <td>${printableMoney(row.revenue)}</td>
     </tr>
   `).join('')
-}
 
-const printSkyBookReport=(type,selectedPeriod='month')=>{
+const buildSkyBookReport=(type,selectedPeriod='month')=>{
   const period=resolveReportPeriod(selectedPeriod)
   const range=getReportDateRange(period)
   const periodBookings=getVisibleBookings()
@@ -7710,14 +7749,15 @@ const printSkyBookReport=(type,selectedPeriod='month')=>{
   const outstandingTotal=sumAmounts(financeInvoices.filter(invoice=>!['paid','cancelled','refunded'].includes(normalizeText(invoice.status))),'balance_amount')
   const paidInvoiceTotal=sumAmounts(financeInvoices.filter(invoice=>normalizeText(invoice.status)==='paid'),'total_amount')
   const partialInvoiceTotal=sumAmounts(financeInvoices.filter(invoice=>normalizeText(invoice.status)==='partially_paid'),'total_amount')
-  const openInvoiceRows=financeInvoices
+  const openInvoiceData=financeInvoices
     .filter(invoice=>Number(invoice.balance_amount||0)>0&&!['cancelled','refunded'].includes(normalizeText(invoice.status)))
     .slice(0,30)
-    .map(invoice=>{
+  const openInvoiceRows=openInvoiceData.map(invoice=>{
       const booking=getBookingById(invoice.booking_id)
       return `<tr><td>${bookingAdminShared.escapeHtml(invoice.invoice_number||booking?.reference||'')}</td><td>${bookingAdminShared.escapeHtml(getDebtorName(invoice))}</td><td>${bookingAdminShared.escapeHtml(booking?.service_name||'')}</td><td>${printableMoney(invoice.total_amount,invoice.currency_code)}</td><td>${printableMoney(invoice.balance_amount,invoice.currency_code)}</td></tr>`
     }).join('')
-  const consultantRows=buildConsultantProductivityRows(bookings).map(row=>`
+  const consultantData=buildConsultantProductivityRows(bookings)
+  const consultantRows=consultantData.map(row=>`
       <tr>
         <td>${bookingAdminShared.escapeHtml(row.name||'Unassigned')}</td>
         <td>${bookingAdminShared.escapeHtml(String(row.bookings||0))}</td>
@@ -7729,9 +7769,9 @@ const printSkyBookReport=(type,selectedPeriod='month')=>{
         <td>${printableMoney(row.paid||0)}</td>
       </tr>
     `).join('')
-  const commissionRows=state.officeInvoices
+  const commissionData=state.officeInvoices
     .filter(invoice=>!state.activeBrandFilter || getBookingById(invoice.booking_id)?.brand_code===state.activeBrandFilter)
-    .map(invoice=>`
+  const commissionRows=commissionData.map(invoice=>`
       <tr>
         <td>${bookingAdminShared.escapeHtml(invoice.invoice_number||'')}</td>
         <td>${bookingAdminShared.escapeHtml(invoice.payee_name||invoice.operator_name||invoice.agent_name||'Payee')}</td>
@@ -7742,7 +7782,19 @@ const printSkyBookReport=(type,selectedPeriod='month')=>{
   const titleMap={bookings:'Booking Report',financial:'Financial Report',commissions:'Commission Report',consultants:'Consultant Report'}
   const reportTitle=`${titleMap[type]||'SkyBook Report'} - ${range.label}`
   const filename=`${normalizeText(titleMap[type]||'skybook-report').replace(/[^a-z0-9]+/g,'-')}-${normalizeText(range.label).replace(/[^a-z0-9]+/g,'-')||'all-time'}.pdf`
-  downloadSkyBookReportPdf(reportTitle,`
+  // Grouped revenue data — single source for BOTH the HTML tables and the Excel sheets.
+  const revenueSourceBookings=type==='financial'?financeBookings:bookings
+  const brandData=groupReportData(revenueSourceBookings,booking=>getBrandName(booking.brand_code))
+  const tourData=groupReportData(revenueSourceBookings,booking=>booking.service_name)
+  const sourceData=groupReportData(revenueSourceBookings,booking=>formatSourceLabel(booking.source||booking.metadata?.source||'website'))
+  const groupedRows=rows=>rows.map(row=>`
+    <tr>
+      <td>${bookingAdminShared.escapeHtml(row.name)}</td>
+      <td>${bookingAdminShared.escapeHtml(String(row.count))}</td>
+      <td>${printableMoney(row.revenue)}</td>
+    </tr>
+  `).join('')
+  const html=`
     <section>
       <h2>Summary</h2>
       <div class="meta">
@@ -7776,20 +7828,87 @@ const printSkyBookReport=(type,selectedPeriod='month')=>{
     </section>` : ''}
     <section>
       <h2>Revenue by brand</h2>
-      <table><thead><tr><th>Brand</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(type==='financial'?financeBookings:bookings,booking=>getBrandName(booking.brand_code)) || '<tr><td colspan="3">No brand revenue yet.</td></tr>'}</tbody></table>
+      <table><thead><tr><th>Brand</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupedRows(brandData) || '<tr><td colspan="3">No brand revenue yet.</td></tr>'}</tbody></table>
     </section>
     <section>
       <h2>Revenue by tour</h2>
-      <table><thead><tr><th>Tour</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(type==='financial'?financeBookings:bookings,booking=>booking.service_name) || '<tr><td colspan="3">No tour revenue yet.</td></tr>'}</tbody></table>
+      <table><thead><tr><th>Tour</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupedRows(tourData) || '<tr><td colspan="3">No tour revenue yet.</td></tr>'}</tbody></table>
     </section>
     <section>
       <h2>Revenue by source</h2>
-      <table><thead><tr><th>Source</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupReportRows(type==='financial'?financeBookings:bookings,booking=>formatSourceLabel(booking.source||booking.metadata?.source||'website')) || '<tr><td colspan="3">No source revenue yet.</td></tr>'}</tbody></table>
+      <table><thead><tr><th>Source</th><th>Bookings</th><th>Revenue</th></tr></thead><tbody>${groupedRows(sourceData) || '<tr><td colspan="3">No source revenue yet.</td></tr>'}</tbody></table>
     </section>
     ${type==='commissions' ? `<section><h2>Commission detail</h2><table><thead><tr><th>Invoice</th><th>Payee</th><th>Type</th><th>Commission</th></tr></thead><tbody>${commissionRows || '<tr><td colspan="4">No commission records yet.</td></tr>'}</tbody></table></section>` : ''}
     ${type==='consultants' ? `<section><h2>Consultant productivity</h2><table><thead><tr><th>Consultant</th><th>Bookings</th><th>Accepted</th><th>Completed</th><th>Cancelled</th><th>No Shows</th><th>Gross</th><th>Paid</th></tr></thead><tbody>${consultantRows || '<tr><td colspan="8">No consultant productivity data yet.</td></tr>'}</tbody></table></section>` : ''}
     ${type==='bookings' ? `<section><h2>Booking detail</h2><table><thead><tr><th>Reference</th><th>Brand</th><th>Guest</th><th>Tour</th><th>Date</th><th>Pax</th><th>Status</th><th>Total</th></tr></thead><tbody>${printableBookingRows(bookings) || '<tr><td colspan="8">No bookings in this period.</td></tr>'}</tbody></table></section>` : ''}
-  `,filename)
+  `
+  // Excel workbook — one sheet per section, built from the SAME computed data.
+  const groupedSheetRows=rows=>rows.map(row=>[row.name,Number(row.count),Number(row.revenue)])
+  const sheets=[{
+    sheetName:'Summary',
+    columns:['Metric','Value'],
+    rows:[
+      ['Total bookings',Number(bookings.length)],
+      ['Gross revenue',Number(gross)],
+      ['Accepted',Number(accepted)],
+      ['Declined',Number(declined)],
+      ['Paid',Number(paid)],
+      ['Conversion %',bookings.length?Math.round((accepted/bookings.length)*100):0],
+      ['Cancelled excluded from finance',Number(cancelledExcluded)]
+    ]
+  }]
+  if(type==='financial'){
+    sheets[0].rows.push(
+      ['Active invoiced total',Number(financeGross)],
+      ['Payments received',Number(receivedTotal)],
+      ['Outstanding debtors',Number(outstandingTotal)],
+      ['Paid invoices',Number(paidInvoiceTotal)],
+      ['Part-paid invoices',Number(partialInvoiceTotal)]
+    )
+    sheets.push({
+      sheetName:'Payments by Type',
+      columns:['Payment type','Count','Received'],
+      rows:paymentTypeRows.map(row=>[row.method,Number(row.count),Number(row.amount)])
+    })
+    sheets.push({
+      sheetName:'Open Debtor Balances',
+      columns:['Invoice','Guest','Tour','Total','Outstanding'],
+      rows:openInvoiceData.map(invoice=>{
+        const booking=getBookingById(invoice.booking_id)
+        return [invoice.invoice_number||booking?.reference||'',getDebtorName(invoice),booking?.service_name||'',Number(invoice.total_amount||0),Number(invoice.balance_amount||0)]
+      })
+    })
+  }
+  sheets.push({sheetName:'Revenue by Brand',columns:['Name','Bookings','Revenue'],rows:groupedSheetRows(brandData)})
+  sheets.push({sheetName:'Revenue by Tour',columns:['Name','Bookings','Revenue'],rows:groupedSheetRows(tourData)})
+  sheets.push({sheetName:'Revenue by Source',columns:['Name','Bookings','Revenue'],rows:groupedSheetRows(sourceData)})
+  if(type==='commissions'){
+    sheets.push({
+      sheetName:'Commissions',
+      columns:['Invoice','Payee','Type','Commission'],
+      rows:commissionData.map(invoice=>[invoice.invoice_number||'',invoice.payee_name||invoice.operator_name||invoice.agent_name||'Payee',formatDisplayLabel(invoice.payee_type||invoice.invoice_type||'commission'),Number(invoice.commission_amount||invoice.total_amount||0)])
+    })
+  }
+  if(type==='consultants'){
+    sheets.push({
+      sheetName:'Consultants',
+      columns:['Consultant','Bookings','Accepted','Completed','Cancelled','No Shows','Gross','Paid'],
+      rows:consultantData.map(row=>[row.name||'Unassigned',Number(row.bookings||0),Number(row.accepted||0),Number(row.completed||0),Number(row.cancelled||0),Number(row.noShows||0),Number(row.gross||0),Number(row.paid||0)])
+    })
+  }
+  if(type==='bookings'){
+    sheets.push({
+      sheetName:'Bookings',
+      columns:['Reference','Brand','Guest','Tour','Date','Pax','Status','Total'],
+      rows:bookings.map(booking=>[booking.reference||'',getBrandName(booking.brand_code),booking.customer_name||'Guest',booking.service_name||'Tour pending',formatDateLabel(booking.preferred_date),Number(booking.quantity||1),formatDisplayLabel(booking.status||''),Number(booking.total_amount||0)])
+    })
+  }
+  return { title:reportTitle, filename, html, sheets }
+}
+
+const printSkyBookReport=(type,selectedPeriod='month')=>{
+  const model=buildSkyBookReport(type,selectedPeriod)
+  downloadSkyBookReportPdf(model.title,model.html,model.filename)
 }
 
 const buildDocumentMarkup=(documentType,booking)=>{
@@ -7987,25 +8106,21 @@ const openArrivalsPrintModal=()=>{
 const openReportPrintModal=reportType=>{
   openWorkflowModal({
     title:'Download report',
-    description:'Choose the reporting window for the SkyBook PDF report.',
-    submitLabel:'Download PDF',
+    description:'Choose the format and reporting window for the SkyBook report.',
+    submitLabel:'Download report',
     fields:[
-      {
-        name:'period',
-        label:'Reporting window',
-        type:'select',
-        value:'month',
-        options:[
-          {value:'day',label:'Day'},
-          {value:'week',label:'Week'},
-          {value:'month',label:'Month'},
-          {value:'all',label:'All time'}
-        ],
-        required:true
-      }
+      { name:'format', label:'Format', type:'select', value:'pdf', required:true, options:[
+        {value:'pdf',label:'PDF'},{value:'word',label:'Word (.doc)'},{value:'excel',label:'Excel (.xlsx)'}
+      ]},
+      { name:'period', label:'Reporting window', type:'select', value:'month', required:true, options:[
+        {value:'day',label:'Day'},{value:'week',label:'Week'},{value:'month',label:'Month'},{value:'all',label:'All time'}
+      ]}
     ],
     onSubmit:async values=>{
-      printSkyBookReport(reportType,values.period)
+      const model=buildSkyBookReport(reportType,values.period)
+      if(values.format==='word')downloadReportAsWord(model.title,model.html,model.filename)
+      else if(values.format==='excel')await downloadReportAsExcel(model.title,model.sheets,model.filename)
+      else downloadSkyBookReportPdf(model.title,model.html,model.filename)
     }
   })
 }
@@ -8364,7 +8479,8 @@ const handleManualPaymentSave=async form=>{
     provider_reference:String(data.get('provider_reference')||'').trim(),
     terminal_serial_number:String(data.get('terminal_serial_number')||'').trim(),
     batch_number:String(data.get('batch_number')||'').trim(),
-    notes:String(data.get('notes')||'').trim()
+    notes:String(data.get('notes')||'').trim(),
+    allow_overpayment:false
   }
   if(paymentType==='card'&&(!body.terminal_serial_number||!body.batch_number)){
     throw new Error('Card payments require terminal serial number and batch number.')
@@ -8379,6 +8495,8 @@ const handleManualPaymentSave=async form=>{
     const credit=Number((body.amount-outstanding).toFixed(2))
     const ok=window.confirm(`Outstanding balance is ${bookingAdminShared.formatMoney(Math.max(0,outstanding),ccy)}.\nYou are loading ${bookingAdminShared.formatMoney(body.amount,ccy)}.\n\nThis will put the booking in CREDIT of ${bookingAdminShared.formatMoney(credit,ccy)}.\n\nContinue?`)
     if(!ok)throw new Error('Payment cancelled — the amount is more than the outstanding balance.')
+    // The admin deliberately approved the overpayment, so authorise the backend guard to accept it.
+    body.allow_overpayment=true
   }
   await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
     method:'POST',
@@ -9670,6 +9788,15 @@ nodes.agentForm.addEventListener('submit',event=>handleFormSubmitWithLoading(eve
 nodes.resourceForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleResourceSave,'Saving resource'))
 nodes.resourceAbundant?.addEventListener('change',syncResourceCapacityState)
 nodes.refundForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleRefundSave,'Saving refund'))
+let lastPaymentStatusValue=nodes.bookingPaymentStatus?.value||''
+nodes.bookingPaymentStatus?.addEventListener('focus',()=>{lastPaymentStatusValue=nodes.bookingPaymentStatus.value})
+nodes.bookingPaymentStatus?.addEventListener('change',()=>{
+  if(nodes.bookingPaymentStatus.value==='foc'){
+    const ok=window.confirm('Set this booking to Free of Charge? The total and balance will be set to 0 and no payment will be due.')
+    if(!ok){nodes.bookingPaymentStatus.value=lastPaymentStatusValue;return}
+  }
+  lastPaymentStatusValue=nodes.bookingPaymentStatus.value
+})
 nodes.automationRulesForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleAutomationSave,'Saving rules'))
 nodes.portalSettingsForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handlePortalSave,'Saving portal settings'))
 nodes.webhookForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleWebhookSave,'Saving webhook'))

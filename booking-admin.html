@@ -839,8 +839,9 @@
             <h3>Process Refund</h3>
             <form id="adminRefundForm" class="booking-form-grid" novalidate>
               <label class="booking-field">
-                <span>Booking ID</span>
-                <input id="adminRefundBookingId" type="text" placeholder="Paste booking UUID" required>
+                <span>Booking ID or Reference</span>
+                <input id="adminRefundBookingId" type="text" placeholder="Booking UUID or reference, e.g. IV202622-973FE25F" required>
+                <small class="field-hint">Enter the booking UUID or its reference (e.g. IV202622-973FE25F) — either works.</small>
               </label>
               <label class="booking-field">
                 <span>Refund Amount</span>
@@ -1523,6 +1524,7 @@
                 <option value="invoiced">Invoiced</option>
                 <option value="partially_paid">Partially Paid</option>
                 <option value="fully_paid">Fully Paid</option>
+                <option value="foc">FOC (Free of Charge)</option>
               </select>
             </label>
             <label class="booking-field">
