@@ -3232,11 +3232,26 @@ const maybeAllocateResources=async(bookingId:string,serviceId:string,preferredDa
   if(error && !['42P01','PGRST205'].includes(String(error.code || '')))throw error
 }
 
-const createRefund=async(bookingId:string,payload:Json,userId:string)=>{
-  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
-  if(!booking)throw new Error('Booking not found.')
+const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const resolveBookingByIdOrReference=async(value:string):Promise<Json>=>{
+  const raw=String(value||'').trim()
+  if(!raw)throw new Error('A booking ID or reference is required.')
+  if(UUID_RE.test(raw)){
+    const byId=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',raw).maybeSingle())
+    if(byId)return byId
+  }
+  const byRef=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').ilike('reference',raw).maybeSingle())
+  if(byRef)return byRef
+  throw new Error(`No booking found for "${raw}".`)
+}
+const createRefund=async(bookingIdOrRef:string,payload:Json,userId:string)=>{
+  const booking=await resolveBookingByIdOrReference(bookingIdOrRef)
+  const bookingId=String(booking.id)
   const payment=await safeMaybeSingle<Json>(adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle())
-  const amount=Math.max(0,Number(payload.amount || booking.total_amount || 0))
+  const amountPaid=Number(Math.max(0,Number(payment?.amount_received || payment?.amount || 0)))
+  const requested=Math.max(0,Number(payload.amount || booking.total_amount || 0))
+  if(amountPaid<=0)throw new Error('Nothing has been paid on this booking, so there is nothing to refund.')
+  const amount=Number(Math.min(requested,amountPaid).toFixed(2))
   const { data:refund,error }=await adminClient.from('refunds').insert({
     booking_id:bookingId,
     payment_id:payment?.id || null,
