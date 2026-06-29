@@ -3894,10 +3894,11 @@ const renderBookings=()=>{
         <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${statusBadge}${invoiceBadgeCell}${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
+      <td data-label="Status">${statusBadge}${invoiceBadgeCell}${paymentBadge}${renderToPayTag(booking)}</td>
+      <td data-label="Open" class="booking-open-cell">${renderOpenBookingLink(booking)}</td>
     </tr>
   `
-  }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
+  }).join('')||renderEmptyRow(4,'No bookings match the current filters.')
   if(nodes.bookingListPagination){
     nodes.bookingListPagination.innerHTML=filtered.length>40
       ? `<span class="bl-pg-label">Showing all ${filtered.length} bookings</span>`
