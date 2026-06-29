@@ -3418,6 +3418,7 @@ const renderCalendarDayBookings=dateKey=>{
       <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
       <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
       <span>${bookingAdminShared.escapeHtml(paxLabel)}${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
+      <div class="cal-day-block-tags">${renderStatusBadge(booking.status)}${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''}</div>
       <div class="block-amount">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</div>
     </article>
     <div class="cal-day-block-detail" id="block-detail-${bookingAdminShared.escapeHtml(booking.id)}">
@@ -3426,6 +3427,8 @@ const renderCalendarDayBookings=dateKey=>{
         <dt>Pax</dt><dd>${bookingAdminShared.escapeHtml(paxLabel)}</dd>
         <dt>Activity</dt><dd>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</dd>
         <dt>Amount</dt><dd>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</dd>
+        <dt>Status</dt><dd>${renderStatusBadge(booking.status)}</dd>
+        <dt>Payment</dt><dd>${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):'—'}</dd>
         <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
         <dt>Contact</dt><dd>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</dd>
         <dt>Pickup</dt><dd>${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</dd>
@@ -8757,7 +8760,7 @@ const handleBookingSave=async event=>{
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
-    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus),
+    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'invoice' : requestedPaymentStatus),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
