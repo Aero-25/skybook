@@ -1171,9 +1171,10 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
     })
     throw new Error(String(uploadResult.error.message || 'Unable to store generated PDF document.'))
   }
-  // Auto-transition: invoice → invoiced once the guest invoice is generated
-  if(documentType==='guest_invoice' && normalizeText(booking.status)==='invoice'){
-    await updateBooking(bookingId,{ status:'invoiced', reason:'Guest invoice generated — status updated to Invoiced' },userId)
+  // Auto-transition: payment status invoice → invoiced once the guest invoice is generated.
+  // (invoice/invoiced live on payment_status, not status; status stays e.g. "confirmed".)
+  if(documentType==='guest_invoice' && normalizeText(booking.payment_status)==='invoice'){
+    await updateBooking(bookingId,{ payment_status:'invoiced', workflow_action:'system_automation', reason:'Guest invoice generated — payment status updated to Invoiced' },userId)
   }
   const checksum=await checksumBytes(pdfBytes)
   const version=await safeMaybeSingle<Json>(
