@@ -118,9 +118,9 @@ const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
   // New two-field system
   // First stage: captured but guest/logistics details still missing → provisional → confirmed.
   awaiting_details:['provisional','confirmed','cancelled'],
-  provisional:['awaiting_details','confirmed','cancelled','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised'],
-  confirmed:['awaiting_details','cancelled'],
-  cancelled:['awaiting_details','provisional','payment_pending'],
+  provisional:['awaiting_details','confirmed','cancelled','finalised'],
+  confirmed:['awaiting_details','provisional','cancelled','finalised'],
+  cancelled:['awaiting_details','provisional','confirmed'],
   // Legacy statuses kept for backwards-compat during migration
   payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled','confirmed'],
   invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled','confirmed'],
@@ -1044,7 +1044,7 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,adult_quantity,child_quantity,infant_quantity,amount_due_now,amount_due_later,metadata,customers(full_name,email,phone),services(name,slug)')
+      .select('id,reference,brand_code,status,payment_status,invoice_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,adult_quantity,child_quantity,infant_quantity,amount_due_now,amount_due_later,metadata,customers(full_name,email,phone),services(name,slug)')
       .eq('id',bookingId)
       .maybeSingle()
   )
@@ -1171,10 +1171,10 @@ const createStoredBookingDocument=async(payload:Json,userId:string)=>{
     })
     throw new Error(String(uploadResult.error.message || 'Unable to store generated PDF document.'))
   }
-  // Auto-transition: payment status invoice → invoiced once the guest invoice is generated.
-  // (invoice/invoiced live on payment_status, not status; status stays e.g. "confirmed".)
-  if(documentType==='guest_invoice' && normalizeText(booking.payment_status)==='invoice'){
-    await updateBooking(bookingId,{ payment_status:'invoiced', workflow_action:'system_automation', reason:'Guest invoice generated — payment status updated to Invoiced' },userId)
+  // Auto-transition: invoice_status invoice → invoiced once the guest invoice is generated.
+  // (Status 1 invoice/invoiced is its own field, independent of payment_status and lifecycle status.)
+  if(documentType==='guest_invoice' && normalizeText(booking.invoice_status)!=='invoiced'){
+    await updateBooking(bookingId,{ invoice_status:'invoiced', workflow_action:'system_automation', reason:'Guest invoice generated — invoice status updated to Invoiced' },userId)
   }
   const checksum=await checksumBytes(pdfBytes)
   const version=await safeMaybeSingle<Json>(
@@ -2211,10 +2211,10 @@ const runStatusAutomations=async(job:Json)=>{
   if(bookingId){
     const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
     if(!booking)return
-    if(Boolean((automationRules as Json).autoConfirmPaidBookings) && normalizeText(booking.payment_status)==='paid' && ['provisional','payment_pending','invoice','invoiced'].includes(normalizeText(booking.status))){
-      await updateBooking(bookingId,{ status:'fully_paid', payment_status:'paid', reason:'Auto-updated to Fully Paid by SkyBook automation' },'')
+    if(Boolean((automationRules as Json).autoConfirmPaidBookings) && normalizeText(booking.payment_status)==='paid' && ['provisional','pending','draft','payment_pending','awaiting_payment'].includes(normalizeText(booking.status))){
+      await updateBooking(bookingId,{ status:'confirmed', payment_status:'paid', invoice_status:'invoiced', reason:'Auto-confirmed (paid) by SkyBook automation' },'')
     }
-    if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings) && normalizeText(booking.status)==='fully_paid'){
+    if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings) && normalizeText(booking.payment_status)==='paid' && normalizeText(booking.status)==='confirmed'){
       const preferredDate=parseDateValue(String(booking.preferred_date || ''))
       if(preferredDate && preferredDate < new Date()){
         await updateBooking(bookingId,{ status:'finalised', reason:'Auto-finalised by SkyBook automation' },'')
@@ -2223,7 +2223,7 @@ const runStatusAutomations=async(job:Json)=>{
     return
   }
   if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings)){
-    const confirmedBookings=await safeTableSelect<Json>(adminClient.from('bookings').select('*').eq('status','fully_paid'),[])
+    const confirmedBookings=await safeTableSelect<Json>(adminClient.from('bookings').select('*').eq('status','confirmed').eq('payment_status','paid'),[])
     for(const booking of confirmedBookings){
       const preferredDate=parseDateValue(String(booking.preferred_date || ''))
       if(preferredDate && preferredDate < new Date()){
@@ -2294,15 +2294,19 @@ const sweepPaymentPendingTransitions=async()=>{
   const cutoffDate=new Date(now.getTime()+24*60*60*1000).toISOString().slice(0,10)
   const unpaidInvoiced=await safeTableSelect<Json>(
     adminClient.from('bookings')
-      .select('id,status,preferred_date,payment_status')
-      .in('status',['invoice','invoiced'])
+      .select('id,status,invoice_status,preferred_date,payment_status')
+      .in('invoice_status',['invoice','invoiced'])
       .not('payment_status','in','(paid,partially_paid)')
       .gte('preferred_date',todayDate)
       .lte('preferred_date',cutoffDate),
     []
   )
+  // Imminent unpaid tours are flagged by their payment_status (to_pay) + tour date; we no longer
+  // overwrite the lifecycle status (Status 3) with a payment value like payment_pending.
   for(const b of unpaidInvoiced){
-    await updateBooking(String(b.id),{ status:'payment_pending', reason:'Tour within 24 hours — moved to Payment Pending by SkyBook automation' },'')
+    if(normalizeText(b.payment_status)!=='to_pay'){
+      await updateBooking(String(b.id),{ payment_status:'to_pay', workflow_action:'system_automation', reason:'Tour within 24 hours — flagged To Pay by SkyBook automation' },'')
+    }
   }
 }
 
@@ -2458,13 +2462,16 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
       .single()
   )
   const currentStatus=normalizeText(booking.status)
-  const nextBookingStatus=nextPaymentStatus==='paid' && ['draft','pending','provisional','payment_pending','invoice','invoiced','awaiting_payment','payment_request_sent'].includes(currentStatus)
-    ? 'fully_paid'
-    : (nextPaymentStatus==='partially_paid' && ['provisional','payment_pending','invoice','invoiced','draft','pending','awaiting_payment'].includes(currentStatus) ? 'partially_paid' : currentStatus)
+  // 3 independent statuses: lifecycle (status) stays a lifecycle value; payment outcome lives in
+  // payment_status; invoicing in invoice_status. A recorded payment implies the booking is invoiced,
+  // and promotes a still-pending lifecycle to confirmed (never to a payment value).
+  const lifecyclePromotes=['draft','pending','provisional','payment_pending','awaiting_payment','payment_request_sent'].includes(currentStatus)
+  const nextBookingStatus=(nextPaymentStatus==='paid'||nextPaymentStatus==='partially_paid') && lifecyclePromotes ? 'confirmed' : currentStatus
   const existingMetadata=normalizeJsonRecord(booking.metadata)
   const { error:bookingUpdateError }=await adminClient.from('bookings').update({
     status:nextBookingStatus,
     payment_status:nextPaymentStatus,
+    invoice_status:'invoiced',
     amount_due_now:outstandingAmount,
     amount_due_later:0,
     metadata:{
@@ -3709,13 +3716,17 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   let reference=requestedReference || await createUniqueBookingReference(bookingPrefix)
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
+  const desiredInvoiceStatus=normalizeText(payload.invoice_status)
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
   const priceOverrideCreate=Number(payload.price_override||requestMetadata.price_override||0)
   const finalPricingCreate=priceOverrideCreate>0
     ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
   const bookingStatus=(['awaiting_details','provisional','confirmed','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'confirmed' : 'provisional')
-  const paymentStatus=desiredPaymentStatus || (isAdmin ? 'invoice' : '')
+  // 3 independent statuses. Status 1 (invoice_status): new bookings still need invoicing → 'invoice'.
+  // Status 2 (payment_status): a confirmed booking is To Pay; pre-confirmed stays blank until confirmed.
+  const invoiceStatus=(['invoice','invoiced'].includes(desiredInvoiceStatus) ? desiredInvoiceStatus : null) || (bookingStatus==='cancelled' ? null : 'invoice')
+  const paymentStatus=desiredPaymentStatus || (bookingStatus==='confirmed' ? 'to_pay' : '')
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
@@ -3724,6 +3735,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     service_id:service.id,
     status:bookingStatus,
     payment_status:paymentStatus,
+    invoice_status:invoiceStatus,
     source:bookingSource,
     preferred_date:normalizeText(payload.preferred_date) || null,
     confirmed_date:bookingStatus==='confirmed' ? (normalizeText(payload.preferred_date)||null) : null,
@@ -3933,6 +3945,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   if(!service)throw new Error('Service not found.')
   const nextStatus=normalizeText(payload.status)||existing.status
   let nextPaymentStatus=normalizeText(payload.payment_status)||existing.payment_status
+  const nextInvoiceStatus=Object.prototype.hasOwnProperty.call(payload,'invoice_status') ? normalizeText(payload.invoice_status) : normalizeText(existing.invoice_status)
   const workflowAction=normalizeText(payload.workflow_action || payload.workflow || payload.system_action)
   const statusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'status')&&nextStatus!==normalizeText(existing.status)
   const paymentStatusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'payment_status')&&nextPaymentStatus!==normalizeText(existing.payment_status)
@@ -3954,10 +3967,10 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     && nextStatus==='confirmed'
   const isMoveToInvoiceWorkflow=workflowAction==='move_to_invoice'
     && normalizeText(existing.status)==='confirmed'
-    && nextPaymentStatus==='invoice'
+    && ['invoice','invoiced'].includes(nextInvoiceStatus)
   const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
     && normalizeText(existing.status)==='confirmed'
-    && ['invoice','invoiced','partially_paid','fully_paid'].includes(nextPaymentStatus)
+    && ['to_pay','partially_paid','paid','foc'].includes(nextPaymentStatus)
   const isAdminEditWorkflow=workflowAction==='admin_edit'
   if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow&&!isConfirmBookingWorkflow&&!isMoveToInvoiceWorkflow&&!isUpdatePaymentStatusWorkflow){
     throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, reinstate, or automation actions.')
@@ -4025,6 +4038,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     service_id:serviceId,
     status:nextStatus,
     payment_status:nextPaymentStatus,
+    invoice_status:Object.prototype.hasOwnProperty.call(payload,'invoice_status') ? (normalizeText(payload.invoice_status)||null) : (existing.invoice_status ?? null),
     source:nextSource,
     preferred_date:nextPreferredDate,
     confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
@@ -4182,7 +4196,7 @@ const archiveBooking=async(bookingId:string,payload:Json,userId:string)=>{
   }
   const { error }=await adminClient.from('bookings').update({
     status:'cancelled',
-    payment_status:'cancelled',
+    payment_status:'',
     cancellation_reason:reason,
     metadata:nextMetadata,
     updated_by:userId
@@ -4422,7 +4436,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,adult_quantity,child_quantity,infant_quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
+      .select('id,reference,brand_code,status,payment_status,invoice_status,preferred_date,confirmed_date,quantity,adult_quantity,child_quantity,infant_quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
       .order('created_at',{ascending:false})
       .limit(600),
     adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}).limit(600),

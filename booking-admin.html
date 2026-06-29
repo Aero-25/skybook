@@ -1514,18 +1514,24 @@
                 <option value="awaiting_details">Awaiting Details</option>
                 <option value="provisional">Provisional</option>
                 <option value="confirmed">Confirmed</option>
+                <option value="finalised">Finalised</option>
                 <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label class="booking-field">
+              <span>Invoice Status</span>
+              <select id="adminBookingInvoiceStatusField">
+                <option value="invoice">Invoice (to be invoiced)</option>
+                <option value="invoiced">Invoiced</option>
               </select>
             </label>
             <label class="booking-field">
               <span>Payment Status</span>
               <select id="adminBookingPaymentStatusField">
                 <option value="">— Not set —</option>
-                <option value="invoice">Invoice</option>
-                <option value="invoiced">Invoiced</option>
                 <option value="to_pay">To Pay</option>
                 <option value="partially_paid">Partially Paid</option>
-                <option value="fully_paid">Fully Paid</option>
+                <option value="paid">Paid</option>
                 <option value="foc">FOC (Free of Charge)</option>
               </select>
             </label>

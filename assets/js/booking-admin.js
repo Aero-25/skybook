@@ -375,6 +375,7 @@ const nodes={
   bookingService:document.getElementById('adminBookingService'),
   bookingStatus:document.getElementById('adminBookingStatusField'),
   bookingPaymentStatus:document.getElementById('adminBookingPaymentStatusField'),
+  bookingInvoiceStatus:document.getElementById('adminBookingInvoiceStatusField'),
   bookingDate:document.getElementById('adminBookingDate'),
   bookingDeparture:document.getElementById('adminBookingDeparture'),
   bookingDepartureWrap:document.getElementById('adminBookingDepartureWrap'),
@@ -1393,6 +1394,7 @@ const collectBookingFormValues=()=>({
   service_slug:nodes.bookingService?.value||'',
   status:nodes.bookingStatus?.value||'',
   payment_status:nodes.bookingPaymentStatus?.value||'',
+  invoice_status:nodes.bookingInvoiceStatus?.value||'',
   preferred_date:nodes.bookingDate?.value||'',
   adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
   child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -1424,7 +1426,8 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingSource)nodes.bookingSource.value=String(values.source||nodes.bookingSource.value||'admin')
   if(nodes.bookingService)nodes.bookingService.value=String(values.service_slug||'')
   if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'confirmed')
-  if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'pending')
+  if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'')
+  if(nodes.bookingInvoiceStatus)nodes.bookingInvoiceStatus.value=String(values.invoice_status||nodes.bookingInvoiceStatus.value||'invoice')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
   const prefillAdults=Number(values.adult_quantity||0),prefillChildren=Number(values.child_quantity||0),prefillInfants=Number(values.infant_quantity||values.metadata?.infant_quantity||0)
@@ -1541,7 +1544,8 @@ const getStatusBadgeClass=value=>{
   if(normalized==='invoice')return 'is-invoice'
   if(normalized==='invoiced')return 'is-invoiced'
   if(normalized==='partially_paid')return 'is-partially-paid'
-  if(normalized==='fully_paid')return 'is-fully-paid'
+  if(normalized==='fully_paid'||normalized==='paid')return 'is-fully-paid'
+  if(normalized==='finalised')return 'is-confirmed'
   if(normalized==='foc')return 'is-foc'
   if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
   if(['draft','pending','awaiting_payment'].includes(normalized))return 'is-neutral'
@@ -1554,15 +1558,17 @@ const getStatusRowClass=booking=>{
   if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
   const payment=normalizeText(booking?.payment_status||'')
+  const invoice=normalizeText(booking?.invoice_status||'')
   if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
   if(status==='awaiting_details')return 'status-awaiting-details'
   if(status==='provisional')return 'status-provisional'
-  if(status==='confirmed'){
-    if(payment==='invoice')return 'status-confirmed-invoice'
-    if(payment==='invoiced')return 'status-confirmed-invoiced'
+  if(status==='confirmed'||status==='finalised'){
+    // Colour reflects payment progress first, then invoicing state.
+    if(payment==='paid'||payment==='fully_paid')return 'status-confirmed-fully-paid'
     if(payment==='partially_paid')return 'status-confirmed-partially-paid'
-    if(payment==='fully_paid')return 'status-confirmed-fully-paid'
     if(payment==='to_pay')return 'status-confirmed-to-pay'
+    if(invoice==='invoiced')return 'status-confirmed-invoiced'
+    if(invoice==='invoice')return 'status-confirmed-invoice'
     return 'status-confirmed'
   }
   return ''
@@ -1580,6 +1586,19 @@ const formatPaymentStatusLabel=status=>{
   const key=normalizeText(status)
   if(!key)return '—'
   return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
+}
+// Status 1 (invoice_status) is its own dimension: 'invoice' (to be invoiced) | 'invoiced'.
+const INVOICE_STATUS_LABELS={invoice:'Invoice',invoiced:'Invoiced'}
+const formatInvoiceStatusLabel=status=>{
+  const key=normalizeText(status)
+  if(!key)return ''
+  return INVOICE_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
+}
+// Render the invoice-status badge (empty string when not set, e.g. cancelled bookings).
+const renderInvoiceBadge=booking=>{
+  const key=normalizeText(booking?.invoice_status||'')
+  if(!key)return ''
+  return renderStatusBadge(key,formatInvoiceStatusLabel(key))
 }
 
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
@@ -2095,7 +2114,8 @@ const bookingHasOpenOperationalWork=booking=>{
   const openTasks=getBookingTasks(booking?.id).some(task=>String(task.status||'')==='open')
   const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
   const needsOperator=['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
-  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','invoice','invoiced','partially_paid'].includes(paymentStatus)
+  const invoiceStatus=String(booking?.invoice_status||'').toLowerCase()
+  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','to_pay','partially_paid'].includes(paymentStatus)||invoiceStatus==='invoice'
 }
 
 const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
@@ -2111,8 +2131,11 @@ const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
   if(key==='provisional')return status==='provisional'
   if(key==='confirmed')return status==='confirmed'
-  if(['invoice','invoiced','partially_paid','fully_paid'].includes(key))return status==='confirmed'&&payment===key
-  return status===key||payment===key
+  const invoice=normalizeText(booking?.invoice_status||'')
+  if(['invoice','invoiced'].includes(key))return status==='confirmed'&&invoice===key
+  if(key==='fully_paid'||key==='paid')return status==='confirmed'&&['paid','fully_paid'].includes(payment)
+  if(['to_pay','partially_paid','foc'].includes(key))return status==='confirmed'&&payment===key
+  return status===key||payment===key||invoice===key
 }
 
 const updateBookingQuickFilterBar=()=>{
@@ -3418,7 +3441,7 @@ const renderCalendarDayBookings=dateKey=>{
       <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
       <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
       <span>${bookingAdminShared.escapeHtml(paxLabel)}${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
-      <div class="cal-day-block-tags">${renderStatusBadge(booking.status)}${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''}</div>
+      <div class="cal-day-block-tags">${renderStatusBadge(booking.status)}${renderInvoiceBadge(booking)}${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''}</div>
       <div class="block-amount">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</div>
     </article>
     <div class="cal-day-block-detail" id="block-detail-${bookingAdminShared.escapeHtml(booking.id)}">
@@ -3428,6 +3451,7 @@ const renderCalendarDayBookings=dateKey=>{
         <dt>Activity</dt><dd>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</dd>
         <dt>Amount</dt><dd>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</dd>
         <dt>Status</dt><dd>${renderStatusBadge(booking.status)}</dd>
+        <dt>Invoice</dt><dd>${renderInvoiceBadge(booking)||'—'}</dd>
         <dt>Payment</dt><dd>${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):'—'}</dd>
         <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
         <dt>Contact</dt><dd>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</dd>
@@ -3854,11 +3878,14 @@ const renderBookings=()=>{
   nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
-    const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':formatPaymentStatusLabel(booking.payment_status||booking.status))
-    const isInvoiceState=['invoice','invoiced'].includes(normalizeText(booking.payment_status||''))
-    const paymentBadgeCell=isInvoiceState
-      ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${paymentBadge}</button>`
-      : paymentBadge
+    // Three independent badges: lifecycle (status) · invoicing (invoice_status) · payment.
+    const statusBadge=renderStatusBadge(booking.status)
+    const paymentBadge=booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''
+    const invoiceBadge=renderInvoiceBadge(booking)
+    const canGenerateInvoice=!isCancelled&&['invoice','invoiced'].includes(normalizeText(booking.invoice_status||''))
+    const invoiceBadgeCell=canGenerateInvoice&&invoiceBadge
+      ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${invoiceBadge}</button>`
+      : invoiceBadge
     return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
@@ -3867,7 +3894,7 @@ const renderBookings=()=>{
         <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${paymentBadgeCell}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
+      <td data-label="Status">${statusBadge}${invoiceBadgeCell}${paymentBadge}${renderToPayTag(booking)}${renderOpenBookingLink(booking)}</td>
     </tr>
   `
   }).join('')||renderEmptyRow(3,'No bookings match the current filters.')
@@ -4023,7 +4050,7 @@ const buildClientProfileCard=(booking)=>{
               <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
               <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
               <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
-              ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':formatPaymentStatusLabel(b.payment_status||b.status))}
+              ${renderStatusBadge(b.status)}${renderInvoiceBadge(b)}${b.payment_status?renderStatusBadge(b.payment_status,formatPaymentStatusLabel(b.payment_status)):''}
             </div>
           `).join('')}
         </div>
@@ -4148,6 +4175,7 @@ const renderBookingDetail=()=>{
         </div>
         <div class="bm-header-badges">
           ${renderStatusBadge(booking.status)}
+          ${renderInvoiceBadge(booking)}
           ${booking.payment_status ? renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)) : ''}
         </div>
         <span class="bm-mobile-tab-label">${{client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[activeTab]||activeTab}</span>
@@ -4421,7 +4449,7 @@ const renderBookingDetail=()=>{
                 </div>
                 <div class="booking-function-group">
                   <button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>
-                  ${normalizeText(booking.status)==='confirmed'&&!['invoice','invoiced','partially_paid','fully_paid'].includes(normalizeText(booking.payment_status||'')) ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
+                  ${normalizeText(booking.status)==='confirmed'&&normalizeText(booking.invoice_status||'')!=='invoice' ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
                   <button type="button" data-booking-inline-action="generate-payment-link">Generate Payment Link</button>
                   ${bookingPaymentLink ? '<button type="button" data-booking-inline-action="copy-payment-link">Copy Payment Link</button>' : ''}
                 </div>
@@ -4951,7 +4979,8 @@ const fillBookingForm=(booking=null)=>{
   if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'confirmed'
-  nodes.bookingPaymentStatus.value=booking?.payment_status||'pending'
+  nodes.bookingPaymentStatus.value=booking?.payment_status||''
+  if(nodes.bookingInvoiceStatus)nodes.bookingInvoiceStatus.value=booking?.invoice_status||'invoice'
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
@@ -8760,7 +8789,10 @@ const handleBookingSave=async event=>{
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
-    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'invoice' : requestedPaymentStatus),
+    // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance set it otherwise.
+    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus),
+    // Status 1 (invoice): defaults to "invoice" (still to be invoiced).
+    invoice_status:nodes.bookingInvoiceStatus?.value||'invoice',
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -10199,7 +10231,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
     runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{payment_status:'invoice',workflow_action:'move_to_invoice'}
+      body:{invoice_status:'invoice',workflow_action:'move_to_invoice'}
     }).then(()=>createActivityNote(state.selectedBookingId,'Booking moved to Invoice.')).then(()=>refreshAdmin('Booking moved to Invoice.')),'Status update failed.','Moving to Invoice')
     return
   }
