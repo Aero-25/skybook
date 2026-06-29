@@ -1428,7 +1428,12 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
   const prefillAdults=Number(values.adult_quantity||0),prefillChildren=Number(values.child_quantity||0),prefillInfants=Number(values.infant_quantity||values.metadata?.infant_quantity||0)
-  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(prefillAdults>0||prefillChildren>0||prefillInfants>0 ? prefillAdults : (Number(values.quantity||nodes.bookingQuantity?.value||2)))
+  const prefillTotal=Number(values.quantity||nodes.bookingQuantity?.value||0)
+  // Infer adults from the head count minus children + infants so an under-4 is never treated as an adult.
+  const prefillResolvedAdults=(prefillAdults<=0&&prefillChildren<=0&&prefillTotal>0)
+    ? Math.max(0,prefillTotal-prefillChildren-prefillInfants)
+    : prefillAdults
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(prefillResolvedAdults>0||prefillChildren>0||prefillInfants>0 ? prefillResolvedAdults : (prefillTotal||2))
   if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(prefillChildren)
   if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(prefillInfants)
   if(nodes.bookingPriceOverride)nodes.bookingPriceOverride.value=String(values.price_override||values.metadata?.price_override||'')
@@ -1566,6 +1571,15 @@ const getStatusRowClass=booking=>{
 const renderStatusBadge=(value,label='')=>{
   const text=String(label||String(value||'—').replace(/_/g,' ')).replace(/\bfoc\b/gi,'FOC')
   return `<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(text)}</span>`
+}
+
+// Payment-status badges read on their own (e.g. "Invoice", "Invoiced") — never prefixed with
+// "Payment ", which produced labels like "Payment invoice".
+const PAYMENT_STATUS_LABELS={invoice:'Invoice',invoiced:'Invoiced',partially_paid:'Partially Paid',fully_paid:'Fully Paid',to_pay:'To Pay',foc:'FOC',paid:'Paid',pending:'Pending',unpaid:'Unpaid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed',payment_pending:'Payment Pending'}
+const formatPaymentStatusLabel=status=>{
+  const key=normalizeText(status)
+  if(!key)return '—'
+  return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 }
 
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
@@ -3109,7 +3123,7 @@ const renderDashboard=()=>{
       <td>${bookingAdminShared.escapeHtml(booking.customer_name)}</td>
       <td>${bookingAdminShared.formatMoney(booking.amount_due_now||0,booking.currency||state.settings.currency)}</td>
       <td>${bookingAdminShared.formatMoney(booking.amount_due_later||0,booking.currency||state.settings.currency)}</td>
-      <td>${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}</td>
+      <td>${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}</td>
     </tr>
   `).join('') : renderEmptyRow(5,'No unpaid balances are outstanding.')
   nodes.dashboardRefundsTable.innerHTML=state.refunds.length ? state.refunds.slice(0,8).map(refund=>`
@@ -3184,7 +3198,7 @@ const renderManifest=()=>{
               </div>
               <div style="display:flex;gap:8px;align-items:center">
                 ${renderStatusBadge(booking.status)}
-                ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+                ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
               </div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 20px;font-size:13px">
@@ -3255,7 +3269,7 @@ const renderCalendar=()=>{
                 </div>
                 <div class="calendar-entry-badges">
                   ${renderStatusBadge(booking.status)}
-                  ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+                  ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
                   ${renderToPayTag(booking)}
                 </div>
               </div>
@@ -3837,7 +3851,7 @@ const renderBookings=()=>{
   nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
     const isCancelled=normalizeText(booking.status)==='cancelled'
-    const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':'Payment '+String(booking.payment_status||booking.status||'').replace(/_/g,' '))
+    const paymentBadge=renderStatusBadge(booking.payment_status||booking.status,isCancelled?'Cancelled':formatPaymentStatusLabel(booking.payment_status||booking.status))
     const isInvoiceState=['invoice','invoiced'].includes(normalizeText(booking.payment_status||''))
     const paymentBadgeCell=isInvoiceState
       ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${paymentBadge}</button>`
@@ -4006,7 +4020,7 @@ const buildClientProfileCard=(booking)=>{
               <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
               <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
               <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
-              ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':'Payment '+String(b.payment_status||b.status||'').replace(/_/g,' '))}
+              ${renderStatusBadge(b.payment_status||b.status,normalizeText(b.status)==='cancelled'?'Cancelled':formatPaymentStatusLabel(b.payment_status||b.status))}
             </div>
           `).join('')}
         </div>
@@ -4131,7 +4145,7 @@ const renderBookingDetail=()=>{
         </div>
         <div class="bm-header-badges">
           ${renderStatusBadge(booking.status)}
-          ${booking.payment_status ? renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' ')) : ''}
+          ${booking.payment_status ? renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)) : ''}
         </div>
         <span class="bm-mobile-tab-label">${{client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[activeTab]||activeTab}</span>
         <div class="bm-header-actions">
@@ -4177,7 +4191,7 @@ const renderBookingDetail=()=>{
                   </div>
                   <div class="badge-stack">
                     ${renderStatusBadge(booking.status)}
-                    ${renderStatusBadge(booking.payment_status,'Payment ' + String(booking.payment_status||'').replace(/_/g,' '))}
+                    ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
                   </div>
                 </div>
                 <div class="detail-grid detail-grid-strong">${(()=>{
@@ -4259,7 +4273,7 @@ const renderBookingDetail=()=>{
               <section class="detail-section booking-function-sidebar booking-functions-menu detail-actions" aria-label="Booking management">
                 <div class="booking-function-status">
                   ${renderStatusBadge(booking.status)}
-                  ${normalizeText(booking.status)==='cancelled'||normalizeText(booking.payment_status)==='cancelled' ? '' : renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' '))}
+                  ${normalizeText(booking.status)==='cancelled'||normalizeText(booking.payment_status)==='cancelled' ? '' : renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
                 </div>
                 <div class="booking-function-group">
                   <button type="button" data-booking-inline-action="edit-booking">Edit Booking Details</button>
@@ -4400,7 +4414,7 @@ const renderBookingDetail=()=>{
             <div class="bm-sub-section" data-bm-sub-section="invoice" hidden>
               <section class="detail-section booking-function-sidebar booking-functions-menu detail-actions" aria-label="Invoice actions">
                 <div class="booking-function-status">
-                  ${renderStatusBadge(booking.payment_status,'Payment '+String(booking.payment_status||'').replace(/_/g,' '))}
+                  ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
                 </div>
                 <div class="booking-function-group">
                   <button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>
@@ -4948,7 +4962,14 @@ const fillBookingForm=(booking=null)=>{
   const loadedAdults=Number(booking?.adult_quantity||0)
   const loadedChildren=Number(booking?.child_quantity||0)
   const loadedInfants=Number(booking?.infant_quantity||booking?.metadata?.infant_quantity||0)
-  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(loadedAdults>0||loadedChildren>0||loadedInfants>0 ? loadedAdults : (booking?.quantity||2))
+  const loadedTotal=Number(booking?.quantity||0)
+  // Legacy/partly-recorded bookings may carry only a head count (quantity) without an adult split.
+  // Infer adults as the remainder after children + infants so an under-4 is never counted (or
+  // charged) as an adult — e.g. a 3-pax booking with 1 under-4 resolves to 2 adults, not 3.
+  const resolvedAdults=(loadedAdults<=0&&loadedChildren<=0&&loadedTotal>0)
+    ? Math.max(0,loadedTotal-loadedChildren-loadedInfants)
+    : loadedAdults
+  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(resolvedAdults>0||loadedChildren>0||loadedInfants>0 ? resolvedAdults : (loadedTotal||2))
   if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(loadedChildren)
   if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(loadedInfants)
   syncBookingQuantityMode()
@@ -5782,7 +5803,7 @@ const renderCustomerDetail=()=>{
                 <td>
                   <div class="badge-stack">
                     ${renderStatusBadge(booking.status)}
-                    ${renderStatusBadge(booking.payment_status,`Payment ${String(booking.payment_status||'').replace(/_/g,' ')}`)}
+                    ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
                   </div>
                 </td>
               </tr>

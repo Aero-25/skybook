@@ -116,9 +116,11 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
   // New two-field system
-  provisional:['confirmed','cancelled','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised'],
-  confirmed:['cancelled'],
-  cancelled:['provisional','payment_pending'],
+  // First stage: captured but guest/logistics details still missing → provisional → confirmed.
+  awaiting_details:['provisional','confirmed','cancelled'],
+  provisional:['awaiting_details','confirmed','cancelled','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised'],
+  confirmed:['awaiting_details','cancelled'],
+  cancelled:['awaiting_details','provisional','payment_pending'],
   // Legacy statuses kept for backwards-compat during migration
   payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled','confirmed'],
   invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled','confirmed'],
@@ -1042,7 +1044,7 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,amount_due_now,amount_due_later,metadata,customers(full_name,email,phone),services(name,slug)')
+      .select('id,reference,brand_code,status,payment_status,preferred_date,total_amount,currency_code,customer_id,service_id,quantity,adult_quantity,child_quantity,infant_quantity,amount_due_now,amount_due_later,metadata,customers(full_name,email,phone),services(name,slug)')
       .eq('id',bookingId)
       .maybeSingle()
   )
@@ -1701,9 +1703,20 @@ const getServiceBySlug=async(slug:string,includeInactive=false,brandCode='')=>{
 
 const calculatePricing=(service:Json,payload:Json,settings:Json,discountAmount=0)=>{
   const minimumPax=Math.max(1,Number(service.minimum_pax||1)||1)
-  const quantity=Math.max(minimumPax,Number(payload.quantity||minimumPax)||minimumPax)
+  const adultQty=Math.max(0,Number(payload.adult_quantity||0)||0)
+  const childQty=Math.max(0,Number(payload.child_quantity||0)||0)
+  const splitQty=adultQty+childQty
+  const quantity=splitQty>0 ? Math.max(minimumPax,splitQty) : Math.max(minimumPax,Number(payload.quantity||minimumPax)||minimumPax)
   const basePrice=Number(service.base_price||0)
-  const subtotal=Number((basePrice*quantity).toFixed(2))
+  const adultPrice=service.adult_price!=null ? Number(service.adult_price) : null
+  const childPrice=service.child_price!=null ? Number(service.child_price) : null
+  // When the service carries adult/child pricing, total = adults×adult_price + children×child_price.
+  // Otherwise fall back to the flat base_price × quantity. This mirrors booking-shared.js so the
+  // saved total matches the admin price preview and the public booking page.
+  const hasAdultChildPricing=adultPrice!=null && adultPrice>0
+  const subtotal=hasAdultChildPricing && splitQty>0
+    ? Number(((adultQty*(adultPrice||0))+(childQty*(childPrice||0))).toFixed(2))
+    : Number((basePrice*quantity).toFixed(2))
   const taxRate=Number(payload.taxRate ?? settings.taxRate ?? 0)
   const serviceFee=Number(payload.serviceFee ?? settings.serviceFee ?? 0)
   const taxAmount=Number((subtotal*(taxRate/100)).toFixed(2))
@@ -1719,6 +1732,10 @@ const calculatePricing=(service:Json,payload:Json,settings:Json,discountAmount=0
       : Number((totalAmount*(depositValue/100)).toFixed(2))
   return {
     quantity,
+    adultQuantity:adultQty,
+    childQuantity:childQty,
+    adultPrice:hasAdultChildPricing ? adultPrice : null,
+    childPrice:hasAdultChildPricing ? (childPrice||0) : null,
     subtotalAmount:subtotal,
     taxAmount,
     serviceFeeAmount:Number(serviceFee.toFixed(2)),
@@ -2504,30 +2521,40 @@ const syncBookingItems=async(bookingId:string,service:{ id:string, name:string }
   quantity:number
   subtotalAmount:number
   discountAmount?:number
+  adultQuantity?:number
+  childQuantity?:number
+  adultPrice?:number | null
+  childPrice?:number | null
 })=>{
-  const existingLine=await safeMaybeSingle<Json>(
-    adminClient
-      .from('booking_items')
-      .select('id')
-      .eq('booking_id',bookingId)
-      .eq('item_type','service')
-      .maybeSingle()
-  )
-  const linePayload={
-    booking_id:bookingId,
-    item_type:'service',
-    service_id:service.id,
-    description:service.name,
-    quantity:pricing.quantity,
-    unit_price:Number((Number(pricing.subtotalAmount || 0) / Math.max(1,Number(pricing.quantity || 1))).toFixed(2)),
-    line_total:Number(pricing.subtotalAmount || 0),
-    metadata:{ source:'booking-api' }
-  }
-  if(existingLine?.id){
-    const { error }=await adminClient.from('booking_items').update(linePayload).eq('id',existingLine.id)
-    if(error)throw error
-  }else{
-    const { error }=await adminClient.from('booking_items').insert(linePayload)
+  // Clear the previous service line(s) so adult/child splits never stack across edits.
+  const deleteServiceLines=await adminClient.from('booking_items').delete().eq('booking_id',bookingId).eq('item_type','service')
+  if(deleteServiceLines.error && !['42P01','PGRST205'].includes(String(deleteServiceLines.error.code || '')))throw deleteServiceLines.error
+  const adultQty=Math.max(0,Number(pricing.adultQuantity||0))
+  const childQty=Math.max(0,Number(pricing.childQuantity||0))
+  const adultPrice=pricing.adultPrice!=null ? Number(pricing.adultPrice) : null
+  const childPrice=pricing.childPrice!=null ? Number(pricing.childPrice) : null
+  const splitPriced=adultPrice!=null && (adultQty+childQty)>0
+  // Split-priced services get one line per pax type so invoices read "2 × Adult, 2 × Child".
+  // Flat-priced services keep the single blended line they always had.
+  const serviceLines=splitPriced
+    ? [
+        adultQty>0 ? { description:`${service.name} — Adult`, quantity:adultQty, unit_price:Number((adultPrice||0).toFixed(2)), line_total:Number((adultQty*(adultPrice||0)).toFixed(2)) } : null,
+        childQty>0 ? { description:`${service.name} — Child (4–12)`, quantity:childQty, unit_price:Number((childPrice||0).toFixed(2)), line_total:Number((childQty*(childPrice||0)).toFixed(2)) } : null
+      ].filter(Boolean) as Array<{ description:string, quantity:number, unit_price:number, line_total:number }>
+    : [{
+        description:service.name,
+        quantity:Number(pricing.quantity || 1),
+        unit_price:Number((Number(pricing.subtotalAmount || 0) / Math.max(1,Number(pricing.quantity || 1))).toFixed(2)),
+        line_total:Number(pricing.subtotalAmount || 0)
+      }]
+  for(const line of serviceLines){
+    const { error }=await adminClient.from('booking_items').insert({
+      booking_id:bookingId,
+      item_type:'service',
+      service_id:service.id,
+      ...line,
+      metadata:{ source:'booking-api' }
+    })
     if(error)throw error
   }
   const discountAmount=Number(pricing.discountAmount || 0)
@@ -3132,12 +3159,12 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,subtotal_amount,tax_amount,service_fee_amount,total_amount,currency_code,amount_due_now,amount_due_later,service_id,quantity')
+      .select('id,reference,brand_code,status,payment_status,preferred_date,subtotal_amount,tax_amount,service_fee_amount,total_amount,currency_code,amount_due_now,amount_due_later,service_id,quantity,adult_quantity,child_quantity')
       .eq('id',bookingId)
       .maybeSingle()
   )
   if(!booking)return
-  const service=await safeMaybeSingle<Json>(adminClient.from('services').select('name').eq('id',booking.service_id).maybeSingle())
+  const service=await safeMaybeSingle<Json>(adminClient.from('services').select('name,adult_price,child_price').eq('id',booking.service_id).maybeSingle())
   const existingInvoice=await safeMaybeSingle<{ invoice_number:string, issued_at:string | null }>(adminClient.from('invoices').select('invoice_number,issued_at').eq('booking_id',bookingId).maybeSingle())
   const brandProfile=await getBrandByCode(normalizeText(booking.brand_code) || 'true-travel')
   const invoicePrefix=normalizeInvoicePrefix(brandProfile.invoice_prefix || brandProfile.booking_prefix || 'SB','SB')
@@ -3169,15 +3196,30 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
   if(!invoice?.id)return
   await adminClient.from('invoice_items').delete().eq('invoice_id',invoice.id)
   const discountAmount=Number(Math.max(0,Number(booking.subtotal_amount || 0)+Number(booking.tax_amount || 0)+Number(booking.service_fee_amount || 0)-Number(booking.total_amount || 0)).toFixed(2))
+  // Split the service line into Adult / Child rows when the per-pax prices reconstruct the stored
+  // subtotal exactly. The exact-match guard keeps overridden or discounted bookings on a single
+  // blended line so the invoice items always sum to subtotal_amount.
+  const invAdultQty=Number(booking.adult_quantity || 0)
+  const invChildQty=Number(booking.child_quantity || 0)
+  const invAdultPrice=service?.adult_price!=null ? Number(service.adult_price) : null
+  const invChildPrice=service?.child_price!=null ? Number(service.child_price) : null
+  const invSplitSubtotal=invAdultPrice!=null ? Number(((invAdultQty*(invAdultPrice||0))+(invChildQty*(invChildPrice||0))).toFixed(2)) : null
+  const invUseSplit=invAdultPrice!=null && (invAdultQty+invChildQty)>0 && Math.abs(Number(invSplitSubtotal||0)-Number(booking.subtotal_amount||0))<0.01
+  const serviceInvoiceLines=invUseSplit
+    ? [
+        invAdultQty>0 ? { invoice_id:invoice.id, description:`${String(service?.name || 'Booking service')} — Adult`, quantity:invAdultQty, unit_price:Number((invAdultPrice||0).toFixed(2)), line_total:Number((invAdultQty*(invAdultPrice||0)).toFixed(2)), metadata:{ booking_reference:booking.reference } } : null,
+        invChildQty>0 ? { invoice_id:invoice.id, description:`${String(service?.name || 'Booking service')} — Child (4–12)`, quantity:invChildQty, unit_price:Number((invChildPrice||0).toFixed(2)), line_total:Number((invChildQty*(invChildPrice||0)).toFixed(2)), metadata:{ booking_reference:booking.reference } } : null
+      ].filter(Boolean) as Array<Record<string,unknown>>
+    : [{
+        invoice_id:invoice.id,
+        description:String(service?.name || 'Booking service'),
+        quantity:Number(booking.quantity || 1),
+        unit_price:Number(booking.subtotal_amount || 0) / Math.max(1,Number(booking.quantity || 1)),
+        line_total:Number(booking.subtotal_amount || 0),
+        metadata:{ booking_reference:booking.reference }
+      }]
   const invoiceItems=[
-    {
-      invoice_id:invoice.id,
-      description:String(service?.name || 'Booking service'),
-      quantity:Number(booking.quantity || 1),
-      unit_price:Number(booking.subtotal_amount || 0) / Math.max(1,Number(booking.quantity || 1)),
-      line_total:Number(booking.subtotal_amount || 0),
-      metadata:{ booking_reference:booking.reference }
-    },
+    ...serviceInvoiceLines,
     ...(discountAmount>0 ? [{
       invoice_id:invoice.id,
       description:'Booking discount',
@@ -3285,7 +3327,7 @@ const repriceBookingFromStoredDiscounts=async(bookingId:string,userId:string)=>{
   const booking=await safeMaybeSingle<Json>(
     adminClient
       .from('bookings')
-      .select('id,brand_code,service_id,quantity,payment_status,currency_code')
+      .select('id,brand_code,service_id,quantity,adult_quantity,child_quantity,payment_status,currency_code')
       .eq('id',bookingId)
       .maybeSingle()
   )
@@ -3300,7 +3342,9 @@ const repriceBookingFromStoredDiscounts=async(bookingId:string,userId:string)=>{
     taxRate:0,
     serviceFee:0
   })
-  const pricingPayload={ quantity:Number(booking.quantity || 1) }
+  // Carry the pax split so repricing a split-priced booking (after a discount change) keeps the
+  // adult/child total instead of collapsing to base_price × quantity.
+  const pricingPayload={ quantity:Number(booking.quantity || 1), adult_quantity:Number(booking.adult_quantity || 0), child_quantity:Number(booking.child_quantity || 0) }
   const basePricing=calculatePricing(service,pricingPayload,settings as Json)
   const discountAmount=await syncStoredBookingDiscountAmounts(bookingId,basePricing.totalAmount)
   const pricing=calculatePricing(service,pricingPayload,settings as Json,discountAmount)
@@ -3669,7 +3713,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const finalPricingCreate=priceOverrideCreate>0
     ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
-  const bookingStatus=(['provisional','confirmed','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'confirmed' : 'provisional')
+  const bookingStatus=(['awaiting_details','provisional','confirmed','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'confirmed' : 'provisional')
   const paymentStatus=desiredPaymentStatus || (isAdmin ? 'invoice' : '')
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({
@@ -3937,7 +3981,12 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     ? (normalizeText(payload.preferred_date)||null)
     : existing.preferred_date
   const nextQuantity=Math.max(1,Number(payload.quantity||existing.quantity||1))
-  const pricingPayload=payload.quantity!==undefined ? {...payload,quantity:nextQuantity} : {quantity:nextQuantity}
+  const nextAdultQuantity=Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? Number(payload.adult_quantity||0) : Number(existing.adult_quantity||0)
+  const nextChildQuantity=Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? Number(payload.child_quantity||0) : Number(existing.child_quantity||0)
+  // Always carry the pax split into repricing so a partial update (e.g. a status-only PATCH that
+  // omits adult/child) reprices from the booking's real adults/children instead of collapsing to
+  // base_price × quantity and wiping a correct split-priced total.
+  const pricingPayload={...(payload.quantity!==undefined ? payload : {}),quantity:nextQuantity,adult_quantity:nextAdultQuantity,child_quantity:nextChildQuantity}
   const basePricing=calculatePricing(service,pricingPayload,settings as Json)
   const storedDiscountAmount=await syncStoredBookingDiscountAmounts(id,basePricing.totalAmount)
   const pricing=calculatePricing(service,pricingPayload,settings as Json,storedDiscountAmount)
@@ -4372,7 +4421,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
   const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
     adminClient
       .from('bookings')
-      .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
+      .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,adult_quantity,child_quantity,infant_quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
       .order('created_at',{ascending:false})
       .limit(600),
     adminClient.from('customers').select('id,full_name,email,phone,metadata,created_at,updated_at').order('created_at',{ascending:false}).limit(600),
