@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260703-reportpreview">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260714-payment-process">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1769aa">
 <meta name="mobile-web-app-capable" content="yes">
@@ -1525,8 +1525,12 @@
                 <option value="eft">EFT</option>
                 <option value="voucher">Voucher</option>
                 <option value="foc">FOC (Free of Charge)</option>
+                <option value="to_pay" disabled>To Pay</option>
                 <option value="paid" disabled>Paid (method not recorded)</option>
                 <option value="partially_paid" disabled>Partially Paid</option>
+                <option value="invoice" disabled>Invoice (legacy)</option>
+                <option value="invoiced" disabled>Invoiced (legacy)</option>
+                <option value="fully_paid" disabled>Fully Paid (legacy)</option>
               </select>
             </label>
             <label class="booking-field">

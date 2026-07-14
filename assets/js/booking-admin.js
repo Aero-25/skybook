@@ -1590,6 +1590,13 @@ const formatPaymentStatusLabel=status=>{
   return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 }
 
+// Payment Process field: selecting one of these methods means the booking is paid in full.
+const PAYMENT_PROCESS_METHODS=['cash','card','eft','voucher']
+// Generic payment_status values the Payment Process field can't produce itself, but must still be
+// able to display (and pass through unchanged) since other flows (Payments tab, confirm-booking,
+// cruise-liner creation, legacy data) can set them directly on the booking.
+const PAYMENT_PROCESS_PRESERVED_STATUSES=['to_pay','paid','partially_paid','invoice','invoiced','fully_paid']
+
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
   const leftStamp=parseDateValue(left?.[key])?.getTime()||0
   const rightStamp=parseDateValue(right?.[key])?.getTime()||0
@@ -4964,7 +4971,7 @@ const fillBookingForm=(booking=null)=>{
   // whatever generic payment_status the booking currently carries (e.g. partially_paid from the
   // Payments tab, or paid/foc recorded before a method was tracked) so existing data still displays.
   const bookingPaymentMethod=booking?.metadata?.payment_method||''
-  nodes.bookingPaymentStatus.value=['cash','card','eft','voucher'].includes(bookingPaymentMethod) ? bookingPaymentMethod : String(booking?.payment_status||'')
+  nodes.bookingPaymentStatus.value=PAYMENT_PROCESS_METHODS.includes(bookingPaymentMethod) ? bookingPaymentMethod : String(booking?.payment_status||'')
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
@@ -8786,12 +8793,14 @@ const handleBookingSave=async event=>{
   const isReservationAcceptanceWorkflow=returnToReservationManagement&&wasEditing&&!isReviewReservation({status:requestedStatus})
   // Payment Process: the field captures HOW a booking was settled (cash/card/eft/voucher) or FOC.
   // Any method selection means payment is complete; the method itself is kept in metadata.payment_method
-  // for record-keeping. 'paid'/'partially_paid' can still arrive here unchanged (carried over from a
-  // booking's existing value, or set by the granular Payments-tab flow) since this field can't produce them.
-  const selectedPaymentMethod=['cash','card','eft','voucher'].includes(requestedPaymentField) ? requestedPaymentField : ''
-  const mappedPaymentStatus=requestedPaymentField==='foc' ? 'foc'
+  // for record-keeping. Generic values this field can't produce itself (to_pay/paid/partially_paid, or
+  // legacy invoice/invoiced/fully_paid set by other flows) pass through unchanged when left untouched —
+  // otherwise the next unrelated save would silently corrupt them (e.g. wipe a "to_pay" booking to blank).
+  const isFocSelected=requestedPaymentField==='foc'
+  const selectedPaymentMethod=PAYMENT_PROCESS_METHODS.includes(requestedPaymentField) ? requestedPaymentField : ''
+  const mappedPaymentStatus=isFocSelected ? 'foc'
     : selectedPaymentMethod ? 'paid'
-    : ['paid','partially_paid'].includes(requestedPaymentField) ? requestedPaymentField
+    : PAYMENT_PROCESS_PRESERVED_STATUSES.includes(requestedPaymentField) ? requestedPaymentField
     : ''
   // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance recorded how it was settled.
   const finalPaymentStatus=!wasEditing ? '' : (requestedStatus==='confirmed'&&!mappedPaymentStatus ? 'to_pay' : mappedPaymentStatus)
@@ -8812,7 +8821,10 @@ const handleBookingSave=async event=>{
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
-      payment_method:selectedPaymentMethod||(requestedPaymentField==='foc' ? '' : (existingBooking?.metadata?.payment_method||'')),
+      // Keep the previously recorded method only while the field shows an untouched preserved value
+      // (to_pay/paid/partially_paid/legacy); selecting a fresh method, FOC, or "— Not set —" all
+      // deliberately overwrite/clear it rather than leaving a stale method behind.
+      payment_method:selectedPaymentMethod||(PAYMENT_PROCESS_PRESERVED_STATUSES.includes(requestedPaymentField) ? (existingBooking?.metadata?.payment_method||'') : ''),
       custom_fields:collectBookingCustomFieldValues(),
       departure_label:nodes.bookingDeparture?.value||'',
       pickup_time:nodes.bookingPickup?.value||'',

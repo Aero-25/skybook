@@ -1566,14 +1566,6 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .booking-row.status-confirmed td{background:rgba(248,250,252,.75);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
 .booking-row.status-confirmed td:first-child{border-left:4px solid #1e293b}
 .booking-row.status-confirmed td:last-child{border-right:2px solid #1e293b}
-/* CONFIRMED + INVOICE — Black border, red bg */
-.booking-row.status-confirmed-invoice td{background:rgba(254,226,226,.8);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
-.booking-row.status-confirmed-invoice td:first-child{border-left:4px solid #1e293b}
-.booking-row.status-confirmed-invoice td:last-child{border-right:2px solid #1e293b}
-/* CONFIRMED + INVOICED — Black border, light green bg */
-.booking-row.status-confirmed-invoiced td{background:rgba(220,252,231,.85);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
-.booking-row.status-confirmed-invoiced td:first-child{border-left:4px solid #1e293b}
-.booking-row.status-confirmed-invoiced td:last-child{border-right:2px solid #1e293b}
 /* CONFIRMED + PARTIALLY PAID — Black border, dark green bg */
 .booking-row.status-confirmed-partially-paid td{background:rgba(134,239,172,.6);border-top:2px solid #1e293b;border-bottom:2px solid #1e293b}
 .booking-row.status-confirmed-partially-paid td:first-child{border-left:4px solid #1e293b}
@@ -1600,8 +1592,6 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .cal-day-block.status-provisional{border-color:#ca8a04;background:#fefce8}
 .cal-day-block.status-awaiting-details{border-color:#e9c46a;background:#fdecc8}
 .cal-day-block.status-confirmed{border-color:#1e293b;background:#f8fafc}
-.cal-day-block.status-confirmed-invoice{border-color:#1e293b;background:#ede9fe}
-.cal-day-block.status-confirmed-invoiced{border-color:#1e293b;background:#dcfce7}
 .cal-day-block.status-confirmed-partially-paid{border-color:#1e293b;background:#bbf7d0}
 .cal-day-block.status-confirmed-to-pay{border-color:#5b3fa0;background:#e7e0f7}
 .cal-day-block.status-confirmed-fully-paid{border-color:#1e293b;background:#dbeafe}
@@ -1609,8 +1599,6 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .calendar-mini-card.status-provisional{border-left:4px solid #ca8a04;background:#fefce8}
 .calendar-mini-card.status-awaiting-details{border-left:4px solid #e9c46a;background:#fdecc8}
 .calendar-mini-card.status-confirmed{border-left:4px solid #1e293b;background:#f8fafc}
-.calendar-mini-card.status-confirmed-invoice{border-left:4px solid #1e293b;background:#ede9fe}
-.calendar-mini-card.status-confirmed-invoiced{border-left:4px solid #1e293b;background:#dcfce7}
 .calendar-mini-card.status-confirmed-partially-paid{border-left:4px solid #1e293b;background:#bbf7d0}
 .calendar-mini-card.status-confirmed-to-pay{border-left:4px solid #5b3fa0;background:#e7e0f7}
 .calendar-mini-card.status-confirmed-fully-paid{border-left:4px solid #1e293b;background:#dbeafe}
@@ -1618,8 +1606,6 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .calendar-entry-card.status-provisional{border-left:4px solid #ca8a04;background:#fefce8}
 .calendar-entry-card.status-awaiting-details{border-left:4px solid #e9c46a;background:#fdecc8}
 .calendar-entry-card.status-confirmed{border-left:4px solid #1e293b;background:#f8fafc}
-.calendar-entry-card.status-confirmed-invoice{border-left:4px solid #1e293b;background:#ede9fe}
-.calendar-entry-card.status-confirmed-invoiced{border-left:4px solid #1e293b;background:#dcfce7}
 .calendar-entry-card.status-confirmed-partially-paid{border-left:4px solid #1e293b;background:#bbf7d0}
 .calendar-entry-card.status-confirmed-to-pay{border-left:4px solid #5b3fa0;background:#e7e0f7}
 .calendar-entry-card.status-confirmed-fully-paid{border-left:4px solid #1e293b;background:#dbeafe}
