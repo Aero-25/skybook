@@ -1563,17 +1563,14 @@ const getStatusRowClass=booking=>{
   if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
   const payment=normalizeText(booking?.payment_status||'')
-  const invoice=normalizeText(booking?.invoice_status||'')
   if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
   if(status==='awaiting_details')return 'status-awaiting-details'
   if(status==='provisional')return 'status-provisional'
   if(status==='confirmed'||status==='finalised'){
-    // Colour reflects payment progress first, then invoicing state.
+    // Colour reflects payment progress.
     if(payment==='paid'||payment==='fully_paid')return 'status-confirmed-fully-paid'
     if(payment==='partially_paid')return 'status-confirmed-partially-paid'
     if(payment==='to_pay')return 'status-confirmed-to-pay'
-    if(invoice==='invoiced')return 'status-confirmed-invoiced'
-    if(invoice==='invoice')return 'status-confirmed-invoice'
     return 'status-confirmed'
   }
   return ''
@@ -2106,8 +2103,7 @@ const bookingHasOpenOperationalWork=booking=>{
   const openTasks=getBookingTasks(booking?.id).some(task=>String(task.status||'')==='open')
   const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
   const needsOperator=['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
-  const invoiceStatus=String(booking?.invoice_status||'').toLowerCase()
-  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','to_pay','partially_paid'].includes(paymentStatus)||invoiceStatus==='invoice'
+  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','to_pay','partially_paid'].includes(paymentStatus)
 }
 
 const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
@@ -2123,11 +2119,9 @@ const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
   if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
   if(key==='provisional')return status==='provisional'
   if(key==='confirmed')return status==='confirmed'
-  const invoice=normalizeText(booking?.invoice_status||'')
-  if(['invoice','invoiced'].includes(key))return status==='confirmed'&&invoice===key
   if(key==='fully_paid'||key==='paid')return status==='confirmed'&&['paid','fully_paid'].includes(payment)
   if(['to_pay','partially_paid','foc'].includes(key))return status==='confirmed'&&payment===key
-  return status===key||payment===key||invoice===key
+  return status===key||payment===key
 }
 
 const updateBookingQuickFilterBar=()=>{
@@ -4436,11 +4430,10 @@ const renderBookingDetail=()=>{
                 </div>
                 <div class="booking-function-group">
                   <button type="button" data-booking-inline-action="issue-client-invoice">Invoice Client</button>
-                  ${normalizeText(booking.status)==='confirmed'&&normalizeText(booking.invoice_status||'')!=='invoice' ? '<button type="button" data-booking-inline-action="move-to-invoice">Move to Invoice</button>' : ''}
                   <button type="button" data-booking-inline-action="generate-payment-link">Generate Payment Link</button>
                   ${bookingPaymentLink ? '<button type="button" data-booking-inline-action="copy-payment-link">Copy Payment Link</button>' : ''}
                 </div>
-                <p class="booking-function-note">Invoice the guest directly or move this booking to invoice status.</p>
+                <p class="booking-function-note">Invoice the guest directly.</p>
               </section>
             </div>
             ` : ''}
@@ -4613,6 +4606,7 @@ const renderBookingDetail=()=>{
                 </div>
                 <div class="detail-actions vertical-actions">
                   <button type="button" data-booking-inline-action="document:guest_invoice">Guest Invoice PDF</button>
+                  <button type="button" data-booking-inline-action="document:pro_forma_invoice">Pro Forma Invoice PDF</button>
                   <button type="button" data-booking-inline-action="create-manual-invoice">Create Invoice</button>
                   <button type="button" data-booking-inline-action="document:manifest">Manifest PDF</button>
                   ${isFinalised ? '<button type="button" data-booking-inline-action="memories-focus">Upload Tour Memories</button>' : ''}
@@ -4966,7 +4960,11 @@ const fillBookingForm=(booking=null)=>{
   if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'confirmed'
-  nodes.bookingPaymentStatus.value=booking?.payment_status||''
+  // Payment Process shows the recorded settlement method when known; otherwise it falls back to
+  // whatever generic payment_status the booking currently carries (e.g. partially_paid from the
+  // Payments tab, or paid/foc recorded before a method was tracked) so existing data still displays.
+  const bookingPaymentMethod=booking?.metadata?.payment_method||''
+  nodes.bookingPaymentStatus.value=['cash','card','eft','voucher'].includes(bookingPaymentMethod) ? bookingPaymentMethod : String(booking?.payment_status||'')
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
@@ -8784,10 +8782,19 @@ const handleBookingSave=async event=>{
     throw new Error('SkyBook could not find the booking record being edited. Refresh and reopen the exact booking before saving.')
   }
   const requestedStatus=nodes.bookingStatus.value
-  const requestedPaymentStatus=nodes.bookingPaymentStatus.value
+  const requestedPaymentField=nodes.bookingPaymentStatus.value
   const isReservationAcceptanceWorkflow=returnToReservationManagement&&wasEditing&&!isReviewReservation({status:requestedStatus})
-  // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance set it otherwise.
-  const finalPaymentStatus=!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus)
+  // Payment Process: the field captures HOW a booking was settled (cash/card/eft/voucher) or FOC.
+  // Any method selection means payment is complete; the method itself is kept in metadata.payment_method
+  // for record-keeping. 'paid'/'partially_paid' can still arrive here unchanged (carried over from a
+  // booking's existing value, or set by the granular Payments-tab flow) since this field can't produce them.
+  const selectedPaymentMethod=['cash','card','eft','voucher'].includes(requestedPaymentField) ? requestedPaymentField : ''
+  const mappedPaymentStatus=requestedPaymentField==='foc' ? 'foc'
+    : selectedPaymentMethod ? 'paid'
+    : ['paid','partially_paid'].includes(requestedPaymentField) ? requestedPaymentField
+    : ''
+  // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance recorded how it was settled.
+  const finalPaymentStatus=!wasEditing ? '' : (requestedStatus==='confirmed'&&!mappedPaymentStatus ? 'to_pay' : mappedPaymentStatus)
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
@@ -8795,17 +8802,6 @@ const handleBookingSave=async event=>{
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
     payment_status:finalPaymentStatus,
-    // Status 1 (invoice): auto-flips to "invoiced" the moment payment status newly becomes paid-like
-    // (any payment recorded, or FOC). Once that transition has happened, later saves leave invoice_status
-    // alone — so the "Move to Invoice" action (which reverts it back to "invoice" independently of
-    // payment_status) doesn't get silently re-flipped to "invoiced" by the next unrelated edit.
-    invoice_status:(()=>{
-      const paidLikeStatuses=['partially_paid','paid','fully_paid','foc']
-      const wasPaidLike=paidLikeStatuses.includes(existingBooking?.payment_status||'')
-      const isPaidLike=paidLikeStatuses.includes(finalPaymentStatus)
-      if(isPaidLike&&!wasPaidLike)return 'invoiced'
-      return existingBooking?.invoice_status||(isPaidLike?'invoiced':'invoice')
-    })(),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -8816,6 +8812,7 @@ const handleBookingSave=async event=>{
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
+      payment_method:selectedPaymentMethod||(requestedPaymentField==='foc' ? '' : (existingBooking?.metadata?.payment_method||'')),
       custom_fields:collectBookingCustomFieldValues(),
       departure_label:nodes.bookingDeparture?.value||'',
       pickup_time:nodes.bookingPickup?.value||'',
@@ -10246,16 +10243,6 @@ nodes.bookingDetail.addEventListener('click',event=>{
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{status:'confirmed',payment_status:confirmPaymentStatus,workflow_action:'confirm_booking'}
     }).then(()=>createActivityNote(state.selectedBookingId,'Booking confirmed.')).then(()=>refreshAdmin('Booking confirmed.')),'Confirmation failed.','Confirming booking')
-    return
-  }
-  if(inlineAction==='move-to-invoice'){
-    const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
-    if(!booking){setAdminStatus('No booking selected.',true);return}
-    runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
-      method:'PATCH',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{invoice_status:'invoice',workflow_action:'move_to_invoice'}
-    }).then(()=>createActivityNote(state.selectedBookingId,'Booking moved to Invoice.')).then(()=>refreshAdmin('Booking moved to Invoice.')),'Status update failed.','Moving to Invoice')
     return
   }
   if(inlineAction==='reinstate-booking'){

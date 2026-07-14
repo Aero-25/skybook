@@ -633,8 +633,6 @@
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="to_pay">To Pay <span data-filter-count="to_pay">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoice">Invoice <span data-filter-count="invoice">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="invoiced">Invoiced <span data-filter-count="invoiced">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Part Paid <span data-filter-count="partially_paid">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Paid <span data-filter-count="fully_paid">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="cancelled">Cancelled <span data-filter-count="cancelled">0</span></button>
@@ -1511,21 +1509,24 @@
             <label class="booking-field">
               <span>Status</span>
               <select id="adminBookingStatusField">
-                <option value="awaiting_details">Awaiting Details</option>
-                <option value="provisional">Provisional</option>
-                <option value="confirmed">Confirmed</option>
+                <option value="awaiting_details" disabled>Awaiting Details</option>
+                <option value="provisional" disabled>Provisional</option>
+                <option value="confirmed" disabled>Confirmed</option>
                 <option value="finalised">Finalised</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </label>
             <label class="booking-field">
-              <span>Payment Status</span>
+              <span>Payment Process</span>
               <select id="adminBookingPaymentStatusField">
                 <option value="">— Not set —</option>
-                <option value="to_pay">To Pay</option>
-                <option value="partially_paid">Partially Paid</option>
-                <option value="paid">Paid</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="eft">EFT</option>
+                <option value="voucher">Voucher</option>
                 <option value="foc">FOC (Free of Charge)</option>
+                <option value="paid" disabled>Paid (method not recorded)</option>
+                <option value="partially_paid" disabled>Partially Paid</option>
               </select>
             </label>
             <label class="booking-field">
@@ -1932,7 +1933,7 @@
   </script>
   <script src="assets/js/tenant.js"></script>
   <script src="assets/js/vendor/qrcode.min.js"></script>
-  <script src="assets/js/booking-admin.js?v=20260703-badges-reports" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260714-payment-process" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 
