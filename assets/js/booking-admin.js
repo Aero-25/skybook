@@ -138,6 +138,7 @@ const state={
   isCustomerModalOpen:false,
   isPartnerModalOpen:false,
   isWorkflowModalOpen:false,
+  isReportPreviewModalOpen:false,
   workflowModalConfig:null,
   bookingFunctionsCollapsed:false,
   bookingDetailTab:'client',
@@ -375,7 +376,6 @@ const nodes={
   bookingService:document.getElementById('adminBookingService'),
   bookingStatus:document.getElementById('adminBookingStatusField'),
   bookingPaymentStatus:document.getElementById('adminBookingPaymentStatusField'),
-  bookingInvoiceStatus:document.getElementById('adminBookingInvoiceStatusField'),
   bookingDate:document.getElementById('adminBookingDate'),
   bookingDeparture:document.getElementById('adminBookingDeparture'),
   bookingDepartureWrap:document.getElementById('adminBookingDepartureWrap'),
@@ -463,6 +463,13 @@ const nodes={
   workflowModalSubmitButton:document.getElementById('workflowModalSubmitButton'),
   workflowModalCancelButton:document.getElementById('workflowModalCancelButton'),
   closeWorkflowModalButton:document.getElementById('closeWorkflowModalButton'),
+  reportPreviewModal:document.getElementById('reportPreviewModal'),
+  reportPreviewTitle:document.getElementById('reportPreviewTitle'),
+  reportPreviewFrame:document.getElementById('reportPreviewFrame'),
+  closeReportPreviewModalButton:document.getElementById('closeReportPreviewModalButton'),
+  reportPreviewDownloadPdf:document.getElementById('reportPreviewDownloadPdf'),
+  reportPreviewDownloadWord:document.getElementById('reportPreviewDownloadWord'),
+  reportPreviewDownloadExcel:document.getElementById('reportPreviewDownloadExcel'),
   paymentsTable:document.getElementById('adminPaymentsTable'),
   refundsTable:document.getElementById('adminRefundsTable'),
   reservationTrashSearch:document.getElementById('reservationTrashSearch'),
@@ -1394,7 +1401,6 @@ const collectBookingFormValues=()=>({
   service_slug:nodes.bookingService?.value||'',
   status:nodes.bookingStatus?.value||'',
   payment_status:nodes.bookingPaymentStatus?.value||'',
-  invoice_status:nodes.bookingInvoiceStatus?.value||'',
   preferred_date:nodes.bookingDate?.value||'',
   adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
   child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -1427,7 +1433,6 @@ const applyBookingFormValues=values=>{
   if(nodes.bookingService)nodes.bookingService.value=String(values.service_slug||'')
   if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'confirmed')
   if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'')
-  if(nodes.bookingInvoiceStatus)nodes.bookingInvoiceStatus.value=String(values.invoice_status||nodes.bookingInvoiceStatus.value||'invoice')
   if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
   if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
   const prefillAdults=Number(values.adult_quantity||0),prefillChildren=Number(values.child_quantity||0),prefillInfants=Number(values.infant_quantity||values.metadata?.infant_quantity||0)
@@ -1586,19 +1591,6 @@ const formatPaymentStatusLabel=status=>{
   const key=normalizeText(status)
   if(!key)return '—'
   return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
-}
-// Status 1 (invoice_status) is its own dimension: 'invoice' (to be invoiced) | 'invoiced'.
-const INVOICE_STATUS_LABELS={invoice:'Invoice',invoiced:'Invoiced'}
-const formatInvoiceStatusLabel=status=>{
-  const key=normalizeText(status)
-  if(!key)return ''
-  return INVOICE_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
-}
-// Render the invoice-status badge (empty string when not set, e.g. cancelled bookings).
-const renderInvoiceBadge=booking=>{
-  const key=normalizeText(booking?.invoice_status||'')
-  if(!key)return ''
-  return renderStatusBadge(key,formatInvoiceStatusLabel(key))
 }
 
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
@@ -3431,6 +3423,7 @@ const renderCalendarDayBookings=dateKey=>{
   dayBookingsEl.innerHTML=`<div class="calendar-day-bookings-grid">${bookings.map(booking=>{
     const meta=normalizeJsonRecord(booking.metadata)
     const isCruise=isCruiseLinerBooking(booking)
+    const bookingNotes=getBookingNotes(booking.id)
     const bA=Number(booking.adult_quantity||0),bC=Number(booking.child_quantity||0),bI=Number(booking.infant_quantity||0)
     const pax=bA+bC+bI||Number(booking.quantity||1)
     const paxParts=[bA>0?`${bA} adult${bA!==1?'s':''}`:'',(bC>0?`${bC} child${bC!==1?'ren':''}`:''),(bI>0?`${bI} infant${bI!==1?'s':''}`:'' )].filter(Boolean)
@@ -3441,7 +3434,7 @@ const renderCalendarDayBookings=dateKey=>{
       <strong>${bookingAdminShared.escapeHtml(displayName)}</strong>
       <span>${bookingAdminShared.escapeHtml(isCruise ? (meta.display_name||booking.service_name||'—') : (booking.service_name||'—'))}</span>
       <span>${bookingAdminShared.escapeHtml(paxLabel)}${isCruise&&meta.buses>0?` · ${meta.buses} bus${meta.buses>1?'es':''}`:''}</span>
-      <div class="cal-day-block-tags">${renderStatusBadge(booking.status)}${renderInvoiceBadge(booking)}${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''}</div>
+      <div class="cal-day-block-tags">${renderStatusBadge(booking.status)}${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''}</div>
       <div class="block-amount">${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</div>
     </article>
     <div class="cal-day-block-detail" id="block-detail-${bookingAdminShared.escapeHtml(booking.id)}">
@@ -3451,13 +3444,13 @@ const renderCalendarDayBookings=dateKey=>{
         <dt>Activity</dt><dd>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</dd>
         <dt>Amount</dt><dd>${bookingAdminShared.formatMoney(booking.total_amount||0,booking.currency||state.settings.currency)}</dd>
         <dt>Status</dt><dd>${renderStatusBadge(booking.status)}</dd>
-        <dt>Invoice</dt><dd>${renderInvoiceBadge(booking)||'—'}</dd>
         <dt>Payment</dt><dd>${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):'—'}</dd>
         <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
         <dt>Contact</dt><dd>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</dd>
         <dt>Pickup</dt><dd>${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</dd>
         <dt>Drop Off</dt><dd>${bookingAdminShared.escapeHtml(meta.dropoff_location||'—')}</dd>
         <dt>Accommodation</dt><dd>${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</dd>
+        ${bookingNotes.length ? `<dt>Notes</dt><dd>${bookingNotes.slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(note=>bookingAdminShared.escapeHtml(note.note||'')).join('<br>')}</dd>` : ''}
       </dl>
       <div class="cal-day-block-actions">${renderOpenBookingLink(booking,'Open booking management →')}</div>
     </div>
@@ -3877,15 +3870,9 @@ const renderBookings=()=>{
   const pageItems=filtered
   nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
-    const isCancelled=normalizeText(booking.status)==='cancelled'
-    // Three independent badges: lifecycle (status) · invoicing (invoice_status) · payment.
+    // Two independent badges: lifecycle (status) · payment (which also implies invoicing).
     const statusBadge=renderStatusBadge(booking.status)
     const paymentBadge=booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''
-    const invoiceBadge=renderInvoiceBadge(booking)
-    const canGenerateInvoice=!isCancelled&&['invoice','invoiced'].includes(normalizeText(booking.invoice_status||''))
-    const invoiceBadgeCell=canGenerateInvoice&&invoiceBadge
-      ? `<button type="button" class="status-badge-action" data-grid-action="generate-guest-invoice" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}" title="Generate &amp; open the guest invoice">${invoiceBadge}</button>`
-      : invoiceBadge
     return `
     <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
@@ -3894,7 +3881,7 @@ const renderBookings=()=>{
         <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${statusBadge}${invoiceBadgeCell}${paymentBadge}${renderToPayTag(booking)}</td>
+      <td data-label="Status">${statusBadge}${paymentBadge}${renderToPayTag(booking)}</td>
       <td data-label="Open" class="booking-open-cell">${renderOpenBookingLink(booking)}</td>
     </tr>
   `
@@ -4051,7 +4038,7 @@ const buildClientProfileCard=(booking)=>{
               <span>${bookingAdminShared.escapeHtml(b.reference||'Draft')}</span>
               <span>${bookingAdminShared.escapeHtml(b.service_name||'—')}</span>
               <span>${bookingAdminShared.escapeHtml(formatDateLabel(b.preferred_date))}</span>
-              ${renderStatusBadge(b.status)}${renderInvoiceBadge(b)}${b.payment_status?renderStatusBadge(b.payment_status,formatPaymentStatusLabel(b.payment_status)):''}
+              ${renderStatusBadge(b.status)}${b.payment_status?renderStatusBadge(b.payment_status,formatPaymentStatusLabel(b.payment_status)):''}
             </div>
           `).join('')}
         </div>
@@ -4176,7 +4163,6 @@ const renderBookingDetail=()=>{
         </div>
         <div class="bm-header-badges">
           ${renderStatusBadge(booking.status)}
-          ${renderInvoiceBadge(booking)}
           ${booking.payment_status ? renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)) : ''}
         </div>
         <span class="bm-mobile-tab-label">${{client:'Client',finance:'Finance',tasks:'Tasks',documents:'Documents',commercial:'Commercial'}[activeTab]||activeTab}</span>
@@ -4981,7 +4967,6 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'confirmed'
   nodes.bookingPaymentStatus.value=booking?.payment_status||''
-  if(nodes.bookingInvoiceStatus)nodes.bookingInvoiceStatus.value=booking?.invoice_status||'invoice'
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
@@ -5134,7 +5119,7 @@ const renderServices=()=>{
 }
 
 const syncModalBodyState=()=>{
-  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen||state.isCustomerModalOpen||state.isPartnerModalOpen||state.isWorkflowModalOpen)
+  document.body.classList.toggle('is-modal-open',state.isServiceModalOpen||state.isBookingModalOpen||state.isCustomerModalOpen||state.isPartnerModalOpen||state.isWorkflowModalOpen||state.isReportPreviewModalOpen)
 }
 
 const setServiceModalState=isOpen=>{
@@ -7103,6 +7088,7 @@ const shouldPauseLiveAdminSync=()=>Boolean(
   || state.isCustomerModalOpen
   || state.isPartnerModalOpen
   || state.isWorkflowModalOpen
+  || state.isReportPreviewModalOpen
   || state.bookingEditor?.isDirty
 )
 const refreshAdmin=async(message='Booking operations console synced.',options={})=>{
@@ -7490,9 +7476,9 @@ const buildPaymentTypeTableRows=rows=>rows.map(row=>`
 
 const printableBookingRows=bookings=>bookings.map(booking=>`
   <tr>
-    <td><strong>${bookingAdminShared.escapeHtml(booking.reference||'')}</strong></td>
+    <td><strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong></td>
+    <td>${bookingAdminShared.escapeHtml(booking.reference||'')}</td>
     <td>${bookingAdminShared.escapeHtml(getBrandName(booking.brand_code))}</td>
-    <td>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</td>
     <td>${bookingAdminShared.escapeHtml(booking.service_name||'Tour pending')}</td>
     <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
     <td>${bookingAdminShared.escapeHtml(String(booking.quantity||1))}</td>
@@ -7820,7 +7806,7 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
     .slice(0,30)
   const openInvoiceRows=openInvoiceData.map(invoice=>{
       const booking=getBookingById(invoice.booking_id)
-      return `<tr><td>${bookingAdminShared.escapeHtml(invoice.invoice_number||booking?.reference||'')}</td><td>${bookingAdminShared.escapeHtml(getDebtorName(invoice))}</td><td>${bookingAdminShared.escapeHtml(booking?.service_name||'')}</td><td>${printableMoney(invoice.total_amount,invoice.currency_code)}</td><td>${printableMoney(invoice.balance_amount,invoice.currency_code)}</td></tr>`
+      return `<tr><td><strong>${bookingAdminShared.escapeHtml(getDebtorName(invoice))}</strong></td><td>${bookingAdminShared.escapeHtml(invoice.invoice_number||booking?.reference||'')}</td><td>${bookingAdminShared.escapeHtml(booking?.service_name||'')}</td><td>${printableMoney(invoice.total_amount,invoice.currency_code)}</td><td>${printableMoney(invoice.balance_amount,invoice.currency_code)}</td></tr>`
     }).join('')
   const consultantData=buildConsultantProductivityRows(bookings)
   const consultantRows=consultantData.map(row=>`
@@ -7890,7 +7876,7 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
     </section>
     <section>
       <h2>Open debtor balances</h2>
-      <table><thead><tr><th>Invoice</th><th>Guest</th><th>Tour</th><th>Total</th><th>Outstanding</th></tr></thead><tbody>${openInvoiceRows||'<tr><td colspan="5">No outstanding active debtor balances.</td></tr>'}</tbody></table>
+      <table><thead><tr><th>Guest</th><th>Invoice</th><th>Tour</th><th>Total</th><th>Outstanding</th></tr></thead><tbody>${openInvoiceRows||'<tr><td colspan="5">No outstanding active debtor balances.</td></tr>'}</tbody></table>
     </section>` : ''}
     <section>
       <h2>Revenue by brand</h2>
@@ -7906,7 +7892,7 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
     </section>
     ${type==='commissions' ? `<section><h2>Commission detail</h2><table><thead><tr><th>Invoice</th><th>Payee</th><th>Type</th><th>Commission</th></tr></thead><tbody>${commissionRows || '<tr><td colspan="4">No commission records yet.</td></tr>'}</tbody></table></section>` : ''}
     ${type==='consultants' ? `<section><h2>Consultant productivity</h2><table><thead><tr><th>Consultant</th><th>Bookings</th><th>Accepted</th><th>Completed</th><th>Cancelled</th><th>No Shows</th><th>Gross</th><th>Paid</th></tr></thead><tbody>${consultantRows || '<tr><td colspan="8">No consultant productivity data yet.</td></tr>'}</tbody></table></section>` : ''}
-    ${type==='bookings' ? `<section><h2>Booking detail</h2><table><thead><tr><th>Reference</th><th>Brand</th><th>Guest</th><th>Tour</th><th>Date</th><th>Pax</th><th>Status</th><th>Total</th></tr></thead><tbody>${printableBookingRows(bookings) || '<tr><td colspan="8">No bookings in this period.</td></tr>'}</tbody></table></section>` : ''}
+    ${type==='bookings' ? `<section><h2>Booking detail</h2><table><thead><tr><th>Guest</th><th>Reference</th><th>Brand</th><th>Tour</th><th>Date</th><th>Pax</th><th>Status</th><th>Total</th></tr></thead><tbody>${printableBookingRows(bookings) || '<tr><td colspan="8">No bookings in this period.</td></tr>'}</tbody></table></section>` : ''}
   `
   // Excel workbook — one sheet per section, built from the SAME computed data.
   const groupedSheetRows=rows=>rows.map(row=>[row.name,Number(row.count),Number(row.revenue)])
@@ -7938,10 +7924,10 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
     })
     sheets.push({
       sheetName:'Open Debtor Balances',
-      columns:['Invoice','Guest','Tour','Total','Outstanding'],
+      columns:['Guest','Invoice','Tour','Total','Outstanding'],
       rows:openInvoiceData.map(invoice=>{
         const booking=getBookingById(invoice.booking_id)
-        return [invoice.invoice_number||booking?.reference||'',getDebtorName(invoice),booking?.service_name||'',Number(invoice.total_amount||0),Number(invoice.balance_amount||0)]
+        return [getDebtorName(invoice),invoice.invoice_number||booking?.reference||'',booking?.service_name||'',Number(invoice.total_amount||0),Number(invoice.balance_amount||0)]
       })
     })
   }
@@ -7965,8 +7951,8 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
   if(type==='bookings'){
     sheets.push({
       sheetName:'Bookings',
-      columns:['Reference','Brand','Guest','Tour','Date','Pax','Status','Total'],
-      rows:bookings.map(booking=>[booking.reference||'',getBrandName(booking.brand_code),booking.customer_name||'Guest',booking.service_name||'Tour pending',formatDateLabel(booking.preferred_date),Number(booking.quantity||1),formatDisplayLabel(booking.status||''),Number(booking.total_amount||0)])
+      columns:['Guest','Reference','Brand','Tour','Date','Pax','Status','Total'],
+      rows:bookings.map(booking=>[booking.customer_name||'Guest',booking.reference||'',getBrandName(booking.brand_code),booking.service_name||'Tour pending',formatDateLabel(booking.preferred_date),Number(booking.quantity||1),formatDisplayLabel(booking.status||''),Number(booking.total_amount||0)])
     })
   }
   return { title:reportTitle, filename, html, sheets }
@@ -8169,24 +8155,40 @@ const openArrivalsPrintModal=()=>{
   })
 }
 
+let currentReportModel=null
+const closeReportPreviewModal=()=>{
+  if(!nodes.reportPreviewModal)return
+  state.isReportPreviewModalOpen=false
+  nodes.reportPreviewModal.hidden=true
+  nodes.reportPreviewModal.setAttribute('aria-hidden','true')
+  if(nodes.reportPreviewFrame)nodes.reportPreviewFrame.srcdoc=''
+  currentReportModel=null
+  syncModalBodyState()
+}
+const openReportPreviewModal=model=>{
+  if(!nodes.reportPreviewModal||!model)return
+  currentReportModel=model
+  state.isReportPreviewModalOpen=true
+  if(nodes.reportPreviewTitle)nodes.reportPreviewTitle.textContent=model.title
+  if(nodes.reportPreviewFrame)nodes.reportPreviewFrame.srcdoc=sbWrapDoc(model.title,model.html)
+  nodes.reportPreviewModal.hidden=false
+  nodes.reportPreviewModal.setAttribute('aria-hidden','false')
+  syncModalBodyState()
+}
 const openReportPrintModal=reportType=>{
   openWorkflowModal({
-    title:'Download report',
-    description:'Choose the format and reporting window for the SkyBook report.',
-    submitLabel:'Download report',
+    title:'Preview report',
+    description:'Choose the reporting window. You can download the report as a PDF, Word, or Excel file from the preview.',
+    submitLabel:'Preview report',
     fields:[
-      { name:'format', label:'Format', type:'select', value:'pdf', required:true, options:[
-        {value:'pdf',label:'PDF'},{value:'word',label:'Word (.doc)'},{value:'excel',label:'Excel (.xlsx)'}
-      ]},
       { name:'period', label:'Reporting window', type:'select', value:'month', required:true, options:[
         {value:'day',label:'Day'},{value:'week',label:'Week'},{value:'month',label:'Month'},{value:'all',label:'All time'}
       ]}
     ],
     onSubmit:async values=>{
       const model=buildSkyBookReport(reportType,values.period)
-      if(values.format==='word')downloadReportAsWord(model.title,model.html,model.filename)
-      else if(values.format==='excel')await downloadReportAsExcel(model.title,model.sheets,model.filename)
-      else downloadSkyBookReportPdf(model.title,model.html,model.filename)
+      closeWorkflowModal()
+      openReportPreviewModal(model)
     }
   })
 }
@@ -8784,16 +8786,26 @@ const handleBookingSave=async event=>{
   const requestedStatus=nodes.bookingStatus.value
   const requestedPaymentStatus=nodes.bookingPaymentStatus.value
   const isReservationAcceptanceWorkflow=returnToReservationManagement&&wasEditing&&!isReviewReservation({status:requestedStatus})
+  // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance set it otherwise.
+  const finalPaymentStatus=!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus)
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
     status:!wasEditing ? 'provisional' : requestedStatus,
-    // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance set it otherwise.
-    payment_status:!wasEditing ? '' : (requestedStatus==='confirmed'&&!requestedPaymentStatus ? 'to_pay' : requestedPaymentStatus),
-    // Status 1 (invoice): defaults to "invoice" (still to be invoiced).
-    invoice_status:nodes.bookingInvoiceStatus?.value||'invoice',
+    payment_status:finalPaymentStatus,
+    // Status 1 (invoice): auto-flips to "invoiced" the moment payment status newly becomes paid-like
+    // (any payment recorded, or FOC). Once that transition has happened, later saves leave invoice_status
+    // alone — so the "Move to Invoice" action (which reverts it back to "invoice" independently of
+    // payment_status) doesn't get silently re-flipped to "invoiced" by the next unrelated edit.
+    invoice_status:(()=>{
+      const paidLikeStatuses=['partially_paid','paid','fully_paid','foc']
+      const wasPaidLike=paidLikeStatuses.includes(existingBooking?.payment_status||'')
+      const isPaidLike=paidLikeStatuses.includes(finalPaymentStatus)
+      if(isPaidLike&&!wasPaidLike)return 'invoiced'
+      return existingBooking?.invoice_status||(isPaidLike?'invoiced':'invoice')
+    })(),
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
     child_quantity:Number(nodes.bookingChildQuantity?.value||0),
@@ -9844,6 +9856,25 @@ nodes.workflowModalForm?.addEventListener('submit',event=>{
       setActionButtonLoading(nodes.workflowModalSubmitButton,false)
     })
 })
+nodes.closeReportPreviewModalButton?.addEventListener('click',closeReportPreviewModal)
+nodes.reportPreviewModal?.querySelector('.admin-modal-backdrop')?.addEventListener('click',closeReportPreviewModal)
+nodes.reportPreviewDownloadPdf?.addEventListener('click',()=>{
+  if(!currentReportModel)return
+  downloadSkyBookReportPdf(currentReportModel.title,currentReportModel.html,currentReportModel.filename)
+})
+nodes.reportPreviewDownloadWord?.addEventListener('click',()=>{
+  if(!currentReportModel)return
+  downloadReportAsWord(currentReportModel.title,currentReportModel.html,currentReportModel.filename)
+})
+nodes.reportPreviewDownloadExcel?.addEventListener('click',async()=>{
+  if(!currentReportModel)return
+  try{
+    await downloadReportAsExcel(currentReportModel.title,currentReportModel.sheets,currentReportModel.filename)
+  }catch(error){
+    setAdminStatus(error.message||'Could not generate Excel report.',true)
+    showToast(error.message||'Could not generate Excel report.','error')
+  }
+})
 nodes.serviceFilterBrand?.addEventListener('change',renderServices)
 nodes.openServiceModalButton?.addEventListener('click',()=>openServiceModal())
 nodes.closeServiceModalButton?.addEventListener('click',closeServiceModal)
@@ -9908,15 +9939,6 @@ nodes.bookingsTable.addEventListener('click',event=>{
   }else{
     window.open(getRecordPageUrl('bookings',booking.id),'_blank','noopener')
   }
-})
-
-nodes.bookingsTable.addEventListener('click',event=>{
-  const trigger=event.target.closest('[data-grid-action="generate-guest-invoice"]')
-  if(!trigger)return
-  event.preventDefault();event.stopPropagation()
-  const booking=state.bookings.find(item=>String(item.id)===String(trigger.dataset.bookingId))
-  if(!booking)return
-  void generateBookingDocument('guest_invoice',booking).catch(error=>setAdminStatus(error.message||'Invoice generation failed.',true))
 })
 
 nodes.reservationsTable?.addEventListener('click',event=>{
@@ -10523,6 +10545,10 @@ document.addEventListener('keydown',event=>{
   }
   if(event.key==='Escape'&&state.isWorkflowModalOpen){
     closeWorkflowModal()
+    return
+  }
+  if(event.key==='Escape'&&state.isReportPreviewModalOpen){
+    closeReportPreviewModal()
     return
   }
   if(event.key==='Escape'&&document.body.classList.contains('is-sidebar-open')){

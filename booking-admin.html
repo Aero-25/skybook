@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260612-toolbar">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260703-reportpreview">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1769aa">
 <meta name="mobile-web-app-capable" content="yes">
@@ -371,10 +371,10 @@
                 <h3>Reports Overview</h3>
               </div>
               <div class="toolbar-actions">
-                <button type="button" class="booking-button ghost" data-print-report="bookings">Download Booking PDF</button>
-                <button type="button" class="booking-button ghost" data-print-report="financial">Download Financial PDF</button>
-                <button type="button" class="booking-button ghost" data-print-report="commissions">Download Commission PDF</button>
-                <button type="button" class="booking-button ghost" data-print-report="consultants">Download Consultant PDF</button>
+                <button type="button" class="booking-button ghost" data-print-report="bookings">Preview Booking Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="financial">Preview Financial Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="commissions">Preview Commission Report</button>
+                <button type="button" class="booking-button ghost" data-print-report="consultants">Preview Consultant Report</button>
               </div>
             </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
@@ -1519,13 +1519,6 @@
               </select>
             </label>
             <label class="booking-field">
-              <span>Invoice Status</span>
-              <select id="adminBookingInvoiceStatusField">
-                <option value="invoice">Invoice (to be invoiced)</option>
-                <option value="invoiced">Invoiced</option>
-              </select>
-            </label>
-            <label class="booking-field">
               <span>Payment Status</span>
               <select id="adminBookingPaymentStatusField">
                 <option value="">— Not set —</option>
@@ -1906,6 +1899,25 @@
         </article>
       </div>
 
+      <div class="admin-modal-shell" id="reportPreviewModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel admin-report-preview-panel" role="dialog" aria-modal="true" aria-labelledby="reportPreviewTitle">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3 id="reportPreviewTitle">Report preview</h3>
+              <p class="field-hint">Review the report, then download it in the format you need.</p>
+            </div>
+            <button class="admin-modal-close" id="closeReportPreviewModalButton" type="button" aria-label="Close report preview">X</button>
+          </div>
+          <div class="toolbar-actions report-preview-actions">
+            <button type="button" class="booking-button" id="reportPreviewDownloadPdf">Download PDF</button>
+            <button type="button" class="booking-button ghost" id="reportPreviewDownloadWord">Download Word</button>
+            <button type="button" class="booking-button ghost" id="reportPreviewDownloadExcel">Download Excel</button>
+          </div>
+          <iframe id="reportPreviewFrame" class="report-preview-frame" title="Report preview"></iframe>
+        </article>
+      </div>
+
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260619-ipadfix"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
@@ -1920,7 +1932,7 @@
   </script>
   <script src="assets/js/tenant.js"></script>
   <script src="assets/js/vendor/qrcode.min.js"></script>
-  <script src="assets/js/booking-admin.js?v=20260619-booking-isolation" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260703-badges-reports" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 

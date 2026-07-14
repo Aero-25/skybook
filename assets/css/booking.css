@@ -1161,6 +1161,23 @@ body.skybook-auth-page{
 .admin-workflow-modal .booking-form-grid{
   padding-bottom:4px;
 }
+.admin-report-preview-panel{
+  width:min(1120px,100%);
+  max-height:min(94vh,1100px);
+  display:flex;
+  flex-direction:column;
+}
+.report-preview-actions{
+  padding-bottom:14px;
+}
+.report-preview-frame{
+  width:100%;
+  flex:1;
+  min-height:65vh;
+  border:1px solid var(--booking-line);
+  border-radius:12px;
+  background:#fff;
+}
 .workflow-modal-actions{
   display:flex;
   justify-content:flex-end;
