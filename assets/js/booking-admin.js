@@ -1590,13 +1590,6 @@ const formatPaymentStatusLabel=status=>{
   return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 }
 
-// Payment Process field: selecting one of these methods means the booking is paid in full.
-const PAYMENT_PROCESS_METHODS=['cash','card','eft','voucher']
-// Generic payment_status values the Payment Process field can't produce itself, but must still be
-// able to display (and pass through unchanged) since other flows (Payments tab, confirm-booking,
-// cruise-liner creation, legacy data) can set them directly on the booking.
-const PAYMENT_PROCESS_PRESERVED_STATUSES=['to_pay','paid','partially_paid','invoice','invoiced','fully_paid']
-
 const sortByDateDesc=(items,key)=>[...items].sort((left,right)=>{
   const leftStamp=parseDateValue(left?.[key])?.getTime()||0
   const rightStamp=parseDateValue(right?.[key])?.getTime()||0
@@ -4966,12 +4959,10 @@ const fillBookingForm=(booking=null)=>{
   syncBookingReferenceField({booking,brandCode,forceNew:!booking})
   if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
   nodes.bookingService.value=booking?.service_slug||''
-  nodes.bookingStatus.value=booking?.status||'confirmed'
-  // Payment Process shows the recorded settlement method when known; otherwise it falls back to
-  // whatever generic payment_status the booking currently carries (e.g. partially_paid from the
-  // Payments tab, or paid/foc recorded before a method was tracked) so existing data still displays.
-  const bookingPaymentMethod=booking?.metadata?.payment_method||''
-  nodes.bookingPaymentStatus.value=PAYMENT_PROCESS_METHODS.includes(bookingPaymentMethod) ? bookingPaymentMethod : String(booking?.payment_status||'')
+  nodes.bookingStatus.value=booking?.status||'finalised'
+  // payment_status now directly holds the method (or a still-valid legacy value like partially_paid
+  // from the Payments tab) — no metadata lookup needed, the column is the single source of truth.
+  nodes.bookingPaymentStatus.value=String(booking?.payment_status||'')
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
