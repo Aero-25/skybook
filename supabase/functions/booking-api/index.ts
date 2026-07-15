@@ -3930,27 +3930,32 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const statusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'status')&&nextStatus!==normalizeText(existing.status)
   const paymentStatusChangeRequested=Object.prototype.hasOwnProperty.call(payload,'payment_status')&&nextPaymentStatus!==normalizeText(existing.payment_status)
   const isSystemActor=!normalizeText(userId) || workflowAction==='system_automation'
+  // isNoShowWorkflow now targets 'cancelled' (no-show folds into cancellation, same reason requirement).
   const isCancellationWorkflow=workflowAction==='cancel_booking'&&nextStatus==='cancelled'&&Boolean(normalizeText(payload.reason))
-  const isNoShowWorkflow=workflowAction==='no_show'&&nextStatus==='no_show'&&Boolean(normalizeText(payload.reason))
-  const isRescheduleWorkflow=workflowAction==='reschedule'&&nextStatus==='rescheduled'&&Boolean(normalizeText(payload.reason))
+  const isNoShowWorkflow=workflowAction==='no_show'&&nextStatus==='cancelled'&&Boolean(normalizeText(payload.reason))
+  // Reschedule no longer changes status at all (see rescheduleBooking) — no flag needed for it here;
+  // a reschedule PATCH never includes `status`, so statusChangeRequested is false and this whole
+  // authorization block is skipped for that call entirely.
+  // isReservationAcceptanceWorkflow now only ever targets 'finalised' (accepting a website booking).
+  // Declining one goes through isCancellationWorkflow instead (nextStatus:'cancelled', reason).
   const isReservationAcceptanceWorkflow=workflowAction==='accept_reservation'
-    && ['draft','pending','provisional'].includes(normalizeText(existing.status))
-    && ['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','awaiting_payment','confirmed'].includes(nextStatus)
+    && ['provisional'].includes(normalizeText(existing.status))
+    && nextStatus==='finalised'
+  // isReinstateWorkflow now serves two callers: reinstating a cancelled booking back to active
+  // (finalised), and reinstating a declined reservation back to needing review (provisional).
   const isReinstateWorkflow=workflowAction==='reinstate'
     && normalizeText(existing.status)==='cancelled'
-    && ['pending','provisional','awaiting_payment'].includes(nextStatus)
+    && ['finalised','provisional'].includes(nextStatus)
     && Boolean(normalizeText(payload.reason))
-  const isProvisionalWorkflow=workflowAction==='save_provisional'
-    && nextStatus==='provisional'
   const isConfirmBookingWorkflow=workflowAction==='confirm_booking'
-    && ['provisional','pending','awaiting_payment'].includes(normalizeText(existing.status))
-    && nextStatus==='confirmed'
+    && normalizeText(existing.status)==='provisional'
+    && nextStatus==='finalised'
   const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
-    && normalizeText(existing.status)==='confirmed'
-    && ['to_pay','partially_paid','paid','foc'].includes(nextPaymentStatus)
+    && normalizeText(existing.status)==='finalised'
+    && ['','cash','card','eft','voucher','foc'].includes(nextPaymentStatus)
   const isAdminEditWorkflow=workflowAction==='admin_edit'
-  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isRescheduleWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isProvisionalWorkflow&&!isConfirmBookingWorkflow&&!isUpdatePaymentStatusWorkflow){
-    throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reschedule, reservation acceptance, reinstate, or automation actions.')
+  if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isConfirmBookingWorkflow&&!isUpdatePaymentStatusWorkflow){
+    throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reservation acceptance, reinstate, or automation actions.')
   }
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || normalizeText(existingPayment?.provider) || 'manual_eft'
   if(!isAdminEditWorkflow)validateBookingTransition(existing.status,nextStatus,nextPaymentStatus)
