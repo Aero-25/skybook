@@ -3932,7 +3932,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const calculatedOutstandingAmounts=priceOverride>0
     ? resolveOutstandingAmounts({...pricing,totalAmount:priceOverride,subtotalAmount:priceOverride,amountDueNow:priceOverride,amountDueLater:0},nextPaymentStatus)
     : resolveOutstandingAmounts(pricing,nextPaymentStatus)
-  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid'].includes(normalizeText(nextPaymentStatus))
+  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid','cash','card','eft','voucher','foc'].includes(normalizeText(nextPaymentStatus))
     ? { amountDueNow:Math.max(0,Number((Number(finalTotalAmount || 0)-receivedAmount).toFixed(2))), amountDueLater:0 }
     : calculatedOutstandingAmounts
   const isFoc=normalizeText(nextPaymentStatus)==='foc'
