@@ -8369,7 +8369,7 @@ const openNoShowWorkflowModal=()=>{
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{
           workflow_action:'no_show',
-          status:'no_show',
+          status:'cancelled',
           reason:values.reason,
           notes:values.reason,
           metadata:{
@@ -10230,11 +10230,10 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
     if(!booking){setAdminStatus('No booking selected.',true);return}
     if(!canConfirmBooking(booking)){setAdminStatus('Complete guest name, tour, brand, and date before confirming.',true);return}
-    const confirmPaymentStatus=['invoice','invoiced','partially_paid','fully_paid'].includes(normalizeText(booking.payment_status||''))?booking.payment_status:'to_pay'
     runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
       headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-      body:{status:'confirmed',payment_status:confirmPaymentStatus,workflow_action:'confirm_booking'}
+      body:{status:'finalised',workflow_action:'confirm_booking'}
     }).then(()=>createActivityNote(state.selectedBookingId,'Booking confirmed.')).then(()=>refreshAdmin('Booking confirmed.')),'Confirmation failed.','Confirming booking')
     return
   }
