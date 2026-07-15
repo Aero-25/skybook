@@ -4176,11 +4176,11 @@ const rescheduleBooking=async(bookingId:string,payload:Json,userId:string)=>{
   if(!preferredDate)throw new Error('A new preferred date is required to reschedule.')
   const existing=await safeMaybeSingle<Json>(adminClient.from('bookings').select('status').eq('id',bookingId).maybeSingle())
   if(!existing)throw new Error('Booking not found.')
-  const existingStatus=normalizeText(existing.status)
-  const nextStatus=['completed','cancelled','refunded'].includes(existingStatus) ? existingStatus : 'rescheduled'
+  // Rescheduling only ever changes the tour date — status is left exactly as it was. No `status`
+  // key is included in the PATCH below, so updateBooking's workflow-authorization check (which only
+  // fires when a status/payment_status change is requested) never triggers for this call.
   return updateBooking(bookingId,{
     preferred_date:preferredDate,
-    status:nextStatus,
     reason:normalizeText(payload.reason) || 'Booking rescheduled in SkyBook',
     workflow_action:'reschedule'
   },userId)
