@@ -3952,6 +3952,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     && nextStatus==='finalised'
   const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
     && normalizeText(existing.status)==='finalised'
+    && nextStatus===normalizeText(existing.status)
     && ['','cash','card','eft','voucher','foc'].includes(nextPaymentStatus)
   const isAdminEditWorkflow=workflowAction==='admin_edit'
   if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isConfirmBookingWorkflow&&!isUpdatePaymentStatusWorkflow){
