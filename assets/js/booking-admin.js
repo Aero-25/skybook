@@ -8223,7 +8223,7 @@ const openReservationDeclineModal=defaultReason=>{
       await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
         method:'PATCH',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-        body:{ status:'cancelled', payment_status:'cancelled', reason:values.reason, notes:values.reason }
+        body:{ workflow_action:'cancel_booking', status:'cancelled', payment_status:'', reason:values.reason, notes:values.reason }
       })
       await createActivityNote(state.selectedBookingId,`Reservation declined: ${values.reason}`)
       await refreshAdmin('Reservation declined.')
@@ -10010,7 +10010,7 @@ nodes.reservationDetail?.addEventListener('click',event=>{
   if(!booking)return
   if(action==='edit'||action==='accept-with-changes'){
     const modalBooking=action==='accept-with-changes'
-      ? {...booking,status:'awaiting_payment',payment_status:booking.payment_status||'pending',__statusWorkflow:'accept_reservation'}
+      ? {...booking,status:'finalised',__statusWorkflow:'accept_reservation'}
       : booking
     openBookingModal(modalBooking)
     return
@@ -10043,7 +10043,7 @@ nodes.reservationDetail?.addEventListener('click',event=>{
         await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
           method:'PATCH',
           headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-          body:{status:'pending',payment_status:'pending',reason:values.reason,workflow_action:'reinstate'}
+          body:{status:'provisional',payment_status:'',reason:values.reason,workflow_action:'reinstate'}
         })
         await createActivityNote(bookingId,`Reservation reinstated: ${values.reason}`)
         await refreshAdmin('Reservation reinstated.')
@@ -10061,7 +10061,7 @@ nodes.reservationDetail?.addEventListener('click',event=>{
         await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(reservationId)}`,{
           method:'PATCH',
           headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-          body:{ workflow_action:'accept_reservation', status:'awaiting_payment', payment_status:'pending', reason:'Reservation accepted and moved to bookings.' }
+          body:{ workflow_action:'accept_reservation', status:'finalised', reason:'Reservation accepted and moved to bookings.' }
         })
         await createActivityNote(reservationId,'Reservation accepted and moved to bookings.')
         await refreshAdmin('Reservation accepted. Full booking view opened in a new page.')
