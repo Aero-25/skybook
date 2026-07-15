@@ -5233,8 +5233,8 @@ const handleCruiseLinerSubmit=async event=>{
     const payload={
       brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
       service_slug:serviceSlug,
-      status:'confirmed',
-      payment_status:'invoice',
+      status:'finalised',
+      payment_status:'',
       total_amount:0,
       preferred_date:date,
       quantity:pax,
