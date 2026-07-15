@@ -2959,10 +2959,9 @@ const renderReservationPipeline=()=>{
   const visible=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
   const stages=[
     {key:'new',label:'New Reservation',count:visible.filter(booking=>isReviewReservation(booking)).length,tone:'review'},
-    {key:'awaiting',label:'Awaiting Payment',count:visible.filter(booking=>normalizeText(booking.status)==='awaiting_payment').length,tone:'warn'},
-    {key:'paid',label:'Paid',count:visible.filter(booking=>normalizeText(booking.payment_status)==='paid'&&!['confirmed','completed'].includes(normalizeText(booking.status))).length,tone:'paid'},
-    {key:'confirmed',label:'Confirmed',count:visible.filter(booking=>normalizeText(booking.status)==='confirmed').length,tone:'good'},
-    {key:'completed',label:'Completed',count:visible.filter(booking=>normalizeText(booking.status)==='completed').length,tone:'done'}
+    {key:'unpaid',label:'Unpaid',count:visible.filter(booking=>normalizeText(booking.status)==='finalised'&&!normalizeText(booking.payment_status)).length,tone:'warn'},
+    {key:'paid',label:'Paid',count:visible.filter(booking=>normalizeText(booking.status)==='finalised'&&Boolean(normalizeText(booking.payment_status))).length,tone:'paid'},
+    {key:'finalised',label:'Finalised',count:visible.filter(booking=>normalizeText(booking.status)==='finalised').length,tone:'good'}
   ]
   nodes.reservationPipeline.innerHTML=`
     <div class="pipeline-heading">
@@ -2970,7 +2969,7 @@ const renderReservationPipeline=()=>{
         <span class="booking-chip">${state.activeBrandFilter ? getBrandName(state.activeBrandFilter) : 'All brands'}</span>
         <h3>Reservation Pipeline</h3>
       </div>
-      <small>New Reservation -> Awaiting Payment -> Paid -> Confirmed -> Completed</small>
+      <small>New Reservation -> Unpaid / Paid -> Finalised</small>
     </div>
     <div class="pipeline-track">
       ${stages.map(stage=>`
@@ -9623,11 +9622,7 @@ nodes.reservationPipeline?.addEventListener('click',event=>{
   if(!stage)return
   if(stage==='new')switchTab('reservations')
   else switchTab('bookings')
-  if(stage==='reviewed')setStatusFilterValues(['invoice','invoiced'])
-  if(stage==='awaiting')setStatusFilterValues(['invoice'])
-  if(stage==='confirmed')setStatusFilterValues(['fully_paid'])
-  if(stage==='completed')setStatusFilterValues(['fully_paid'])
-  if(stage==='paid'&&nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value='paid'
+  if(stage==='unpaid'||stage==='paid'||stage==='finalised')setStatusFilterValues(['finalised'])
   renderBookings()
 })
 nodes.toggleTableDensity?.addEventListener('click',toggleTableDensity)
