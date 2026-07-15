@@ -1542,18 +1542,14 @@ const sameDate=(left,right)=>normalizeDateKey(left)===normalizeDateKey(right)
 
 const getStatusBadgeClass=value=>{
   const normalized=String(value||'').toLowerCase()
-  if(normalized==='awaiting_details')return 'is-awaiting-details'
-  if(normalized==='to_pay')return 'is-to-pay'
   if(normalized==='provisional')return 'is-provisional'
-  if(normalized==='confirmed')return 'is-confirmed'
-  if(normalized==='invoice')return 'is-invoice'
-  if(normalized==='invoiced')return 'is-invoiced'
+  if(normalized==='finalised')return 'is-finalised'
+  if(normalized==='refunded')return 'is-refunded'
   if(normalized==='partially_paid')return 'is-partially-paid'
   if(normalized==='fully_paid'||normalized==='paid')return 'is-fully-paid'
-  if(normalized==='finalised')return 'is-confirmed'
+  if(['cash','card','eft','voucher'].includes(normalized))return 'is-fully-paid'
   if(normalized==='foc')return 'is-foc'
-  if(['cancelled','failed','refunded','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
-  if(['draft','pending','awaiting_payment'].includes(normalized))return 'is-neutral'
+  if(['cancelled','failed','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
 }
@@ -1562,17 +1558,10 @@ const isCruiseLinerBooking=booking=>Boolean(booking?.metadata?.cruise_liner)
 const getStatusRowClass=booking=>{
   if(isCruiseLinerBooking(booking))return 'is-cruise-liner'
   const status=normalizeText(booking?.status||'')
-  const payment=normalizeText(booking?.payment_status||'')
-  if(['cancelled','refunded','failed','no_show'].includes(status))return 'status-cancelled'
-  if(status==='awaiting_details')return 'status-awaiting-details'
+  if(['cancelled','failed','no_show'].includes(status))return 'status-cancelled'
+  if(status==='refunded')return 'status-refunded'
   if(status==='provisional')return 'status-provisional'
-  if(status==='confirmed'||status==='finalised'){
-    // Colour reflects payment progress.
-    if(payment==='paid'||payment==='fully_paid')return 'status-confirmed-fully-paid'
-    if(payment==='partially_paid')return 'status-confirmed-partially-paid'
-    if(payment==='to_pay')return 'status-confirmed-to-pay'
-    return 'status-confirmed'
-  }
+  if(status==='finalised')return 'status-finalised'
   return ''
 }
 
@@ -1581,12 +1570,13 @@ const renderStatusBadge=(value,label='')=>{
   return `<span class="status-badge ${getStatusBadgeClass(value)}">${bookingAdminShared.escapeHtml(text)}</span>`
 }
 
-// Payment-status badges read on their own (e.g. "Invoice", "Invoiced") — never prefixed with
-// "Payment ", which produced labels like "Payment invoice".
-const PAYMENT_STATUS_LABELS={invoice:'Invoice',invoiced:'Invoiced',partially_paid:'Partially Paid',fully_paid:'Fully Paid',to_pay:'To Pay',foc:'FOC',paid:'Paid',pending:'Pending',unpaid:'Unpaid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed',payment_pending:'Payment Pending'}
+// Payment-status badges read on their own (e.g. "Cash", "Partially Paid") — never prefixed with
+// "Payment ", which produced labels like "Payment cash".
+const PAYMENT_STATUS_LABELS={partially_paid:'Partially Paid',fully_paid:'Fully Paid',foc:'FOC',paid:'Paid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed'}
 const formatPaymentStatusLabel=status=>{
   const key=normalizeText(status)
   if(!key)return '—'
+  if(['cash','card','eft','voucher'].includes(key))return getPaymentMethodLabel(key)
   return PAYMENT_STATUS_LABELS[key]||key.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
 }
 
