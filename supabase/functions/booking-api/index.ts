@@ -2449,8 +2449,10 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
   const currentStatus=normalizeText(booking.status)
   // Lifecycle (status) stays a lifecycle value; payment outcome lives in payment_status.
   // A recorded payment promotes a still-pending lifecycle to confirmed (never to a payment value).
-  const lifecyclePromotes=['draft','pending','provisional','payment_pending','awaiting_payment','payment_request_sent'].includes(currentStatus)
-  const nextBookingStatus=(nextPaymentStatus==='paid'||nextPaymentStatus==='partially_paid') && lifecyclePromotes ? 'confirmed' : currentStatus
+  // Recording a payment no longer changes the lifecycle status by itself — a still-unreviewed
+  // provisional website booking must go through Reservation Management before it becomes finalised,
+  // and a finalised booking simply stays finalised regardless of payment activity.
+  const nextBookingStatus=currentStatus
   const existingMetadata=normalizeJsonRecord(booking.metadata)
   const { error:bookingUpdateError }=await adminClient.from('bookings').update({
     status:nextBookingStatus,
