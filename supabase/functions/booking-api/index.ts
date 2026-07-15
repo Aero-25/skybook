@@ -2190,34 +2190,6 @@ const performQueuedEmailJob=async(job:Json)=>{
   await dispatchEmailLog(emailLog)
 }
 
-const runStatusAutomations=async(job:Json)=>{
-  const automationRules=await getSettingValue('automation_rules',DEFAULT_AUTOMATION_RULES)
-  const bookingId=normalizeText(job.booking_id)
-  if(bookingId){
-    const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
-    if(!booking)return
-    if(Boolean((automationRules as Json).autoConfirmPaidBookings) && normalizeText(booking.payment_status)==='paid' && ['provisional','pending','draft','payment_pending','awaiting_payment'].includes(normalizeText(booking.status))){
-      await updateBooking(bookingId,{ status:'confirmed', payment_status:'paid', reason:'Auto-confirmed (paid) by SkyBook automation' },'')
-    }
-    if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings) && normalizeText(booking.payment_status)==='paid' && normalizeText(booking.status)==='confirmed'){
-      const preferredDate=parseDateValue(String(booking.preferred_date || ''))
-      if(preferredDate && preferredDate < new Date()){
-        await updateBooking(bookingId,{ status:'finalised', reason:'Auto-finalised by SkyBook automation' },'')
-      }
-    }
-    return
-  }
-  if(Boolean((automationRules as Json).autoCompletePastConfirmedBookings)){
-    const confirmedBookings=await safeTableSelect<Json>(adminClient.from('bookings').select('*').eq('status','confirmed').eq('payment_status','paid'),[])
-    for(const booking of confirmedBookings){
-      const preferredDate=parseDateValue(String(booking.preferred_date || ''))
-      if(preferredDate && preferredDate < new Date()){
-        await updateBooking(String(booking.id || ''),{ status:'finalised', reason:'Auto-finalised by SkyBook automation' },'')
-      }
-    }
-  }
-}
-
 const processSystemJob=async(job:Json)=>{
   const jobId=normalizeText(job.id)
   if(!jobId)return null
@@ -2230,9 +2202,6 @@ const processSystemJob=async(job:Json)=>{
     switch(normalizeText(job.job_type)){
       case 'email_notification':
         await performQueuedEmailJob(job)
-        break
-      case 'status_automation':
-        await runStatusAutomations(job)
         break
       case 'operator_settlement_check':
         if(normalizeText(job.booking_id))await maybeCreateAutomatedOfficeSettlement(normalizeText(job.booking_id),safeUuid(job.created_by))
@@ -3846,13 +3815,6 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   ].filter(line=>line!==undefined&&line!=='')
   const waBody=waLines.join('\n')
   void sendWhatsAppMessage(consultantWhatsApp,waBody).catch(err=>console.error('WhatsApp alert failed:',err?.message))
-  await enqueueSystemJob({
-    job_type:'status_automation',
-    job_group:'operations',
-    priority:'normal',
-    booking_id:bookingId,
-    created_by:userId || null
-  })
   await processDueSystemJobs()
 
   if(!isAdmin){
@@ -4122,15 +4084,6 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   await syncLifecycleTasks(id,userId)
   await maybeCreateAutomatedOfficeSettlement(id,userId)
   await syncReconciliationRecordForBooking(id,userId)
-  if(String(updatePayload.payment_status)==='paid' || String(updatePayload.status)!==String(existing.status)){
-    await enqueueSystemJob({
-      job_type:'status_automation',
-      job_group:'operations',
-      priority:String(updatePayload.payment_status)==='paid' ? 'high' : 'normal',
-      booking_id:id,
-      created_by:userId
-    })
-  }
   if(String(updatePayload.status)==='finalised'){
     await enqueueSystemJob({
       job_type:'operator_settlement_check',
