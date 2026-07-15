@@ -3553,7 +3553,7 @@ const buildReports=({
   const officePayables=liveOfficeInvoices
     .filter(invoice=>!['paid','cancelled'].includes(String(invoice.status || '')))
     .reduce((sum,invoice)=>sum+Number(invoice.total_amount || 0),0)
-  const statusBreakdown=['provisional','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'].map(status=>({
+  const statusBreakdown=['provisional','finalised','cancelled','refunded'].map(status=>({
     status,
     count:bookings.filter(booking=>String(booking.status || '')===status).length
   }))
