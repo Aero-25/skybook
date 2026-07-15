@@ -1871,11 +1871,11 @@ const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||b
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
 const isReviewReservation=booking=>{
   const status=normalizeText(booking?.status||'')
-  // provisional bookings always go straight to Bookings regardless of source
-  if(status==='provisional')return false
-  // only draft/pending can be reservations
-  if(!['draft','pending'].includes(status))return false
-  // reservations are website-sourced only; admin-created bookings go to Bookings
+  // Only a provisional booking needs review — admin-created bookings start finalised
+  // directly (see fillBookingForm/handleBookingSave), so nothing else ever lands here.
+  if(status!=='provisional')return false
+  // Belt-and-braces: reservations are website-sourced only; a provisional booking
+  // created directly by an admin (if that ever happens) still goes to Bookings.
   const source=normalizeText(booking?.source||booking?.metadata?.source||'website')
   if(source==='admin'||Boolean(booking?.metadata?.admin_created))return false
   return true
