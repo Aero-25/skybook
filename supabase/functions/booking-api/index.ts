@@ -806,7 +806,7 @@ const createTourMemoryUpload=async(payload:Json,userId:string)=>{
       )
     : await fetchMemoryBookingByReference(payload.reference)
   if(!booking?.id)throw new Error('Booking not found for that reference.')
-  if(normalizeText(booking.status)!=='completed')throw new Error('Tour memories can only be uploaded after the booking is finalised.')
+  if(normalizeText(booking.status)!=='finalised')throw new Error('Tour memories can only be uploaded after the booking is finalised.')
   const files=Array.isArray(payload.files) ? payload.files as Json[] : []
   if(!files.length)throw new Error('Choose at least one image to upload.')
   const reference=normalizeMemoryReference(booking.reference)
@@ -2944,7 +2944,7 @@ const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{
     sort_order:number
   }[]=[]
 
-  if(['draft','pending'].includes(status)){
+  if(status==='provisional'){
     blueprints.push({
       auto_key:'follow_up_review',
       task_type:'follow_up',
@@ -2957,20 +2957,23 @@ const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{
     })
   }
 
-  if(['pending','unpaid','partially_paid','authorized'].includes(paymentStatus) && outstanding>0){
+  // A "chase outstanding payment" task is only about the balance, not which payment_status string is
+  // set — under the new method-only model, an unpaid booking simply has payment_status:'' (blank),
+  // which doesn't need special-casing here: any outstanding balance warrants the task.
+  if(outstanding>0){
     blueprints.push({
       auto_key:'payment_chase',
       task_type:'payment_chase',
       title:'Chase outstanding payment',
       description:`Outstanding balance of ${outstanding.toFixed(2)} is still open on the booking.`,
       team:'finance',
-      priority:status==='awaiting_payment' ? 'critical' : 'high',
+      priority:'high',
       due_at:addHours(now,12),
       sort_order:20
     })
   }
 
-  if(status==='confirmed' && !hasOperator){
+  if(status==='finalised' && !hasOperator){
     blueprints.push({
       auto_key:'supplier_confirm',
       task_type:'supplier_confirm',
@@ -2983,7 +2986,7 @@ const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{
     })
   }
 
-  if(status==='confirmed' && preferredDate && !hasResources){
+  if(status==='finalised' && preferredDate && !hasResources){
     blueprints.push({
       auto_key:'pickup_reconfirm',
       task_type:'pickup_reconfirm',
@@ -3497,7 +3500,7 @@ const maybeCreateAutomatedOfficeSettlement=async(bookingId:string,userId:string 
       .maybeSingle()
   )
   if(!booking)return null
-  if(!['confirmed','completed'].includes(normalizeText(booking.status)))return null
+  if(normalizeText(booking.status)!=='finalised')return null
   const commercials=normalizeJsonRecord((booking.metadata as Json)?.commercials)
   const sellingModel=normalizeText(commercials.selling_model)
   const operatorAssignment=await safeMaybeSingle<Json>(adminClient.from('booking_operators').select('*').eq('booking_id',bookingId).maybeSingle())
@@ -4012,7 +4015,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     payment_status:nextPaymentStatus,
     source:nextSource,
     preferred_date:nextPreferredDate,
-    confirmed_date:['confirmed','completed'].includes(String(nextStatus)) ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
+    confirmed_date:nextStatus==='finalised' ? (nextPreferredDate || existing.confirmed_date) : existing.confirmed_date,
     quantity:nextQuantity,
     adult_quantity:Object.prototype.hasOwnProperty.call(payload,'adult_quantity') ? Number(payload.adult_quantity||0) : Number(existing.adult_quantity||0),
     child_quantity:Object.prototype.hasOwnProperty.call(payload,'child_quantity') ? Number(payload.child_quantity||0) : Number(existing.child_quantity||0),
@@ -4127,7 +4130,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
       created_by:userId
     })
   }
-  if(['confirmed','completed'].includes(String(updatePayload.status))){
+  if(String(updatePayload.status)==='finalised'){
     await enqueueSystemJob({
       job_type:'operator_settlement_check',
       job_group:'finance',
