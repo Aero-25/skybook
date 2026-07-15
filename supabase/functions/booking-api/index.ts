@@ -4086,7 +4086,7 @@ const archiveBooking=async(bookingId:string,payload:Json,userId:string)=>{
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found.')
   const currentStatus=normalizeText(booking.status)
-  if(!['draft','pending'].includes(currentStatus)){
+  if(currentStatus!=='provisional'){
     throw new Error('Only reservations may be moved to trash. Cancel bookings with a valid reason instead.')
   }
   const existingMetadata=normalizeJsonRecord(booking.metadata)
