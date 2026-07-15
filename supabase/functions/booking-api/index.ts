@@ -409,8 +409,8 @@ const validateBookingTransition=(fromStatus:unknown,toStatus:unknown,paymentStat
   if(!allowed.includes(to)){
     throw new Error(`Cannot move a booking from ${from.replace(/_/g,' ')} to ${to.replace(/_/g,' ')}.`)
   }
-  if(to==='refunded' && !['paid','partially_paid','refunded'].includes(normalizeText(paymentStatus))){
-    throw new Error('Refunded status requires a paid or partially paid booking.')
+  if(to==='refunded' && !normalizeText(paymentStatus)){
+    throw new Error('Refunded status requires a payment to have been recorded.')
   }
 }
 
