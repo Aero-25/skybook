@@ -4119,12 +4119,12 @@ const restoreBooking=async(bookingId:string,userId:string)=>{
   const metadata=normalizeJsonRecord(booking.metadata)
   const originalStatus=normalizeText(metadata.trash?.original_status)
   const originalPaymentStatus=normalizeText(metadata.trash?.original_payment_status)
-  const fallbackPaymentStatus=normalizeText(booking.payment_status)==='cancelled' ? 'pending' : normalizeText(booking.payment_status) || 'pending'
-  const nextStatus=originalStatus && originalStatus!=='cancelled'
-    ? originalStatus
-    : (fallbackPaymentStatus==='paid' ? 'confirmed' : 'awaiting_payment')
-  const nextPaymentStatus=originalPaymentStatus || fallbackPaymentStatus
-  const recordScope=normalizeText(metadata.trash?.scope) || (['draft','pending'].includes(nextStatus) ? 'reservation' : 'booking')
+  // A trashed record's original status is only ever 'provisional' (only reservations can be trashed —
+  // see archiveBooking) — restoring it goes back to provisional for review, or finalised as a safe
+  // fallback if no original status was recorded at all.
+  const nextStatus=(originalStatus && originalStatus!=='cancelled') ? originalStatus : 'finalised'
+  const nextPaymentStatus=originalPaymentStatus || (normalizeText(booking.payment_status)==='cancelled' ? '' : normalizeText(booking.payment_status))
+  const recordScope=normalizeText(metadata.trash?.scope) || (nextStatus==='provisional' ? 'reservation' : 'booking')
   const recordLabel=recordScope==='reservation' ? 'Reservation' : 'Booking'
   delete metadata.trash
   delete metadata.deleted_at
