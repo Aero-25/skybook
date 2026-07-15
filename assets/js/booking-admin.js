@@ -1834,7 +1834,7 @@ const buildPartnerSummary=(partnerType,partner)=>{
     settledAmount,
     bookingRevenue:sumAmounts(bookings,'total_amount'),
     latestStatement:statements[0]||null,
-    noShows:bookings.filter(booking=>normalizeText(booking.status)==='no_show').length,
+    noShows:bookings.filter(booking=>normalizeText(booking.status)==='cancelled'&&Boolean(booking.metadata?.no_show)).length,
     cancellations:bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
   }
 }
@@ -2077,7 +2077,7 @@ const getBookingChecklist=booking=>{
   const checklist=[
     {label:'Guest details verified',done:Boolean(booking.customer_email&&booking.customer_phone),team:'reservations'},
     {label:'Guest invoice generated',done:Boolean(invoice?.invoice_number),team:'finance'},
-    {label:'Payment requirements reviewed',done:!hasOutstandingPayment || ['paid','partially_paid'].includes(String(booking.payment_status||'')),team:'finance'},
+    {label:'Payment requirements reviewed',done:!hasOutstandingPayment || ['paid','partially_paid','cash','card','eft','voucher'].includes(String(booking.payment_status||'')),team:'finance'},
     {label:'Operator assigned',done:hasOperator,team:'supplier management'},
     {label:'Pickup resources linked',done:hasResources || !booking.preferred_date,team:'operations'},
     {label:'Follow-up tasks closed',done:tasks.filter(task=>String(task.status||'')==='open').length===0,team:'operations'}
@@ -2992,8 +2992,8 @@ const renderDashboard=()=>{
   const totalRevenue=dashboardBookings.reduce((sum,booking)=>sum+Number(booking.total_amount||0),0)
   const todayArrivals=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,todayKey))
   const tomorrowPrep=dashboardBookings.filter(booking=>sameDate(booking.preferred_date,tomorrowKey))
-  const pendingConfirmations=dashboardBookings.filter(item=>item.status==='pending')
-  const unpaidBookings=dashboardBookings.filter(item=>['invoice','invoiced','partially_paid'].includes(String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
+  const pendingConfirmations=dashboardBookings.filter(item=>isReviewReservation(item))
+  const unpaidBookings=dashboardBookings.filter(item=>(item.status==='finalised' && !String(item.payment_status||'')) || Number(item.amount_due_later||0)>0)
   const unpaidExposure=unpaidBookings.reduce((sum,booking)=>sum+Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0),0)
   const refundExposure=sumAmounts(state.refunds,'amount')
   const operatorPayoutsDue=state.officeInvoices.filter(invoice=>!['paid','settled','cancelled'].includes(String(invoice.status||'').toLowerCase()))
@@ -3354,13 +3354,12 @@ const syncBookingAutocomplete=()=>{
 const getStatusColor=(status,isCruise=false,paymentStatus='')=>{
   if(isCruise)return '#7c3aed'
   if(normalizeText(status)==='provisional')return '#ca8a04'
-  if(['cancelled','refunded','failed','no_show'].includes(normalizeText(status)))return '#9ca3af'
-  // confirmed — color by payment status background
-  const pm=normalizeText(paymentStatus||status)
-  if(pm==='invoice')return '#7c3aed'
-  if(pm==='invoiced')return '#16a34a'
+  if(normalizeText(status)==='refunded')return '#5b21b6'
+  if(['cancelled','failed','no_show'].includes(normalizeText(status)))return '#9ca3af'
+  // finalised — color by payment progress
+  const pm=normalizeText(paymentStatus)
+  if(['cash','card','eft','voucher','paid','fully_paid'].includes(pm))return '#2563eb'
   if(pm==='partially_paid')return '#15803d'
-  if(pm==='fully_paid')return '#2563eb'
   return '#1e293b'
 }
 
@@ -3764,7 +3763,6 @@ const getBookingChangelogPageUrl=bookingId=>{
 const getBookingOutstanding=booking=>Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)
 
 const renderToPayTag=booking=>{
-  if(normalizeText(booking?.payment_status||'')==='to_pay')return ''
   const outstanding=getBookingOutstanding(booking)
   if(!(outstanding>0))return ''
   const href=`${getRecordPageUrl('bookings',booking.id)}&focus=payment`
@@ -6229,7 +6227,7 @@ const renderReportsWorkbench=()=>{
   },{})
   const noShowBookings=financeBookings.filter(booking=>normalizeText(booking.status)==='no_show')
   const acceptedBookings=financeBookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status)))
-  const paidBookings=financeBookings.filter(booking=>['paid','partially_paid'].includes(normalizeText(booking.payment_status)))
+  const paidBookings=financeBookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher'].includes(normalizeText(booking.payment_status)))
   const consultantRows=buildConsultantProductivityRows(reportBookings)
   if(nodes.reportsArrivalsDate && !nodes.reportsArrivalsDate.value)nodes.reportsArrivalsDate.value=getTodayKey()
   const arrivalsRows=buildArrivalsManifestRows(nodes.reportsArrivalsDate?.value||getTodayKey())
@@ -7572,8 +7570,9 @@ const printArrivalsForDate=(selectedDate='')=>{
   const statusColour=status=>{
     const s=normalizeText(status)
     if(s==='provisional')return '#ca8a04'
-    if(s==='confirmed')return '#1e293b'
-    if(['cancelled','refunded','failed','no_show'].includes(s))return '#9ca3af'
+    if(s==='finalised')return '#1e293b'
+    if(s==='refunded')return '#5b21b6'
+    if(['cancelled','failed','no_show'].includes(s))return '#9ca3af'
     return '#94a3b8'
   }
 
@@ -7768,7 +7767,7 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
   const financeBookingIds=new Set(financeBookings.map(booking=>String(booking.id||'')))
   const accepted=bookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status))).length
   const declined=bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
-  const paid=bookings.filter(booking=>['paid','partially_paid'].includes(normalizeText(booking.payment_status))).length
+  const paid=bookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher'].includes(normalizeText(booking.payment_status))).length
   const gross=sumAmounts(bookings,'total_amount')
   const financeGross=sumAmounts(financeBookings,'total_amount')
   const paymentTypeRows=getReportPaymentRows(financeBookings)
