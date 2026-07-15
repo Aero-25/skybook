@@ -115,23 +115,13 @@ const SKYBOOK_ROLE_DEFAULTS:Record<string,Record<string,boolean>>={
 }
 
 const BOOKING_STATUS_TRANSITIONS:Record<string,string[]>={
-  // New two-field system
-  // First stage: captured but guest/logistics details still missing → provisional → confirmed.
-  awaiting_details:['provisional','confirmed','cancelled'],
-  provisional:['awaiting_details','confirmed','cancelled','finalised'],
-  confirmed:['awaiting_details','provisional','cancelled','finalised'],
-  cancelled:['awaiting_details','provisional','confirmed'],
-  // Legacy statuses kept for backwards-compat during migration
-  payment_pending:['invoice','invoiced','partially_paid','fully_paid','finalised','cancelled','confirmed'],
-  invoice:['invoiced','payment_pending','partially_paid','fully_paid','finalised','cancelled','confirmed'],
-  invoiced:['partially_paid','fully_paid','finalised','cancelled','confirmed'],
-  partially_paid:['fully_paid','finalised','cancelled','confirmed'],
-  fully_paid:['finalised','cancelled','confirmed'],
-  finalised:['cancelled','confirmed'],
-  draft:['provisional','payment_pending','cancelled'],
-  pending:['provisional','confirmed','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  awaiting_payment:['provisional','confirmed','payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','cancelled'],
-  completed:['finalised','cancelled','confirmed']
+  // Four statuses only: a website booking starts provisional, an admin-created one starts
+  // finalised directly. Cancelled and refunded are the only ways off finalised (besides no-show,
+  // which is a cancellation with a reason — see isNoShowWorkflow).
+  provisional:['finalised','cancelled'],
+  finalised:['cancelled','refunded'],
+  cancelled:['finalised','provisional'],
+  refunded:[]
 }
 
 const DEFAULT_OPS_TEMPLATES={
