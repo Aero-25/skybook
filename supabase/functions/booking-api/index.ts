@@ -2242,28 +2242,6 @@ const processSystemJob=async(job:Json)=>{
   }
 }
 
-const sweepPaymentPendingTransitions=async()=>{
-  const now=new Date()
-  const todayDate=now.toISOString().slice(0,10)
-  const cutoffDate=new Date(now.getTime()+24*60*60*1000).toISOString().slice(0,10)
-  const unpaidInvoiced=await safeTableSelect<Json>(
-    adminClient.from('bookings')
-      .select('id,status,preferred_date,payment_status')
-      .not('status','in','(cancelled,refunded,failed,no_show)')
-      .not('payment_status','in','(paid,partially_paid)')
-      .gte('preferred_date',todayDate)
-      .lte('preferred_date',cutoffDate),
-    []
-  )
-  // Imminent unpaid tours are flagged by their payment_status (to_pay) + tour date; we no longer
-  // overwrite the lifecycle status (Status 3) with a payment value like payment_pending.
-  for(const b of unpaidInvoiced){
-    if(normalizeText(b.payment_status)!=='to_pay'){
-      await updateBooking(String(b.id),{ payment_status:'to_pay', workflow_action:'system_automation', reason:'Tour within 24 hours — flagged To Pay by SkyBook automation' },'')
-    }
-  }
-}
-
 const processDueSystemJobs=async()=>{
   const queueSettings=await getSettingValue('queue',DEFAULT_QUEUE_SETTINGS)
   if((queueSettings as Json).enabled===false)return []
@@ -2283,7 +2261,6 @@ const processDueSystemJobs=async()=>{
     await processSystemJob(job)
     processed.push(String(job.id || ''))
   }
-  void sweepPaymentPendingTransitions().catch(()=>{})
   return processed
 }
 
