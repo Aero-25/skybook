@@ -4038,6 +4038,14 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     const newVal=normalizeText(String(requestMetadata[key]||payload?.metadata?.[key]||''))
     if(newVal&&oldVal!==newVal)amendmentChanges.push(`${label}: ${oldVal||'—'} → ${newVal}`)
   })
+  // Reschedule always types a reason in the frontend modal, but a reschedule never changes status
+  // (see rescheduleBooking), so the status-change branch below never fires to capture it. Fold it
+  // into the amendment diff instead — this also covers a same-date resubmit, which would otherwise
+  // leave amendmentChanges empty and silently drop the reason entirely.
+  if(workflowAction==='reschedule'){
+    const rescheduleReason=normalizeText(payload.reason)
+    if(rescheduleReason)amendmentChanges.push(`Reason: ${rescheduleReason}`)
+  }
   if(amendmentChanges.length>0){
     const amendmentReason=`Amendment — ${amendmentChanges.join(' | ')}`
     await insertStatusHistory(id,String(updatePayload.status),String(updatePayload.status),amendmentReason,`admin:${userId}`,userId)
