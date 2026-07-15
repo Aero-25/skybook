@@ -2960,7 +2960,7 @@ const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{
   // A "chase outstanding payment" task is only about the balance, not which payment_status string is
   // set — under the new method-only model, an unpaid booking simply has payment_status:'' (blank),
   // which doesn't need special-casing here: any outstanding balance warrants the task.
-  if(outstanding>0){
+  if(outstanding>0 && !['cancelled','refunded'].includes(status)){
     blueprints.push({
       auto_key:'payment_chase',
       task_type:'payment_chase',
