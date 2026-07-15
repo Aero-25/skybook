@@ -8791,25 +8791,16 @@ const handleBookingSave=async event=>{
   const requestedStatus=nodes.bookingStatus.value
   const requestedPaymentField=nodes.bookingPaymentStatus.value
   const isReservationAcceptanceWorkflow=returnToReservationManagement&&wasEditing&&!isReviewReservation({status:requestedStatus})
-  // Payment Process: the field captures HOW a booking was settled (cash/card/eft/voucher) or FOC.
-  // Any method selection means payment is complete; the method itself is kept in metadata.payment_method
-  // for record-keeping. Generic values this field can't produce itself (to_pay/paid/partially_paid, or
-  // legacy invoice/invoiced/fully_paid set by other flows) pass through unchanged when left untouched —
-  // otherwise the next unrelated save would silently corrupt them (e.g. wipe a "to_pay" booking to blank).
-  const isFocSelected=requestedPaymentField==='foc'
-  const selectedPaymentMethod=PAYMENT_PROCESS_METHODS.includes(requestedPaymentField) ? requestedPaymentField : ''
-  const mappedPaymentStatus=isFocSelected ? 'foc'
-    : selectedPaymentMethod ? 'paid'
-    : PAYMENT_PROCESS_PRESERVED_STATUSES.includes(requestedPaymentField) ? requestedPaymentField
-    : ''
-  // Status 2 (payment): a freshly confirmed booking is "To Pay" unless finance recorded how it was settled.
-  const finalPaymentStatus=!wasEditing ? '' : (requestedStatus==='confirmed'&&!mappedPaymentStatus ? 'to_pay' : mappedPaymentStatus)
+  // payment_status now directly holds the settlement method (cash/card/eft/voucher/foc) or is blank —
+  // no translation needed. A brand-new booking always starts unpaid regardless of what the field shows
+  // (matches the backend's createBooking default), everything else passes the field's value straight through.
+  const finalPaymentStatus=!wasEditing ? '' : requestedPaymentField
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
     source:nodes.bookingSource?.value||'admin',
     service_slug:nodes.bookingService.value,
-    status:!wasEditing ? 'provisional' : requestedStatus,
+    status:requestedStatus,
     payment_status:finalPaymentStatus,
     preferred_date:nodes.bookingDate.value,
     adult_quantity:Number(nodes.bookingAdultQuantity?.value||0),
@@ -8821,10 +8812,6 @@ const handleBookingSave=async event=>{
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
-      // Keep the previously recorded method only while the field shows an untouched preserved value
-      // (to_pay/paid/partially_paid/legacy); selecting a fresh method, FOC, or "— Not set —" all
-      // deliberately overwrite/clear it rather than leaving a stale method behind.
-      payment_method:selectedPaymentMethod||(PAYMENT_PROCESS_PRESERVED_STATUSES.includes(requestedPaymentField) ? (existingBooking?.metadata?.payment_method||'') : ''),
       custom_fields:collectBookingCustomFieldValues(),
       departure_label:nodes.bookingDeparture?.value||'',
       pickup_time:nodes.bookingPickup?.value||'',
