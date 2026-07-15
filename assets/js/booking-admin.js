@@ -353,7 +353,6 @@ const nodes={
   bookingFilterBrand:document.getElementById('bookingFilterBrand'),
   bookingFilterSource:document.getElementById('bookingFilterSource'),
   bookingFilterStatus:document.getElementById('bookingFilterStatus'),
-  bookingFilterPaymentStatus:document.getElementById('bookingFilterPaymentStatus'),
   bookingFilterService:document.getElementById('bookingFilterService'),
   bookingFilterOperator:document.getElementById('bookingFilterOperator'),
   bookingFilterAgent:document.getElementById('bookingFilterAgent'),
@@ -2105,13 +2104,10 @@ const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
     return String(booking?.preferred_date||'').slice(0,10)===todayStr
   }
   const status=normalizeText(booking?.status||'')
-  const payment=normalizeText(booking?.payment_status||'')
-  if(key==='cancelled')return ['cancelled','refunded','failed','no_show'].includes(status)
-  if(key==='provisional')return status==='provisional'
-  if(key==='confirmed')return status==='confirmed'
-  if(key==='fully_paid'||key==='paid')return status==='confirmed'&&['paid','fully_paid'].includes(payment)
-  if(['to_pay','partially_paid','foc'].includes(key))return status==='confirmed'&&payment===key
-  return status===key||payment===key
+  if(key==='cancelled')return ['cancelled','failed','no_show'].includes(status)
+  if(key==='refunded')return status==='refunded'
+  if(key==='finalised')return status==='finalised'
+  return status===key
 }
 
 const updateBookingQuickFilterBar=()=>{
@@ -2123,15 +2119,9 @@ const updateBookingQuickFilterBar=()=>{
   const countMap={
     today:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'today')).length,
     all:operationalBookings.length,
-    awaiting_details:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'awaiting_details')).length,
-    provisional:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'provisional')).length,
-    confirmed:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'confirmed')).length,
-    to_pay:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'to_pay')).length,
-    invoice:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoice')).length,
-    invoiced:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'invoiced')).length,
-    partially_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'partially_paid')).length,
-    fully_paid:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'fully_paid')).length,
-    cancelled:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'cancelled')).length
+    finalised:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'finalised')).length,
+    cancelled:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'cancelled')).length,
+    refunded:operationalBookings.filter(booking=>bookingMatchesQuickFilter(booking,'refunded')).length
   }
   Object.entries(countMap).forEach(([key,count])=>{
     const node=document.querySelector(`[data-filter-count="${key}"]`)
@@ -2915,7 +2905,6 @@ const getFilteredBookings=()=>{
   const brand=(nodes.bookingFilterBrand.value||'').trim()
   const source=(nodes.bookingFilterSource?.value||'').trim()
   const selectedStatuses=getSelectedStatusFilters()
-  const paymentStatus=(nodes.bookingFilterPaymentStatus?.value||'').trim()
   const serviceSlug=(nodes.bookingFilterService?.value||'').trim()
   const operatorId=(nodes.bookingFilterOperator?.value||'').trim()
   const agentId=(nodes.bookingFilterAgent?.value||'').trim()
@@ -2936,7 +2925,6 @@ const getFilteredBookings=()=>{
     if(brand&&booking.brand_code!==brand)return false
     if(source&&bookingSource!==source)return false
     if(selectedStatuses.length&&!selectedStatuses.includes(booking.status))return false
-    if(paymentStatus&&booking.payment_status!==paymentStatus)return false
     if(serviceSlug&&booking.service_slug!==serviceSlug)return false
     if(operatorId){
       const operatorAssignment=getBookingOperatorAssignment(booking.id)
@@ -9667,7 +9655,6 @@ document.querySelector('[data-booking-filter-reset]')?.addEventListener('click',
   if(nodes.bookingFilterBrand)nodes.bookingFilterBrand.value=''
   if(nodes.bookingFilterSource)nodes.bookingFilterSource.value=''
   if(nodes.bookingFilterStatus)nodes.bookingFilterStatus.value=''
-  if(nodes.bookingFilterPaymentStatus)nodes.bookingFilterPaymentStatus.value=''
   if(nodes.bookingFilterService)nodes.bookingFilterService.value=''
   if(nodes.bookingFilterOperator)nodes.bookingFilterOperator.value=''
   if(nodes.bookingFilterAgent)nodes.bookingFilterAgent.value=''
