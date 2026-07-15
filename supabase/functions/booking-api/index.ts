@@ -2446,7 +2446,7 @@ const resolveOutstandingAmounts=(pricing:{
   amountDueLater:number
 },paymentStatus:string)=>{
   const normalized=normalizeText(paymentStatus).toLowerCase()
-  if(['paid','refunded','cancelled','foc'].includes(normalized)){
+  if(['paid','refunded','cancelled','foc','cash','card','eft','voucher'].includes(normalized)){
     return { amountDueNow:0, amountDueLater:0 }
   }
   return {
@@ -3110,7 +3110,7 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
   const brandProfile=await getBrandByCode(normalizeText(booking.brand_code) || 'true-travel')
   const invoicePrefix=normalizeInvoicePrefix(brandProfile.invoice_prefix || brandProfile.booking_prefix || 'SB','SB')
   const invoiceNumber=normalizeText(existingInvoice?.invoice_number) || await reserveInvoiceNumber('guest_invoice',normalizeText(booking.brand_code) || 'true-travel',invoicePrefix,bookingId)
-  const invoiceStatus=String(booking.payment_status)==='paid'
+  const invoiceStatus=['paid','cash','card','eft','voucher'].includes(String(booking.payment_status))
     ? 'paid'
     : String(booking.payment_status)==='partially_paid'
       ? 'partially_paid'
@@ -3127,7 +3127,7 @@ const syncInvoiceForBooking=async(bookingId:string)=>{
     subtotal_amount:Number(booking.subtotal_amount || 0),
     tax_amount:Number(booking.tax_amount || 0),
     total_amount:Number(booking.total_amount || 0),
-    balance_amount:String(booking.payment_status)==='paid'
+    balance_amount:['paid','cash','card','eft','voucher'].includes(String(booking.payment_status))
       ? 0
       : Number((Number(booking.amount_due_now || 0) + Number(booking.amount_due_later || 0) || Number(booking.total_amount || 0))),
     metadata:{ source:'booking-api', brand_code:booking.brand_code, invoice_prefix:invoicePrefix }
@@ -3926,13 +3926,13 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
   const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
   const receivedAmount=Number(existingPayment?.amount_received || 0)
-  if(receivedAmount>0 && !['cancelled','refunded'].includes(normalizeText(nextPaymentStatus))){
+  if(receivedAmount>0 && !['cancelled','refunded','cash','card','eft','voucher','foc'].includes(normalizeText(nextPaymentStatus))){
     nextPaymentStatus=receivedAmount+0.01>=Number(finalTotalAmount || 0) ? 'paid' : 'partially_paid'
   }
   const calculatedOutstandingAmounts=priceOverride>0
     ? resolveOutstandingAmounts({...pricing,totalAmount:priceOverride,subtotalAmount:priceOverride,amountDueNow:priceOverride,amountDueLater:0},nextPaymentStatus)
     : resolveOutstandingAmounts(pricing,nextPaymentStatus)
-  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid'].includes(normalizeText(nextPaymentStatus))
+  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid','cash','card','eft','voucher','foc'].includes(normalizeText(nextPaymentStatus))
     ? { amountDueNow:Math.max(0,Number((Number(finalTotalAmount || 0)-receivedAmount).toFixed(2))), amountDueLater:0 }
     : calculatedOutstandingAmounts
   const isFoc=normalizeText(nextPaymentStatus)==='foc'
