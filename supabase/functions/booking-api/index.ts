@@ -4157,8 +4157,8 @@ const duplicateBooking=async(bookingId:string,payload:Json,userId:string)=>{
     preferred_date:normalizeText(payload.preferred_date) || normalizeText(booking.preferred_date),
     quantity:Number(payload.quantity || booking.quantity || 1),
     notes:normalizeText(payload.notes) || `Duplicated from ${normalizeText(booking.reference)}`,
-    status:normalizeText(payload.status) || 'pending',
-    payment_status:normalizeText(payload.payment_status) || 'pending',
+    status:normalizeText(payload.status) || 'finalised',
+    payment_status:normalizeText(payload.payment_status) || '',
     customer:{
       full_name:normalizeText((booking.customers as Json | null)?.full_name),
       email:normalizeText((booking.customers as Json | null)?.email),
