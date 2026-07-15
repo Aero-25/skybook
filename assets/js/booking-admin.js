@@ -3641,6 +3641,7 @@ const renderReservationDetail=()=>{
           <div class="management-scroll-header-actions">
             <button type="button" data-reservation-nav="back">Back</button>
             <button type="button" data-reservation-action="edit">Edit</button>
+            <button type="button" class="is-danger-action" data-reservation-action="decline">Decline</button>
             <button type="button" class="is-danger-action" data-reservation-action="delete">Delete</button>
             <button type="button" class="is-primary-action" data-reservation-action="accept">Accept</button>
           </div>
@@ -3657,7 +3658,8 @@ const renderReservationDetail=()=>{
           <nav class="booking-management-nav reservation-management-nav" aria-label="Reservation management navigation">
             <div class="reservation-decision-actions" role="group" aria-label="Reservation decisions">
               <button type="button" data-reservation-action="edit">Edit details</button>
-              ${normalizeText(booking.status)==='cancelled' ? `<button type="button" class="booking-button" data-reservation-action="reinstate">Reinstate Reservation</button>` : `<button type="button" class="is-primary-action" data-reservation-action="accept">Accept reservation</button>`}
+              <button type="button" class="is-primary-action" data-reservation-action="accept">Accept reservation</button>
+              <button type="button" class="is-danger-action" data-reservation-action="decline">Decline reservation</button>
               <button type="button" class="is-danger-action" data-reservation-action="delete">Delete reservation</button>
             </div>
           </nav>
@@ -3750,6 +3752,7 @@ const renderReservationDetail=()=>{
           <span class="booking-chip">Decision desk</span>
           <button class="booking-button" type="button" data-reservation-action="accept">Accept reservation</button>
           <button class="booking-button ghost" type="button" data-reservation-action="edit">Edit details</button>
+          <button class="booking-button ghost danger" type="button" data-reservation-action="decline">Decline reservation</button>
           <button class="booking-button ghost danger" type="button" data-reservation-action="delete">Delete reservation</button>
         </div>
       </aside>
