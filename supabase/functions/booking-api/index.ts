@@ -4636,12 +4636,12 @@ const generateBookingPaymentLink=async(bookingId:string,payload:Json,userId:stri
   const shouldReuse=Boolean(payload.reuse_existing!==false && normalizeText(existingPaymentLink.url) && normalizeText(existingPaymentLink.token) && !normalizeText(existingPaymentLink.revoked_at))
   const paymentToken=shouldReuse ? normalizeText(existingPaymentLink.token) : crypto.randomUUID()
   const paymentLink=buildBookingPaymentPageUrl({...booking,metadata:{...currentMetadata,payment_link:{...existingPaymentLink,token:paymentToken}}},brand,paymentToken)
-  const currentStatus=normalizeText(booking.status)
+  // Generating a payment link never changes the booking's lifecycle status, and must not clobber a
+  // real recorded payment method with a placeholder value — only touch payment_status if nothing
+  // has been recorded yet.
   const currentPaymentStatus=normalizeText(booking.payment_status)
-  const nextStatus=['draft','pending','payment_request_sent'].includes(currentStatus) ? 'awaiting_payment' : currentStatus
-  const nextPaymentStatus=['paid','partially_paid'].includes(currentPaymentStatus) ? currentPaymentStatus : 'pending'
+  const nextPaymentStatus=currentPaymentStatus || ''
   const { error }=await adminClient.from('bookings').update({
-    status:nextStatus,
     payment_status:nextPaymentStatus,
     metadata:{
       ...currentMetadata,
@@ -4661,12 +4661,9 @@ const generateBookingPaymentLink=async(bookingId:string,payload:Json,userId:stri
     updated_by:userId
   }).eq('id',bookingId)
   if(error)throw error
-  if(nextStatus!==currentStatus){
-    await insertStatusHistory(bookingId,currentStatus,nextStatus,'Payment link generated for booking.',`admin:${userId}`,userId)
-  }
   await createAdminNote({ booking_id:bookingId, note:'Payment link generated and added to booking.', is_private:true },userId)
   await syncInvoiceForBooking(bookingId)
-  return { success:true, status:nextStatus, payment_status:nextPaymentStatus, payment_link:paymentLink, payment_token:paymentToken }
+  return { success:true, status:booking.status, payment_status:nextPaymentStatus, payment_link:paymentLink, payment_token:paymentToken }
 }
 
 // ── Guest review helpers ────────────────────────────────────────────────────
