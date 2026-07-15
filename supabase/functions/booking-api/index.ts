@@ -3704,9 +3704,11 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const finalPricingCreate=priceOverrideCreate>0
     ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
-  const bookingStatus=(['awaiting_details','provisional','confirmed','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'confirmed' : 'provisional')
-  // Status 2 (payment_status): a confirmed booking is To Pay; pre-confirmed stays blank until confirmed.
-  const paymentStatus=desiredPaymentStatus || (bookingStatus==='confirmed' ? 'to_pay' : '')
+  const bookingStatus=(['provisional','finalised','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'finalised' : 'provisional')
+  // Payment Process: payment_status now directly holds the settlement method (cash/card/eft/voucher/foc)
+  // or blank if not yet recorded. New bookings — admin or website — always start unpaid unless the
+  // caller explicitly supplied a method.
+  const paymentStatus=desiredPaymentStatus || ''
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
@@ -3717,7 +3719,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     payment_status:paymentStatus,
     source:bookingSource,
     preferred_date:normalizeText(payload.preferred_date) || null,
-    confirmed_date:bookingStatus==='confirmed' ? (normalizeText(payload.preferred_date)||null) : null,
+    confirmed_date:bookingStatus==='finalised' ? (normalizeText(payload.preferred_date)||null) : null,
     quantity:finalPricingCreate.quantity,
     adult_quantity:Number(payload.adult_quantity||0),
     child_quantity:Number(payload.child_quantity||0),
