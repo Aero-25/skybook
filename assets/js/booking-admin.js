@@ -2154,7 +2154,7 @@ const buildOperationalAlerts=()=>{
     const outstanding=Number(booking.amount_due_now||0)+Number(booking.amount_due_later||0)
     const preferredDate=parseDateValue(booking.preferred_date)
     const openTasks=getBookingTasks(booking.id).filter(task=>String(task.status||'')==='open').length
-    if(outstanding>0 && ['pending','awaiting_payment','confirmed'].includes(String(booking.status||''))){
+    if(outstanding>0 && normalizeText(booking.status)==='finalised'){
       alerts.push({
         category:'Overdue balance',
         reference:booking.reference,
@@ -2164,7 +2164,7 @@ const buildOperationalAlerts=()=>{
         booking_id:booking.id
       })
     }
-    if(normalizeText(booking.status)==='awaiting_payment' && preferredDate && preferredDate<=in48h && preferredDate>=now){
+    if(normalizeText(booking.status)==='finalised' && !normalizeText(booking.payment_status) && preferredDate && preferredDate<=in48h && preferredDate>=now){
       alerts.push({
         category:'⚠ Payment urgent',
         reference:booking.reference,
@@ -2174,7 +2174,7 @@ const buildOperationalAlerts=()=>{
         booking_id:booking.id
       })
     }
-    if(['confirmed','completed'].includes(String(booking.status||'')) && getBookingOperatorName(booking)==='Unassigned'){
+    if(normalizeText(booking.status)==='finalised' && getBookingOperatorName(booking)==='Unassigned'){
       alerts.push({
         category:'Unassigned operator',
         reference:booking.reference,
