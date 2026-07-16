@@ -1573,12 +1573,10 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 .cal-day-block.status-cancelled{border-color:#9ca3af;background:#f3f4f6}
 .cal-day-block.status-refunded{border-color:#5b21b6;background:#ede9fe}
 .calendar-mini-card.status-provisional{border-left:4px solid #ca8a04;background:#fefce8}
-.calendar-mini-card.status-confirmed{border-left:4px solid #1e293b;background:#f8fafc}
 .calendar-mini-card.status-finalised{border-left:4px solid #1e293b;background:#f8fafc}
 .calendar-mini-card.status-cancelled{border-left:4px solid #9ca3af;background:#f3f4f6}
 .calendar-mini-card.status-refunded{border-left:4px solid #5b21b6;background:#ede9fe}
 .calendar-entry-card.status-provisional{border-left:4px solid #ca8a04;background:#fefce8}
-.calendar-entry-card.status-confirmed{border-left:4px solid #1e293b;background:#f8fafc}
 .calendar-entry-card.status-finalised{border-left:4px solid #1e293b;background:#f8fafc}
 .calendar-entry-card.status-cancelled{border-left:4px solid #9ca3af;background:#f3f4f6}
 .calendar-entry-card.status-refunded{border-left:4px solid #5b21b6;background:#ede9fe}
