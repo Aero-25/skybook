@@ -3789,10 +3789,31 @@ const openBookingChangelogPage=bookingId=>{
 
 const repairStatusConflicts=async()=>{
   const btn=document.getElementById('repairStatusConflictsButton')
-  // Find bookings with legacy statuses that need migrating to the new two-field system
+  // Legacy status values retired by the 4-status migration. Anything not in this map
+  // (provisional/finalised/cancelled/refunded) is already correct and left untouched.
+  const legacyStatusMap={
+    confirmed:'finalised',
+    awaiting_details:'provisional',
+    no_show:'cancelled',
+    rescheduled:'finalised',
+    draft:'provisional',
+    pending:'provisional',
+    awaiting_payment:'finalised',
+    payment_pending:'finalised',
+    completed:'finalised'
+  }
+  // Legacy payment_status values retired by the method-based payment migration.
+  // 'paid'/'partially_paid' are still live (written by the Payments tab) and untouched.
+  const legacyPaymentMap={
+    to_pay:'',
+    invoice:'',
+    invoiced:'',
+    fully_paid:'paid'
+  }
   const conflicted=state.bookings.filter(b=>{
     const status=normalizeText(b.status||'')
-    return['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','pending','awaiting_payment','completed'].includes(status)
+    const payment=normalizeText(b.payment_status||'')
+    return Object.prototype.hasOwnProperty.call(legacyStatusMap,status)||Object.prototype.hasOwnProperty.call(legacyPaymentMap,payment)
   })
   if(!conflicted.length){
     showToast('No legacy status conflicts found.','success')
@@ -3805,20 +3826,26 @@ const repairStatusConflicts=async()=>{
   let errors=0
   for(const booking of conflicted){
     const s=normalizeText(booking.status||'')
-    let newStatus='confirmed'
-    let newPayment='invoice'
-    if(s==='payment_pending'){newStatus='confirmed';newPayment='invoice'}
-    else if(s==='invoice'){newStatus='confirmed';newPayment='invoice'}
-    else if(s==='invoiced'){newStatus='confirmed';newPayment='invoiced'}
-    else if(s==='partially_paid'){newStatus='confirmed';newPayment='partially_paid'}
-    else if(s==='fully_paid'){newStatus='confirmed';newPayment='fully_paid'}
-    else if(s==='finalised'||s==='completed'){newStatus='confirmed';newPayment='fully_paid'}
-    else if(s==='pending'||s==='awaiting_payment'){newStatus='provisional';newPayment=''}
+    const p=normalizeText(booking.payment_status||'')
+    const newStatus=legacyStatusMap[s]||booking.status
+    const newPayment=Object.prototype.hasOwnProperty.call(legacyPaymentMap,p) ? legacyPaymentMap[p] : (booking.payment_status||'')
+    const body={
+      status:newStatus,
+      payment_status:newPayment,
+      workflow_action:'admin_edit',
+      reason:'Legacy status/payment migration to the 4-status model.'
+    }
+    if(s==='no_show'){
+      body.metadata={
+        ...normalizeJsonRecord(booking.metadata),
+        no_show:{reason:'Migrated from legacy no_show status.',recorded_at:new Date().toISOString()}
+      }
+    }
     try{
       await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-        body:{status:newStatus,payment_status:newPayment,workflow_action:'system_automation'}
+        body
       })
       fixed++
       if(btn)btn.textContent=`Repairing ${fixed} / ${conflicted.length}...`
