@@ -76,11 +76,21 @@ test.describe('SkyBook admin smoke flows',()=>{
     await page.locator('[data-reservation-id]').filter({ hasText: guestName }).first().click()
 
     await expect.poll(()=>new URL(page.url()).searchParams.get('tab')).toBe('reservation-management')
-    await page.locator('[data-reservation-action="accept"]').first().click()
-
-    await expect.poll(()=>new URL(page.url()).searchParams.get('tab')).toBe('bookings')
-    const bookingId=new URL(page.url()).searchParams.get('booking')
+    // Accepting a reservation opens the full booking record in a NEW window/tab rather than
+    // navigating the current page (see openPendingBookingRecordWindow/navigatePendingBookingRecordWindow
+    // in booking-admin.js) — the original `page` stays on reservation-management throughout.
+    const [pendingRecordWindow]=await Promise.all([
+      page.context().waitForEvent('page'),
+      page.locator('[data-reservation-action="accept"]').first().click()
+    ])
+    await pendingRecordWindow.waitForLoadState()
+    await expect.poll(()=>new URL(pendingRecordWindow.url()).searchParams.get('tab')).toBe('bookings')
+    const bookingId=new URL(pendingRecordWindow.url()).searchParams.get('booking')
     expect(bookingId).toBeTruthy()
+    await pendingRecordWindow.close()
+
+    await page.goto(`/booking-admin.html?tab=bookings&booking=${bookingId}`)
+    await expect.poll(()=>new URL(page.url()).searchParams.get('tab')).toBe('bookings')
 
     await page.locator('[data-booking-inline-action="trash-booking"]').first().click()
     await expect(page.locator('#workflowModal')).toBeVisible()
