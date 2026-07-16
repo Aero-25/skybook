@@ -3200,7 +3200,6 @@ const renderCalendar=()=>{
                 <div class="calendar-entry-badges">
                   ${renderStatusBadge(booking.status)}
                   ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
-                  ${renderToPayTag(booking)}
                 </div>
               </div>
               <div class="calendar-entry-meta">
@@ -3236,7 +3235,6 @@ const renderCalendar=()=>{
                     <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
                     <span>${bookingAdminShared.escapeHtml(booking.service_name||'Tour')}</span>
                     ${renderStatusBadge(booking.status)}
-                    ${renderToPayTag(booking)}
                   </article>
                 `}).join('') : '<p class="muted-copy">No bookings</p>'}
               </div>
@@ -3692,15 +3690,6 @@ const getBookingChangelogPageUrl=bookingId=>{
   return `${url.pathname}${url.search}${url.hash}`
 }
 
-const getBookingOutstanding=booking=>Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)
-
-const renderToPayTag=booking=>{
-  const outstanding=getBookingOutstanding(booking)
-  if(!(outstanding>0))return ''
-  const href=`${getRecordPageUrl('bookings',booking.id)}&focus=payment`
-  const amountLabel=bookingAdminShared.formatMoney(outstanding,booking.currency||state.settings.currency)
-  return `<a class="to-pay-tag" href="${htmlAttribute(href)}" title="Outstanding ${bookingAdminShared.escapeHtml(amountLabel)} — click to load a payment">To Pay</a>`
-}
 
 // Explicit "Open" button — a real link so it opens the full management page in the same window.
 const renderOpenBookingLink=(booking,label='Open →')=>`<a class="open-booking-link" href="${htmlAttribute(getRecordPageUrl('bookings',booking.id))}" target="_blank" rel="noopener noreferrer" title="Open booking management (new tab)">${bookingAdminShared.escapeHtml(label)}</a>`
@@ -3817,7 +3806,7 @@ const renderBookings=()=>{
         <div class="table-subline booking-consultant">${bookingAdminShared.escapeHtml('By: '+getBookingConsultantOwnerName(booking))}</div>
       </td>
       <td style="white-space:nowrap" data-label="Date">${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
-      <td data-label="Status">${statusBadge}${paymentBadge}${renderToPayTag(booking)}</td>
+      <td data-label="Status">${statusBadge}${paymentBadge}</td>
       <td data-label="Open" class="booking-open-cell">${renderOpenBookingLink(booking)}</td>
     </tr>
   `

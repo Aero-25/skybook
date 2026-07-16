@@ -6297,10 +6297,7 @@ body.skybook-auth-page{
 .qr-list-row{display:grid;grid-template-columns:1.4fr 1.4fr 1fr .7fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--sky-line,#d8e5ef);border-radius:12px;margin-bottom:8px;font-size:13px}
 @media(max-width:768px){.qr-gen-form{grid-template-columns:1fr}.qr-list-row{grid-template-columns:1fr 1fr;gap:6px}}
 
-/* "To Pay" tag + zero-balance/credit warning (payment safety) */
-.to-pay-tag{display:inline-flex;align-items:center;margin-left:6px;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;background:#fff1f1;color:#c0392b;border:1px solid #f3c0c0;text-decoration:none;cursor:pointer;line-height:1.6;transition:background .15s ease,transform .1s ease}
-.to-pay-tag:hover{background:#ffe2e2;transform:translateY(-1px)}
-.calendar-mini-card .to-pay-tag{margin-left:0;margin-top:2px}
+/* zero-balance/credit warning (payment safety) */
 .detail-callout.is-warning{background:#fff7e8;border-color:#f0dca0;color:#8a6400}
 
 /* ---- Mobile toolbar + calendar controls polish (compact, tidy) ---- */
