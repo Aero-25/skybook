@@ -32,7 +32,7 @@
       if(status==='cancelled'&&Boolean(booking?.metadata?.no_show))bucket.noShows+=1
       if(status!=='cancelled'){
         bucket.gross+=Number(booking?.total_amount||0)
-        if(['paid','partially_paid','cash','card','eft','voucher'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
+        if(['paid','partially_paid','cash','card','eft','voucher','foc'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
       }
       accumulator[ownerId]=bucket
       return accumulator

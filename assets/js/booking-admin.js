@@ -2077,7 +2077,7 @@ const getBookingChecklist=booking=>{
   const checklist=[
     {label:'Guest details verified',done:Boolean(booking.customer_email&&booking.customer_phone),team:'reservations'},
     {label:'Guest invoice generated',done:Boolean(invoice?.invoice_number),team:'finance'},
-    {label:'Payment requirements reviewed',done:!hasOutstandingPayment || ['paid','partially_paid','cash','card','eft','voucher'].includes(String(booking.payment_status||'')),team:'finance'},
+    {label:'Payment requirements reviewed',done:!hasOutstandingPayment || ['paid','partially_paid','cash','card','eft','voucher','foc'].includes(String(booking.payment_status||'')),team:'finance'},
     {label:'Operator assigned',done:hasOperator,team:'supplier management'},
     {label:'Pickup resources linked',done:hasResources || !booking.preferred_date,team:'operations'},
     {label:'Follow-up tasks closed',done:tasks.filter(task=>String(task.status||'')==='open').length===0,team:'operations'}
@@ -3358,7 +3358,7 @@ const getStatusColor=(status,isCruise=false,paymentStatus='')=>{
   if(['cancelled','failed','no_show'].includes(normalizeText(status)))return '#9ca3af'
   // finalised — color by payment progress
   const pm=normalizeText(paymentStatus)
-  if(['cash','card','eft','voucher','paid','fully_paid'].includes(pm))return '#2563eb'
+  if(['cash','card','eft','voucher','paid','fully_paid','foc'].includes(pm))return '#2563eb'
   if(pm==='partially_paid')return '#15803d'
   return '#1e293b'
 }
@@ -4116,7 +4116,7 @@ const renderBookingDetail=()=>{
   })).filter(item=>item.value)
   const canRecordPayments=canAccess('payments')
   const canIssueClientInvoices=canAccess('finance')
-  const isFinalised=normalizeText(booking.status)==='completed'
+  const isFinalised=normalizeText(booking.status)==='finalised'
   const paymentLinkMeta=getBookingPaymentLinkMeta(booking)
   const bookingPaymentLink=getBookingPaymentLink(booking)
   const paymentLinkGeneratedAt=normalizeText(paymentLinkMeta.generated_at)
@@ -6225,9 +6225,9 @@ const renderReportsWorkbench=()=>{
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  const noShowBookings=financeBookings.filter(booking=>normalizeText(booking.status)==='no_show')
-  const acceptedBookings=financeBookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status)))
-  const paidBookings=financeBookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher'].includes(normalizeText(booking.payment_status)))
+  const noShowBookings=financeBookings.filter(booking=>normalizeText(booking.status)==='cancelled'&&Boolean(booking.metadata?.no_show))
+  const acceptedBookings=financeBookings.filter(booking=>!['provisional','cancelled','failed'].includes(normalizeText(booking.status)))
+  const paidBookings=financeBookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher','foc'].includes(normalizeText(booking.payment_status)))
   const consultantRows=buildConsultantProductivityRows(reportBookings)
   if(nodes.reportsArrivalsDate && !nodes.reportsArrivalsDate.value)nodes.reportsArrivalsDate.value=getTodayKey()
   const arrivalsRows=buildArrivalsManifestRows(nodes.reportsArrivalsDate?.value||getTodayKey())
@@ -7765,9 +7765,9 @@ const buildSkyBookReport=(type,selectedPeriod='month')=>{
   const financeBookings=getFinanceReportBookings(periodBookings)
   const cancelledExcluded=periodBookings.length-financeBookings.length
   const financeBookingIds=new Set(financeBookings.map(booking=>String(booking.id||'')))
-  const accepted=bookings.filter(booking=>!['draft','pending','cancelled','failed'].includes(normalizeText(booking.status))).length
+  const accepted=bookings.filter(booking=>!['provisional','cancelled','failed'].includes(normalizeText(booking.status))).length
   const declined=bookings.filter(booking=>normalizeText(booking.status)==='cancelled').length
-  const paid=bookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher'].includes(normalizeText(booking.payment_status))).length
+  const paid=bookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher','foc'].includes(normalizeText(booking.payment_status))).length
   const gross=sumAmounts(bookings,'total_amount')
   const financeGross=sumAmounts(financeBookings,'total_amount')
   const paymentTypeRows=getReportPaymentRows(financeBookings)
