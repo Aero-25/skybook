@@ -83,8 +83,6 @@ const state={
   settings:bookingAdminShared.readConfig(),
   emailTemplates:bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),
   automationRules:{
-    autoConfirmPaidBookings:true,
-    autoCompletePastConfirmedBookings:true,
     autoCancelExpiredAwaitingPayment:false,
     awaitingPaymentExpiryHours:48,
     sendOnBookingMade:true,
@@ -550,8 +548,6 @@ const nodes={
   refundAmount:document.getElementById('adminRefundAmount'),
   refundReason:document.getElementById('adminRefundReason'),
   automationRulesForm:document.getElementById('automationRulesForm'),
-  automationAutoConfirmPaid:document.getElementById('automationAutoConfirmPaid'),
-  automationAutoCompletePast:document.getElementById('automationAutoCompletePast'),
   automationExpiryHours:document.getElementById('automationExpiryHours'),
   portalSettingsForm:document.getElementById('portalSettingsForm'),
   portalEnabled:document.getElementById('portalEnabled'),
@@ -6099,16 +6095,12 @@ const renderPlatform=()=>{
     </tr>
   `).join('') || '<tr><td colspan="4">No platform configuration records loaded yet.</td></tr>'
 
-  nodes.automationAutoConfirmPaid.checked=Boolean(state.automationRules.autoConfirmPaidBookings)
-  nodes.automationAutoCompletePast.checked=Boolean(state.automationRules.autoCompletePastConfirmedBookings)
   nodes.automationExpiryHours.value=state.automationRules.awaitingPaymentExpiryHours||48
   nodes.portalEnabled.checked=Boolean(state.portalSettings.enabled)
   nodes.portalLookupEnabled.checked=Boolean(state.portalSettings.allowBookingLookup)
 }
 
 const buildAutomationRulesPayload=()=>({
-  autoConfirmPaidBookings:Boolean(nodes.automationAutoConfirmPaid?.checked),
-  autoCompletePastConfirmedBookings:Boolean(nodes.automationAutoCompletePast?.checked),
   autoCancelExpiredAwaitingPayment:Boolean(state.automationRules.autoCancelExpiredAwaitingPayment),
   awaitingPaymentExpiryHours:Number(nodes.automationExpiryHours?.value||48),
   sendOnBookingMade:Boolean(nodes.emailTriggerBookingMade?.checked),
