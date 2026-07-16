@@ -3682,7 +3682,7 @@ const renderReservationDetail=()=>{
             <div><span>Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'No phone captured')}</strong></div>
             <div><span>Source</span><strong>${bookingAdminShared.escapeHtml(formatSourceLabel(booking.source||booking.metadata?.source||'website'))}</strong></div>
             <div><span>Submitted</span><strong>${bookingAdminShared.escapeHtml(formatDateTimeLabel(booking.created_at))}</strong></div>
-            <div><span>Payment state</span><strong>${bookingAdminShared.escapeHtml(formatDisplayLabel(booking.payment_status||'pending'))}</strong></div>
+            <div><span>Payment state</span><strong>${booking.payment_status ? bookingAdminShared.escapeHtml(formatDisplayLabel(booking.payment_status)) : '—'}</strong></div>
           </div>
           <p class="admin-inline-copy">${bookingAdminShared.escapeHtml(booking.customer_notes||booking.notes||'No guest notes or pickup instructions were captured yet.')}</p>
         </section>
@@ -6454,7 +6454,7 @@ const renderReportsWorkbench=()=>{
         <td>${bookingAdminShared.escapeHtml(row.dropoffs||'Pending')}</td>
         <td>${bookingAdminShared.escapeHtml(row.notes||'No notes captured.')}</td>
         <td>${bookingAdminShared.escapeHtml(row.operator||'Unassigned')}</td>
-        <td>${renderStatusBadge(row.status||'pending')}</td>
+        <td>${renderStatusBadge(row.status||'provisional')}</td>
       </tr>
     `).join('') || renderEmptyRow(7,'No arrivals scheduled for this date.')
   }

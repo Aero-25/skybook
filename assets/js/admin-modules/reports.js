@@ -60,7 +60,7 @@
         dropoffs:typeof getDropoffSummary==='function' ? (getDropoffSummary(booking)||'Pending') : 'Pending',
         notes:typeof getNotes==='function' ? (getNotes(booking)||'No notes captured.') : 'No notes captured.',
         operator:typeof getOperatorName==='function' ? (getOperatorName(booking)||'Unassigned') : 'Unassigned',
-        status:booking?.status||'pending',
+        status:booking?.status||'provisional',
         total:Number(booking?.total_amount||0)
       }))
       .sort((left,right)=>left.guest.localeCompare(right.guest))
