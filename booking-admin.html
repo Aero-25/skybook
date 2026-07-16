@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/booking.css?v=20260714-payment-process">
+<link rel="stylesheet" href="assets/css/booking.css?v=20260716-frontend-4status">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#1769aa">
 <meta name="mobile-web-app-capable" content="yes">
@@ -629,13 +629,9 @@
               <div class="booking-quick-filter-bar" aria-label="Booking quick filters">
                 <button type="button" class="booking-quick-filter is-active" data-booking-quick-filter="today">Today <span data-filter-count="today">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="">All <span data-filter-count="all">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="awaiting_details">Awaiting Details <span data-filter-count="awaiting_details">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="provisional">Provisional <span data-filter-count="provisional">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="confirmed">Confirmed <span data-filter-count="confirmed">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="to_pay">To Pay <span data-filter-count="to_pay">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="partially_paid">Part Paid <span data-filter-count="partially_paid">0</span></button>
-                <button type="button" class="booking-quick-filter" data-booking-quick-filter="fully_paid">Paid <span data-filter-count="fully_paid">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="finalised">Finalised <span data-filter-count="finalised">0</span></button>
                 <button type="button" class="booking-quick-filter" data-booking-quick-filter="cancelled">Cancelled <span data-filter-count="cancelled">0</span></button>
+                <button type="button" class="booking-quick-filter" data-booking-quick-filter="refunded">Refunded <span data-filter-count="refunded">0</span></button>
                 <button type="button" class="booking-quick-filter is-reset" data-booking-filter-reset>Reset</button>
               </div>
               <div class="booking-filter-toggle-row">
@@ -667,22 +663,10 @@
                   <div class="booking-field">
                     <label>Status <span class="filter-status-hint" id="filterStatusHint"></span></label>
                     <div class="status-pill-filter" id="bookingFilterStatus">
-                      <label class="status-pill-option"><input type="checkbox" value="awaiting_details"><span class="status-pill-label status-pill-awaiting-details">Awaiting Details</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="provisional"><span class="status-pill-label status-pill-provisional">Provisional</span></label>
-                      <label class="status-pill-option"><input type="checkbox" value="confirmed"><span class="status-pill-label status-pill-confirmed">Confirmed</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="finalised"><span class="status-pill-label status-pill-finalised">Finalised</span></label>
                       <label class="status-pill-option"><input type="checkbox" value="cancelled"><span class="status-pill-label status-pill-cancelled">Cancelled</span></label>
+                      <label class="status-pill-option"><input type="checkbox" value="refunded"><span class="status-pill-label status-pill-refunded">Refunded</span></label>
                     </div>
-                  </div>
-                  <div class="booking-field">
-                    <label for="bookingFilterPaymentStatus">Payment</label>
-                    <select id="bookingFilterPaymentStatus">
-                      <option value="">All payment states</option>
-                      <option value="to_pay">To Pay</option>
-                      <option value="invoice">Invoice</option>
-                      <option value="invoiced">Invoiced</option>
-                      <option value="partially_paid">Partially Paid</option>
-                      <option value="fully_paid">Fully Paid</option>
-                    </select>
                   </div>
                   <div class="booking-field">
                     <label for="bookingFilterService">Service</label>
@@ -1366,14 +1350,6 @@
               </div>
             </form>
             <form id="automationRulesForm" class="booking-form-grid admin-spacer" novalidate>
-              <label class="booking-field-full inline-check">
-                <input id="automationAutoConfirmPaid" type="checkbox">
-                <span>Auto confirm bookings when payment is marked paid.</span>
-              </label>
-              <label class="booking-field-full inline-check">
-                <input id="automationAutoCompletePast" type="checkbox">
-                <span>Auto complete confirmed bookings after their service date.</span>
-              </label>
               <label class="booking-field">
                 <span>Awaiting Payment Expiry Hours</span>
                 <input id="automationExpiryHours" type="number" min="1" value="48">
@@ -1509,11 +1485,10 @@
             <label class="booking-field">
               <span>Status</span>
               <select id="adminBookingStatusField">
-                <option value="awaiting_details" disabled>Awaiting Details</option>
-                <option value="provisional" disabled>Provisional</option>
-                <option value="confirmed" disabled>Confirmed</option>
+                <option value="provisional" disabled>Provisional (website, awaiting review)</option>
                 <option value="finalised">Finalised</option>
                 <option value="cancelled">Cancelled</option>
+                <option value="refunded" disabled>Refunded</option>
               </select>
             </label>
             <label class="booking-field">
@@ -1525,12 +1500,8 @@
                 <option value="eft">EFT</option>
                 <option value="voucher">Voucher</option>
                 <option value="foc">FOC (Free of Charge)</option>
-                <option value="to_pay" disabled>To Pay</option>
                 <option value="paid" disabled>Paid (method not recorded)</option>
                 <option value="partially_paid" disabled>Partially Paid</option>
-                <option value="invoice" disabled>Invoice (legacy)</option>
-                <option value="invoiced" disabled>Invoiced (legacy)</option>
-                <option value="fully_paid" disabled>Fully Paid (legacy)</option>
               </select>
             </label>
             <label class="booking-field">
@@ -1926,7 +1897,7 @@
   <script src="assets/js/shared.js?v=20260408tourtypes"></script>
   <script src="assets/js/booking-shared.js?v=20260619-ipadfix"></script>
   <script src="assets/js/admin-modules/shared-ui.js?v=20260424"></script>
-  <script src="assets/js/admin-modules/reports.js?v=20260619-finance"></script>
+  <script src="assets/js/admin-modules/reports.js?v=20260716-frontend-4status"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -1937,7 +1908,7 @@
   </script>
   <script src="assets/js/tenant.js"></script>
   <script src="assets/js/vendor/qrcode.min.js"></script>
-  <script src="assets/js/booking-admin.js?v=20260714-payment-process" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/booking-admin.js?v=20260716-frontend-4status" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>
 

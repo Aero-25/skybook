@@ -27,13 +27,12 @@
       const status=normalizeText(booking?.status)
       const paymentStatus=normalizeText(booking?.payment_status)
       bucket.bookings+=1
-      if(!['draft','pending','cancelled','failed'].includes(status))bucket.accepted+=1
-      if(status==='completed')bucket.completed+=1
+      if(!['provisional','cancelled','failed'].includes(status))bucket.accepted+=1
       if(status==='cancelled')bucket.cancelled+=1
-      if(status==='no_show')bucket.noShows+=1
-      if(status!=='cancelled'&&paymentStatus!=='cancelled'){
+      if(status==='cancelled'&&Boolean(booking?.metadata?.no_show))bucket.noShows+=1
+      if(status!=='cancelled'){
         bucket.gross+=Number(booking?.total_amount||0)
-        if(['paid','partially_paid'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
+        if(['paid','partially_paid','cash','card','eft','voucher','foc'].includes(paymentStatus))bucket.paid+=Number(booking?.total_amount||0)
       }
       accumulator[ownerId]=bucket
       return accumulator
@@ -61,7 +60,7 @@
         dropoffs:typeof getDropoffSummary==='function' ? (getDropoffSummary(booking)||'Pending') : 'Pending',
         notes:typeof getNotes==='function' ? (getNotes(booking)||'No notes captured.') : 'No notes captured.',
         operator:typeof getOperatorName==='function' ? (getOperatorName(booking)||'Unassigned') : 'Unassigned',
-        status:booking?.status||'pending',
+        status:booking?.status||'provisional',
         total:Number(booking?.total_amount||0)
       }))
       .sort((left,right)=>left.guest.localeCompare(right.guest))
