@@ -59,7 +59,7 @@ const seedWebsiteReservation=async(request,{guestName,guestEmail,guestPhone})=>{
 test.describe('SkyBook admin smoke flows',()=>{
   test.skip(!adminUsername || !adminPassword,'Set SKYBOOK_ADMIN_USERNAME and SKYBOOK_ADMIN_PASSWORD to run admin smoke tests.')
 
-  test('reservation accept, trash recovery, booking edit, and customer popup',async({ page, request })=>{
+  test('reservation accept, cancellation recovery, booking edit, and customer popup',async({ page, request })=>{
     const seed=uniqueGuestSeed()
     const guestName=`Smoke Guest ${seed}`
     const guestEmail=`smoke.${seed}@example.com`
@@ -92,18 +92,21 @@ test.describe('SkyBook admin smoke flows',()=>{
     await page.goto(`/booking-admin.html?tab=bookings&booking=${bookingId}`)
     await expect.poll(()=>new URL(page.url()).searchParams.get('tab')).toBe('bookings')
 
-    await page.locator('[data-booking-inline-action="trash-booking"]').first().click()
+    // A finalised (accepted) booking can no longer be trashed — under the current model, only
+    // provisional reservations support trash/restore (see the 'trash-booking' inline action, which
+    // now explicitly refuses on any non-reservation booking). The lifecycle-equivalent "undo" for an
+    // active booking is Cancel followed by Reinstate, both of which are real, wired-up actions here.
+    await page.locator('[data-booking-action="cancelled"]').first().click()
     await expect(page.locator('#workflowModal')).toBeVisible()
-    await page.locator('#workflowModal textarea[name="reason"]').fill('Playwright smoke archive test.')
+    await page.locator('#workflowModal textarea[name="consultant_comment"]').fill('Playwright smoke cancellation test.')
     await page.locator('#workflowModalSubmitButton').click()
 
-    await expect.poll(()=>new URL(page.url()).searchParams.get('tab')).toBe('booking-trash')
-    const trashRow=page.locator('#adminBookingTrashTable tr').filter({ hasText: guestName }).first()
-    await expect(trashRow).toBeVisible()
-    await trashRow.getByRole('button',{name:/restore/i}).click()
+    await expect(page.locator('[data-booking-inline-action="reinstate-booking"]').first()).toBeVisible()
+    await page.locator('[data-booking-inline-action="reinstate-booking"]').first().click()
+    await expect(page.locator('#workflowModal')).toBeVisible()
+    await page.locator('#workflowModal textarea[name="reason"]').fill('Playwright smoke reinstatement test.')
+    await page.locator('#workflowModalSubmitButton').click()
 
-    await page.goto(`/booking-admin.html?tab=bookings&booking=${bookingId}`)
-    await expect.poll(()=>new URL(page.url()).searchParams.get('booking')).toBe(bookingId)
     await expect(page.locator('body')).toContainText(guestName)
 
     await page.locator('[data-booking-inline-action="edit-booking"]').first().click()
