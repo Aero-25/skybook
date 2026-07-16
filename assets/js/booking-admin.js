@@ -83,8 +83,6 @@ const state={
   settings:bookingAdminShared.readConfig(),
   emailTemplates:bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),
   automationRules:{
-    autoCancelExpiredAwaitingPayment:false,
-    awaitingPaymentExpiryHours:48,
     sendOnBookingMade:true,
     sendOnBookingConfirmed:false,
     sendOnPaymentReceived:false,
@@ -548,7 +546,6 @@ const nodes={
   refundAmount:document.getElementById('adminRefundAmount'),
   refundReason:document.getElementById('adminRefundReason'),
   automationRulesForm:document.getElementById('automationRulesForm'),
-  automationExpiryHours:document.getElementById('automationExpiryHours'),
   portalSettingsForm:document.getElementById('portalSettingsForm'),
   portalEnabled:document.getElementById('portalEnabled'),
   portalLookupEnabled:document.getElementById('portalLookupEnabled'),
@@ -1416,45 +1413,6 @@ const collectBookingFormValues=()=>({
   custom_fields:collectBookingCustomFieldValues(),
   notes:nodes.bookingNotes?.value||''
 })
-const applyBookingFormValues=values=>{
-  if(!values)return
-  if(nodes.bookingBrand)nodes.bookingBrand.value=String(values.brand_code||nodes.bookingBrand.value||'')
-  syncBookingReferenceField({
-    reference:values.reference,
-    brandCode:nodes.bookingBrand?.value||values.brand_code||'',
-    forceNew:!state.selectedBookingId&&!values.reference
-  })
-  if(nodes.bookingSource)nodes.bookingSource.value=String(values.source||nodes.bookingSource.value||'admin')
-  if(nodes.bookingService)nodes.bookingService.value=String(values.service_slug||'')
-  if(nodes.bookingStatus)nodes.bookingStatus.value=String(values.status||nodes.bookingStatus.value||'confirmed')
-  if(nodes.bookingPaymentStatus)nodes.bookingPaymentStatus.value=String(values.payment_status||nodes.bookingPaymentStatus.value||'')
-  if(nodes.bookingDate)nodes.bookingDate.value=String(values.preferred_date||'')
-  if(nodes.bookingQuantity)nodes.bookingQuantity.value=String(values.quantity||nodes.bookingQuantity.value||2)
-  const prefillAdults=Number(values.adult_quantity||0),prefillChildren=Number(values.child_quantity||0),prefillInfants=Number(values.infant_quantity||values.metadata?.infant_quantity||0)
-  const prefillTotal=Number(values.quantity||nodes.bookingQuantity?.value||0)
-  // Infer adults from the head count minus children + infants so an under-4 is never treated as an adult.
-  const prefillResolvedAdults=(prefillAdults<=0&&prefillChildren<=0&&prefillTotal>0)
-    ? Math.max(0,prefillTotal-prefillChildren-prefillInfants)
-    : prefillAdults
-  if(nodes.bookingAdultQuantity)nodes.bookingAdultQuantity.value=String(prefillResolvedAdults>0||prefillChildren>0||prefillInfants>0 ? prefillResolvedAdults : (prefillTotal||2))
-  if(nodes.bookingChildQuantity)nodes.bookingChildQuantity.value=String(prefillChildren)
-  if(nodes.bookingInfantQuantity)nodes.bookingInfantQuantity.value=String(prefillInfants)
-  if(nodes.bookingPriceOverride)nodes.bookingPriceOverride.value=String(values.price_override||values.metadata?.price_override||'')
-  if(nodes.bookingAgent)nodes.bookingAgent.value=String(values.agent||values.metadata?.agent||'')
-  if(nodes.bookingGuideName)nodes.bookingGuideName.value=String(values.guide_name||values.metadata?.guide_name||'')
-  if(nodes.bookingNationality)nodes.bookingNationality.value=String(values.nationality||values.metadata?.nationality||'')
-  if(nodes.bookingBookedBy)nodes.bookingBookedBy.value=String(values.booked_by||values.metadata?.booked_by||'')
-  if(nodes.bookingDietary)nodes.bookingDietary.value=String(values.dietary_requirements||values.metadata?.dietary_requirements||values.metadata?.dietary||'')
-  if(nodes.bookingPickupLocation)nodes.bookingPickupLocation.value=String(values.pickup_location||values.metadata?.pickup_location||values.metadata?.hotel||'')
-  if(nodes.bookingPickupPoint)nodes.bookingPickupPoint.value=String(values.pickup_point||values.metadata?.pickup_point||'')
-  if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=String(values.dropoff_location||values.metadata?.dropoff_location||'')
-  if(nodes.bookingCustomerName)nodes.bookingCustomerName.value=String(values.customer_name||'')
-  if(nodes.bookingCustomerEmail)nodes.bookingCustomerEmail.value=String(values.customer_email||'')
-  if(nodes.bookingCustomerPhone)nodes.bookingCustomerPhone.value=String(values.customer_phone||'')
-  if(values.custom_fields)renderAdminBookingCustomFields(null,normalizeJsonRecord(values.custom_fields))
-  if(nodes.bookingNotes)nodes.bookingNotes.value=String(values.notes||'')
-  syncBookingQuantityMode()
-}
 const createBookingFormSnapshot=()=>JSON.stringify(collectBookingFormValues())
 const getBookingEditorDraftKey=()=>`${BOOKING_EDITOR_DRAFT_KEY}:${state.selectedBookingId||'new'}`
 const renderBookingDraftStatus=()=>{
@@ -2079,16 +2037,6 @@ const getBookingChecklist=booking=>{
     {label:'Follow-up tasks closed',done:tasks.filter(task=>String(task.status||'')==='open').length===0,team:'operations'}
   ]
   return checklist
-}
-
-const bookingHasOpenOperationalWork=booking=>{
-  const status=String(booking?.status||'').toLowerCase()
-  const paymentStatus=String(booking?.payment_status||'').toLowerCase()
-  if(['cancelled','completed','refunded'].includes(status)||['cancelled','refunded'].includes(paymentStatus))return false
-  const openTasks=getBookingTasks(booking?.id).some(task=>String(task.status||'')==='open')
-  const hasOutstanding=Number(booking?.amount_due_now||0)+Number(booking?.amount_due_later||0)>0
-  const needsOperator=['pending','awaiting_payment','confirmed'].includes(status)&&getBookingOperatorName(booking)==='Unassigned'
-  return openTasks||status==='pending'||status==='awaiting_payment'||needsOperator||hasOutstanding||['failed','to_pay','partially_paid'].includes(paymentStatus)
 }
 
 const bookingMatchesQuickFilter=(booking,filter=state.bookingQuickFilter)=>{
@@ -3347,18 +3295,6 @@ const syncBookingAutocomplete=()=>{
   syncAutocompleteDatalist('agentDatalist',agentValues)
 }
 
-const getStatusColor=(status,isCruise=false,paymentStatus='')=>{
-  if(isCruise)return '#7c3aed'
-  if(normalizeText(status)==='provisional')return '#ca8a04'
-  if(normalizeText(status)==='refunded')return '#5b21b6'
-  if(['cancelled','failed','no_show'].includes(normalizeText(status)))return '#9ca3af'
-  // finalised — color by payment progress
-  const pm=normalizeText(paymentStatus)
-  if(['cash','card','eft','voucher','paid','fully_paid','foc'].includes(pm))return '#2563eb'
-  if(pm==='partially_paid')return '#15803d'
-  return '#1e293b'
-}
-
 const openCalendarDayPanel=dateKey=>{
   const panel=document.getElementById('calendarDayPanel')
   const title=document.getElementById('calendarDayPanelTitle')
@@ -3789,10 +3725,36 @@ const openBookingChangelogPage=bookingId=>{
 
 const repairStatusConflicts=async()=>{
   const btn=document.getElementById('repairStatusConflictsButton')
-  // Find bookings with legacy statuses that need migrating to the new two-field system
+  // Legacy status values retired by the 4-status migration. Anything not in this map
+  // (provisional/finalised/cancelled/refunded) is already correct and left untouched.
+  const legacyStatusMap={
+    confirmed:'finalised',
+    awaiting_details:'provisional',
+    no_show:'cancelled',
+    rescheduled:'finalised',
+    draft:'provisional',
+    pending:'provisional',
+    awaiting_payment:'finalised',
+    payment_pending:'finalised',
+    payment_request_sent:'finalised',
+    completed:'finalised',
+    failed:'cancelled',
+    invoice:'finalised',
+    invoiced:'finalised',
+    fully_paid:'finalised'
+  }
+  // Legacy payment_status values retired by the method-based payment migration.
+  // 'paid'/'partially_paid' are still live (written by the Payments tab) and untouched.
+  const legacyPaymentMap={
+    to_pay:'',
+    invoice:'',
+    invoiced:'',
+    fully_paid:'paid'
+  }
   const conflicted=state.bookings.filter(b=>{
     const status=normalizeText(b.status||'')
-    return['payment_pending','invoice','invoiced','partially_paid','fully_paid','finalised','pending','awaiting_payment','completed'].includes(status)
+    const payment=normalizeText(b.payment_status||'')
+    return Object.prototype.hasOwnProperty.call(legacyStatusMap,status)||Object.prototype.hasOwnProperty.call(legacyPaymentMap,payment)
   })
   if(!conflicted.length){
     showToast('No legacy status conflicts found.','success')
@@ -3805,20 +3767,26 @@ const repairStatusConflicts=async()=>{
   let errors=0
   for(const booking of conflicted){
     const s=normalizeText(booking.status||'')
-    let newStatus='confirmed'
-    let newPayment='invoice'
-    if(s==='payment_pending'){newStatus='confirmed';newPayment='invoice'}
-    else if(s==='invoice'){newStatus='confirmed';newPayment='invoice'}
-    else if(s==='invoiced'){newStatus='confirmed';newPayment='invoiced'}
-    else if(s==='partially_paid'){newStatus='confirmed';newPayment='partially_paid'}
-    else if(s==='fully_paid'){newStatus='confirmed';newPayment='fully_paid'}
-    else if(s==='finalised'||s==='completed'){newStatus='confirmed';newPayment='fully_paid'}
-    else if(s==='pending'||s==='awaiting_payment'){newStatus='provisional';newPayment=''}
+    const p=normalizeText(booking.payment_status||'')
+    const newStatus=legacyStatusMap[s]||booking.status
+    const newPayment=Object.prototype.hasOwnProperty.call(legacyPaymentMap,p) ? legacyPaymentMap[p] : (booking.payment_status||'')
+    const body={
+      status:newStatus,
+      payment_status:newPayment,
+      workflow_action:'admin_edit',
+      reason:'Legacy status/payment migration to the 4-status model.'
+    }
+    if(s==='no_show'){
+      body.metadata={
+        ...normalizeJsonRecord(booking.metadata),
+        no_show:{reason:'Migrated from legacy no_show status.',recorded_at:new Date().toISOString()}
+      }
+    }
     try{
       await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
         headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-        body:{status:newStatus,payment_status:newPayment,workflow_action:'system_automation'}
+        body
       })
       fixed++
       if(btn)btn.textContent=`Repairing ${fixed} / ${conflicted.length}...`
@@ -6095,14 +6063,11 @@ const renderPlatform=()=>{
     </tr>
   `).join('') || '<tr><td colspan="4">No platform configuration records loaded yet.</td></tr>'
 
-  nodes.automationExpiryHours.value=state.automationRules.awaitingPaymentExpiryHours||48
   nodes.portalEnabled.checked=Boolean(state.portalSettings.enabled)
   nodes.portalLookupEnabled.checked=Boolean(state.portalSettings.allowBookingLookup)
 }
 
 const buildAutomationRulesPayload=()=>({
-  autoCancelExpiredAwaitingPayment:Boolean(state.automationRules.autoCancelExpiredAwaitingPayment),
-  awaitingPaymentExpiryHours:Number(nodes.automationExpiryHours?.value||48),
   sendOnBookingMade:Boolean(nodes.emailTriggerBookingMade?.checked),
   sendOnBookingConfirmed:Boolean(nodes.emailTriggerBookingConfirmed?.checked),
   sendOnPaymentReceived:Boolean(nodes.emailTriggerPaymentReceived?.checked),
