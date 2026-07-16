@@ -83,8 +83,6 @@ const state={
   settings:bookingAdminShared.readConfig(),
   emailTemplates:bookingAdminShared.clone(bookingAdminShared.DEFAULT_EMAIL_TEMPLATES),
   automationRules:{
-    autoCancelExpiredAwaitingPayment:false,
-    awaitingPaymentExpiryHours:48,
     sendOnBookingMade:true,
     sendOnBookingConfirmed:false,
     sendOnPaymentReceived:false,
@@ -548,7 +546,6 @@ const nodes={
   refundAmount:document.getElementById('adminRefundAmount'),
   refundReason:document.getElementById('adminRefundReason'),
   automationRulesForm:document.getElementById('automationRulesForm'),
-  automationExpiryHours:document.getElementById('automationExpiryHours'),
   portalSettingsForm:document.getElementById('portalSettingsForm'),
   portalEnabled:document.getElementById('portalEnabled'),
   portalLookupEnabled:document.getElementById('portalLookupEnabled'),
@@ -6127,14 +6124,11 @@ const renderPlatform=()=>{
     </tr>
   `).join('') || '<tr><td colspan="4">No platform configuration records loaded yet.</td></tr>'
 
-  nodes.automationExpiryHours.value=state.automationRules.awaitingPaymentExpiryHours||48
   nodes.portalEnabled.checked=Boolean(state.portalSettings.enabled)
   nodes.portalLookupEnabled.checked=Boolean(state.portalSettings.allowBookingLookup)
 }
 
 const buildAutomationRulesPayload=()=>({
-  autoCancelExpiredAwaitingPayment:Boolean(state.automationRules.autoCancelExpiredAwaitingPayment),
-  awaitingPaymentExpiryHours:Number(nodes.automationExpiryHours?.value||48),
   sendOnBookingMade:Boolean(nodes.emailTriggerBookingMade?.checked),
   sendOnBookingConfirmed:Boolean(nodes.emailTriggerBookingConfirmed?.checked),
   sendOnPaymentReceived:Boolean(nodes.emailTriggerPaymentReceived?.checked),
