@@ -10214,7 +10214,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
         await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
           method:'PATCH',
           headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-          body:{status:'provisional',payment_status:'',reason:values.reason,workflow_action:'reinstate'}
+          body:{status:'finalised',reason:values.reason,workflow_action:'reinstate'}
         })
         await createActivityNote(state.selectedBookingId,`Booking reinstated: ${values.reason}`)
         await refreshAdmin('Booking reinstated successfully.')
