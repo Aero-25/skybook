@@ -7280,7 +7280,7 @@ const handleMemoryUploadSave=async form=>{
   const fileInput=form.querySelector('input[type="file"][name="memories"]')
   const files=[...(fileInput?.files||[])]
   if(!bookingId||!reference)throw new Error('Choose a booking before uploading memories.')
-  if(normalizeText(booking?.status)!=='completed')throw new Error('Tour memories can only be uploaded after the booking is finalised.')
+  if(normalizeText(booking?.status)!=='finalised')throw new Error('Tour memories can only be uploaded after the booking is finalised.')
   if(!files.length)throw new Error('Choose at least one guest image.')
   const submitButton=form.querySelector('button[type="submit"]')
   const originalLabel=submitButton?.textContent||'Upload Tour Memories'
@@ -10244,7 +10244,7 @@ nodes.bookingDetail.addEventListener('click',event=>{
   }
   if(inlineAction==='memories-focus'){
     const booking=state.bookings.find(item=>item.id===state.selectedBookingId)
-    if(normalizeText(booking?.status)!=='completed'){
+    if(normalizeText(booking?.status)!=='finalised'){
       setAdminStatus('Finalise the booking before uploading tour memories.',true)
       return
     }
