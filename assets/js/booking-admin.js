@@ -3800,7 +3800,12 @@ const repairStatusConflicts=async()=>{
     pending:'provisional',
     awaiting_payment:'finalised',
     payment_pending:'finalised',
-    completed:'finalised'
+    payment_request_sent:'finalised',
+    completed:'finalised',
+    failed:'cancelled',
+    invoice:'finalised',
+    invoiced:'finalised',
+    fully_paid:'finalised'
   }
   // Legacy payment_status values retired by the method-based payment migration.
   // 'paid'/'partially_paid' are still live (written by the Payments tab) and untouched.
