@@ -256,25 +256,11 @@ Deno.serve(async request=>{
     }).eq('id',payment.id)
     if(paymentUpdate.error)throw paymentUpdate.error
 
-    if(nextStatus==='paid'){
-      const { data:booking }=await supabase.from('bookings').select('id,status').eq('id',payment.booking_id).maybeSingle()
-      const priorStatus=safeText(booking?.status || 'awaiting_payment')
-      const bookingUpdate=await supabase.from('bookings').update({
-        payment_status:'paid',
-        status:['completed','cancelled','refunded'].includes(priorStatus) ? priorStatus : 'confirmed'
-      }).eq('id',payment.booking_id)
-      if(bookingUpdate.error)throw bookingUpdate.error
-      if(priorStatus !== 'confirmed'){
-        const historyInsert=await supabase.from('booking_status_history').insert({
-          booking_id:payment.booking_id,
-          from_status:priorStatus,
-          to_status:'confirmed',
-          reason:'Payment received via webhook',
-          actor_label:`webhook:${gatewayProvider}`
-        })
-        if(historyInsert.error)throw historyInsert.error
-      }
-    }else if(nextStatus==='failed'){
+    // Payment links are still usable, but a completed/failed payment no longer touches the
+    // booking's status or payment_status — those are staff-controlled under the 4-status model
+    // (provisional/finalised/cancelled/refunded) and are set from the admin, not by a webhook.
+    // The payments/payment_transactions rows above already record the money moving.
+    if(nextStatus==='failed'){
       await recordHealthEvent({
         event_type:'payment_callback',
         severity:'warning',
