@@ -3125,6 +3125,9 @@ const renderManifest=()=>{
         const dietary=meta.dietary_requirements||meta.dietary||''
         const departure=meta.departure_label||meta.pickup_time||''
         const notes=booking.customer_notes||booking.notes||''
+        // Admin Desk bookings are already-settled deals — no lifecycle/payment tag on
+        // their manifest entry either, same rule as the Bookings list.
+        const hideStatusTags=isAdminPortalBooking(booking)
         return `
           <article class="manifest-entry" style="margin-bottom:20px;padding:18px;border:1px solid var(--booking-line);border-radius:14px;page-break-inside:avoid">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -3133,8 +3136,8 @@ const renderManifest=()=>{
                 <span style="margin-left:12px;font-size:13px;color:var(--booking-muted)">${bookingAdminShared.escapeHtml(booking.reference)}</span>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                ${renderStatusBadge(booking.status)}
-                ${renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
+                ${hideStatusTags?'':renderStatusBadge(booking.status)}
+                ${hideStatusTags||!booking.payment_status?'':renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))}
               </div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 20px;font-size:13px">
@@ -6407,7 +6410,11 @@ const renderReportsWorkbench=()=>{
     `).join('') || renderEmptyRow(8,'No consultant-owned bookings have been recorded yet.')
   }
   if(nodes.reportsArrivalsTable){
-    nodes.reportsArrivalsTable.innerHTML=arrivalsRows.map(row=>`
+    nodes.reportsArrivalsTable.innerHTML=arrivalsRows.map(row=>{
+      // Same rule as the Bookings list: an Admin Desk booking is already a settled deal,
+      // so its arrivals-manifest row carries no lifecycle tag either.
+      const hideStatusTags=isAdminPortalBooking(getBookingById(row.id))
+      return `
       <tr data-booking-id="${bookingAdminShared.escapeHtml(row.id||'')}">
         <td>
           <strong>${bookingAdminShared.escapeHtml(row.guest||'Guest')}</strong>
@@ -6418,9 +6425,9 @@ const renderReportsWorkbench=()=>{
         <td>${bookingAdminShared.escapeHtml(row.dropoffs||'Pending')}</td>
         <td>${bookingAdminShared.escapeHtml(row.notes||'No notes captured.')}</td>
         <td>${bookingAdminShared.escapeHtml(row.operator||'Unassigned')}</td>
-        <td>${renderStatusBadge(row.status||'provisional')}</td>
+        <td>${hideStatusTags?'':renderStatusBadge(row.status||'provisional')}</td>
       </tr>
-    `).join('') || renderEmptyRow(7,'No arrivals scheduled for this date.')
+    `}).join('') || renderEmptyRow(7,'No arrivals scheduled for this date.')
   }
   const reportHeading=nodes.reportsStatusTable.parentElement?.parentElement?.querySelector('h3')
   if(reportHeading)reportHeading.textContent='Status Breakdown'
@@ -7556,6 +7563,9 @@ const printArrivalsForDate=(selectedDate='')=>{
     const email=booking?.customer_email||''
     const notes=booking?.customer_notes||booking?.notes||meta.notes||''
     const operator=row.operator||'Unassigned'
+    // Admin Desk bookings are already-settled deals — no lifecycle tag or colour coding
+    // on their printed arrivals card, same rule as the Bookings list and its on-screen table.
+    const hideStatusTags=isAdminPortalBooking(booking)
     const colour=statusColour(booking?.status||row.status)
     const statusLabel=formatDisplayLabel(booking?.status||row.status||'')
 
@@ -7564,7 +7574,7 @@ const printArrivalsForDate=(selectedDate='')=>{
       : ''
 
     return `
-      <div class="booking-card" style="border-left:5px solid ${colour}">
+      <div class="booking-card"${hideStatusTags?'':` style="border-left:5px solid ${colour}"`}>
         <div class="card-header">
           <div class="guest-info">
             <div class="guest-name">${bookingAdminShared.escapeHtml(row.guest||booking?.customer_name||'Guest')}</div>
@@ -7572,7 +7582,7 @@ const printArrivalsForDate=(selectedDate='')=>{
           </div>
           <div class="card-meta">
             <div class="ref">${bookingAdminShared.escapeHtml(row.reference||booking?.reference||'')}</div>
-            <div class="status-pill" style="background:${colour}22;color:${colour};border:1px solid ${colour}">${bookingAdminShared.escapeHtml(statusLabel)}</div>
+            ${hideStatusTags?'':`<div class="status-pill" style="background:${colour}22;color:${colour};border:1px solid ${colour}">${bookingAdminShared.escapeHtml(statusLabel)}</div>`}
             <div class="amount">${printableMoney(booking?.total_amount||row.total||0,booking?.currency||booking?.currency_code)}</div>
           </div>
         </div>
