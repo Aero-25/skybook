@@ -399,7 +399,6 @@ const nodes={
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingPriceOverride:document.getElementById('adminBookingPriceOverride'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
-  bookingSaveProvisionalButton:document.getElementById('adminBookingSaveProvisionalButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
   reservationsTable:document.getElementById('adminReservationsTable'),
   reservationDetail:document.getElementById('adminReservationDetail'),
@@ -10499,11 +10498,6 @@ window.addEventListener('scroll',syncManagementActionHeaders,{passive:true})
 window.addEventListener('focus',()=>{ if(state.session?.access_token)void syncAdminInBackground() })
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&state.session?.access_token)void syncAdminInBackground()
-})
-
-nodes.bookingSaveProvisionalButton?.addEventListener('click',()=>{
-  if(nodes.bookingStatus)nodes.bookingStatus.value='provisional'
-  nodes.bookingForm?.requestSubmit()
 })
 
 // ── Session auto-renewal (silent, no banner) ────────────────────────────────
