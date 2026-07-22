@@ -1805,6 +1805,13 @@ const renderBrandPill=brandCode=>{
 }
 const isTrashedBooking=booking=>Boolean(booking?.metadata?.trash?.archived_at||booking?.metadata?.deleted_at)
 const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code===state.activeBrandFilter
+// A booking entered directly by staff at the Admin Desk (any attribution source, e.g. phone/walk-in/
+// agent) rather than through a customer-facing website flow — see the "Source" field in the New
+// Booking form and handleBookingSave's metadata stamp.
+const isAdminPortalBooking=booking=>{
+  const source=normalizeText(booking?.source||booking?.metadata?.source||'website')
+  return source==='admin'||Boolean(booking?.metadata?.admin_created)
+}
 const isReviewReservation=booking=>{
   const status=normalizeText(booking?.status||'')
   // Only a provisional booking needs review — admin-created bookings start finalised
@@ -1812,8 +1819,7 @@ const isReviewReservation=booking=>{
   if(status!=='provisional')return false
   // Belt-and-braces: reservations are website-sourced only; a provisional booking
   // created directly by an admin (if that ever happens) still goes to Bookings.
-  const source=normalizeText(booking?.source||booking?.metadata?.source||'website')
-  if(source==='admin'||Boolean(booking?.metadata?.admin_created))return false
+  if(isAdminPortalBooking(booking))return false
   return true
 }
 const getTrashHistoryEntry=bookingId=>sortByDateDesc(
@@ -3795,11 +3801,15 @@ const renderBookings=()=>{
   const pageItems=filtered
   nodes.bookingsTable.innerHTML=pageItems.map(booking=>{
     const bookingUrl=getRecordPageUrl('bookings',booking.id)
+    // Admin Desk bookings are entered as already-settled deals — no lifecycle/payment
+    // tag or status colour clutter for them in this list, whatever status they carry.
+    const hideStatusTags=isAdminPortalBooking(booking)
     // Two independent badges: lifecycle (status) · payment (which also implies invoicing).
-    const statusBadge=renderStatusBadge(booking.status)
-    const paymentBadge=booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):''
+    const statusBadge=hideStatusTags?'':renderStatusBadge(booking.status)
+    const paymentBadge=hideStatusTags||!booking.payment_status?'':renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status))
+    const rowStatusClass=hideStatusTags?(isCruiseLinerBooking(booking)?'is-cruise-liner':''):getStatusRowClass(booking)
     return `
-    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
+    <tr class="booking-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${rowStatusClass}${booking.id===state.selectedBookingId?' is-selected':''}" data-booking-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
         <strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong>
         <div class="table-subline"><a class="table-primary-link" href="${htmlAttribute(bookingUrl)}" target="_blank" rel="noopener noreferrer">${bookingAdminShared.escapeHtml(booking.reference)}</a> &middot; ${bookingAdminShared.escapeHtml(booking.service_name||'—')}</div>
