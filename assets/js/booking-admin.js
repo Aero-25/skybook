@@ -1534,6 +1534,7 @@ const getStatusBadgeClass=value=>{
   if(normalized==='fully_paid'||normalized==='paid')return 'is-fully-paid'
   if(['cash','card','eft','voucher'].includes(normalized))return 'is-fully-paid'
   if(normalized==='foc')return 'is-foc'
+  if(normalized==='invoiced')return 'is-info'
   if(['cancelled','failed','no_show','inactive','blocked','critical','error'].includes(normalized))return 'is-bad'
   if(['active','default','issued','open','generated','processing','available','private','sent','info'].includes(normalized))return 'is-info'
   return 'is-neutral'
@@ -1557,7 +1558,7 @@ const renderStatusBadge=(value,label='')=>{
 
 // Payment-status badges read on their own (e.g. "Cash", "Partially Paid") — never prefixed with
 // "Payment ", which produced labels like "Payment cash".
-const PAYMENT_STATUS_LABELS={partially_paid:'Partially Paid',fully_paid:'Fully Paid',foc:'FOC',paid:'Paid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed'}
+const PAYMENT_STATUS_LABELS={partially_paid:'Partially Paid',fully_paid:'Fully Paid',foc:'FOC',paid:'Paid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed',invoiced:'Invoiced'}
 const formatPaymentStatusLabel=status=>{
   const key=normalizeText(status)
   if(!key)return '—'
@@ -1841,6 +1842,10 @@ const matchesGlobalBrand=booking=>!state.activeBrandFilter||booking?.brand_code=
 // agent) rather than through a customer-facing website flow — see the "Source" field in the New
 // Booking form and handleBookingSave's metadata stamp.
 const isAdminPortalBooking=booking=>{
+  // Cruise Liner bookings share source:'admin' with regular admin-desk entries, but unlike those
+  // (already-settled deals with no useful status to show) they carry a real payment_status —
+  // 'invoiced' — that staff need to see, so they're excluded from the tag-hiding treatment.
+  if(isCruiseLinerBooking(booking))return false
   const source=normalizeText(booking?.source||booking?.metadata?.source||'website')
   return source==='admin'||Boolean(booking?.metadata?.admin_created)
 }
@@ -5150,7 +5155,7 @@ const openCruiseLinerModal=(dateKey='')=>{
   if(!modal)return
   const dateField=document.getElementById('cruiseDate')
   if(dateField)dateField.value=dateKey||bookingAdminShared.currentDate()
-  ;['cruiseActivity','cruiseInv','cruiseBookingRef','cruiseTime','cruiseNotes'].forEach(id=>{
+  ;['cruiseType','cruiseTime','cruiseNotes'].forEach(id=>{
     const el=document.getElementById(id)
     if(el)el.value=''
   })
@@ -5180,24 +5185,22 @@ const handleCruiseLinerSubmit=async event=>{
   const boats=Number(document.getElementById('cruiseBoats')?.value||0)
   const bookingType=(document.getElementById('cruiseBookingType')?.value||'pax')
   const paxPerCar=cars>0?Math.ceil(pax/cars):0
-  const inv=(document.getElementById('cruiseInv')?.value||'').trim()
-  const bookingRef=(document.getElementById('cruiseBookingRef')?.value||'').trim()
-  const activityText=(document.getElementById('cruiseActivity')?.value||'').trim()
+  const typeLabel=(document.getElementById('cruiseType')?.value||'').trim()
   const notes=document.getElementById('cruiseNotes')?.value.trim()||''
   if(!company){showToast('Select a cruise company (Akron or ATC).','info');return}
   if(!date){showToast('Select a date.','info');return}
   const companyLabel=company==='akron' ? 'Akron' : 'ATC'
   const bookingTypeLabel=bookingType==='full_boat' ? `Full Boat (${boats} boat${boats!==1?'s':''})` : 'Per PAX'
-  const tourName=activityText ? `${activityText} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
+  const tourName=typeLabel ? `${typeLabel} — ${companyLabel} Cruise Liner` : `${companyLabel} Cruise Liner Transfer`
   const serviceSlug=state.services.find(s=>s.is_active!==false)?.slug||''
   if(!serviceSlug){showToast('No services loaded — please reload.','info');return}
-  const noteParts=[tourName,`PAX: ${pax}`,`Buses: ${buses} | Cars: ${cars}${paxPerCar>0?` (${paxPerCar} PAX/car)`:''}`,bookingType==='full_boat'?`Boats: ${boats}`:'',time?`Time: ${time}`:'',inv?`Inv: ${inv}`:'',bookingRef?`Booking Ref: ${bookingRef}`:'',notes].filter(Boolean)
+  const noteParts=[tourName,`PAX: ${pax}`,`Buses: ${buses} | Cars: ${cars}${paxPerCar>0?` (${paxPerCar} PAX/car)`:''}`,bookingType==='full_boat'?`Boats: ${boats}`:'',time?`Time: ${time}`:'',notes].filter(Boolean)
   try{
     const payload={
       brand_code:bookingAdminShared.readConfig().brandCode||'true-travel',
       service_slug:serviceSlug,
       status:'finalised',
-      payment_status:'',
+      payment_status:'invoiced',
       total_amount:0,
       preferred_date:date,
       quantity:pax,
@@ -5217,9 +5220,7 @@ const handleCruiseLinerSubmit=async event=>{
         pax,
         pax_per_car:paxPerCar,
         time,
-        inv,
-        booking_ref:bookingRef,
-        activity_name:activityText,
+        type:typeLabel,
         display_name:tourName
       },
       customer:{full_name:`${companyLabel} Group`,email:'',phone:'',whatsapp:''}
