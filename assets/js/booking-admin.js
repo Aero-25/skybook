@@ -387,14 +387,16 @@ const nodes={
   bookingCustomerName:document.getElementById('adminBookingCustomerName'),
   bookingCustomerEmail:document.getElementById('adminBookingCustomerEmail'),
   bookingCustomerPhone:document.getElementById('adminBookingCustomerPhone'),
-  bookingGuideName:document.getElementById('adminBookingGuideName'),
+  bookingGuideList:document.getElementById('adminBookingGuideList'),
+  bookingAddGuide:document.getElementById('adminBookingAddGuide'),
+  bookingSkipperList:document.getElementById('adminBookingSkipperList'),
+  bookingAddSkipper:document.getElementById('adminBookingAddSkipper'),
   bookingNationality:document.getElementById('adminBookingNationality'),
   bookingBookedBy:document.getElementById('adminBookingBookedBy'),
   bookingDietary:document.getElementById('adminBookingDietary'),
   bookingAgent:document.getElementById('adminBookingAgent'),
-  bookingPickupLocation:document.getElementById('adminBookingPickupLocation'),
-  bookingPickupPoint:document.getElementById('adminBookingPickupPoint'),
-  bookingDropoffLocation:document.getElementById('adminBookingDropoffLocation'),
+  bookingSelfDrive:document.getElementById('adminBookingSelfDrive'),
+  bookingTransfer:document.getElementById('adminBookingTransfer'),
   bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
   bookingPriceOverride:document.getElementById('adminBookingPriceOverride'),
@@ -1189,13 +1191,14 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Preferred date',formatDateLabel(booking?.preferred_date))
   addRow('Departure',metadata.departure_label)
   addRow('Pickup time',metadata.pickup_time)
-  addRow('Pickup location',metadata.pickup_location||metadata.hotel)
-  addRow('Drop-off location',metadata.dropoff_location)
+  addRow('Transport',formatPickupModeLabel(metadata.pickup_mode))
   addRow('Nationality',metadata.nationality||booking?.nationality)
   addRow('Booked by',metadata.booked_by||booking?.booked_by)
   addRow('Agent / Reseller',getBookingAgentResellerLabel(booking))
   addRow('Consultant',getBookingConsultantOwnerName(booking))
   addRow('Dietary requirements',metadata.dietary_requirements||metadata.dietary)
+  addRow('Guide(s)',metadata.guide_name||booking?.guide_name)
+  addRow('Skipper(s)',metadata.skipper_name)
   const adultQty=Number(booking?.adult_quantity||0)
   const childQty=Number(booking?.child_quantity||0)
   const infantQty=Number(booking?.infant_quantity||booking?.metadata?.infant_quantity||0)
@@ -1206,19 +1209,11 @@ const buildSubmittedBookingDetailRows=booking=>{
   addRow('Total',bookingAdminShared.formatMoney(booking?.total_amount||0,booking?.currency||state.settings.currency))
   addRow('Guest notes',booking?.customer_notes||booking?.notes)
   ;[
-    'pickup_location',
-    'pickup_point',
-    'pickup_notes',
-    'collection_point',
-    'dropoff_location',
-    'dropoff_point',
-    'dropoff_notes',
     'dietary_requirements',
     'dietary',
     'nationality',
     'contact_number',
     'whatsapp',
-    'hotel',
     'room_number',
     'special_requests',
     'other_notes'
@@ -1385,6 +1380,45 @@ const collectBookingFieldManagerValues=()=>[...(nodes.bookingFieldsList?.querySe
     sort_order:index
   }
 })
+const buildPersonRow=(value='')=>{
+  const row=document.createElement('div')
+  row.style.cssText='display:flex;gap:8px;align-items:center'
+  row.innerHTML=`<input type="text" placeholder="Full name" value="${String(value||'').replace(/"/g,'&quot;')}" data-person-name style="flex:1"><button type="button" data-person-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove">×</button>`
+  row.querySelector('[data-person-remove]').addEventListener('click',()=>row.remove())
+  return row
+}
+const renderPersonRows=(listNode,names=[])=>{
+  if(!listNode)return
+  listNode.innerHTML=''
+  const values=names.length ? names : ['']
+  values.forEach(name=>listNode.appendChild(buildPersonRow(name)))
+}
+const getPersonNames=listNode=>listNode ? Array.from(listNode.querySelectorAll('[data-person-name]')).map(input=>input.value.trim()).filter(Boolean) : []
+const splitPersonNames=value=>String(value||'').split(/[,;]+/).map(item=>item.trim()).filter(Boolean)
+if(nodes.bookingAddGuide){
+  nodes.bookingAddGuide.addEventListener('click',()=>{
+    if(nodes.bookingGuideList)nodes.bookingGuideList.appendChild(buildPersonRow())
+  })
+}
+if(nodes.bookingAddSkipper){
+  nodes.bookingAddSkipper.addEventListener('click',()=>{
+    if(nodes.bookingSkipperList)nodes.bookingSkipperList.appendChild(buildPersonRow())
+  })
+}
+if(nodes.bookingSelfDrive&&nodes.bookingTransfer){
+  nodes.bookingSelfDrive.addEventListener('change',()=>{
+    if(nodes.bookingSelfDrive.checked)nodes.bookingTransfer.checked=false
+  })
+  nodes.bookingTransfer.addEventListener('change',()=>{
+    if(nodes.bookingTransfer.checked)nodes.bookingSelfDrive.checked=false
+  })
+}
+const getPickupMode=()=>{
+  if(nodes.bookingSelfDrive?.checked)return 'self_drive'
+  if(nodes.bookingTransfer?.checked)return 'transfer'
+  return ''
+}
+const formatPickupModeLabel=mode=>mode==='self_drive' ? 'Self Drive' : mode==='transfer' ? 'Transfer' : ''
 const collectBookingFormValues=()=>({
   reference:nodes.bookingReference?.value||'',
   brand_code:nodes.bookingBrand?.value||'',
@@ -1399,13 +1433,12 @@ const collectBookingFormValues=()=>({
   get quantity(){return String(Math.max(1,this.adult_quantity+this.child_quantity+this.infant_quantity))},
   price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
   agent:nodes.bookingAgent?.value?.trim()||'',
-  guide_name:nodes.bookingGuideName?.value||'',
+  guide_name:getPersonNames(nodes.bookingGuideList).join(', '),
+  skipper_name:getPersonNames(nodes.bookingSkipperList).join(', '),
   nationality:nodes.bookingNationality?.value?.trim()||'',
   booked_by:nodes.bookingBookedBy?.value?.trim()||'',
   dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
-  pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
-  pickup_point:nodes.bookingPickupPoint?.value?.trim()||'',
-  dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
+  pickup_mode:getPickupMode(),
   customer_name:nodes.bookingCustomerName?.value||'',
   customer_email:nodes.bookingCustomerEmail?.value||'',
   customer_phone:nodes.bookingCustomerPhone?.value||'',
@@ -1908,23 +1941,11 @@ const getBookingPickupSummary=booking=>{
   ].map(value=>String(value||'').trim()).filter(Boolean).join(' ')).filter(Boolean)
   if(allocationSummary.length)return allocationSummary.join(' / ')
   const metadata=normalizeJsonRecord(booking?.metadata)
-  return String(
-    metadata.pickup_location
-    || metadata.pickup_point
-    || metadata.pickup_notes
-    || metadata.collection_point
-    || ''
-  ).trim() || 'Pending pickup confirmation'
+  return formatPickupModeLabel(metadata.pickup_mode) || 'Pending pickup confirmation'
 }
 const getBookingDropoffSummary=booking=>{
   const metadata=normalizeJsonRecord(booking?.metadata)
-  return String(
-    metadata.dropoff_location
-    || metadata.drop_off
-    || metadata.dropoff_notes
-    || metadata.dropoff_point
-    || ''
-  ).trim() || 'Not captured'
+  return formatPickupModeLabel(metadata.pickup_mode) || 'Not captured'
 }
 const getBookingOperationalNotesSummary=booking=>{
   const metadata=normalizeJsonRecord(booking?.metadata)
@@ -3119,8 +3140,8 @@ const renderManifest=()=>{
         const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0)
         const pax=a+c>0?`${a+c} (${a}A/${c}C)`:`${booking.quantity||1}`
         const guide=booking.guide_name||meta.guide_name||'—'
-        const pickup=meta.pickup_location||meta.hotel||'—'
-        const dropoff=meta.dropoff_location||''
+        const skipper=meta.skipper_name||''
+        const transport=formatPickupModeLabel(meta.pickup_mode)||'—'
         const dietary=meta.dietary_requirements||meta.dietary||''
         const departure=meta.departure_label||meta.pickup_time||''
         const notes=booking.customer_notes||booking.notes||''
@@ -3144,8 +3165,8 @@ const renderManifest=()=>{
               <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Guests</span><strong>${bookingAdminShared.escapeHtml(pax)}</strong></div>
               ${departure ? `<div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Departure</span><strong>${bookingAdminShared.escapeHtml(departure)}</strong></div>` : ''}
               <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Guide</span><strong>${bookingAdminShared.escapeHtml(guide)}</strong></div>
-              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Pickup location</span><strong>${bookingAdminShared.escapeHtml(pickup)}</strong></div>
-              ${dropoff ? `<div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Drop-off</span><strong>${bookingAdminShared.escapeHtml(dropoff)}</strong></div>` : ''}
+              ${skipper ? `<div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Skipper</span><strong>${bookingAdminShared.escapeHtml(skipper)}</strong></div>` : ''}
+              <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Transport</span><strong>${bookingAdminShared.escapeHtml(transport)}</strong></div>
               <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Phone</span><strong>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</strong></div>
               <div><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Nationality</span><strong>${bookingAdminShared.escapeHtml(meta.nationality||booking.nationality||'—')}</strong></div>
               ${dietary ? `<div style="grid-column:1/-1"><span style="color:var(--booking-muted);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em">Dietary requirements</span><strong style="color:#a33a3a">${bookingAdminShared.escapeHtml(dietary)}</strong></div>` : ''}
@@ -3355,9 +3376,8 @@ const renderCalendarDayBookings=dateKey=>{
         <dt>Payment</dt><dd>${booking.payment_status?renderStatusBadge(booking.payment_status,formatPaymentStatusLabel(booking.payment_status)):'—'}</dd>
         <dt>Booked by</dt><dd>${bookingAdminShared.escapeHtml(meta.booked_by||booking.booked_by||'—')}</dd>
         <dt>Contact</dt><dd>${bookingAdminShared.escapeHtml(booking.customer_phone||'—')}</dd>
-        <dt>Pickup</dt><dd>${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</dd>
-        <dt>Drop Off</dt><dd>${bookingAdminShared.escapeHtml(meta.dropoff_location||'—')}</dd>
-        <dt>Accommodation</dt><dd>${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</dd>
+        <dt>Transport</dt><dd>${bookingAdminShared.escapeHtml(formatPickupModeLabel(meta.pickup_mode)||'—')}</dd>
+        ${meta.skipper_name ? `<dt>Skipper</dt><dd>${bookingAdminShared.escapeHtml(meta.skipper_name)}</dd>` : ''}
         ${bookingNotes.length ? `<dt>Notes</dt><dd>${bookingNotes.slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(note=>bookingAdminShared.escapeHtml(note.note||'')).join('<br>')}</dd>` : ''}
       </dl>
       <div class="cal-day-block-actions">${renderOpenBookingLink(booking,'Open booking management →')}</div>
@@ -3543,7 +3563,7 @@ const renderReservationDetail=()=>{
     {label:'Date',done:Boolean(booking.preferred_date)},
     {label:'Pax',done:Number(booking.quantity||0)>0},
     {label:'Guide assigned',done:Boolean(booking.guide_name||booking.metadata?.guide_name)},
-    {label:'Pickup / notes',done:Boolean(booking.customer_notes||booking.notes||booking.metadata?.pickup_location)},
+    {label:'Pickup / notes',done:Boolean(booking.customer_notes||booking.notes||booking.metadata?.pickup_mode)},
     {label:'Price',done:Number(booking.total_amount||0)>0}
   ]
   const submittedDetailRows=buildSubmittedBookingDetailRows(booking)
@@ -4163,11 +4183,11 @@ const renderBookingDetail=()=>{
                     row('Phone',booking.customer_phone),
                     row('Nationality',meta.nationality||booking.nationality),
                     row('Booked by',meta.booked_by||booking.booked_by),
-                    row('Guide',booking.guide_name||meta.guide_name),
+                    row('Guide(s)',booking.guide_name||meta.guide_name),
+                    row('Skipper(s)',meta.skipper_name),
                     row('Pickup schedule',meta.departure_label),
                     row('Pickup time',meta.pickup_time),
-                    row('Pickup location',meta.pickup_location||meta.hotel),
-                    row('Drop-off location',meta.dropoff_location),
+                    row('Transport',formatPickupModeLabel(meta.pickup_mode)),
                     row('Dietary requirements',meta.dietary_requirements||meta.dietary),
                     row('Source',sourceLabel),
                     row('Created via',createdVia),
@@ -4900,7 +4920,7 @@ const fillBookingForm=(booking=null)=>{
   const brandCode=booking?.brand_code||bookingAdminShared.readConfig().brandCode||state.brands[0]?.code||''
   if(nodes.bookingBrand)nodes.bookingBrand.value=brandCode
   syncBookingReferenceField({booking,brandCode,forceNew:!booking})
-  if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'admin'
+  if(nodes.bookingSource)nodes.bookingSource.value=booking?.source||'website'
   nodes.bookingService.value=booking?.service_slug||''
   nodes.bookingStatus.value=booking?.status||'finalised'
   // payment_status now directly holds the method (or a still-valid legacy value like partially_paid
@@ -4933,14 +4953,17 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
-  if(nodes.bookingGuideName)nodes.bookingGuideName.value=booking?.metadata?.guide_name||booking?.guide_name||''
+  renderPersonRows(nodes.bookingGuideList,splitPersonNames(booking?.metadata?.guide_name||booking?.guide_name||''))
+  renderPersonRows(nodes.bookingSkipperList,splitPersonNames(booking?.metadata?.skipper_name||''))
   if(nodes.bookingNationality)nodes.bookingNationality.value=booking?.metadata?.nationality||booking?.nationality||''
   if(nodes.bookingBookedBy)nodes.bookingBookedBy.value=booking?.metadata?.booked_by||booking?.booked_by||''
   if(nodes.bookingDietary)nodes.bookingDietary.value=booking?.metadata?.dietary_requirements||booking?.metadata?.dietary||''
   if(nodes.bookingAgent)nodes.bookingAgent.value=booking?.metadata?.agent||''
-  if(nodes.bookingPickupLocation)nodes.bookingPickupLocation.value=booking?.metadata?.pickup_location||booking?.metadata?.hotel||''
-  if(nodes.bookingPickupPoint)nodes.bookingPickupPoint.value=booking?.metadata?.pickup_point||''
-  if(nodes.bookingDropoffLocation)nodes.bookingDropoffLocation.value=booking?.metadata?.dropoff_location||''
+  {
+    const pickupMode=booking?.metadata?.pickup_mode||''
+    if(nodes.bookingSelfDrive)nodes.bookingSelfDrive.checked=pickupMode==='self_drive'
+    if(nodes.bookingTransfer)nodes.bookingTransfer.checked=pickupMode==='transfer'
+  }
   renderAdminBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   // Always reset the price override to THIS booking's value (empty for a new booking)
@@ -5330,8 +5353,7 @@ tbody tr:last-child td{border-bottom:none}
     <div class="detail-line"><strong>Ref:</strong> ${bookingAdminShared.escapeHtml(booking.reference||'—')}</div>
     <div class="detail-line"><strong>Date:</strong> ${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</div>
     <div class="detail-line"><strong>Guests:</strong> ${pax}</div>
-    <div class="detail-line"><strong>Accommodation:</strong> ${bookingAdminShared.escapeHtml(meta.accommodation||meta.pickup_location||'—')}</div>
-    <div class="detail-line"><strong>Pickup:</strong> ${bookingAdminShared.escapeHtml(meta.pickup_point||meta.pickup_location||'—')}</div>
+    <div class="detail-line"><strong>Transport:</strong> ${bookingAdminShared.escapeHtml(formatPickupModeLabel(meta.pickup_mode)||'—')}</div>
   </div>
 </div>
 <table>
@@ -7479,28 +7501,27 @@ const openPickupSheet=(selectedDate='')=>{
   const groups=new Map()
   dayBookings.forEach(b=>{
     const m=normalizeJsonRecord(b.metadata)
-    const loc=String(m.pickup_location||m.accommodation||m.hotel||'').trim()||'Pickup to confirm'
-    if(!groups.has(loc))groups.set(loc,[])
-    groups.get(loc).push(b)
+    const label=formatPickupModeLabel(m.pickup_mode)||'Transport to confirm'
+    if(!groups.has(label))groups.set(label,[])
+    groups.get(label).push(b)
   })
   const keys=[...groups.keys()].sort((a,b)=>{
-    const ap=/confirm/i.test(a)?1:0,bp=/confirm/i.test(b)?1:0
-    return ap!==bp?ap-bp:a.localeCompare(b)
+    const order=name=>name==='Transfer'?0:name==='Self Drive'?1:2
+    return order(a)-order(b)||a.localeCompare(b)
   })
   let totalGuests=0
-  const sections=keys.map(loc=>{
-    const items=groups.get(loc).slice().sort((x,y)=>timeOf(x).localeCompare(timeOf(y)))
+  const sections=keys.map(label=>{
+    const items=groups.get(label).slice().sort((x,y)=>timeOf(x).localeCompare(timeOf(y)))
     const groupGuests=items.reduce((sum,b)=>sum+paxOf(b),0)
     totalGuests+=groupGuests
     const rows=items.map(b=>{
       const m=normalizeJsonRecord(b.metadata)
       const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0),i=Number(b.infant_quantity||0)
       const paxBreak=[a&&`${a}A`,c&&`${c}C`,i&&`${i}I`].filter(Boolean).join(' / ')
-      const point=m.pickup_point?` · ${esc(m.pickup_point)}`:''
       const notes=String(b.customer_notes||b.notes||m.notes||'').trim()
       return `<tr>
         <td style="white-space:nowrap;font-weight:800;font-size:15px">${esc(timeOf(b)||'—')}</td>
-        <td><strong>${esc(b.customer_name||'Guest')}</strong><div style="font-size:11px;color:#5f6f80">${esc(b.reference||'')}${point}</div></td>
+        <td><strong>${esc(b.customer_name||'Guest')}</strong><div style="font-size:11px;color:#5f6f80">${esc(b.reference||'')}</div></td>
         <td style="white-space:nowrap"><strong>${paxOf(b)}</strong>${paxBreak?` <small style="color:#5f6f80">(${esc(paxBreak)})</small>`:''}</td>
         <td>${esc(b.service_name||'—')}</td>
         <td style="white-space:nowrap">${esc(b.customer_phone||'—')}</td>
@@ -7509,8 +7530,8 @@ const openPickupSheet=(selectedDate='')=>{
     }).join('')
     return `<section style="page-break-inside:avoid">
       <h2 style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:17px;margin:0 0 6px">
-        <span>📍 ${esc(loc)}</span>
-        <span style="font-size:12px;font-weight:700;color:#1e5b93;background:#e8f4ff;padding:5px 11px;border-radius:999px;white-space:nowrap">${items.length} stop${items.length>1?'s':''} · ${groupGuests} guest${groupGuests>1?'s':''}</span>
+        <span>📍 ${esc(label)}</span>
+        <span style="font-size:12px;font-weight:700;color:#1e5b93;background:#e8f4ff;padding:5px 11px;border-radius:999px;white-space:nowrap">${items.length} booking${items.length>1?'s':''} · ${groupGuests} guest${groupGuests>1?'s':''}</span>
       </h2>
       <table>
         <thead><tr><th>Time</th><th>Guest</th><th>Pax</th><th>Tour</th><th>Phone</th><th>Notes</th></tr></thead>
@@ -7518,7 +7539,7 @@ const openPickupSheet=(selectedDate='')=>{
       </table>
     </section>`
   }).join('')
-  const summary=`<div class="meta"><div class="card"><small>Date</small><div style="font-size:16px;font-weight:800">${esc(dateLabel)}</div></div><div class="card"><small>Totals</small><div style="font-size:16px;font-weight:800">${dayBookings.length} booking${dayBookings.length>1?'s':''} · ${totalGuests} guest${totalGuests>1?'s':''} · ${keys.length} pickup point${keys.length>1?'s':''}</div></div></div>`
+  const summary=`<div class="meta"><div class="card"><small>Date</small><div style="font-size:16px;font-weight:800">${esc(dateLabel)}</div></div><div class="card"><small>Totals</small><div style="font-size:16px;font-weight:800">${dayBookings.length} booking${dayBookings.length>1?'s':''} · ${totalGuests} guest${totalGuests>1?'s':''}</div></div></div>`
   openSkyBookPrintWindow(`Pickup / Driver Sheet — ${dateLabel}`,summary+sections)
 }
 
@@ -7551,9 +7572,9 @@ const printArrivalsForDate=(selectedDate='')=>{
       infants>0 ? `${infants} Under 4` : ''
     ].filter(Boolean)
     const paxLabel=paxParts.length ? paxParts.join(', ') : `${totalPax} guest${totalPax>1?'s':''}`
-    const accommodation=meta.accommodation||meta.pickup_location||meta.hotel||'—'
-    const pickupPoint=meta.pickup_point||''
-    const dropoff=meta.dropoff_location||row.dropoffs||'—'
+    const transport=formatPickupModeLabel(meta.pickup_mode)||row.dropoffs||'—'
+    const guide=booking?.guide_name||meta.guide_name||''
+    const skipper=meta.skipper_name||''
     const dietary=meta.dietary_requirements||meta.dietary||'—'
     const nationality=meta.nationality||'—'
     const bookedBy=meta.booked_by||booking?.booked_by||'—'
@@ -7588,9 +7609,9 @@ const printArrivalsForDate=(selectedDate='')=>{
         <div class="card-body">
           <div class="fields-col">
             ${field('Pax',paxLabel)}
-            ${field('Accommodation',accommodation)}
-            ${field('Pickup',pickupPoint)}
-            ${field('Drop Off',dropoff)}
+            ${field('Transport',transport)}
+            ${guide?field('Guide(s)',guide):''}
+            ${skipper?field('Skipper(s)',skipper):''}
             ${field('Contact',contact)}
             ${email?field('Email',email):''}
           </div>
@@ -8733,7 +8754,7 @@ const handleBookingSave=async event=>{
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand?.value||bookingAdminShared.readConfig().brandCode||'true-travel',
-    source:nodes.bookingSource?.value||'admin',
+    source:nodes.bookingSource?.value||'website',
     service_slug:nodes.bookingService.value,
     status:requestedStatus,
     payment_status:finalPaymentStatus,
@@ -8743,7 +8764,7 @@ const handleBookingSave=async event=>{
     infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
     quantity:(()=>{const a=Number(nodes.bookingAdultQuantity?.value||0);const c=Number(nodes.bookingChildQuantity?.value||0);const i=Number(nodes.bookingInfantQuantity?.value||0);return(a+c+i)>0?a+c+i:Number(nodes.bookingQuantity.value||1)})(),
     price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
-    guide_name:nodes.bookingGuideName?.value.trim()||'',
+    guide_name:getPersonNames(nodes.bookingGuideList).join(', '),
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...(existingBooking?.metadata||{}),
@@ -8754,9 +8775,12 @@ const handleBookingSave=async event=>{
       booked_by:nodes.bookingBookedBy?.value?.trim()||'',
       agent:nodes.bookingAgent?.value?.trim()||'',
       dietary_requirements:nodes.bookingDietary?.value?.trim()||'',
-      pickup_location:nodes.bookingPickupLocation?.value?.trim()||'',
-      pickup_point:nodes.bookingPickupPoint?.value?.trim()||'',
-      dropoff_location:nodes.bookingDropoffLocation?.value?.trim()||'',
+      skipper_name:getPersonNames(nodes.bookingSkipperList).join(', '),
+      pickup_mode:getPickupMode(),
+      pickup_location:'',
+      pickup_point:'',
+      dropoff_location:'',
+      hotel:'',
       infant_quantity:Number(nodes.bookingInfantQuantity?.value||0),
       price_override:Number(nodes.bookingPriceOverride?.value||0)||0,
       admin_created:true,

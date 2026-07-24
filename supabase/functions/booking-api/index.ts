@@ -3777,14 +3777,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     `Tour: ${normalizeText(service.name)||'Service'}`,
     `Date: ${normalizeText(payload.preferred_date)||'TBC'}`,
     `Guests: ${waPaxLabel}`,
-    normalizeText(String(waOpDetails.accommodation||waMeta.pickup_location||waMeta.hotel||'')) ? `Accommodation: ${normalizeText(String(waOpDetails.accommodation||waMeta.pickup_location||waMeta.hotel||''))}` : '',
-    normalizeText(String(waOpDetails.pickup_location||waMeta.pickup_location||'')) ? `Pick-up: ${normalizeText(String(waOpDetails.pickup_location||waMeta.pickup_location||''))}` : '',
-    normalizeText(String(waOpDetails.dropoff_location||waMeta.dropoff_location||'')) ? `Drop-off: ${normalizeText(String(waOpDetails.dropoff_location||waMeta.dropoff_location||''))}` : '',
+    (()=>{const mode=normalizeText(String(waOpDetails.pickup_mode||waMeta.pickup_mode||''));return mode ? `Transport: ${mode==='self_drive'?'Self Drive':mode==='transfer'?'Transfer':mode}` : ''})(),
     normalizeText(String(waOpDetails.departure_time||waOpDetails.departure_window||waMeta.departure_label||'')) ? `Departure: ${normalizeText(String(waOpDetails.departure_time||waOpDetails.departure_window||waMeta.departure_label||''))}` : '',
     normalizeText(String(waOpDetails.nationality||waMeta.nationality||'')) ? `Nationality: ${normalizeText(String(waOpDetails.nationality||waMeta.nationality||''))}` : '',
     normalizeText(String(waOpDetails.dietary_requirements||waMeta.dietary_requirements||'')) ? `Dietary: ${normalizeText(String(waOpDetails.dietary_requirements||waMeta.dietary_requirements||''))}` : '',
     normalizeText(String(waMeta.booked_by||waOpDetails.booked_by||'')) ? `Booked by: ${normalizeText(String(waMeta.booked_by||waOpDetails.booked_by||''))}` : '',
-    normalizeText(String(waMeta.guide_name||payload.guide_name||'')) ? `Guide: ${normalizeText(String(waMeta.guide_name||payload.guide_name||''))}` : '',
+    normalizeText(String(waMeta.guide_name||payload.guide_name||'')) ? `Guide(s): ${normalizeText(String(waMeta.guide_name||payload.guide_name||''))}` : '',
+    normalizeText(String(waMeta.skipper_name||'')) ? `Skipper(s): ${normalizeText(String(waMeta.skipper_name||''))}` : '',
     normalizeText(payload.notes) ? `Notes: ${normalizeText(payload.notes)}` : '',
     '',
     `Total: ${normalizeText(service.currency)||'NAD'} ${Number(pricing.totalAmount||0).toFixed(2)}`,
@@ -4031,13 +4030,18 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     amendmentChanges.push(`Source: ${existing.source||'—'} → ${updatePayload.source||'—'}`)
   if(Number(updatePayload.total_amount)!==Number(existing.total_amount))
     amendmentChanges.push(`Total: ${existing.total_amount||0} → ${updatePayload.total_amount||0} ${String(updatePayload.currency_code||existing.currency_code||'NAD')}`)
-  // Check metadata field changes (nationality, dietary, pickup, etc.)
-  const metaFields:Record<string,string>={nationality:'Nationality',booked_by:'Booked by',dietary_requirements:'Dietary',pickup_location:'Pickup location',dropoff_location:'Drop-off',guide_name:'Guide',departure_label:'Departure',pickup_time:'Pickup time'}
+  // Check metadata field changes (nationality, dietary, guides, etc.)
+  const metaFields:Record<string,string>={nationality:'Nationality',booked_by:'Booked by',dietary_requirements:'Dietary',guide_name:'Guide(s)',skipper_name:'Skipper(s)',departure_label:'Departure',pickup_time:'Pickup time'}
   Object.entries(metaFields).forEach(([key,label])=>{
     const oldVal=normalizeText(String(existingMetadata[key]||''))
     const newVal=normalizeText(String(requestMetadata[key]||payload?.metadata?.[key]||''))
     if(newVal&&oldVal!==newVal)amendmentChanges.push(`${label}: ${oldVal||'—'} → ${newVal}`)
   })
+  const formatTransportLabel=(mode:string)=>mode==='self_drive' ? 'Self Drive' : mode==='transfer' ? 'Transfer' : ''
+  const oldTransport=normalizeText(String(existingMetadata.pickup_mode||''))
+  const newTransport=normalizeText(String(requestMetadata.pickup_mode||payload?.metadata?.pickup_mode||''))
+  if(newTransport&&oldTransport!==newTransport)
+    amendmentChanges.push(`Transport: ${formatTransportLabel(oldTransport)||'—'} → ${formatTransportLabel(newTransport)}`)
   // Reschedule always types a reason in the frontend modal, but a reschedule never changes status
   // (see rescheduleBooking), so the status-change branch below never fires to capture it. Fold it
   // into the amendment diff instead — this also covers a same-date resubmit, which would otherwise

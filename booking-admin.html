@@ -1462,16 +1462,11 @@
             <label class="booking-field">
               <span>Source</span>
               <select id="adminBookingSource">
-                <option value="admin">Admin Desk</option>
-                <option value="true_travel_website">True Travel Website</option>
-                <option value="iventure_website">Iventure Website</option>
-                <option value="activity_bridge">Activity Bridge</option>
-                <option value="whatsapp">WhatsApp</option>
+                <option value="website">Websites</option>
+                <option value="whatsapp">WA</option>
+                <option value="phone">Phone</option>
                 <option value="sms">SMS</option>
                 <option value="email">Email</option>
-                <option value="phone">Phone</option>
-                <option value="walk_in">Walk-In</option>
-                <option value="agent">Agent / Reseller</option>
               </select>
             </label>
             <label class="booking-field">
@@ -1542,13 +1537,24 @@
               <span>Customer Phone</span>
               <input id="adminBookingCustomerPhone" type="tel">
             </label>
-            <label class="booking-field-full">
-              <span>Assigned guide</span>
-              <input id="adminBookingGuideName" type="text" placeholder="Guide's full name (optional)">
-            </label>
+            <div class="booking-field-full" id="adminBookingGuideWrap">
+              <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Assigned guide(s)</span>
+              <div id="adminBookingGuideList" style="display:flex;flex-direction:column;gap:8px"></div>
+              <button type="button" id="adminBookingAddGuide" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add guide</button>
+            </div>
+            <div class="booking-field-full" id="adminBookingSkipperWrap">
+              <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Skipper(s)</span>
+              <div id="adminBookingSkipperList" style="display:flex;flex-direction:column;gap:8px"></div>
+              <button type="button" id="adminBookingAddSkipper" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add skipper</button>
+            </div>
             <label class="booking-field">
               <span>Nationality</span>
-              <input id="adminBookingNationality" type="text" placeholder="e.g. German, Namibian" autocomplete="off">
+              <select id="adminBookingNationality">
+                <option value="">— Select —</option>
+                <option value="Foreign">Foreign</option>
+                <option value="SADC">SADC</option>
+                <option value="Nam">Nam</option>
+              </select>
             </label>
             <label class="booking-field">
               <span>Booked By</span>
@@ -1564,18 +1570,19 @@
               <span>Dietary Requirements</span>
               <input id="adminBookingDietary" type="text" placeholder="Allergies, vegetarian/vegan, or None">
             </label>
-            <label class="booking-field">
-              <span>Accommodation</span>
-              <input id="adminBookingPickupLocation" type="text" placeholder="Hotel or lodge name">
-            </label>
-            <label class="booking-field">
-              <span>Pickup</span>
-              <input id="adminBookingPickupPoint" type="text" placeholder="Specific pickup point (if different from accommodation)">
-            </label>
-            <label class="booking-field">
-              <span>Drop Off</span>
-              <input id="adminBookingDropoffLocation" type="text" placeholder="Drop-off location">
-            </label>
+            <div class="booking-field-full" id="adminBookingTransferWrap">
+              <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Transport</span>
+              <div style="display:flex;gap:18px;flex-wrap:wrap">
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer">
+                  <input id="adminBookingSelfDrive" type="checkbox">
+                  <span>Self Drive</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer">
+                  <input id="adminBookingTransfer" type="checkbox">
+                  <span>Transfer</span>
+                </label>
+              </div>
+            </div>
             <div class="booking-field-full booking-form-grid" id="adminBookingCustomFields"></div>
             <label class="booking-field-full">
               <span>Notes</span>
