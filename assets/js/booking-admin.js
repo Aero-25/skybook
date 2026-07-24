@@ -4985,9 +4985,10 @@ const fillBookingForm=(booking=null)=>{
   // payment_status now directly holds the method (or a still-valid legacy value like partially_paid
   // from the Payments tab) — no metadata lookup needed, the column is the single source of truth.
   nodes.bookingPaymentStatus.value=String(booking?.payment_status||'')
-  // Split-payment rows post against a real booking_id + priced total, so they only make sense once
-  // the booking already exists — hidden (and reset empty) on the New Booking form.
-  if(nodes.bookingPaymentRowsWrap)nodes.bookingPaymentRowsWrap.hidden=!booking
+  // Split-payment rows are available on both New and existing bookings — for a New booking they're
+  // queued and posted against the booking's real id/priced total right after handleBookingSave's
+  // create call succeeds (see there). Always reset the list when the modal opens.
+  if(nodes.bookingPaymentRowsWrap)nodes.bookingPaymentRowsWrap.hidden=false
   if(nodes.bookingPaymentRowsList)nodes.bookingPaymentRowsList.innerHTML=''
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
@@ -8873,15 +8874,17 @@ const handleBookingSave=async event=>{
   const savedReference=normalizeText(response?.booking?.reference)||normalizeText(response?.reference)||normalizeText(payload.reference)
   const savedBookingId=normalizeText(response?.booking?.id)||normalizeText(response?.id)||previousSelectedId
   await loadAdminData()
-  // Split-payment rows post against a real, priced booking, so they only run for an existing
-  // booking (the UI is hidden on the New Booking form — see fillBookingForm) and only after the
-  // booking save above has already succeeded. Each row is independent: one failing (e.g. a stale
-  // outstanding balance after an earlier row in this same batch) doesn't roll back the ones that
-  // already posted, and never fails the booking save itself — it's reported separately below.
+  // Split-payment rows post against a real, priced booking — for a New booking that only exists
+  // once the create call above has returned an id, which is exactly why this runs after it (and
+  // after the loadAdminData that pulls in the freshly-computed total_amount to price against).
+  // Each row is independent: one failing (e.g. a stale outstanding balance after an earlier row in
+  // this same batch) doesn't roll back the ones that already posted, and never fails the booking
+  // save itself — it's reported separately below.
   let paymentRowSummary=''
-  if(wasEditing){
+  {
     const paymentRows=getPaymentRows()
-    if(paymentRows.length){
+    const targetBookingId=savedBookingId||previousSelectedId
+    if(paymentRows.length&&targetBookingId){
       let loaded=0
       const failures=[]
       for(const row of paymentRows){
@@ -8890,7 +8893,7 @@ const handleBookingSave=async event=>{
           continue
         }
         try{
-          await postManualPayment(savedBookingId||previousSelectedId,{...row,notes:'',allow_overpayment:false})
+          await postManualPayment(targetBookingId,{...row,notes:'',allow_overpayment:false})
           loaded+=1
         }catch(paymentError){
           failures.push(paymentError?.message||'Payment failed.')
