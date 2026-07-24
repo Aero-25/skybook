@@ -1483,19 +1483,6 @@
               </select>
             </label>
             <label class="booking-field">
-              <span>Payment Process</span>
-              <select id="adminBookingPaymentStatusField">
-                <option value="">— Not set —</option>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="eft">EFT</option>
-                <option value="voucher">Voucher</option>
-                <option value="foc">FOC (Free of Charge)</option>
-                <option value="paid" disabled>Paid (method not recorded)</option>
-                <option value="partially_paid" disabled>Partially Paid</option>
-              </select>
-            </label>
-            <label class="booking-field">
               <span>Preferred Date</span>
               <input id="adminBookingDate" type="date">
             </label>
@@ -1604,6 +1591,26 @@
                 <button class="booking-button ghost compact-button" type="button" id="adminBookingRevertPricing">Revert to pax pricing</button>
               </div>
             </label>
+            <label class="booking-field">
+              <span>Payment Process</span>
+              <select id="adminBookingPaymentStatusField">
+                <option value="">— Not set —</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="eft">EFT</option>
+                <option value="voucher">Voucher</option>
+                <option value="foc">FOC (Free of Charge)</option>
+                <option value="paid" disabled>Paid (method not recorded)</option>
+                <option value="partially_paid" disabled>Partially Paid</option>
+              </select>
+              <p class="field-hint" style="margin:0;font-size:11px">For a single, full-amount tender only. For more than one payment method, use Split Payment below.</p>
+            </label>
+            <div class="booking-field-full" id="adminBookingPaymentRowsWrap" hidden>
+              <span style="display:block;margin-bottom:8px;font-size:13px;font-weight:600">Split Payment</span>
+              <p class="field-hint" style="margin:0 0 10px;font-size:11px">Add one row per tender (cash, card, EFT, etc). Recorded when you save this booking.</p>
+              <div id="adminBookingPaymentRowsList" style="display:flex;flex-direction:column;gap:12px"></div>
+              <button type="button" id="adminBookingAddPaymentRow" style="margin-top:10px;background:none;border:1px dashed currentColor;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;opacity:.7">+ Add payment</button>
+            </div>
             <div class="booking-field-full booking-action-row">
               <button class="booking-button" type="submit" id="adminBookingSaveButton">Create Booking</button>
             </div>

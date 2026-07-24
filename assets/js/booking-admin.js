@@ -399,6 +399,9 @@ const nodes={
   bookingTransfer:document.getElementById('adminBookingTransfer'),
   bookingCustomFields:document.getElementById('adminBookingCustomFields'),
   bookingNotes:document.getElementById('adminBookingNotes'),
+  bookingPaymentRowsWrap:document.getElementById('adminBookingPaymentRowsWrap'),
+  bookingPaymentRowsList:document.getElementById('adminBookingPaymentRowsList'),
+  bookingAddPaymentRow:document.getElementById('adminBookingAddPaymentRow'),
   bookingPriceOverride:document.getElementById('adminBookingPriceOverride'),
   bookingSaveButton:document.getElementById('adminBookingSaveButton'),
   bookingNewButton:document.getElementById('adminBookingNewButton'),
@@ -1419,6 +1422,57 @@ const getPickupMode=()=>{
   return ''
 }
 const formatPickupModeLabel=mode=>mode==='self_drive' ? 'Self Drive' : mode==='transfer' ? 'Transfer' : ''
+const buildPaymentRow=()=>{
+  const row=document.createElement('div')
+  row.className='booking-payment-row'
+  row.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;border:1px solid var(--booking-line,#e2e8f0);border-radius:8px;padding:10px'
+  row.innerHTML=`
+    <select data-pay-type style="flex:1;min-width:140px">
+      <option value="eft">EFT / Bank Transfer</option>
+      <option value="card">Card Machine</option>
+      <option value="cash">Cash</option>
+      <option value="voucher">Voucher</option>
+      <option value="other">Other</option>
+    </select>
+    <input type="number" min="0.01" step="0.01" placeholder="Amount" data-pay-amount style="flex:1;min-width:110px">
+    <input type="text" placeholder="Reference (optional)" data-pay-reference style="flex:1;min-width:140px">
+    <input type="text" placeholder="Terminal serial" data-pay-terminal hidden style="flex:1;min-width:120px">
+    <input type="text" placeholder="Batch number" data-pay-batch hidden style="flex:1;min-width:120px">
+    <button type="button" data-pay-remove style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 4px;opacity:.6" aria-label="Remove payment">×</button>
+  `
+  const typeEl=row.querySelector('[data-pay-type]')
+  const terminalEl=row.querySelector('[data-pay-terminal]')
+  const batchEl=row.querySelector('[data-pay-batch]')
+  const syncCardFields=()=>{
+    const isCard=typeEl.value==='card'
+    terminalEl.hidden=!isCard
+    batchEl.hidden=!isCard
+  }
+  typeEl.addEventListener('change',syncCardFields)
+  syncCardFields()
+  row.querySelector('[data-pay-remove]').addEventListener('click',()=>row.remove())
+  return row
+}
+const getPaymentRows=()=>{
+  if(!nodes.bookingPaymentRowsList)return []
+  return Array.from(nodes.bookingPaymentRowsList.querySelectorAll('.booking-payment-row')).map(row=>({
+    payment_type:row.querySelector('[data-pay-type]')?.value||'eft',
+    amount:Number(row.querySelector('[data-pay-amount]')?.value||0),
+    provider_reference:(row.querySelector('[data-pay-reference]')?.value||'').trim(),
+    terminal_serial_number:(row.querySelector('[data-pay-terminal]')?.value||'').trim(),
+    batch_number:(row.querySelector('[data-pay-batch]')?.value||'').trim()
+  })).filter(item=>item.amount>0)
+}
+if(nodes.bookingAddPaymentRow){
+  nodes.bookingAddPaymentRow.addEventListener('click',()=>{
+    if(nodes.bookingPaymentRowsList)nodes.bookingPaymentRowsList.appendChild(buildPaymentRow())
+  })
+}
+const postManualPayment=(bookingId,body)=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
+  method:'POST',
+  headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+  body
+})
 const collectBookingFormValues=()=>({
   reference:nodes.bookingReference?.value||'',
   brand_code:nodes.bookingBrand?.value||'',
@@ -4931,6 +4985,10 @@ const fillBookingForm=(booking=null)=>{
   // payment_status now directly holds the method (or a still-valid legacy value like partially_paid
   // from the Payments tab) — no metadata lookup needed, the column is the single source of truth.
   nodes.bookingPaymentStatus.value=String(booking?.payment_status||'')
+  // Split-payment rows post against a real booking_id + priced total, so they only make sense once
+  // the booking already exists — hidden (and reset empty) on the New Booking form.
+  if(nodes.bookingPaymentRowsWrap)nodes.bookingPaymentRowsWrap.hidden=!booking
+  if(nodes.bookingPaymentRowsList)nodes.bookingPaymentRowsList.innerHTML=''
   ;[nodes.bookingStatus,nodes.bookingPaymentStatus].forEach(input=>{
     if(!input)return
     input.disabled=false
@@ -8528,11 +8586,7 @@ const handleManualPaymentSave=async form=>{
     // The admin deliberately approved the overpayment, so authorise the backend guard to accept it.
     body.allow_overpayment=true
   }
-  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
-    method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
-    body
-  })
+  await postManualPayment(bookingId,body)
   await refreshAdmin('Manual payment loaded on the booking.')
 }
 
@@ -8819,6 +8873,35 @@ const handleBookingSave=async event=>{
   const savedReference=normalizeText(response?.booking?.reference)||normalizeText(response?.reference)||normalizeText(payload.reference)
   const savedBookingId=normalizeText(response?.booking?.id)||normalizeText(response?.id)||previousSelectedId
   await loadAdminData()
+  // Split-payment rows post against a real, priced booking, so they only run for an existing
+  // booking (the UI is hidden on the New Booking form — see fillBookingForm) and only after the
+  // booking save above has already succeeded. Each row is independent: one failing (e.g. a stale
+  // outstanding balance after an earlier row in this same batch) doesn't roll back the ones that
+  // already posted, and never fails the booking save itself — it's reported separately below.
+  let paymentRowSummary=''
+  if(wasEditing){
+    const paymentRows=getPaymentRows()
+    if(paymentRows.length){
+      let loaded=0
+      const failures=[]
+      for(const row of paymentRows){
+        if(row.payment_type==='card'&&(!row.terminal_serial_number||!row.batch_number)){
+          failures.push('Card payment skipped (terminal serial + batch number required).')
+          continue
+        }
+        try{
+          await postManualPayment(savedBookingId||previousSelectedId,{...row,notes:'',allow_overpayment:false})
+          loaded+=1
+        }catch(paymentError){
+          failures.push(paymentError?.message||'Payment failed.')
+        }
+      }
+      if(loaded>0)await loadAdminData()
+      if(loaded&&!failures.length)paymentRowSummary=` · ${loaded} payment${loaded===1?'':'s'} loaded`
+      else if(loaded&&failures.length)paymentRowSummary=` · ${loaded} payment${loaded===1?'':'s'} loaded, ${failures.length} failed: ${failures.join(' ')}`
+      else if(failures.length)paymentRowSummary=` · Payments not loaded: ${failures.join(' ')}`
+    }
+  }
   const savedBooking=wasEditing
     ? state.bookings.find(booking=>booking.id===previousSelectedId)
     : (
@@ -8827,7 +8910,7 @@ const handleBookingSave=async event=>{
     )
   const tourName=state.services.find(s=>s.slug===payload.service_slug)?.name||payload.service_slug||'Unknown tour'
   const guestName=payload.customer.full_name||'Guest'
-  const refLabel=savedReference ? ` · Ref ${String(savedReference).toUpperCase()}` : ''
+  const refLabel=(savedReference ? ` · Ref ${String(savedReference).toUpperCase()}` : '')+paymentRowSummary
   if(savedBooking){
     clearBookingEditorDraft()
     closeBookingModal()
