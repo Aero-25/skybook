@@ -32,6 +32,8 @@ const state={
   adminLiveSyncTimer:null,
   adminLiveSyncLastErrorAt:0,
   staffDirectory:[],
+  staffDutyAssignments:[],
+  dutyPopupChecked:false,
   adminUsers:[],
   permissionCatalog:bookingAdminShared.clone(bookingAdminShared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:bookingAdminShared.clone(bookingAdminShared.SKYBOOK_ROLE_DEFAULTS||{}),
@@ -342,6 +344,12 @@ const nodes={
   reconciliationTable:document.getElementById('reconciliationTable'),
   auditTable:document.getElementById('auditTable'),
   lifecycleMatrix:document.getElementById('lifecycleMatrix'),
+  dutyRosterWeek:document.getElementById('dutyRosterWeek'),
+  dutyRosterTable:document.getElementById('dutyRosterTable'),
+  dutyReportCards:document.getElementById('dutyReportCards'),
+  dutyReportTable:document.getElementById('dutyReportTable'),
+  dutyPopupBookings:document.getElementById('dutyPopupBookings'),
+  dutyPopupClientOperator:document.getElementById('dutyPopupClientOperator'),
   launchReadinessSummary:document.getElementById('launchReadinessSummary'),
   launchReadinessCards:document.getElementById('launchReadinessCards'),
   launchReadinessTable:document.getElementById('launchReadinessTable'),
@@ -6561,6 +6569,117 @@ const renderNotifications=()=>{
   `).join('') || renderEmptyRow(5,'No active alerts right now.')
 }
 
+// ---- Duty Roster / Duty Report (Audit tab) ----
+const getMondayKey=(reference=new Date())=>{
+  const d=new Date(reference)
+  const day=d.getDay()||7
+  d.setDate(d.getDate()-day+1)
+  d.setHours(0,0,0,0)
+  return normalizeDateKey(d.toISOString())
+}
+const DUTY_LABELS={bookings:'Bookings',client_operator:'Client Operator'}
+const renderDutyRoster=()=>{
+  if(!nodes.dutyRosterTable)return
+  if(nodes.dutyRosterWeek && !nodes.dutyRosterWeek.value)nodes.dutyRosterWeek.value=getMondayKey()
+  const weekKey=getMondayKey(nodes.dutyRosterWeek?.value ? new Date(nodes.dutyRosterWeek.value) : new Date())
+  const activeStaff=state.staffDirectory.filter(person=>person.is_active!==false).slice().sort((a,b)=>String(a.full_name||'').localeCompare(String(b.full_name||'')))
+  const weekAssignments=state.staffDutyAssignments.filter(row=>getMondayKey(new Date(row.week_start))===weekKey)
+  const isOnDuty=(userId,duty)=>weekAssignments.some(row=>row.user_id===userId&&row.duty===duty)
+  const dutyCheckbox=(userId,duty)=>`
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+      <input type="checkbox" data-duty-toggle data-duty-user="${bookingAdminShared.escapeHtml(userId)}" data-duty-type="${duty}" ${isOnDuty(userId,duty)?'checked':''} style="appearance:auto;width:16px;height:16px;min-width:16px;flex:none;padding:0;margin:0;border:none;background:none;box-shadow:none">
+    </label>
+  `
+  nodes.dutyRosterTable.innerHTML=activeStaff.map(person=>`
+    <tr>
+      <td><strong>${bookingAdminShared.escapeHtml(person.full_name||'—')}</strong></td>
+      <td>${dutyCheckbox(person.id,'bookings')}</td>
+      <td>${dutyCheckbox(person.id,'client_operator')}</td>
+    </tr>
+  `).join('') || renderEmptyRow(3,'No active staff found.')
+}
+const toggleDutyAssignment=async(userId,duty,checked)=>{
+  const weekKey=getMondayKey(nodes.dutyRosterWeek?.value ? new Date(nodes.dutyRosterWeek.value) : new Date())
+  if(checked){
+    const response=await bookingAdminShared.apiRequest('admin/duty-assignments',{
+      method:'POST',
+      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
+      body:{user_id:userId,week_start:weekKey,duty}
+    })
+    state.staffDutyAssignments=state.staffDutyAssignments.filter(row=>!(row.user_id===userId&&row.duty===duty&&getMondayKey(new Date(row.week_start))===weekKey))
+    if(response?.assignment)state.staffDutyAssignments.push(response.assignment)
+  }else{
+    const existing=state.staffDutyAssignments.find(row=>row.user_id===userId&&row.duty===duty&&getMondayKey(new Date(row.week_start))===weekKey)
+    if(existing){
+      await bookingAdminShared.apiRequest(`admin/duty-assignments/${encodeURIComponent(existing.id)}`,{
+        method:'DELETE',
+        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+      })
+      state.staffDutyAssignments=state.staffDutyAssignments.filter(row=>row.id!==existing.id)
+    }
+  }
+}
+const renderDutyReport=()=>{
+  if(!nodes.dutyReportTable)return
+  const staffNameById=new Map(state.staffDirectory.map(person=>[person.id,person.full_name||'Unknown']))
+  const byWeek=new Map()
+  state.staffDutyAssignments.forEach(row=>{
+    const weekKey=getMondayKey(new Date(row.week_start))
+    if(!byWeek.has(weekKey))byWeek.set(weekKey,{bookings:[],client_operator:[]})
+    const name=staffNameById.get(row.user_id)||'Unknown'
+    if(byWeek.get(weekKey)[row.duty])byWeek.get(weekKey)[row.duty].push(name)
+  })
+  const weeks=[...byWeek.keys()].sort((a,b)=>b.localeCompare(a))
+  const coverageGaps=weeks.filter(week=>!byWeek.get(week).bookings.length||!byWeek.get(week).client_operator.length).length
+  if(nodes.dutyReportCards)nodes.dutyReportCards.innerHTML=[
+    {label:'Weeks Tracked',value:String(weeks.length)},
+    {label:'Distinct Staff Rostered',value:String(new Set(state.staffDutyAssignments.map(row=>row.user_id)).size)},
+    {label:'Weeks With a Coverage Gap',value:String(coverageGaps)}
+  ].map(card=>`
+    <article class="metric-card">
+      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+    </article>
+  `).join('')
+  nodes.dutyReportTable.innerHTML=weeks.map(week=>{
+    const entry=byWeek.get(week)
+    const cell=names=>names.length ? names.map(name=>bookingAdminShared.escapeHtml(name)).join(', ') : '<span class="status-badge is-bad">Unassigned</span>'
+    return `
+      <tr>
+        <td>${bookingAdminShared.escapeHtml(formatDateLabel(week))}</td>
+        <td>${cell(entry.bookings)}</td>
+        <td>${cell(entry.client_operator)}</td>
+      </tr>
+    `
+  }).join('') || renderEmptyRow(3,'No duty history recorded yet.')
+}
+const openDutyPopup=()=>{
+  const modal=document.getElementById('dutyPopupModal')
+  if(!modal)return
+  if(nodes.dutyPopupBookings)nodes.dutyPopupBookings.checked=false
+  if(nodes.dutyPopupClientOperator)nodes.dutyPopupClientOperator.checked=false
+  modal.hidden=false
+  modal.setAttribute('aria-hidden','false')
+}
+const closeDutyPopup=()=>{
+  const modal=document.getElementById('dutyPopupModal')
+  if(modal){modal.hidden=true;modal.setAttribute('aria-hidden','true')}
+}
+// Runs once per session, right after the first successful login load. Only ever prompts on a
+// Monday, and only if the logged-in user has no duty recorded for the current week yet — everyone
+// can still change it any time from Audit → Duty Roster.
+const checkMondayDutyPopup=()=>{
+  if(state.dutyPopupChecked)return
+  state.dutyPopupChecked=true
+  if(new Date().getDay()!==1)return
+  const myId=state.profile?.id
+  if(!myId)return
+  const weekKey=getMondayKey()
+  const alreadySet=state.staffDutyAssignments.some(row=>row.user_id===myId&&getMondayKey(new Date(row.week_start))===weekKey)
+  if(alreadySet)return
+  openDutyPopup()
+}
+
 const renderAuditWorkbench=()=>{
   const auditFeed=buildAuditFeed()
   nodes.auditTable.innerHTML=auditFeed.slice(0,60).map(entry=>`
@@ -6579,6 +6698,8 @@ const renderAuditWorkbench=()=>{
       <p>${bookingAdminShared.escapeHtml((toStates||[]).length ? 'Allowed next states from this stage.' : 'No further transitions are allowed from this state.')}</p>
     </article>
   `).join('') || '<p class="muted-copy">Lifecycle rules are not available yet.</p>'
+  renderDutyRoster()
+  renderDutyReport()
 }
 
 const renderPaymentsWorkbench=()=>{
@@ -6984,6 +7105,7 @@ const loadAdminData=async(options={})=>{
   state.user=payload.user||null
   state.profile=payload.profile||null
   state.staffDirectory=payload.staff_directory||[]
+  state.staffDutyAssignments=payload.staff_duty_assignments||[]
   state.adminUsers=payload.admin_users||[]
   state.permissionCatalog=payload.permission_catalog||state.permissionCatalog
   state.roleDefaults=payload.role_defaults||state.roleDefaults
@@ -8656,6 +8778,7 @@ const handleLogin=async event=>{
     state.session=authData.session
     setAuthStatus('Signed in. Loading admin workspace...')
     await refreshAdmin('Authenticated and loaded live booking data.')
+    checkMondayDutyPopup()
   }catch(error){
     const message=error instanceof Error ? error.message : 'Admin bootstrap failed after sign-in.'
     state.session=null
@@ -9873,6 +9996,47 @@ document.getElementById('cruiseBookingType')?.addEventListener('change',event=>{
 })
 document.getElementById('cruisePax')?.addEventListener('input',updateCruisePaxPerCar)
 document.getElementById('cruiseCars')?.addEventListener('input',updateCruisePaxPerCar)
+nodes.dutyRosterWeek?.addEventListener('change',()=>{
+  if(nodes.dutyRosterWeek)nodes.dutyRosterWeek.value=getMondayKey(nodes.dutyRosterWeek.value ? new Date(nodes.dutyRosterWeek.value) : new Date())
+  renderDutyRoster()
+})
+nodes.dutyRosterTable?.addEventListener('change',async event=>{
+  const input=event.target.closest('[data-duty-toggle]')
+  if(!input)return
+  const userId=input.dataset.dutyUser||''
+  const duty=input.dataset.dutyType||''
+  const wasChecked=input.checked
+  input.disabled=true
+  try{
+    await toggleDutyAssignment(userId,duty,wasChecked)
+    renderDutyRoster()
+    renderDutyReport()
+  }catch(error){
+    input.checked=!wasChecked
+    input.disabled=false
+    showToast(error?.message||'Could not update duty.','info')
+  }
+})
+document.getElementById('closeDutyPopup')?.addEventListener('click',closeDutyPopup)
+document.getElementById('dutyPopupSkip')?.addEventListener('click',closeDutyPopup)
+document.getElementById('dutyPopupForm')?.addEventListener('submit',async event=>{
+  event.preventDefault()
+  const myId=state.profile?.id
+  if(!myId){closeDutyPopup();return}
+  const duties=[]
+  if(nodes.dutyPopupBookings?.checked)duties.push('bookings')
+  if(nodes.dutyPopupClientOperator?.checked)duties.push('client_operator')
+  if(!duties.length){showToast('Pick at least one duty, or use Skip for now.','info');return}
+  try{
+    for(const duty of duties){await toggleDutyAssignment(myId,duty,true)}
+    closeDutyPopup()
+    renderDutyRoster()
+    renderDutyReport()
+    showToast('Duty saved for this week.','success')
+  }catch(error){
+    showToast(error?.message||'Could not save duty.','info')
+  }
+})
 document.getElementById('closeManualInvoiceModal')?.addEventListener('click',closeManualInvoiceModal)
 document.getElementById('closeManualInvoiceModal2')?.addEventListener('click',closeManualInvoiceModal)
 document.getElementById('printManualInvoiceButton')?.addEventListener('click',printManualInvoice)
@@ -10708,6 +10872,7 @@ startSessionTimeoutCheck()
     if(session){
       sessionConfirmed=true
       await refreshAdmin('Authenticated and loaded live booking data.')
+      checkMondayDutyPopup()
       startLiveAdminSync()
       updateSessionTimeoutBanner()
       void syncAdminInBackground()

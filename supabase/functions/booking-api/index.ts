@@ -2874,6 +2874,27 @@ const createAdminNote=async(payload:Json,userId:string)=>{
   return { success:true, note:data }
 }
 
+const upsertDutyAssignment=async(payload:Json,userId:string)=>{
+  const targetUserId=normalizeText(payload.user_id)
+  const weekStart=normalizeText(payload.week_start)
+  const duty=normalizeText(payload.duty)
+  if(!targetUserId)throw new Error('Select a staff member.')
+  if(!weekStart)throw new Error('Select a week (Monday date).')
+  if(!['bookings','client_operator'].includes(duty))throw new Error('Select a valid duty.')
+  const { data,error }=await adminClient.from('staff_duty_assignments')
+    .upsert({ user_id:targetUserId, week_start:weekStart, duty, assigned_by:safeUuid(userId) },{onConflict:'user_id,week_start,duty'})
+    .select()
+    .single()
+  if(error)throw new Error(error.message||'Could not save the duty assignment.')
+  return { success:true, assignment:data }
+}
+
+const deleteDutyAssignment=async(id:string)=>{
+  const { error }=await adminClient.from('staff_duty_assignments').delete().eq('id',id)
+  if(error)throw new Error(error.message||'Could not remove the duty assignment.')
+  return { success:true }
+}
+
 const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{ hasOperator:boolean, hasResources:boolean })=>{
   const status=normalizeText(booking.status)
   const paymentStatus=normalizeText(booking.payment_status)
@@ -4350,7 +4371,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     void processDueSystemJobs().catch(()=>{})
   }
   void syncAllReconciliationRecords(String(user.id || '')).catch(()=>{})
-  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
+  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,staffDutyAssignments,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
     adminClient
       .from('bookings')
       .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,adult_quantity,child_quantity,infant_quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
@@ -4426,6 +4447,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     safeTableSelect<Json>(adminClient.from('booking_memories').select('*').order('created_at',{ascending:false}).limit(200)),
     safeTableSelect<Json>(adminClient.from('booking_portal_requests').select('*').order('created_at',{ascending:false}).limit(200)),
     safeTableSelect<Json>(adminClient.from('app_users').select('id,full_name,role,is_active').order('full_name',{ascending:true})),
+    safeTableSelect<Json>(adminClient.from('staff_duty_assignments').select('*').order('week_start',{ascending:false}).limit(2000)),
     safeTableSelect<Json>(adminClient.from('booking_document_versions').select('*').order('created_at',{ascending:false}).limit(150)),
     safeTableSelect<Json>(adminClient.from('customer_portal_sessions').select('*').order('created_at',{ascending:false}).limit(200)),
     safeTableSelect<Json>(adminClient.from('system_jobs').select('*').order('created_at',{ascending:false}).limit(200)),
@@ -4612,6 +4634,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     portal_requests:canSeeBookings ? portalRequests : [],
     portal_sessions:canSeeBookings ? portalSessions : [],
     staff_directory:canSeeBookings ? staffDirectory : [],
+    staff_duty_assignments:canSeeBookings ? staffDutyAssignments : [],
     lifecycle_rules:BOOKING_STATUS_TRANSITIONS,
     system_jobs:canSeeHealth ? systemJobs : [],
     health_events:canSeeHealth ? healthEvents : [],
@@ -5084,6 +5107,16 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='notes'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(201,await createAdminNote(requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='duty-assignments'&&!subresource){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(201,await upsertDutyAssignment(requestBody,user.id))
+      }
+
+      if(request.method==='DELETE'&&id==='duty-assignments'&&subresource){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await deleteDutyAssignment(subresource))
       }
 
       if(request.method==='POST'&&id==='booking-tasks'){

@@ -471,6 +471,40 @@
             <div id="lifecycleMatrix" class="detail-subgrid"></div>
           </article>
         </div>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Duty Roster</h3>
+              <p class="field-hint">Bookings and Client Operator duty per staff member, per week. One person can hold both — tick or untick to add or remove a duty for anyone.</p>
+            </div>
+            <div class="toolbar-actions">
+              <input id="dutyRosterWeek" type="date">
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Staff</th><th>Bookings</th><th>Client Operator</th></tr></thead>
+              <tbody id="dutyRosterTable"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>Duty Report</h3>
+              <p class="field-hint">Historical duty coverage, most recent week first.</p>
+            </div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="dutyReportCards"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Week</th><th>Bookings Duty</th><th>Client Operator Duty</th></tr></thead>
+              <tbody id="dutyReportTable"></tbody>
+            </table>
+          </div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="health">
@@ -1811,6 +1845,36 @@
             <div style="margin-top:20px;display:flex;gap:12px;justify-content:flex-end">
               <button type="button" class="booking-button ghost" id="closeCruiseLinerModal2">Cancel</button>
               <button type="submit" class="booking-button">Create Cruise Liner Booking</button>
+            </div>
+          </form>
+        </article>
+      </div>
+
+      <!-- Monday Duty Popup -->
+      <div class="admin-modal-shell" id="dutyPopupModal" hidden aria-hidden="true">
+        <div class="admin-modal-backdrop" aria-hidden="true"></div>
+        <article class="booking-panel admin-modal-panel" role="dialog" aria-modal="true" style="max-width:440px">
+          <div class="panel-header-inline admin-modal-header">
+            <div>
+              <h3>What's your duty this week?</h3>
+              <p class="field-hint">Pick one or both — you can change this any time under Audit Trail → Duty Roster.</p>
+            </div>
+            <button class="admin-modal-close" id="closeDutyPopup" type="button" aria-label="Close">&times;</button>
+          </div>
+          <form id="dutyPopupForm" style="padding:0 28px 28px">
+            <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;cursor:pointer">
+                <input id="dutyPopupBookings" type="checkbox" style="appearance:auto;width:16px;height:16px;min-width:16px;flex:none;padding:0;margin:0;border:none;background:none;box-shadow:none">
+                <span>Bookings</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;cursor:pointer">
+                <input id="dutyPopupClientOperator" type="checkbox" style="appearance:auto;width:16px;height:16px;min-width:16px;flex:none;padding:0;margin:0;border:none;background:none;box-shadow:none">
+                <span>Client Operator</span>
+              </label>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:flex-end">
+              <button type="button" class="booking-button ghost" id="dutyPopupSkip">Skip for now</button>
+              <button type="submit" class="booking-button">Save Duty</button>
             </div>
           </form>
         </article>
