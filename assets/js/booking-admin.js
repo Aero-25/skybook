@@ -327,14 +327,17 @@ const nodes={
   calendarSummaryCards:document.getElementById('calendarSummaryCards'),
   calendarCanvas:document.getElementById('calendarCanvas'),
   printArrivalsList:document.getElementById('printArrivalsList'),
-  reportsOverviewCards:document.getElementById('reportsOverviewCards'),
-  reportsStatusTable:document.getElementById('reportsStatusTable'),
-  reportsGuestInvoicesTable:document.getElementById('reportsGuestInvoicesTable'),
-  reportsOfficeInvoicesTable:document.getElementById('reportsOfficeInvoicesTable'),
-  reportsArrivalsDate:document.getElementById('reportsArrivalsDate'),
-  printReportArrivals:document.getElementById('printReportArrivals'),
-  reportsArrivalsTable:document.getElementById('reportsArrivalsTable'),
-  reportsConsultantTable:document.getElementById('reportsConsultantTable'),
+  salesReportCards:document.getElementById('salesReportCards'),
+  salesReportBody:document.getElementById('salesReportBody'),
+  paymentReportCards:document.getElementById('paymentReportCards'),
+  paymentReportBody:document.getElementById('paymentReportBody'),
+  agentReportCards:document.getElementById('agentReportCards'),
+  agentReportBody:document.getElementById('agentReportBody'),
+  invoicedReportCards:document.getElementById('invoicedReportCards'),
+  invoicedReportBody:document.getElementById('invoicedReportBody'),
+  guidesReportPeriod:document.getElementById('guidesReportPeriod'),
+  guidesReportCards:document.getElementById('guidesReportCards'),
+  guidesReportBody:document.getElementById('guidesReportBody'),
   reconciliationCards:document.getElementById('reconciliationCards'),
   reconciliationTable:document.getElementById('reconciliationTable'),
   auditTable:document.getElementById('auditTable'),
@@ -3451,89 +3454,6 @@ const closeCalendarDayPanel=()=>{
   state.calendarSelectedDay=''
 }
 
-const renderReports=()=>{
-  const overview=state.reports?.overview||{}
-  const byBrand=state.bookings.reduce((accumulator,booking)=>{
-    const key=booking.brand_code||'unassigned'
-    accumulator[key]=accumulator[key]||{count:0,revenue:0}
-    accumulator[key].count+=1
-    accumulator[key].revenue+=Number(booking.total_amount||0)
-    return accumulator
-  },{})
-  const byService=state.bookings.reduce((accumulator,booking)=>{
-    const key=booking.service_name||'Unknown service'
-    accumulator[key]=accumulator[key]||{count:0,revenue:0}
-    accumulator[key].count+=1
-    accumulator[key].revenue+=Number(booking.total_amount||0)
-    return accumulator
-  },{})
-  const cards=[
-    {label:'Gross Revenue',value:bookingAdminShared.formatMoney(overview.gross_revenue||0,state.settings.currency||'NAD')},
-    {label:'Paid Revenue',value:bookingAdminShared.formatMoney(overview.paid_revenue||0,state.settings.currency||'NAD')},
-    {label:'Guest Outstanding',value:bookingAdminShared.formatMoney(overview.guest_outstanding||0,state.settings.currency||'NAD')},
-    {label:'Office Payables',value:bookingAdminShared.formatMoney(overview.office_payables||0,state.settings.currency||'NAD')},
-    {label:'Refund Exposure',value:bookingAdminShared.formatMoney(overview.refund_exposure||0,state.settings.currency||'NAD')},
-    {label:'Total Bookings',value:String(overview.total_bookings||0)}
-  ]
-  const performanceMarkup=`
-    <div class="report-split-grid">
-      <article>
-        <h4>Sales by brand</h4>
-        <div class="report-stat-list">
-          ${Object.entries(byBrand).map(([brand,metrics])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(brand)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings · ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('') || '<p class="muted-copy">No brand data yet.</p>'}
-        </div>
-      </article>
-      <article>
-        <h4>Performance by tour</h4>
-        <div class="report-stat-list">
-          ${Object.entries(byService).sort((left,right)=>right[1].revenue-left[1].revenue).slice(0,6).map(([service,metrics])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(service)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings · ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('') || '<p class="muted-copy">No service performance data yet.</p>'}
-        </div>
-      </article>
-    </div>
-  `
-  nodes.reportsOverviewCards.innerHTML=cards.map(card=>`
-    <article class="metric-card">
-      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
-      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
-    </article>
-  `).join('') + performanceMarkup
-  nodes.reportsStatusTable.innerHTML=(state.reports?.status_breakdown||[]).map(row=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(row.status)}</td>
-      <td>${bookingAdminShared.escapeHtml(row.count)}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="2">No report data yet.</td></tr>'
-  nodes.reportsGuestInvoicesTable.innerHTML=(state.reports?.recent_guest_invoices||[]).map(invoice=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(invoice.invoice_number||'')}</td>
-      <td>${bookingAdminShared.escapeHtml(invoice.status||'')}</td>
-      <td>${bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)}</td>
-      <td>${bookingAdminShared.formatMoney(invoice.balance_amount||0,invoice.currency_code||state.settings.currency)}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="4">No guest invoices yet.</td></tr>'
-  nodes.reportsOfficeInvoicesTable.innerHTML=(state.reports?.recent_office_invoices||[]).map(invoice=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(invoice.invoice_number||'')}</td>
-      <td>${bookingAdminShared.escapeHtml(invoice.invoice_type||'')}</td>
-      <td>${bookingAdminShared.escapeHtml(invoice.status||'')}</td>
-      <td>${bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)}</td>
-    </tr>
-  `).join('') || '<tr><td colspan="4">No office invoices yet.</td></tr>'
-  if(nodes.reportsStatusTable.parentElement?.parentElement){
-    nodes.reportsStatusTable.parentElement.parentElement.querySelector('h3').textContent='Status + Performance'
-  }
-}
-
 const renderReservationRow=booking=>`
     <tr class="reservation-row is-${bookingAdminShared.escapeHtml(normalizeBrandClass(booking.brand_code))} ${getStatusRowClass(booking)}${booking.id===state.selectedBookingId ? ' is-selected' : ''}" data-reservation-id="${bookingAdminShared.escapeHtml(booking.id)}">
       <td>
@@ -6222,13 +6142,89 @@ const buildMonthlyChart=(bookings,{mode='count',currency='NAD'}={})=>{
   return buildBarChart(months,{valueKey:mode,labelKey:'label',currency:mode==='revenue'?currency:null,maxBars:6,colorFn:(_,i)=>i===months.length-1?'#0e3a52':'#8b5cf6'})
 }
 
+// ---- Guides Report: a guide may run several tours in one morning or one afternoon — that's
+// still 1 shift. A morning tour AND an afternoon tour the same day is 2. A booking with no
+// classifiable time can't be safely merged with anything else, so it always counts on its own.
+const splitGuideNames=value=>String(value||'').split(/[,;]+/).map(item=>item.trim()).filter(Boolean)
+const classifyGuideBookingWindow=booking=>{
+  const meta=normalizeJsonRecord(booking?.metadata)
+  const timeMatch=String(meta.pickup_time||'').trim().match(/^(\d{1,2}):(\d{2})/)
+  if(timeMatch){
+    const hour=Number(timeMatch[1])
+    if(Number.isFinite(hour))return hour<12 ? 'morning' : 'afternoon'
+  }
+  const label=String(meta.departure_label||'').toLowerCase()
+  if(/\bam\b|morning/.test(label))return 'morning'
+  if(/\bpm\b|afternoon|evening|sunset/.test(label))return 'afternoon'
+  return 'unscheduled'
+}
+const getGuidesReportDateRange=period=>{
+  if(period==='all')return {start:null,end:null}
+  const now=new Date()
+  const end=new Date(now)
+  end.setHours(23,59,59,999)
+  const start=new Date(now)
+  start.setHours(0,0,0,0)
+  if(period==='week'){
+    const day=start.getDay()||7
+    start.setDate(start.getDate()-day+1)
+  }else if(period==='30days'){
+    start.setDate(start.getDate()-29)
+  }else{
+    start.setDate(1)
+  }
+  return {start,end}
+}
+const buildGuidesReportData=(bookings,{start,end}={})=>{
+  const byGuideDate=new Map()
+  bookings.forEach(booking=>{
+    const dateValue=parseDateValue(booking.preferred_date)
+    if(!dateValue)return
+    if(start&&dateValue<start)return
+    if(end&&dateValue>end)return
+    const guideNames=splitGuideNames(booking.guide_name||booking.metadata?.guide_name)
+    if(!guideNames.length)return
+    const dateKey=normalizeDateKey(booking.preferred_date)
+    const windowBucket=classifyGuideBookingWindow(booking)
+    guideNames.forEach(guide=>{
+      const key=`${guide}||${dateKey}`
+      if(!byGuideDate.has(key))byGuideDate.set(key,{guide,dateKey,morning:[],afternoon:[],unscheduled:[]})
+      byGuideDate.get(key)[windowBucket].push(booking)
+    })
+  })
+  const dayRows=[...byGuideDate.values()].map(entry=>({
+    ...entry,
+    countedUnits:(entry.morning.length?1:0)+(entry.afternoon.length?1:0)+entry.unscheduled.length,
+    rawBookings:entry.morning.length+entry.afternoon.length+entry.unscheduled.length
+  })).sort((a,b)=>a.guide.localeCompare(b.guide)||a.dateKey.localeCompare(b.dateKey))
+  const byGuide=new Map()
+  dayRows.forEach(row=>{
+    const bucket=byGuide.get(row.guide)||{guide:row.guide,days:0,counted:0,raw:0,unscheduled:0}
+    bucket.days+=1
+    bucket.counted+=row.countedUnits
+    bucket.raw+=row.rawBookings
+    bucket.unscheduled+=row.unscheduled.length
+    byGuide.set(row.guide,bucket)
+  })
+  return {dayRows,guideRows:[...byGuide.values()].sort((a,b)=>b.counted-a.counted||a.guide.localeCompare(b.guide))}
+}
+
 const renderReportsWorkbench=()=>{
-  const overview=state.reports?.overview||{}
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
   const reportBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
   const financeBookings=getFinanceReportBookings(reportBookings)
   const cancelledBookings=reportBookings.filter(isCancelledFinancialBooking)
   const paymentTypeRows=getReportPaymentRows(financeBookings)
+  const currency=state.settings.currency||'NAD'
+  const money=amount=>bookingAdminShared.formatMoney(amount,currency)
+  const metricCards=cards=>cards.map(card=>`
+    <article class="metric-card">
+      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
+      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
+    </article>
+  `).join('')
+
+  // ---------- 1. Sales Report ----------
   const byBrand=financeBookings.reduce((accumulator,booking)=>{
     const key=booking.brand_code||'unassigned'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
@@ -6250,67 +6246,19 @@ const renderReportsWorkbench=()=>{
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
-  const byBookedBy=financeBookings.reduce((accumulator,booking)=>{
-    const key=normalizeText(booking.metadata?.booked_by||booking.booked_by||'')||'(Direct / Not recorded)'
-    accumulator[key]=accumulator[key]||{count:0,revenue:0}
-    accumulator[key].count+=1
-    accumulator[key].revenue+=Number(booking.total_amount||0)
-    return accumulator
-  },{})
-  const byAgent=financeBookings.reduce((accumulator,booking)=>{
-    const key=normalizeText(booking.metadata?.agent||'')||''
-    if(!key)return accumulator
-    accumulator[key]=accumulator[key]||{count:0,revenue:0}
-    accumulator[key].count+=1
-    accumulator[key].revenue+=Number(booking.total_amount||0)
-    return accumulator
-  },{})
-  const noShowBookings=financeBookings.filter(booking=>normalizeText(booking.status)==='cancelled'&&Boolean(booking.metadata?.no_show))
   const acceptedBookings=financeBookings.filter(booking=>!['provisional','cancelled','failed'].includes(normalizeText(booking.status)))
   const paidBookings=financeBookings.filter(booking=>['paid','partially_paid','cash','card','eft','voucher','foc'].includes(normalizeText(booking.payment_status)))
-  const consultantRows=buildConsultantProductivityRows(reportBookings)
-  if(nodes.reportsArrivalsDate && !nodes.reportsArrivalsDate.value)nodes.reportsArrivalsDate.value=getTodayKey()
-  const arrivalsRows=buildArrivalsManifestRows(nodes.reportsArrivalsDate?.value||getTodayKey())
-  const cancellationReasons=cancelledBookings.reduce((accumulator,booking)=>{
-    const reason=booking.cancellation_reason||booking.metadata?.trash?.reason||booking.customer_notes||'No reason captured'
-    accumulator[reason]=(accumulator[reason]||0)+1
-    return accumulator
-  },{})
-  const topAgents=state.officeInvoices.reduce((accumulator,invoice)=>{
-    const booking=getBookingById(invoice.booking_id)
-    if(state.activeBrandFilter&&booking?.brand_code!==state.activeBrandFilter)return accumulator
-    if(booking&&isCancelledFinancialBooking(booking))return accumulator
-    const agent=invoice.agent_name||invoice.payee_name||invoice.operator_name||'Unassigned'
-    accumulator[agent]=accumulator[agent]||{count:0,revenue:0}
-    accumulator[agent].count+=1
-    accumulator[agent].revenue+=Number(invoice.total_amount||invoice.commission_amount||0)
-    return accumulator
-  },{})
-  const financeBookingIds=new Set(financeBookings.map(booking=>String(booking.id||'')))
-  const unpaidInvoices=state.invoices.filter(invoice=>financeBookingIds.has(String(invoice.booking_id||'')) && Number(invoice.balance_amount||0)>0)
-  const commissionDue=sumAmounts(state.officeInvoices.filter(invoice=>!['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'commission_amount')
-  const operatorPayoutsDue=sumAmounts(state.officeInvoices.filter(invoice=>String(invoice.payee_type||'').toLowerCase()==='operator' && !['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'total_amount')
-  const agentPayoutsDue=sumAmounts(state.officeInvoices.filter(invoice=>String(invoice.payee_type||'').toLowerCase()==='agent' && !['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'total_amount')
-  const cards=[
-    {label:'Gross Revenue',value:bookingAdminShared.formatMoney(overview.gross_revenue||0,state.settings.currency||'NAD')},
-    {label:'Paid Revenue',value:bookingAdminShared.formatMoney(overview.paid_revenue||0,state.settings.currency||'NAD')},
-    {label:'Debtors Outstanding',value:bookingAdminShared.formatMoney(overview.guest_outstanding||0,state.settings.currency||'NAD')},
-    {label:'Creditors Payable',value:bookingAdminShared.formatMoney(overview.office_payables||0,state.settings.currency||'NAD')},
-    {label:'Refund Exposure',value:bookingAdminShared.formatMoney(overview.refund_exposure||0,state.settings.currency||'NAD')},
-    {label:'Commission Due',value:bookingAdminShared.formatMoney(commissionDue,state.settings.currency||'NAD')},
-    {label:'Supplier Payables',value:bookingAdminShared.formatMoney(operatorPayoutsDue,state.settings.currency||'NAD')},
-    {label:'Open Debtor Accounts',value:String(unpaidInvoices.length)},
+  const grossRevenue=sumAmounts(financeBookings,'total_amount')
+  const paidRevenue=sumAmounts(paidBookings,'total_amount')
+  if(nodes.salesReportCards)nodes.salesReportCards.innerHTML=metricCards([
+    {label:'Gross Revenue',value:money(grossRevenue)},
+    {label:'Paid Revenue',value:money(paidRevenue)},
+    {label:'Active Bookings',value:String(financeBookings.length)},
+    {label:'Avg. Booking Value',value:money(financeBookings.length ? grossRevenue/financeBookings.length : 0)},
     {label:'Conversion',value:`${financeBookings.length ? Math.round((acceptedBookings.length/financeBookings.length)*100) : 0}% accepted`},
-    {label:'Paid Pipeline',value:`${paidBookings.length}/${financeBookings.length}`},
-    {label:'No Shows',value:String(noShowBookings.length)},
-    {label:'Cancelled Excluded',value:String(cancelledBookings.length)}
-  ]
-  nodes.reportsOverviewCards.innerHTML=cards.map(card=>`
-    <article class="metric-card">
-      <span>${bookingAdminShared.escapeHtml(card.label)}</span>
-      <strong>${bookingAdminShared.escapeHtml(card.value)}</strong>
-    </article>
-  `).join('') + `
+    {label:'Cancelled / Refunded',value:String(cancelledBookings.length)}
+  ])
+  if(nodes.salesReportBody)nodes.salesReportBody.innerHTML=`
     <div class="report-split-grid" style="margin-bottom:18px">
       <article>
         <h4>Bookings per month (last 6 months)</h4>
@@ -6318,13 +6266,13 @@ const renderReportsWorkbench=()=>{
       </article>
       <article>
         <h4>Revenue per month (last 6 months)</h4>
-        ${buildMonthlyChart(financeBookings,{mode:'revenue',currency:state.settings.currency||'NAD'})}
+        ${buildMonthlyChart(financeBookings,{mode:'revenue',currency})}
       </article>
     </div>
-    <div class="report-split-grid">
+    <div class="report-split-grid" style="margin-bottom:18px">
       <article>
         <h4>Revenue by tour</h4>
-        ${buildBarChart(Object.entries(byService).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8).map(([label,m])=>({label,value:m.revenue})),{currency:state.settings.currency||'NAD',maxBars:8})}
+        ${buildBarChart(Object.entries(byService).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8).map(([label,m])=>({label,value:m.revenue})),{currency,maxBars:8})}
       </article>
       <article>
         <h4>Bookings by tour</h4>
@@ -6338,7 +6286,7 @@ const renderReportsWorkbench=()=>{
           ${Object.entries(byBrand).map(([brand,metrics])=>`
             <div>
               <strong>${bookingAdminShared.escapeHtml(brandMap.get(brand)||brand)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings - ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
+              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings &mdash; ${money(metrics.revenue)}</span>
             </div>
           `).join('') || '<p class="muted-copy">No brand data yet.</p>'}
         </div>
@@ -6348,170 +6296,231 @@ const renderReportsWorkbench=()=>{
         ${buildBarChart(Object.entries(bySource).sort((a,b)=>b[1].count-a[1].count).map(([label,m])=>({label:formatSourceLabel(label),value:m.count})),{maxBars:8})}
       </article>
     </div>
+  `
+
+  // ---------- 2. Payment Process Report ----------
+  const receivedTotal=sumAmounts(paymentTypeRows,'amount')
+  const paymentStatusCounts=financeBookings.reduce((accumulator,booking)=>{
+    const key=normalizeText(booking.payment_status)||'not_set'
+    accumulator[key]=(accumulator[key]||0)+1
+    return accumulator
+  },{})
+  const paymentStatusLabels={cash:'Cash',card:'Card',eft:'EFT',voucher:'Voucher',foc:'FOC',invoiced:'Invoiced',paid:'Paid',partially_paid:'Partially Paid',not_set:'Not Set / Unpaid'}
+  const outstandingBookings=financeBookings.filter(booking=>!['paid','partially_paid','cash','card','eft','voucher','foc','invoiced'].includes(normalizeText(booking.payment_status)))
+  if(nodes.paymentReportCards)nodes.paymentReportCards.innerHTML=metricCards([
+    {label:'Received (all methods)',value:money(receivedTotal)},
+    {label:'Payments Logged',value:String(sumAmounts(paymentTypeRows,'count'))},
+    {label:'Paid Bookings',value:`${paidBookings.length}/${financeBookings.length}`},
+    {label:'Not Yet Paid',value:String(outstandingBookings.length)},
+    {label:'Not Yet Paid — Value',value:money(sumAmounts(outstandingBookings,'total_amount'))}
+  ])
+  if(nodes.paymentReportBody)nodes.paymentReportBody.innerHTML=`
     <div class="report-split-grid">
       <article>
-        <h4>Bookings by Booked By</h4>
-        <div class="report-stat-list">
-          ${Object.entries(byBookedBy).sort((a,b)=>b[1].count-a[1].count).map(([name,m])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(name)}</strong>
-              <span>${m.count} booking${m.count===1?'':'s'} &mdash; ${bookingAdminShared.formatMoney(m.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('')||'<p class="muted-copy">No bookings recorded yet.</p>'}
-        </div>
+        <h4>Payments received by method</h4>
+        ${buildBarChart(paymentTypeRows.map(row=>({label:row.method,value:row.amount})),{currency,maxBars:8})}
       </article>
       <article>
-        <h4>Bookings by Agent</h4>
-        <div class="report-stat-list">
-          ${Object.entries(byAgent).sort((a,b)=>b[1].count-a[1].count).map(([name,m])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(name)}</strong>
-              <span>${m.count} booking${m.count===1?'':'s'} &mdash; ${bookingAdminShared.formatMoney(m.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('')||'<p class="muted-copy">No agent bookings recorded yet.</p>'}
+        <h4>Payments received — detail</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Method</th><th>Payments</th><th>Amount</th><th>%</th></tr></thead>
+            <tbody>
+              ${paymentTypeRows.map(row=>`
+                <tr>
+                  <td>${bookingAdminShared.escapeHtml(row.method)}</td>
+                  <td>${bookingAdminShared.escapeHtml(String(row.count))}</td>
+                  <td>${money(row.amount)}</td>
+                  <td>${receivedTotal>0 ? Math.round((row.amount/receivedTotal)*100) : 0}%</td>
+                </tr>
+              `).join('') || renderEmptyRow(4,'No received payments recorded yet.')}
+            </tbody>
+          </table>
         </div>
       </article>
     </div>
-    <div class="report-split-grid">
+    <div class="report-split-grid admin-spacer">
       <article>
-        <h4>Payments received by type</h4>
-        <div class="report-stat-list">
-          ${paymentTypeRows.map(row=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(row.method)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(row.count))} payment${row.count===1?'':'s'} - ${bookingAdminShared.formatMoney(row.amount,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('')||'<p class="muted-copy">No received payments in the active finance set yet.</p>'}
+        <h4>Bookings by Payment Process status</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Status</th><th>Bookings</th><th>%</th></tr></thead>
+            <tbody>
+              ${Object.entries(paymentStatusCounts).sort((a,b)=>b[1]-a[1]).map(([status,count])=>`
+                <tr>
+                  <td>${renderStatusBadge(status==='not_set'?'':status,paymentStatusLabels[status]||formatDisplayLabel(status))}</td>
+                  <td>${bookingAdminShared.escapeHtml(String(count))}</td>
+                  <td>${financeBookings.length ? Math.round((count/financeBookings.length)*100) : 0}%</td>
+                </tr>
+              `).join('') || renderEmptyRow(3,'No bookings yet.')}
+            </tbody>
+          </table>
         </div>
       </article>
       <article>
-        <h4>Finance rule</h4>
-        <div class="report-stat-list">
-          <div>
-            <strong>Active bookings counted</strong>
-            <span>${bookingAdminShared.escapeHtml(String(financeBookings.length))}</span>
-          </div>
-          <div>
-            <strong>Cancelled/refunded excluded</strong>
-            <span>${bookingAdminShared.escapeHtml(String(cancelledBookings.length))}</span>
-          </div>
-          <div>
-            <strong>Payment methods tracked</strong>
-            <span>${bookingAdminShared.escapeHtml(paymentTypeRows.map(row=>row.method).join(', ')||'None yet')}</span>
-          </div>
-        </div>
-      </article>
-    </div>
-    <div class="report-split-grid">
-      <article>
-        <h4>Bookings by source</h4>
-        <div class="report-stat-list">
-          ${Object.entries(bySource).sort((left,right)=>right[1].count-left[1].count).map(([source,metrics])=>`
-            <div>
-              <strong>${bookingAdminShared.escapeHtml(source)}</strong>
-              <span>${bookingAdminShared.escapeHtml(String(metrics.count))} bookings - ${bookingAdminShared.formatMoney(metrics.revenue,state.settings.currency||'NAD')}</span>
-            </div>
-          `).join('') || '<p class="muted-copy">No source data yet.</p>'}
-        </div>
-      </article>
-      <article>
-        <h4>Settlements & risk</h4>
-        <div class="report-stat-list">
-          <div>
-            <strong>Selling partner commission due</strong>
-            <span>${bookingAdminShared.formatMoney(agentPayoutsDue,state.settings.currency||'NAD')}</span>
-          </div>
-          <div>
-            <strong>Cancelled bookings</strong>
-            <span>${bookingAdminShared.escapeHtml(String(cancelledBookings.length))}</span>
-          </div>
-          <div>
-            <strong>Refund records</strong>
-            <span>${bookingAdminShared.escapeHtml(String(state.refunds.length))}</span>
-          </div>
-          <div>
-            <strong>Total bookings</strong>
-            <span>${bookingAdminShared.escapeHtml(String(financeBookings.length))} active / ${bookingAdminShared.escapeHtml(String(reportBookings.length))} total</span>
-          </div>
-          <div>
-            <strong>Cancellation reasons</strong>
-            <span>${Object.entries(cancellationReasons).map(([reason,count])=>`${bookingAdminShared.escapeHtml(reason)} (${bookingAdminShared.escapeHtml(String(count))})`).join(', ')||'No cancellations logged'}</span>
-          </div>
-          <div>
-            <strong>Top selling partners</strong>
-            <span>${Object.entries(topAgents).sort((left,right)=>right[1].count-left[1].count).slice(0,3).map(([agent,metrics])=>`${bookingAdminShared.escapeHtml(agent)} (${bookingAdminShared.escapeHtml(String(metrics.count))})`).join(', ')||'No commission sources yet'}</span>
-          </div>
+        <h4>Outstanding balances (not yet paid)</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Guest</th><th>Tour</th><th>Total</th></tr></thead>
+            <tbody>
+              ${outstandingBookings.slice(0,25).map(booking=>`
+                <tr>
+                  <td><strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong><div class="table-subline">${bookingAdminShared.escapeHtml(booking.reference||'')}</div></td>
+                  <td>${bookingAdminShared.escapeHtml(booking.service_name||'—')}</td>
+                  <td>${money(booking.total_amount||0)}</td>
+                </tr>
+              `).join('') || renderEmptyRow(3,'Nothing outstanding — every active booking has a payment method recorded.')}
+            </tbody>
+          </table>
+          ${outstandingBookings.length>25 ? `<p class="field-hint">Showing 25 of ${outstandingBookings.length}.</p>` : ''}
         </div>
       </article>
     </div>
   `
-  nodes.reportsStatusTable.innerHTML=(state.reports?.status_breakdown||[]).map(row=>`
-    <tr>
-      <td>${bookingAdminShared.escapeHtml(row.status)}</td>
-      <td>${bookingAdminShared.escapeHtml(row.count)}</td>
-    </tr>
-  `).join('') || renderEmptyRow(2,'No report data yet.')
-  nodes.reportsGuestInvoicesTable.innerHTML=(state.reports?.recent_guest_invoices||[]).map(invoice=>{
-    const booking=getBookingById(invoice.booking_id)
-    return `
-      <tr>
-        <td>
-          <strong>${bookingAdminShared.escapeHtml(getDebtorName(invoice))}</strong>
-          <div class="table-subline">${bookingAdminShared.escapeHtml(invoice.invoice_number||booking?.reference||'')}</div>
-        </td>
-        <td>${renderStatusBadge(invoice.status)}</td>
-        <td>${bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)}</td>
-        <td>${bookingAdminShared.formatMoney(getInvoiceOutstandingAmount(invoice),invoice.currency_code||state.settings.currency)}</td>
-      </tr>
-    `
-  }).join('') || renderEmptyRow(4,'No debtor records yet.')
-  nodes.reportsOfficeInvoicesTable.innerHTML=(state.reports?.recent_office_invoices||[]).map(invoice=>`
-    <tr>
-      <td>
-        <strong>${bookingAdminShared.escapeHtml(getOfficeInvoicePartnerName(invoice))}</strong>
-        <div class="table-subline">${bookingAdminShared.escapeHtml(invoice.invoice_number||invoice.booking_id||'')}</div>
-      </td>
-      <td>${bookingAdminShared.escapeHtml(formatDisplayLabel(invoice.invoice_type||''))}</td>
-      <td>${renderStatusBadge(invoice.status)}</td>
-      <td>${bookingAdminShared.formatMoney(invoice.total_amount||0,invoice.currency_code||state.settings.currency)}</td>
-    </tr>
-  `).join('') || renderEmptyRow(4,'No creditor records yet.')
-  if(nodes.reportsConsultantTable){
-    nodes.reportsConsultantTable.innerHTML=consultantRows.map(row=>`
-      <tr>
-        <td><strong>${bookingAdminShared.escapeHtml(row.name||'Unassigned')}</strong></td>
-        <td>${bookingAdminShared.escapeHtml(String(row.bookings||0))}</td>
-        <td>${bookingAdminShared.escapeHtml(String(row.accepted||0))}</td>
-        <td>${bookingAdminShared.escapeHtml(String(row.completed||0))}</td>
-        <td>${bookingAdminShared.escapeHtml(String(row.cancelled||0))}</td>
-        <td>${bookingAdminShared.escapeHtml(String(row.noShows||0))}</td>
-        <td>${bookingAdminShared.formatMoney(row.gross||0,state.settings.currency||'NAD')}</td>
-        <td>${bookingAdminShared.formatMoney(row.paid||0,state.settings.currency||'NAD')}</td>
-      </tr>
-    `).join('') || renderEmptyRow(8,'No consultant-owned bookings have been recorded yet.')
-  }
-  if(nodes.reportsArrivalsTable){
-    nodes.reportsArrivalsTable.innerHTML=arrivalsRows.map(row=>{
-      // Same rule as the Bookings list: an Admin Desk booking is already a settled deal,
-      // so its arrivals-manifest row carries no lifecycle tag either.
-      const hideStatusTags=isAdminPortalBooking(getBookingById(row.id))
-      return `
-      <tr data-booking-id="${bookingAdminShared.escapeHtml(row.id||'')}">
-        <td>
-          <strong>${bookingAdminShared.escapeHtml(row.guest||'Guest')}</strong>
-          <div class="table-subline">${bookingAdminShared.escapeHtml(row.reference||'')}</div>
-        </td>
-        <td>${bookingAdminShared.escapeHtml(row.tour||'Service')}</td>
-        <td>${bookingAdminShared.escapeHtml(row.pickups||'Pending')}</td>
-        <td>${bookingAdminShared.escapeHtml(row.dropoffs||'Pending')}</td>
-        <td>${bookingAdminShared.escapeHtml(row.notes||'No notes captured.')}</td>
-        <td>${bookingAdminShared.escapeHtml(row.operator||'Unassigned')}</td>
-        <td>${hideStatusTags?'':renderStatusBadge(row.status||'provisional')}</td>
-      </tr>
-    `}).join('') || renderEmptyRow(7,'No arrivals scheduled for this date.')
-  }
-  const reportHeading=nodes.reportsStatusTable.parentElement?.parentElement?.querySelector('h3')
-  if(reportHeading)reportHeading.textContent='Status Breakdown'
+
+  // ---------- 3. Agent / Booked By Report ----------
+  const byBookedBy=financeBookings.reduce((accumulator,booking)=>{
+    const key=normalizeText(booking.metadata?.booked_by||booking.booked_by||'')||'(Direct / Not recorded)'
+    accumulator[key]=accumulator[key]||{count:0,revenue:0}
+    accumulator[key].count+=1
+    accumulator[key].revenue+=Number(booking.total_amount||0)
+    return accumulator
+  },{})
+  const byAgent=financeBookings.reduce((accumulator,booking)=>{
+    const label=String(booking.metadata?.agent||'').trim()
+    if(!label)return accumulator
+    accumulator[label]=accumulator[label]||{count:0,revenue:0}
+    accumulator[label].count+=1
+    accumulator[label].revenue+=Number(booking.total_amount||0)
+    return accumulator
+  },{})
+  const agentBookingsCount=Object.values(byAgent).reduce((sum,m)=>sum+m.count,0)
+  const commissionDue=sumAmounts(state.officeInvoices.filter(invoice=>!['paid','cancelled'].includes(String(invoice.status||'').toLowerCase())),'commission_amount')
+  const groupedReportTable=(entries,firstLabel)=>`
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>${bookingAdminShared.escapeHtml(firstLabel)}</th><th>Bookings</th><th>Revenue</th><th>Avg / booking</th></tr></thead>
+        <tbody>
+          ${entries.map(([name,m])=>`
+            <tr>
+              <td><strong>${bookingAdminShared.escapeHtml(name)}</strong></td>
+              <td>${bookingAdminShared.escapeHtml(String(m.count))}</td>
+              <td>${money(m.revenue)}</td>
+              <td>${money(m.count ? m.revenue/m.count : 0)}</td>
+            </tr>
+          `).join('') || renderEmptyRow(4,'No bookings recorded yet.')}
+        </tbody>
+      </table>
+    </div>
+  `
+  if(nodes.agentReportCards)nodes.agentReportCards.innerHTML=metricCards([
+    {label:'Agent-Sourced Bookings',value:String(agentBookingsCount)},
+    {label:'Agent Revenue',value:money(Object.values(byAgent).reduce((sum,m)=>sum+m.revenue,0))},
+    {label:'Commission Due',value:money(commissionDue)},
+    {label:'Distinct Agents',value:String(Object.keys(byAgent).length)},
+    {label:'Distinct Booked-By Sources',value:String(Object.keys(byBookedBy).length)}
+  ])
+  if(nodes.agentReportBody)nodes.agentReportBody.innerHTML=`
+    <div class="report-split-grid">
+      <article>
+        <h4>By Agent / Selling Partner</h4>
+        ${groupedReportTable(Object.entries(byAgent).sort((a,b)=>b[1].revenue-a[1].revenue),'Agent')}
+      </article>
+      <article>
+        <h4>By Booked By</h4>
+        ${groupedReportTable(Object.entries(byBookedBy).sort((a,b)=>b[1].revenue-a[1].revenue),'Booked By')}
+      </article>
+    </div>
+  `
+
+  // ---------- 4. Invoiced Report ----------
+  const invoicedBookings=reportBookings.filter(booking=>normalizeText(booking.payment_status)==='invoiced')
+  const invoicedTotal=sumAmounts(invoicedBookings,'total_amount')
+  const invoicedPax=invoicedBookings.reduce((sum,booking)=>{
+    const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0)
+    return sum+(a+c+i||Number(booking.quantity||1))
+  },0)
+  const invoicedSorted=invoicedBookings.slice().sort((a,b)=>new Date(b.preferred_date||0)-new Date(a.preferred_date||0))
+  const oldestInvoiced=invoicedBookings.slice().sort((a,b)=>new Date(a.preferred_date||0)-new Date(b.preferred_date||0))[0]
+  if(nodes.invoicedReportCards)nodes.invoicedReportCards.innerHTML=metricCards([
+    {label:'Invoiced Bookings',value:String(invoicedBookings.length)},
+    {label:'Total PAX',value:String(invoicedPax)},
+    {label:'Invoiced Value',value:money(invoicedTotal)},
+    {label:'Oldest Open',value:oldestInvoiced ? formatDateLabel(oldestInvoiced.preferred_date) : '—'}
+  ])
+  if(nodes.invoicedReportBody)nodes.invoicedReportBody.innerHTML=`
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Reference</th><th>Company / Guest</th><th>Tour</th><th>PAX</th><th>Amount</th></tr></thead>
+        <tbody>
+          ${invoicedSorted.map(booking=>{
+            const a=Number(booking.adult_quantity||0),c=Number(booking.child_quantity||0),i=Number(booking.infant_quantity||0)
+            const pax=a+c+i||Number(booking.quantity||1)
+            return `
+            <tr>
+              <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
+              <td>${bookingAdminShared.escapeHtml(booking.reference||'')}</td>
+              <td><strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong></td>
+              <td>${bookingAdminShared.escapeHtml(booking.service_name||booking.metadata?.display_name||'—')}</td>
+              <td>${bookingAdminShared.escapeHtml(String(pax))}</td>
+              <td>${money(booking.total_amount||0)}</td>
+            </tr>
+          `}).join('') || renderEmptyRow(6,'No bookings are currently Invoiced.')}
+        </tbody>
+      </table>
+      ${invoicedBookings.length ? `<p class="field-hint">These are Cruise Liner group bookings, which aren't priced in SkyBook — the invoiced amount is settled directly with the cruise company outside this system, so Amount shows 0.</p>` : ''}
+    </div>
+  `
+
+  // ---------- 5. Guides Report ----------
+  const guidesPeriod=nodes.guidesReportPeriod?.value||'month'
+  const guidesRange=getGuidesReportDateRange(guidesPeriod)
+  const guidesData=buildGuidesReportData(financeBookings,guidesRange)
+  const totalCountedShifts=guidesData.guideRows.reduce((sum,row)=>sum+row.counted,0)
+  const totalRawBookings=guidesData.guideRows.reduce((sum,row)=>sum+row.raw,0)
+  const totalUnscheduled=guidesData.guideRows.reduce((sum,row)=>sum+row.unscheduled,0)
+  if(nodes.guidesReportCards)nodes.guidesReportCards.innerHTML=metricCards([
+    {label:'Distinct Guides',value:String(guidesData.guideRows.length)},
+    {label:'Counted Shifts (AM/PM rule)',value:String(totalCountedShifts)},
+    {label:'Raw Guide Bookings',value:String(totalRawBookings)},
+    {label:'Unscheduled (counted individually)',value:String(totalUnscheduled)}
+  ])
+  const guideRefLabel=b=>bookingAdminShared.escapeHtml(String(b.reference||b.service_name||'—'))
+  if(nodes.guidesReportBody)nodes.guidesReportBody.innerHTML=`
+    <div class="table-wrap" style="margin-bottom:18px">
+      <table>
+        <thead><tr><th>Guide</th><th>Days Worked</th><th>Counted Shifts</th><th>Raw Bookings</th><th>Unscheduled</th></tr></thead>
+        <tbody>
+          ${guidesData.guideRows.map(row=>`
+            <tr>
+              <td><strong>${bookingAdminShared.escapeHtml(row.guide)}</strong></td>
+              <td>${bookingAdminShared.escapeHtml(String(row.days))}</td>
+              <td>${bookingAdminShared.escapeHtml(String(row.counted))}</td>
+              <td>${bookingAdminShared.escapeHtml(String(row.raw))}</td>
+              <td>${row.unscheduled ? `<span class="status-badge is-bad">${bookingAdminShared.escapeHtml(String(row.unscheduled))}</span>` : '0'}</td>
+            </tr>
+          `).join('') || renderEmptyRow(5,'No guide-assigned bookings in this window.')}
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>Unscheduled</th><th>Counted</th></tr></thead>
+        <tbody>
+          ${guidesData.dayRows.map(row=>`
+            <tr>
+              <td><strong>${bookingAdminShared.escapeHtml(row.guide)}</strong></td>
+              <td>${bookingAdminShared.escapeHtml(formatDateLabel(row.dateKey))}</td>
+              <td>${row.morning.length ? row.morning.map(guideRefLabel).join(', ') : '—'}</td>
+              <td>${row.afternoon.length ? row.afternoon.map(guideRefLabel).join(', ') : '—'}</td>
+              <td>${row.unscheduled.length ? row.unscheduled.map(guideRefLabel).join(', ') : '—'}</td>
+              <td><strong>${bookingAdminShared.escapeHtml(String(row.countedUnits))}</strong></td>
+            </tr>
+          `).join('') || renderEmptyRow(6,'No guide-assigned bookings in this window.')}
+        </tbody>
+      </table>
+    </div>
+  `
 }
 
 const renderNotifications=()=>{
@@ -9814,10 +9823,7 @@ nodes.printArrivalsList?.addEventListener('click',()=>{
 document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>{
   try{ openReportPrintModal(button.dataset.printReport||'bookings') }catch(error){ setAdminStatus(error.message||'Could not open report print dialog.',true) }
 }))
-nodes.reportsArrivalsDate?.addEventListener('change',renderReportsWorkbench)
-nodes.printReportArrivals?.addEventListener('click',()=>{
-  try{ printArrivalsForDate(nodes.reportsArrivalsDate?.value||getTodayKey()) }catch(error){ setAdminStatus(error.message||'Could not print arrivals list.',true) }
-})
+nodes.guidesReportPeriod?.addEventListener('change',renderReportsWorkbench)
 nodes.bookingForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleBookingSave,'Saving booking'))
 nodes.bookingForm.addEventListener('input',event=>{
   scheduleBookingEditorAutosave()
@@ -9983,13 +9989,6 @@ nodes.reservationsTable?.addEventListener('click',event=>{
   if(!reservationId)return
   const reservation=state.bookings.find(item=>item.id===reservationId)
   if(reservation)openReservationManagementScreen(reservation,{scroll:true})
-})
-
-nodes.reportsArrivalsTable?.addEventListener('click',event=>{
-  const row=event.target.closest('[data-booking-id]')
-  const bookingId=row?.dataset.bookingId||''
-  if(!bookingId)return
-  handleCommandNavigation('bookings',bookingId)
 })
 
 nodes.bookingTrashTable?.addEventListener('click',event=>{

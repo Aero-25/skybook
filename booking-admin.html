@@ -364,85 +364,68 @@
       </div>
 
       <section class="admin-view" data-admin-view="reports">
-        <div class="admin-panel-grid">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Reports Overview</h3>
-              </div>
-              <div class="toolbar-actions">
-                <button type="button" class="booking-button ghost" data-print-report="bookings">Preview Booking Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="financial">Preview Financial Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="commissions">Preview Commission Report</button>
-                <button type="button" class="booking-button ghost" data-print-report="consultants">Preview Consultant Report</button>
-              </div>
+        <article class="booking-panel">
+          <div class="panel-header-inline">
+            <div>
+              <h3>1. Sales Report</h3>
+              <p class="field-hint">Revenue and booking volume across brands, tours, and channels. Cancelled and refunded bookings are excluded.</p>
             </div>
-            <div class="admin-panel-grid admin-panel-grid-single" id="reportsOverviewCards"></div>
-          </article>
-          <article class="booking-panel">
-            <h3>Status Breakdown</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Status</th><th>Count</th></tr></thead>
-                <tbody id="reportsStatusTable"></tbody>
-              </table>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="salesReportCards"></div>
+          <div id="salesReportBody"></div>
+        </article>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>2. Payment Process Report</h3>
+              <p class="field-hint">How guests actually paid, and the current spread of the Payment Process field across all active bookings.</p>
             </div>
-          </article>
-        </div>
-        <div class="admin-panel-grid admin-spacer">
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Arrivals Manifest</h3>
-                <p class="field-hint">Choose a date to review the printable arrivals list with guest notes, pickups, drop offs, and operator context.</p>
-              </div>
-              <div class="toolbar-actions">
-                <input id="reportsArrivalsDate" type="date">
-                <button type="button" class="booking-button ghost" id="printReportArrivals">Print Arrivals List</button>
-              </div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="paymentReportCards"></div>
+          <div id="paymentReportBody"></div>
+        </article>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>3. Agent / Booked By Report</h3>
+              <p class="field-hint">Bookings and revenue attributed to selling partners (Agent field) and to the Booked By field (hotel, agent, or referring guest).</p>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Guest</th><th>Tour</th><th>Pickups</th><th>Drop Offs</th><th>Notes</th><th>Operator</th><th>Status</th></tr></thead>
-                <tbody id="reportsArrivalsTable"></tbody>
-              </table>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="agentReportCards"></div>
+          <div id="agentReportBody"></div>
+        </article>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>4. Invoiced Report</h3>
+              <p class="field-hint">Every active booking whose Payment Process is Invoiced — Cruise Liner group bookings today, since that's currently the only path that sets it.</p>
             </div>
-          </article>
-          <article class="booking-panel">
-            <div class="panel-header-inline">
-              <div>
-                <h3>Consultant Productivity</h3>
-                <p class="field-hint">Manager view of owned bookings, conversion, and turnover per consultant.</p>
-              </div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="invoicedReportCards"></div>
+          <div id="invoicedReportBody"></div>
+        </article>
+
+        <article class="booking-panel admin-spacer">
+          <div class="panel-header-inline">
+            <div>
+              <h3>5. Guides Report</h3>
+              <p class="field-hint">Counting rule: any number of bookings for a guide in the same morning (or the same afternoon) counts as <strong>1</strong>. Running a morning tour and an afternoon tour the same day counts as <strong>2</strong>. Bookings with no recorded time can't be safely merged, so each counts on its own — check the "Unscheduled" column below and add a pickup time to fix a count.</p>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Consultant</th><th>Bookings</th><th>Accepted</th><th>Finalised</th><th>Cancelled</th><th>No Shows</th><th>Gross</th><th>Paid</th></tr></thead>
-                <tbody id="reportsConsultantTable"></tbody>
-              </table>
+            <div class="toolbar-actions">
+              <select id="guidesReportPeriod">
+                <option value="week">This week</option>
+                <option value="month" selected>This month</option>
+                <option value="30days">Last 30 days</option>
+                <option value="all">All time</option>
+              </select>
             </div>
-          </article>
-        </div>
-        <div class="admin-panel-grid admin-spacer">
-          <article class="booking-panel">
-            <h3>Debtors Snapshot</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Debtor</th><th>Status</th><th>Total</th><th>Outstanding</th></tr></thead>
-                <tbody id="reportsGuestInvoicesTable"></tbody>
-              </table>
-            </div>
-          </article>
-          <article class="booking-panel">
-            <h3>Creditors Snapshot</h3>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Creditor</th><th>Type</th><th>Status</th><th>Amount</th></tr></thead>
-                <tbody id="reportsOfficeInvoicesTable"></tbody>
-              </table>
-            </div>
-          </article>
-        </div>
+          </div>
+          <div class="admin-panel-grid admin-panel-grid-single" id="guidesReportCards"></div>
+          <div id="guidesReportBody"></div>
+        </article>
       </section>
 
       <section class="admin-view" data-admin-view="reconciliation">
