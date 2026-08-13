@@ -190,7 +190,7 @@ longer valid" and proceed at full price.
 ## Scope & repositories
 
 One coherent feature spanning four repos over the shared Supabase project
-(`zegfirgyhdjyehvhlrnh`):
+(`asagrwkixsaltkkrqdsz`):
 
 | Repo | Changes |
 | --- | --- |

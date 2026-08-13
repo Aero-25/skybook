@@ -20,7 +20,7 @@ window.TrueTravelBooking=(()=>{
       iventure:'info@aerodigital.space'
     },
     lookupWindowDays:365,
-    apiBase:'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api',
+    apiBase:'https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api',
     paymentProviders:['dpo','apple_pay','google_pay','manual_eft','stripe'],
     paymentMode:'deposit',
     defaultDepositType:'percentage',
@@ -29,7 +29,7 @@ window.TrueTravelBooking=(()=>{
     serviceFee:0,
     environment:'production',
     allowDemoFallback:false,
-    supabaseUrl:'https://zegfirgyhdjyehvhlrnh.supabase.co',
+    supabaseUrl:'https://asagrwkixsaltkkrqdsz.supabase.co',
     supabaseAnonKey:(shared.DEFAULT_SUPABASE_CONFIG?.anonKey)||''
   }
 

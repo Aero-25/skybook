@@ -141,7 +141,7 @@ const handleChangePassword=async event=>{
     // Use the access token from the pending session directly — avoids the shared
     // client auth state not being set yet at this point in the flow.
     const config=skybookShared.readConfig()
-    const apiBase=config.apiBase||'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api'
+    const apiBase=config.apiBase||'https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api'
     const res=await fetch(`${apiBase}/admin/change-password`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${pendingSession.access_token}`},

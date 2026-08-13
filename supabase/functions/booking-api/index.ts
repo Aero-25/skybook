@@ -183,7 +183,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     name:'True Travel',
     booking_prefix:'TT',
     invoice_prefix:'TTN',
-    logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png',
+    logo_url:'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png',
     support_email:BRAND_SUPPORT_EMAILS['true-travel'],
     support_phone:'+264813224270',
     support_whatsapp:'+264813224270',
@@ -198,7 +198,7 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     name:'Iventure',
     booking_prefix:'IV',
     invoice_prefix:'IVT',
-    logo_url:'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png',
+    logo_url:'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png',
     support_email:BRAND_SUPPORT_EMAILS.iventure,
     support_phone:'+264813224270',
     support_whatsapp:'+264813224270',
@@ -2072,8 +2072,8 @@ const renderBookingReceivedHtml=(vars:Record<string,string>,brandCode:string):st
   const accent=isTT?'#2B8BAD':'#f5a400'
   const bg=isTT?'#F7F0E3':'#faf7f0'
   const logo=isTT
-    ?'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png'
-    :'https://zegfirgyhdjyehvhlrnh.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png'
+    ?'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png'
+    :'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png'
   const brand=vars.brand_name||'True Travel'
   const em=vars.brand_support_email||''
   const ph=vars.brand_support_phone||''

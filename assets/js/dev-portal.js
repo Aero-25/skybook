@@ -1,6 +1,6 @@
 /* Developer Portal — True Sky Ventures */
 ;(()=>{
-  const API='https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api'
+  const API='https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api'
   const TOKEN_KEY='dev-portal-token-v1'
 
   // ── Helpers ──────────────────────────────────────────────────────────────

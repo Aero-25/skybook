@@ -5,8 +5,8 @@ const adminPassword=process.env.SKYBOOK_ADMIN_PASSWORD || ''
 // The booking-api base URL and anon key are the same public, client-safe values already
 // embedded in the shipped frontend (assets/js/shared.js DEFAULT_SUPABASE_CONFIG) — overridable
 // via env vars for pointing this test at a different environment.
-const bookingApiBaseUrl=process.env.SKYBOOK_BOOKING_API_URL || 'https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api'
-const bookingApiAnonKey=process.env.SKYBOOK_BOOKING_API_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplZ2Zpcmd5aGRqeWVodmhscm5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTIwOTUsImV4cCI6MjA5MTk4ODA5NX0.1UB49GsmosKQzaLv05hHznVohzgVU0lMUAjzPKN9Jf8'
+const bookingApiBaseUrl=process.env.SKYBOOK_BOOKING_API_URL || 'https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api'
+const bookingApiAnonKey=process.env.SKYBOOK_BOOKING_API_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzYWdyd2tpeHNhbHRra3JxZHN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzE2NTksImV4cCI6MjEwMjIwNzY1OX0._3SgUUi7a9kutNV1nqnEqOMKAK_nwlm_5Dlbqh9kFjg'
 
 const futureDate=(offsetDays=5)=>{
   const date=new Date()

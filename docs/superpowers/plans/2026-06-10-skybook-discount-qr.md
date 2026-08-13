@@ -6,7 +6,7 @@
 
 **Architecture:** Approach A — extend the existing server-validated `coupons` system. The QR carries only an opaque random code + brand; the discount is always recomputed server-side from the DB (never trusted from the client). New DB columns + an audit table + two atomic SQL functions back single-use burn and campaign caps. The edge function gains create/list/disable/preview endpoints and redemption enforcement. The SkyBook admin gets a QR generator (client-side QR rendering, vendored lib). Both brand sites read the code, show a locked discount banner, pass `coupon_code`, and add a discount line to the existing `wa.me` link.
 
-**Tech Stack:** Supabase Postgres (SQL migrations), Deno/TypeScript edge function (`booking-api`), vanilla JS/HTML/CSS (SkyBook admin + both brand sites), vendored `qrcodejs` library. **No automated test runner exists** — verification is `deno check` for TS, `node --check` for JS, and a manual `curl` + browser matrix. The edge function + DB are shared infra (Supabase project `zegfirgyhdjyehvhlrnh`); one deploy covers all sites.
+**Tech Stack:** Supabase Postgres (SQL migrations), Deno/TypeScript edge function (`booking-api`), vanilla JS/HTML/CSS (SkyBook admin + both brand sites), vendored `qrcodejs` library. **No automated test runner exists** — verification is `deno check` for TS, `node --check` for JS, and a manual `curl` + browser matrix. The edge function + DB are shared infra (Supabase project `asagrwkixsaltkkrqdsz`); one deploy covers all sites.
 
 **Spec:** `docs/superpowers/specs/2026-06-10-skybook-discount-qr-design.md`
 
@@ -486,16 +486,16 @@ Expected: no errors.
 
 - [ ] **Step 6: Deploy the function and smoke-test the matrix**
 
-Run: `npx supabase functions deploy booking-api --project-ref zegfirgyhdjyehvhlrnh`
+Run: `npx supabase functions deploy booking-api --project-ref asagrwkixsaltkkrqdsz`
 Expected: `Deployed Function booking-api`.
 
 Then create a campaign code via SQL and exercise it:
 ```bash
 npx supabase db execute --linked "insert into public.coupons(code,discount_type,discount_value,is_active,is_qr,kind,brand_code,usage_limit,usage_count) values ('QRSMOKE001','percentage',10,true,true,'campaign','true-travel',2,0) on conflict (code) do nothing;"
 # preview (valid)
-curl -s "https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api/discount-codes/QRSMOKE001" -H "x-brand-code: true-travel"
+curl -s "https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api/discount-codes/QRSMOKE001" -H "x-brand-code: true-travel"
 # preview wrong brand -> {"valid":false}
-curl -s "https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api/discount-codes/QRSMOKE001" -H "x-brand-code: iventure"
+curl -s "https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api/discount-codes/QRSMOKE001" -H "x-brand-code: iventure"
 ```
 Expected: first returns `{"valid":true,"discount_type":"percentage","discount_value":10,...}`; second returns `{"valid":false}`. Clean up: `npx supabase db execute --linked "delete from public.coupons where code='QRSMOKE001';"`
 
@@ -887,7 +887,7 @@ cd skybook-main && git push origin main && cd ..
 cd iventure-site-main && git push origin main && cd ..
 cd "true-travel-site-main/true-travel-site-main" && git push origin main && cd ../..
 ```
-(Each triggers its own Cloudflare Pages deploy. The edge function was already deployed in Task 5 Step 6; re-deploy if changed since: `npx supabase functions deploy booking-api --project-ref zegfirgyhdjyehvhlrnh`.)
+(Each triggers its own Cloudflare Pages deploy. The edge function was already deployed in Task 5 Step 6; re-deploy if changed since: `npx supabase functions deploy booking-api --project-ref asagrwkixsaltkkrqdsz`.)
 
 - [ ] **Step 2: End-to-end matrix on the live sites**
 

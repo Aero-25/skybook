@@ -8,11 +8,11 @@ window.TrueTravelShared=(()=>{
   }
 
   const DEFAULT_SUPABASE_CONFIG={
-    url:'https://zegfirgyhdjyehvhlrnh.supabase.co',
+    url:'https://asagrwkixsaltkkrqdsz.supabase.co',
     bucket:'Demo Bucket',
     assetPathPrefix:'index-assets',
     manifestPath:'index-assets/manifest.json',
-    anonKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplZ2Zpcmd5aGRqeWVodmhscm5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTIwOTUsImV4cCI6MjA5MTk4ODA5NX0.1UB49GsmosKQzaLv05hHznVohzgVU0lMUAjzPKN9Jf8'
+    anonKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzYWdyd2tpeHNhbHRra3JxZHN6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MzE2NTksImV4cCI6MjEwMjIwNzY1OX0._3SgUUi7a9kutNV1nqnEqOMKAK_nwlm_5Dlbqh9kFjg'
   }
 
   const DEFAULT_TOURS_DATA={

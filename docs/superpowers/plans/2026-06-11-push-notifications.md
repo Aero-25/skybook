@@ -111,15 +111,15 @@ git commit -m "feat(push): send OneSignal notification on new guest booking (bes
 Run:
 ```bash
 export SUPABASE_ACCESS_TOKEN=<token>
-npx supabase functions deploy booking-api --project-ref zegfirgyhdjyehvhlrnh
+npx supabase functions deploy booking-api --project-ref asagrwkixsaltkkrqdsz
 ```
-Expected: `Deployed Functions on project zegfirgyhdjyehvhlrnh: booking-api`. The feature is now live but **dark** (no secrets yet) — bookings behave exactly as before.
+Expected: `Deployed Functions on project asagrwkixsaltkkrqdsz: booking-api`. The feature is now live but **dark** (no secrets yet) — bookings behave exactly as before.
 
 - [ ] **Step 6: Verify it stays dark (no regression)**
 
 `curl` a normal services request to confirm the function is healthy:
 ```bash
-curl -s "https://zegfirgyhdjyehvhlrnh.supabase.co/functions/v1/booking-api/services" -H "x-brand-code: true-travel" -o /dev/null -w "HTTP %{http_code}\n"
+curl -s "https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api/services" -H "x-brand-code: true-travel" -o /dev/null -w "HTTP %{http_code}\n"
 ```
 Expected: `HTTP 200`. (A full booking still succeeds; the push simply no-ops while secrets are unset.)
 
@@ -132,13 +132,13 @@ Expected: `HTTP 200`. (A full booking still succeeds; the push simply no-ops whi
 Run:
 ```bash
 export SUPABASE_ACCESS_TOKEN=<token>
-npx supabase secrets set ONESIGNAL_APP_ID=<app-id> ONESIGNAL_REST_API_KEY=<rest-api-key> --project-ref zegfirgyhdjyehvhlrnh
+npx supabase secrets set ONESIGNAL_APP_ID=<app-id> ONESIGNAL_REST_API_KEY=<rest-api-key> --project-ref asagrwkixsaltkkrqdsz
 ```
 Expected: `Finished supabase secrets set.` (No redeploy needed — edge functions read secrets at runtime; if a redeploy is required for the runtime to pick them up, re-run the Task 1 Step 5 deploy.)
 
 - [ ] **Step 2: Verify the secrets are set (names only)**
 
-Run: `npx supabase secrets list --project-ref zegfirgyhdjyehvhlrnh`
+Run: `npx supabase secrets list --project-ref asagrwkixsaltkkrqdsz`
 Expected: `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` appear in the list (values are hashed/hidden).
 
 ---
