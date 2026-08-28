@@ -337,7 +337,10 @@ const nodes={
   agentReportBody:document.getElementById('agentReportBody'),
   invoicedReportCards:document.getElementById('invoicedReportCards'),
   invoicedReportBody:document.getElementById('invoicedReportBody'),
-  guidesReportPeriod:document.getElementById('guidesReportPeriod'),
+  reportsRangePreset:document.getElementById('reportsRangePreset'),
+  reportsRangeFrom:document.getElementById('reportsRangeFrom'),
+  reportsRangeTo:document.getElementById('reportsRangeTo'),
+  reportsRangeSummary:document.getElementById('reportsRangeSummary'),
   guidesReportCards:document.getElementById('guidesReportCards'),
   guidesReportBody:document.getElementById('guidesReportBody'),
   reconciliationCards:document.getElementById('reconciliationCards'),
@@ -6183,6 +6186,34 @@ const getGuidesReportDateRange=period=>{
   }
   return {start,end}
 }
+// Global date range for the whole Reports & Analytics workbench. Presets reuse the
+// same window math as the guides report; "custom" reads the From/To date inputs.
+const getWorkbenchReportRange=()=>{
+  const preset=nodes.reportsRangePreset?.value||'month'
+  let start=null
+  let end=null
+  if(preset==='custom'){
+    start=parseDateValue(nodes.reportsRangeFrom?.value||'')
+    end=parseDateValue(nodes.reportsRangeTo?.value||'')
+    if(start&&end&&start>end)[start,end]=[end,start]
+    if(start)start.setHours(0,0,0,0)
+    if(end)end.setHours(23,59,59,999)
+  }else{
+    ({start,end}=getGuidesReportDateRange(preset))
+  }
+  const label=(start||end)
+    ? `${start ? formatDateLabel(start) : 'Start'} to ${end ? formatDateLabel(end) : 'Today'}`
+    : 'All Time'
+  return {preset,start,end,label}
+}
+const isBookingInWorkbenchRange=(booking,range)=>{
+  if(!range.start&&!range.end)return true
+  const dateValue=parseDateValue(booking.preferred_date||booking.created_at)
+  if(!dateValue)return false
+  if(range.start&&dateValue<range.start)return false
+  if(range.end&&dateValue>range.end)return false
+  return true
+}
 const buildGuidesReportData=(bookings,{start,end}={})=>{
   const byGuideDate=new Map()
   bookings.forEach(booking=>{
@@ -6219,7 +6250,17 @@ const buildGuidesReportData=(bookings,{start,end}={})=>{
 
 const renderReportsWorkbench=()=>{
   const brandMap=new Map(state.brands.map(brand=>[brand.code,brand.name]))
-  const reportBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking))
+  const range=getWorkbenchReportRange()
+  // For presets, reflect the resolved window in the From/To inputs so the actual dates
+  // are always visible; never overwrite an input the user is currently editing.
+  if(range.preset!=='custom'){
+    if(nodes.reportsRangeFrom&&document.activeElement!==nodes.reportsRangeFrom)nodes.reportsRangeFrom.value=range.start ? normalizeDateKey(range.start.toISOString()) : ''
+    if(nodes.reportsRangeTo&&document.activeElement!==nodes.reportsRangeTo)nodes.reportsRangeTo.value=range.end ? normalizeDateKey(range.end.toISOString()) : ''
+  }
+  const reportBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking)&&isBookingInWorkbenchRange(booking,range))
+  if(nodes.reportsRangeSummary)nodes.reportsRangeSummary.textContent=(range.start||range.end)
+    ? `${reportBookings.length} booking${reportBookings.length===1?'':'s'} · ${range.label}`
+    : `${reportBookings.length} booking${reportBookings.length===1?'':'s'} · All time`
   const financeBookings=getFinanceReportBookings(reportBookings)
   const cancelledBookings=reportBookings.filter(isCancelledFinancialBooking)
   const paymentTypeRows=getReportPaymentRows(financeBookings)
@@ -6481,9 +6522,9 @@ const renderReportsWorkbench=()=>{
   `
 
   // ---------- 5. Guides Report ----------
-  const guidesPeriod=nodes.guidesReportPeriod?.value||'month'
-  const guidesRange=getGuidesReportDateRange(guidesPeriod)
-  const guidesData=buildGuidesReportData(financeBookings,guidesRange)
+  // financeBookings is already range-filtered; passing the range again only re-applies
+  // the same bounds to the preferred_date buildGuidesReportData keys on.
+  const guidesData=buildGuidesReportData(financeBookings,range)
   const totalCountedShifts=guidesData.guideRows.reduce((sum,row)=>sum+row.counted,0)
   const totalRawBookings=guidesData.guideRows.reduce((sum,row)=>sum+row.raw,0)
   const totalUnscheduled=guidesData.guideRows.reduce((sum,row)=>sum+row.unscheduled,0)
@@ -7676,11 +7717,8 @@ const downloadWorkbenchReportPdf=key=>{
   renderReportsWorkbench()
   const cardsMarkup=nodes[config.cardsNode]?.innerHTML||''
   const bodyMarkup=nodes[config.bodyNode]?.innerHTML||''
-  let title=config.title
-  if(key==='guides'){
-    const periodLabels={week:'This Week',month:'This Month','30days':'Last 30 Days',all:'All Time'}
-    title+=` — ${periodLabels[nodes.guidesReportPeriod?.value]||'This Month'}`
-  }
+  const range=getWorkbenchReportRange()
+  const title=`${config.title} — ${range.label}`
   const dateKey=normalizeDateKey(new Date().toISOString())
   const filename=`skybook-${key}-report-${dateKey}.pdf`
   downloadSkyBookReportPdf(title,`
@@ -9978,7 +10016,19 @@ nodes.printArrivalsList?.addEventListener('click',()=>{
 document.querySelectorAll('[data-print-report]').forEach(button=>button.addEventListener('click',()=>{
   try{ openReportPrintModal(button.dataset.printReport||'bookings') }catch(error){ setAdminStatus(error.message||'Could not open report print dialog.',true) }
 }))
-nodes.guidesReportPeriod?.addEventListener('change',renderReportsWorkbench)
+nodes.reportsRangePreset?.addEventListener('change',()=>{
+  // Choosing a preset always rewrites the From/To inputs, even if one still has focus.
+  if(nodes.reportsRangePreset.value!=='custom'){
+    const {start,end}=getGuidesReportDateRange(nodes.reportsRangePreset.value)
+    if(nodes.reportsRangeFrom)nodes.reportsRangeFrom.value=start ? normalizeDateKey(start.toISOString()) : ''
+    if(nodes.reportsRangeTo)nodes.reportsRangeTo.value=end ? normalizeDateKey(end.toISOString()) : ''
+  }
+  renderReportsWorkbench()
+})
+;[nodes.reportsRangeFrom,nodes.reportsRangeTo].forEach(input=>input?.addEventListener('change',()=>{
+  if(nodes.reportsRangePreset)nodes.reportsRangePreset.value='custom'
+  renderReportsWorkbench()
+}))
 // The PDF buttons live inside each report's <summary>; preventDefault keeps a click on
 // them from also toggling the collapsed panel open or closed.
 document.querySelectorAll('[data-report-pdf]').forEach(button=>button.addEventListener('click',event=>{

@@ -364,6 +364,30 @@
       </div>
 
       <section class="admin-view" data-admin-view="reports">
+        <article class="booking-panel report-range-bar">
+          <div class="report-range-controls">
+            <div class="report-range-field">
+              <label for="reportsRangePreset">Date range</label>
+              <select id="reportsRangePreset">
+                <option value="month" selected>This month</option>
+                <option value="week">This week</option>
+                <option value="30days">Last 30 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="report-range-field">
+              <label for="reportsRangeFrom">From</label>
+              <input type="date" id="reportsRangeFrom">
+            </div>
+            <div class="report-range-field">
+              <label for="reportsRangeTo">To</label>
+              <input type="date" id="reportsRangeTo">
+            </div>
+            <p class="report-range-summary" id="reportsRangeSummary"></p>
+          </div>
+        </article>
+
         <details class="booking-panel report-panel">
           <summary class="report-panel-summary">
             <div>
@@ -444,15 +468,6 @@
             </div>
           </summary>
           <div class="report-panel-body">
-            <div class="report-body-toolbar">
-              <label for="guidesReportPeriod">Reporting window</label>
-              <select id="guidesReportPeriod">
-                <option value="week">This week</option>
-                <option value="month" selected>This month</option>
-                <option value="30days">Last 30 days</option>
-                <option value="all">All time</option>
-              </select>
-            </div>
             <div class="admin-panel-grid admin-panel-grid-single" id="guidesReportCards"></div>
             <div id="guidesReportBody"></div>
           </div>

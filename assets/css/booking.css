@@ -2632,15 +2632,26 @@ body.skybook-admin-page .booking-panel.report-panel{padding:0;overflow:hidden}
 .report-panel[open] .report-panel-chevron:after{content:"−"}
 .report-panel[open] .report-panel-summary{border-bottom:1px solid var(--booking-line)}
 .report-panel-body{padding:20px 26px 26px}
-.report-body-toolbar{
+.report-range-bar{margin-bottom:18px}
+.report-range-controls{
   display:flex;
-  align-items:center;
-  gap:10px;
+  align-items:flex-end;
+  gap:16px;
   flex-wrap:wrap;
-  margin:0 0 16px;
 }
-.report-body-toolbar label{font-size:12px;font-weight:700;color:var(--booking-muted);text-transform:uppercase;letter-spacing:.08em}
-.report-body-toolbar select{min-height:40px;border:1px solid var(--booking-line);border-radius:10px;padding:0 10px;background:#fff}
+.report-range-field{display:grid;gap:6px}
+.report-range-field label{font-size:11px;font-weight:700;color:var(--booking-muted);text-transform:uppercase;letter-spacing:.08em}
+.report-range-field select,
+.report-range-field input{min-height:40px;border:1px solid var(--booking-line);border-radius:10px;padding:0 10px;background:#fff;font:inherit;color:inherit}
+.report-range-summary{
+  margin:0 0 10px auto;
+  font-size:13px;
+  font-weight:600;
+  color:var(--booking-muted);
+}
+@media (max-width:860px){
+  .report-range-summary{margin:0}
+}
 @media (max-width:860px){
   .report-panel-summary{flex-direction:column;align-items:flex-start}
   .report-panel-actions{margin-top:0}
