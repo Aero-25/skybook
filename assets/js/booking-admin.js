@@ -6157,8 +6157,25 @@ const buildMonthlyChart=(bookings,{mode='count',currency='NAD'}={})=>{
 // still 1 shift. A morning tour AND an afternoon tour the same day is 2. A booking with no
 // classifiable time can't be safely merged with anything else, so it always counts on its own.
 const splitGuideNames=value=>String(value||'').split(/[,;]+/).map(item=>item.trim()).filter(Boolean)
+// Reports must never lose data to metadata arriving as a JSON string instead of an object
+// (older rows / alternate write paths), so reads in the reporting pipeline go through this.
+const readBookingMetadata=booking=>{
+  const meta=booking?.metadata
+  if(meta&&typeof meta==='object'&&!Array.isArray(meta))return meta
+  if(typeof meta==='string'&&meta.trim().startsWith('{')){
+    try{ return JSON.parse(meta) }catch(e){}
+  }
+  return {}
+}
+// Guides have been written to a few homes over time: the top-level column, and
+// metadata under guide_name / guides / guide. Accept them all.
+const getBookingGuideNames=booking=>{
+  const meta=readBookingMetadata(booking)
+  const raw=booking?.guide_name||meta.guide_name||meta.guides||meta.guide||''
+  return splitGuideNames(Array.isArray(raw) ? raw.join(', ') : raw)
+}
 const classifyGuideBookingWindow=booking=>{
-  const meta=normalizeJsonRecord(booking?.metadata)
+  const meta=readBookingMetadata(booking)
   const timeMatch=String(meta.pickup_time||'').trim().match(/^(\d{1,2}):(\d{2})/)
   if(timeMatch){
     const hour=Number(timeMatch[1])
@@ -6189,7 +6206,7 @@ const getGuidesReportDateRange=period=>{
 // Global date range for the whole Reports & Analytics workbench. Presets reuse the
 // same window math as the guides report; "custom" reads the From/To date inputs.
 const getWorkbenchReportRange=()=>{
-  const preset=nodes.reportsRangePreset?.value||'month'
+  const preset=nodes.reportsRangePreset?.value||'all'
   let start=null
   let end=null
   if(preset==='custom'){
@@ -6217,14 +6234,17 @@ const isBookingInWorkbenchRange=(booking,range)=>{
 const buildGuidesReportData=(bookings,{start,end}={})=>{
   const byGuideDate=new Map()
   bookings.forEach(booking=>{
-    const dateValue=parseDateValue(booking.preferred_date)
-    if(!dateValue)return
-    if(start&&dateValue<start)return
-    if(end&&dateValue>end)return
-    const guideNames=splitGuideNames(booking.guide_name||booking.metadata?.guide_name)
+    const guideNames=getBookingGuideNames(booking)
     if(!guideNames.length)return
-    const dateKey=normalizeDateKey(booking.preferred_date)
-    const windowBucket=classifyGuideBookingWindow(booking)
+    const dateValue=parseDateValue(booking.preferred_date)
+    // A guide booking without a tour date can't be merged into an AM/PM shift, but it
+    // must never silently vanish from the report — it lands in a "No tour date" row.
+    if(dateValue){
+      if(start&&dateValue<start)return
+      if(end&&dateValue>end)return
+    }
+    const dateKey=dateValue ? normalizeDateKey(booking.preferred_date) : ''
+    const windowBucket=dateValue ? classifyGuideBookingWindow(booking) : 'unscheduled'
     guideNames.forEach(guide=>{
       const key=`${guide}||${dateKey}`
       if(!byGuideDate.has(key))byGuideDate.set(key,{guide,dateKey,morning:[],afternoon:[],unscheduled:[]})
@@ -6289,7 +6309,7 @@ const renderReportsWorkbench=()=>{
     return accumulator
   },{})
   const bySource=financeBookings.reduce((accumulator,booking)=>{
-    const key=booking.source||booking.metadata?.source||'website'
+    const key=booking.source||readBookingMetadata(booking).source||'website'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
     accumulator[key].count+=1
     accumulator[key].revenue+=Number(booking.total_amount||0)
@@ -6429,14 +6449,14 @@ const renderReportsWorkbench=()=>{
 
   // ---------- 3. Agent / Booked By Report ----------
   const byBookedBy=financeBookings.reduce((accumulator,booking)=>{
-    const key=normalizeText(booking.metadata?.booked_by||booking.booked_by||'')||'(Direct / Not recorded)'
+    const key=normalizeText(readBookingMetadata(booking).booked_by||booking.booked_by||'')||'(Direct / Not recorded)'
     accumulator[key]=accumulator[key]||{count:0,revenue:0}
     accumulator[key].count+=1
     accumulator[key].revenue+=Number(booking.total_amount||0)
     return accumulator
   },{})
   const byAgent=financeBookings.reduce((accumulator,booking)=>{
-    const label=String(booking.metadata?.agent||'').trim()
+    const label=String(readBookingMetadata(booking).agent||'').trim()
     if(!label)return accumulator
     accumulator[label]=accumulator[label]||{count:0,revenue:0}
     accumulator[label].count+=1
@@ -6510,7 +6530,7 @@ const renderReportsWorkbench=()=>{
               <td>${bookingAdminShared.escapeHtml(formatDateLabel(booking.preferred_date))}</td>
               <td>${bookingAdminShared.escapeHtml(booking.reference||'')}</td>
               <td><strong>${bookingAdminShared.escapeHtml(booking.customer_name||'Guest')}</strong></td>
-              <td>${bookingAdminShared.escapeHtml(booking.service_name||booking.metadata?.display_name||'—')}</td>
+              <td>${bookingAdminShared.escapeHtml(booking.service_name||readBookingMetadata(booking).display_name||'—')}</td>
               <td>${bookingAdminShared.escapeHtml(String(pax))}</td>
               <td>${money(booking.total_amount||0)}</td>
             </tr>
@@ -6535,6 +6555,12 @@ const renderReportsWorkbench=()=>{
     {label:'Unscheduled (counted individually)',value:String(totalUnscheduled)}
   ])
   const guideRefLabel=b=>bookingAdminShared.escapeHtml(String(b.reference||b.service_name||'—'))
+  // When the window is empty, say WHY: guide bookings outside the range are the usual
+  // cause, and that diagnosis needs the unfiltered booking list.
+  const allGuideBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking)&&!isCancelledFinancialBooking(booking)&&getBookingGuideNames(booking).length)
+  const guidesEmptyMessage=allGuideBookings.length
+    ? `${allGuideBookings.length} guide-assigned booking${allGuideBookings.length===1?' falls':'s fall'} outside the selected date range — widen the Date Range above to see them.`
+    : 'No guide-assigned bookings yet — add names in the Guide(s) field of a booking.'
   if(nodes.guidesReportBody)nodes.guidesReportBody.innerHTML=`
     <div class="table-wrap" style="margin-bottom:18px">
       <table>
@@ -6548,7 +6574,7 @@ const renderReportsWorkbench=()=>{
               <td>${bookingAdminShared.escapeHtml(String(row.raw))}</td>
               <td>${row.unscheduled ? `<span class="status-badge is-bad">${bookingAdminShared.escapeHtml(String(row.unscheduled))}</span>` : '0'}</td>
             </tr>
-          `).join('') || renderEmptyRow(5,'No guide-assigned bookings in this window.')}
+          `).join('') || renderEmptyRow(5,guidesEmptyMessage)}
         </tbody>
       </table>
     </div>
@@ -6559,13 +6585,13 @@ const renderReportsWorkbench=()=>{
           ${guidesData.dayRows.map(row=>`
             <tr>
               <td><strong>${bookingAdminShared.escapeHtml(row.guide)}</strong></td>
-              <td>${bookingAdminShared.escapeHtml(formatDateLabel(row.dateKey))}</td>
+              <td>${row.dateKey ? bookingAdminShared.escapeHtml(formatDateLabel(row.dateKey)) : '<em>No tour date</em>'}</td>
               <td>${row.morning.length ? row.morning.map(guideRefLabel).join(', ') : '—'}</td>
               <td>${row.afternoon.length ? row.afternoon.map(guideRefLabel).join(', ') : '—'}</td>
               <td>${row.unscheduled.length ? row.unscheduled.map(guideRefLabel).join(', ') : '—'}</td>
               <td><strong>${bookingAdminShared.escapeHtml(String(row.countedUnits))}</strong></td>
             </tr>
-          `).join('') || renderEmptyRow(6,'No guide-assigned bookings in this window.')}
+          `).join('') || renderEmptyRow(6,guidesEmptyMessage)}
         </tbody>
       </table>
     </div>
