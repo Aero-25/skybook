@@ -2596,6 +2596,55 @@ tbody tr:hover td{background:rgba(255,255,255,.96)}
 }
 .report-stat-list strong{display:block}
 .report-stat-list span{display:block;margin-top:6px;color:var(--booking-muted);line-height:1.6}
+/* Reports workbench: each report is a collapsed <details> panel with a PDF export in its header.
+   The padding override needs the extra specificity to beat the later admin-skin
+   .booking-panel padding rules (including the body.skybook-admin-page variants). */
+.booking-panel.report-panel,
+body.skybook-admin-page .booking-panel.report-panel{padding:0;overflow:hidden}
+.report-panel-summary{
+  list-style:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:18px 26px;
+}
+.report-panel-summary::-webkit-details-marker{display:none}
+.report-panel-summary:hover{background:rgba(23,105,170,.04)}
+.report-panel-summary h3{margin:0}
+.report-panel-summary .field-hint{margin:6px 0 0}
+.report-panel-actions{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  flex-shrink:0;
+  margin-top:2px;
+}
+.report-panel-chevron:after{
+  content:"+";
+  font-size:22px;
+  font-weight:300;
+  line-height:1;
+  color:var(--booking-ocean);
+  opacity:.65;
+}
+.report-panel[open] .report-panel-chevron:after{content:"−"}
+.report-panel[open] .report-panel-summary{border-bottom:1px solid var(--booking-line)}
+.report-panel-body{padding:20px 26px 26px}
+.report-body-toolbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  margin:0 0 16px;
+}
+.report-body-toolbar label{font-size:12px;font-weight:700;color:var(--booking-muted);text-transform:uppercase;letter-spacing:.08em}
+.report-body-toolbar select{min-height:40px;border:1px solid var(--booking-line);border-radius:10px;padding:0 10px;background:#fff}
+@media (max-width:860px){
+  .report-panel-summary{flex-direction:column;align-items:flex-start}
+  .report-panel-actions{margin-top:0}
+}
 .booking-panel h3,
 .detail-section h4,
 .report-split-grid h4,

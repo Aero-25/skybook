@@ -364,57 +364,88 @@
       </div>
 
       <section class="admin-view" data-admin-view="reports">
-        <article class="booking-panel">
-          <div class="panel-header-inline">
+        <details class="booking-panel report-panel">
+          <summary class="report-panel-summary">
             <div>
               <h3>1. Sales Report</h3>
               <p class="field-hint">Revenue and booking volume across brands, tours, and channels. Cancelled and refunded bookings are excluded.</p>
             </div>
+            <div class="report-panel-actions">
+              <button type="button" class="booking-button ghost" data-report-pdf="sales">Download PDF</button>
+              <span class="report-panel-chevron" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="report-panel-body">
+            <div class="admin-panel-grid admin-panel-grid-single" id="salesReportCards"></div>
+            <div id="salesReportBody"></div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="salesReportCards"></div>
-          <div id="salesReportBody"></div>
-        </article>
+        </details>
 
-        <article class="booking-panel admin-spacer">
-          <div class="panel-header-inline">
+        <details class="booking-panel report-panel admin-spacer">
+          <summary class="report-panel-summary">
             <div>
               <h3>2. Payment Process Report</h3>
               <p class="field-hint">How guests actually paid, and the current spread of the Payment Process field across all active bookings.</p>
             </div>
+            <div class="report-panel-actions">
+              <button type="button" class="booking-button ghost" data-report-pdf="payments">Download PDF</button>
+              <span class="report-panel-chevron" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="report-panel-body">
+            <div class="admin-panel-grid admin-panel-grid-single" id="paymentReportCards"></div>
+            <div id="paymentReportBody"></div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="paymentReportCards"></div>
-          <div id="paymentReportBody"></div>
-        </article>
+        </details>
 
-        <article class="booking-panel admin-spacer">
-          <div class="panel-header-inline">
+        <details class="booking-panel report-panel admin-spacer">
+          <summary class="report-panel-summary">
             <div>
               <h3>3. Agent / Booked By Report</h3>
               <p class="field-hint">Bookings and revenue attributed to selling partners (Agent field) and to the Booked By field (hotel, agent, or referring guest).</p>
             </div>
+            <div class="report-panel-actions">
+              <button type="button" class="booking-button ghost" data-report-pdf="agents">Download PDF</button>
+              <span class="report-panel-chevron" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="report-panel-body">
+            <div class="admin-panel-grid admin-panel-grid-single" id="agentReportCards"></div>
+            <div id="agentReportBody"></div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="agentReportCards"></div>
-          <div id="agentReportBody"></div>
-        </article>
+        </details>
 
-        <article class="booking-panel admin-spacer">
-          <div class="panel-header-inline">
+        <details class="booking-panel report-panel admin-spacer">
+          <summary class="report-panel-summary">
             <div>
               <h3>4. Invoiced Report</h3>
               <p class="field-hint">Every active booking whose Payment Process is Invoiced — Cruise Liner group bookings today, since that's currently the only path that sets it.</p>
             </div>
+            <div class="report-panel-actions">
+              <button type="button" class="booking-button ghost" data-report-pdf="invoiced">Download PDF</button>
+              <span class="report-panel-chevron" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="report-panel-body">
+            <div class="admin-panel-grid admin-panel-grid-single" id="invoicedReportCards"></div>
+            <div id="invoicedReportBody"></div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="invoicedReportCards"></div>
-          <div id="invoicedReportBody"></div>
-        </article>
+        </details>
 
-        <article class="booking-panel admin-spacer">
-          <div class="panel-header-inline">
+        <details class="booking-panel report-panel admin-spacer">
+          <summary class="report-panel-summary">
             <div>
               <h3>5. Guides Report</h3>
               <p class="field-hint">Counting rule: any number of bookings for a guide in the same morning (or the same afternoon) counts as <strong>1</strong>. Running a morning tour and an afternoon tour the same day counts as <strong>2</strong>. Bookings with no recorded time can't be safely merged, so each counts on its own — check the "Unscheduled" column below and add a pickup time to fix a count.</p>
             </div>
-            <div class="toolbar-actions">
+            <div class="report-panel-actions">
+              <button type="button" class="booking-button ghost" data-report-pdf="guides">Download PDF</button>
+              <span class="report-panel-chevron" aria-hidden="true"></span>
+            </div>
+          </summary>
+          <div class="report-panel-body">
+            <div class="report-body-toolbar">
+              <label for="guidesReportPeriod">Reporting window</label>
               <select id="guidesReportPeriod">
                 <option value="week">This week</option>
                 <option value="month" selected>This month</option>
@@ -422,10 +453,10 @@
                 <option value="all">All time</option>
               </select>
             </div>
+            <div class="admin-panel-grid admin-panel-grid-single" id="guidesReportCards"></div>
+            <div id="guidesReportBody"></div>
           </div>
-          <div class="admin-panel-grid admin-panel-grid-single" id="guidesReportCards"></div>
-          <div id="guidesReportBody"></div>
-        </article>
+        </details>
       </section>
 
       <section class="admin-view" data-admin-view="reconciliation">

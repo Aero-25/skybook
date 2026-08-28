@@ -7658,6 +7658,38 @@ const downloadSkyBookReportPdf=(title,markup,filename)=>{
   `),{download:true,filename})
 }
 
+// The five workbench reports (Reports & Analytics tab) export the exact markup already
+// rendered on screen, so the PDF always matches what the user sees. The workbench markup
+// uses admin-app classes that SB_DOC_BASE_CSS doesn't cover, so a supplement is inlined.
+const SB_WORKBENCH_PDF_CSS='.sb-report-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.metric-card{padding:14px;border:1px solid #dbe8f4;border-radius:12px;background:#f7fbff;box-shadow:none}.metric-card span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#5f7383}.metric-card strong{display:block;margin-top:6px;font-size:17px;font-weight:700;color:#0f2b52}.report-split-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;page-break-inside:avoid}.report-split-grid article{border:1px solid #dbe8f4;border-radius:12px;padding:14px;background:#fff;min-width:0}.report-split-grid h4{margin:0 0 10px;color:#0f4fa8;font-size:13px}.report-stat-list{display:grid;gap:8px;margin-top:8px}.report-stat-list div{padding:10px 12px;border:1px solid #dbe8f4;border-radius:10px;background:#f7fbff}.report-stat-list strong{display:block}.report-stat-list span{display:block;margin-top:4px;color:#5f7383;font-size:12px}.status-badge{display:inline-block;padding:3px 10px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:11px;font-weight:700}.status-badge.is-bad{background:#fdecec;color:#a33a3a}.muted-copy,.field-hint{color:#5f6f80;font-size:12px}.table-subline{font-size:11px;color:#5f6f80}.empty-state strong{display:block;font-size:12px}.empty-state span{font-size:12px;color:#5f6f80}.admin-spacer{margin-top:18px}'
+const WORKBENCH_REPORT_EXPORTS={
+  sales:{title:'Sales Report',cardsNode:'salesReportCards',bodyNode:'salesReportBody'},
+  payments:{title:'Payment Process Report',cardsNode:'paymentReportCards',bodyNode:'paymentReportBody'},
+  agents:{title:'Agent / Booked By Report',cardsNode:'agentReportCards',bodyNode:'agentReportBody'},
+  invoiced:{title:'Invoiced Report',cardsNode:'invoicedReportCards',bodyNode:'invoicedReportBody'},
+  guides:{title:'Guides Report',cardsNode:'guidesReportCards',bodyNode:'guidesReportBody'}
+}
+const downloadWorkbenchReportPdf=key=>{
+  const config=WORKBENCH_REPORT_EXPORTS[key]
+  if(!config)return
+  // Re-render first so a report exported while still collapsed reflects the latest data.
+  renderReportsWorkbench()
+  const cardsMarkup=nodes[config.cardsNode]?.innerHTML||''
+  const bodyMarkup=nodes[config.bodyNode]?.innerHTML||''
+  let title=config.title
+  if(key==='guides'){
+    const periodLabels={week:'This Week',month:'This Month','30days':'Last 30 Days',all:'All Time'}
+    title+=` — ${periodLabels[nodes.guidesReportPeriod?.value]||'This Month'}`
+  }
+  const dateKey=normalizeDateKey(new Date().toISOString())
+  const filename=`skybook-${key}-report-${dateKey}.pdf`
+  downloadSkyBookReportPdf(title,`
+    <style>${SB_WORKBENCH_PDF_CSS}</style>
+    <div class="sb-report-cards">${cardsMarkup}</div>
+    <section>${bodyMarkup}</section>
+  `,filename)
+}
+
 const downloadReportAsWord=(title,bodyHtml,filename)=>{
   const html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>'+bookingAdminShared.escapeHtml(title)+'</title><style>'+SB_DOC_BASE_CSS+'</style></head><body>'+bodyHtml+'</body></html>'
   const blob=new Blob(['﻿',html],{type:'application/msword'})
@@ -9947,6 +9979,13 @@ document.querySelectorAll('[data-print-report]').forEach(button=>button.addEvent
   try{ openReportPrintModal(button.dataset.printReport||'bookings') }catch(error){ setAdminStatus(error.message||'Could not open report print dialog.',true) }
 }))
 nodes.guidesReportPeriod?.addEventListener('change',renderReportsWorkbench)
+// The PDF buttons live inside each report's <summary>; preventDefault keeps a click on
+// them from also toggling the collapsed panel open or closed.
+document.querySelectorAll('[data-report-pdf]').forEach(button=>button.addEventListener('click',event=>{
+  event.preventDefault()
+  event.stopPropagation()
+  try{ downloadWorkbenchReportPdf(button.dataset.reportPdf||'') }catch(error){ setAdminStatus(error.message||'Could not generate the report PDF.',true) }
+}))
 nodes.bookingForm.addEventListener('submit',event=>handleFormSubmitWithLoading(event,handleBookingSave,'Saving booking'))
 nodes.bookingForm.addEventListener('input',event=>{
   scheduleBookingEditorAutosave()
