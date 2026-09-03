@@ -1482,9 +1482,8 @@ if(nodes.bookingAddPaymentRow){
     if(nodes.bookingPaymentRowsList)nodes.bookingPaymentRowsList.appendChild(buildPaymentRow())
   })
 }
-const postManualPayment=(bookingId,body)=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
+const postManualPayment=(bookingId,body)=>adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{
   method:'POST',
-  headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
   body
 })
 const collectBookingFormValues=()=>({
@@ -2897,6 +2896,80 @@ const requireClient=async()=>{
   return bookingAdminShared.createSupabaseClient()
 }
 
+// ── Access-token freshness ─────────────────────────────────────────────────
+// Supabase access tokens are short-lived and state.session only moves when
+// onAuthStateChange fires. A tab left open on the bookings list (asleep laptop,
+// backgrounded phone) therefore still holds the token it loaded with, and the
+// first write after that — loading today's bookings, saving an edit — is
+// rejected by booking-api with "Authenticated admin user is required." Ask the
+// client for the live session before every admin call instead.
+const SESSION_REFRESH_SKEW_SECONDS=60
+const isSessionTokenFresh=session=>{
+  if(!session?.access_token)return false
+  const expiresAt=Number(session.expires_at||0)
+  if(!expiresAt)return true
+  return expiresAt-SESSION_REFRESH_SKEW_SECONDS>Math.floor(Date.now()/1000)
+}
+// Holds the in-flight renewal. Two concurrent refreshSession() calls race each
+// other for the same single-use refresh token and one of them loses, so every
+// caller waits on the same promise. Its truthiness also tells the
+// TOKEN_REFRESHED listener that this renewal was ours, so it doesn't kick off a
+// second workspace reload behind the call that asked for it.
+let sessionRenewalPromise=null
+const renewSession=async force=>{
+  try{
+    const client=await requireClient()
+    let session=null
+    if(!force){
+      const { data,error }=await client.auth.getSession()
+      if(error)throw error
+      session=data?.session||null
+    }
+    if(force||!isSessionTokenFresh(session)){
+      const { data,error }=await client.auth.refreshSession()
+      if(error)throw error
+      session=data?.session||session
+    }
+    if(session?.access_token)state.session=session
+  }catch(error){
+    // A refresh that fails because the session is genuinely gone must surface;
+    // a network blip must not, so keep the token we hold and let the request
+    // itself decide.
+    if(isAuthRequiredError(error))throw new Error('Authenticated admin user is required.')
+  }
+  return state.session
+}
+const ensureFreshSession=async({force=false}={})=>{
+  if(!force&&isSessionTokenFresh(state.session))return state.session
+  if(!sessionRenewalPromise){
+    sessionRenewalPromise=renewSession(force).finally(()=>{ sessionRenewalPromise=null })
+  }
+  return sessionRenewalPromise
+}
+
+// Every admin call goes through here: it carries a freshly-checked token and
+// retries exactly once after a forced refresh. booking-api authenticates before
+// it writes anything, so a call rejected for auth changed no data and is safe
+// to replay.
+const adminApiRequest=async(path,options={})=>{
+  await ensureFreshSession()
+  if(!state.session?.access_token)throw new Error('Authenticated admin user is required.')
+  const send=()=>bookingAdminShared.apiRequest(path,{
+    ...options,
+    headers:{...bookingAdminShared.getAuthHeaders(state.session?.access_token||''),...(options.headers||{})}
+  })
+  try{
+    return await send()
+  }catch(error){
+    if(!isAuthRequiredError(error))throw error
+    const rejectedToken=state.session?.access_token||''
+    await ensureFreshSession({force:true})
+    // Only worth replaying if the refresh actually produced a different token.
+    if(!state.session?.access_token||state.session.access_token===rejectedToken)throw error
+    return send()
+  }
+}
+
 const LOADER_MIN_MS=500
 const loaderShownAt=Date.now()
 const hideLoaderAfterMinimum=()=>{
@@ -3790,9 +3863,8 @@ const repairStatusConflicts=async()=>{
       }
     }
     try{
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body
       })
       fixed++
@@ -5215,9 +5287,8 @@ const handleCruiseLinerSubmit=async event=>{
       },
       customer:{full_name:`${companyLabel} Group`,email:'',phone:'',whatsapp:''}
     }
-    await bookingAdminShared.apiRequest('admin/bookings',{
+    await adminApiRequest('admin/bookings',{
       method:'POST',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:payload
     })
     closeCruiseLinerModal()
@@ -5292,9 +5363,8 @@ const printManualInvoice=()=>{
 
   const billingDetails={billing_name:billingName,contact_person:contactPerson,po_box:poBox,tax_number:taxNumber,address,email,phone,saved_at:new Date().toISOString()}
   if(booking.id&&(billingName||poBox||taxNumber)){
-    void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+    void adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
       method:'PATCH',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{metadata:{...meta,billing_details:billingDetails}}
     }).then(()=>refreshAdmin()).catch(()=>{})
   }
@@ -5847,9 +5917,8 @@ const uploadServiceImages=async files=>{
       if(zoneLabel)zoneLabel.innerHTML=`<span class="admin-loading-spinner" aria-hidden="true"></span><span style="display:block;font-size:12px;margin-top:6px;opacity:.7">Uploading ${i+1} of ${fileList.length}…</span>`
       const form=new FormData()
       form.append('file',fileList[i])
-      const result=await bookingAdminShared.apiRequest('admin/service-images',{
+      const result=await adminApiRequest('admin/service-images',{
         method:'POST',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         rawBody:form
       })
       if(result?.url){
@@ -5877,7 +5946,7 @@ const loadReviews=async()=>{
   try{
     const statusVal=nodes.reviewsFilterStatus?.value||''
     const url=`admin/reviews${statusVal?`?status=${encodeURIComponent(statusVal)}`:''}`
-    const payload=await bookingAdminShared.apiRequest(url,{headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')})
+    const payload=await adminApiRequest(url)
     state.reviews=payload.reviews||[]
     renderReviews()
   }catch(error){
@@ -5915,9 +5984,8 @@ const renderReviews=()=>{
 
 const handleReviewAction=async(reviewId,newStatus)=>{
   try{
-    await bookingAdminShared.apiRequest(`admin/reviews/${encodeURIComponent(reviewId)}`,{
+    await adminApiRequest(`admin/reviews/${encodeURIComponent(reviewId)}`,{
       method:'PATCH',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{status:newStatus}
     })
     const review=state.reviews.find(r=>r.id===reviewId)
@@ -6668,9 +6736,8 @@ const renderDutyRoster=()=>{
 const toggleDutyAssignment=async(userId,duty,checked)=>{
   const weekKey=getMondayKey(nodes.dutyRosterWeek?.value ? new Date(nodes.dutyRosterWeek.value) : new Date())
   if(checked){
-    const response=await bookingAdminShared.apiRequest('admin/duty-assignments',{
+    const response=await adminApiRequest('admin/duty-assignments',{
       method:'POST',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{user_id:userId,week_start:weekKey,duty}
     })
     state.staffDutyAssignments=state.staffDutyAssignments.filter(row=>!(row.user_id===userId&&row.duty===duty&&getMondayKey(new Date(row.week_start))===weekKey))
@@ -6678,9 +6745,8 @@ const toggleDutyAssignment=async(userId,duty,checked)=>{
   }else{
     const existing=state.staffDutyAssignments.find(row=>row.user_id===userId&&row.duty===duty&&getMondayKey(new Date(row.week_start))===weekKey)
     if(existing){
-      await bookingAdminShared.apiRequest(`admin/duty-assignments/${encodeURIComponent(existing.id)}`,{
-        method:'DELETE',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+      await adminApiRequest(`admin/duty-assignments/${encodeURIComponent(existing.id)}`,{
+        method:'DELETE'
       })
       state.staffDutyAssignments=state.staffDutyAssignments.filter(row=>row.id!==existing.id)
     }
@@ -7152,6 +7218,7 @@ const renderBookingRecordPage=(routeState,{skipDetailRender=false}={})=>{
 }
 
 const loadAdminData=async(options={})=>{
+  await ensureFreshSession()
   if(!state.session?.access_token){
     throw new Error('Authenticated admin user is required.')
   }
@@ -7163,9 +7230,7 @@ const loadAdminData=async(options={})=>{
     setBookingRecordMode(bookingRecordMode)
     if(bookingRecordMode&&!bookingRecordWasReady)showBookingRecordLoader()
   }
-  const payload=await bookingAdminShared.apiRequest('admin/bootstrap',{
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
-  })
+  const payload=await adminApiRequest('admin/bootstrap')
   if(!payload||typeof payload!=='object'){
     throw new Error('Admin bootstrap returned an empty response. Check the deployed booking-api function and Supabase logs.')
   }
@@ -7294,11 +7359,9 @@ const isRecordWorkspaceOpen=()=>Boolean(
   || state.activeTab==='reservation-management'
   || (state.activeTab==='bookings' && state.selectedBookingId && nodes.bookingDetail?.closest('.booking-detail-panel')?.classList.contains('is-management-open'))
 )
-const shouldPauseLiveAdminSync=()=>Boolean(
-  !state.session?.access_token
-  || document.hidden
-  || state.adminRefreshPromise
-  || isRecordWorkspaceOpen()
+// True whenever the user has something open they could lose to a re-render.
+const isAdminEditingInPlace=()=>Boolean(
+  isRecordWorkspaceOpen()
   || state.isBookingModalOpen
   || state.isServiceModalOpen
   || state.isCustomerModalOpen
@@ -7306,6 +7369,12 @@ const shouldPauseLiveAdminSync=()=>Boolean(
   || state.isWorkflowModalOpen
   || state.isReportPreviewModalOpen
   || state.bookingEditor?.isDirty
+)
+const shouldPauseLiveAdminSync=()=>Boolean(
+  !state.session?.access_token
+  || document.hidden
+  || state.adminRefreshPromise
+  || isAdminEditingInPlace()
 )
 const refreshAdmin=async(message='Booking operations console synced.',options={})=>{
   if(state.adminRefreshPromise)return state.adminRefreshPromise
@@ -7370,9 +7439,8 @@ const handleBookingOperatorAssignmentSave=async form=>{
   const data=new FormData(form)
   const bookingId=String(data.get('booking_id')||'').trim()
   if(!bookingId)return
-  await bookingAdminShared.apiRequest('admin/booking-operators',{
+  await adminApiRequest('admin/booking-operators',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       booking_id:bookingId,
       operator_id:String(data.get('operator_id')||'').trim(),
@@ -7392,9 +7460,8 @@ const handleBookingCommercialStructureSave=async form=>{
   const billToType=String(data.get('bill_to_type')||'guest').trim()||'guest'
   const billToCompanyName=String(data.get('bill_to_company_name')||'').trim()
   const sellingModel=String(data.get('selling_model')||'direct').trim()||'direct'
-  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
+  await adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       metadata:{
         ...normalizeJsonRecord(booking.metadata),
@@ -7408,9 +7475,8 @@ const handleBookingCommercialStructureSave=async form=>{
       reason:'Commercial structure updated in admin'
     }
   })
-  await bookingAdminShared.apiRequest('admin/booking-agents',{
+  await adminApiRequest('admin/booking-agents',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       booking_id:bookingId,
       agent_id:String(data.get('agent_id')||'').trim(),
@@ -7427,9 +7493,8 @@ const handleBookingDiscountSave=async(form,{clear=false}={})=>{
   if(!bookingId)return
   const consultantComment=String(data.get('consultant_comment')||'').trim()
   if(!consultantComment)throw new Error('A consultant comment is required for booking discounts.')
-  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/discount`,{
+  await adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/discount`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:clear
       ? { clear:true, consultant_comment:consultantComment }
       : {
@@ -7449,9 +7514,8 @@ const handleBookingOwnershipSave=async form=>{
   if(!booking)throw new Error('Booking not found.')
   const consultantOwnerId=String(data.get('consultant_owner_id')||'').trim()
   const existingMetadata=normalizeJsonRecord(booking.metadata)
-  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
+  await adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       metadata:{
         ...existingMetadata,
@@ -7472,9 +7536,8 @@ const handleBookingNoteSave=async form=>{
   const bookingId=String(data.get('booking_id')||'').trim()
   const note=String(data.get('note')||'').trim()
   if(!bookingId||!note)throw new Error('A note is required.')
-  await bookingAdminShared.apiRequest('admin/notes',{
+  await adminApiRequest('admin/notes',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       booking_id:bookingId,
       note,
@@ -7489,9 +7552,8 @@ const handleBookingNoteSave=async form=>{
 
 const handleBookingTaskSave=async form=>{
   const data=new FormData(form)
-  await bookingAdminShared.apiRequest('admin/booking-tasks',{
+  await adminApiRequest('admin/booking-tasks',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       booking_id:String(data.get('booking_id')||'').trim(),
       task_type:String(data.get('task_type')||'').trim(),
@@ -7538,9 +7600,8 @@ const handleMemoryUploadSave=async form=>{
       caption,
       file_content_base64:await readFileAsDataUrl(file)
     })))
-    await bookingAdminShared.apiRequest('admin/memories',{
+    await adminApiRequest('admin/memories',{
       method:'POST',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{
         booking_id:bookingId,
         reference,
@@ -8281,9 +8342,8 @@ const buildDocumentMarkup=(documentType,booking)=>{
 
 const generateBookingDocument=async(documentType,booking)=>{
   if(!booking)return
-  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/documents`,{
+  const response=await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/documents`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       document_type:documentType,
       title:`SkyBook ${formatDisplayLabel(documentType)}`,
@@ -8313,9 +8373,8 @@ const handlePortalAction=async requestType=>{
     upload_info:'Customer can upload passport details, waivers, or travel documents.',
     confirm_pickup:'Customer can confirm pickup details and meeting instructions.'
   }
-  await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/portal-requests`,{
+  await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/portal-requests`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       request_type:requestType,
       message:messages[requestType]||'Portal action logged from SkyBook.',
@@ -8327,9 +8386,8 @@ const handlePortalAction=async requestType=>{
 
 const handlePortalAccessLink=async()=>{
   if(!state.selectedBookingId)return
-  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/portal-access`,{
+  const response=await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/portal-access`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   })
   const portalUrl=String(response?.portal_url||'').trim()
@@ -8343,9 +8401,8 @@ const handlePortalAccessLink=async()=>{
 }
 
 const handleRunDueJobs=async()=>{
-  await bookingAdminShared.apiRequest('admin/jobs/run',{
+  await adminApiRequest('admin/jobs/run',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   })
   await refreshAdmin('Queued jobs processed.')
@@ -8353,9 +8410,8 @@ const handleRunDueJobs=async()=>{
 
 const handleSystemJobAction=async(jobId,action)=>{
   if(!jobId||!action)return
-  await bookingAdminShared.apiRequest(`admin/jobs/${encodeURIComponent(jobId)}/${encodeURIComponent(action)}`,{
+  await adminApiRequest(`admin/jobs/${encodeURIComponent(jobId)}/${encodeURIComponent(action)}`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   })
   await refreshAdmin(action==='retry' ? 'Job re-queued.' : 'Job cancelled.')
@@ -8363,9 +8419,8 @@ const handleSystemJobAction=async(jobId,action)=>{
 
 const handleHealthEventResolve=async(eventId)=>{
   if(!eventId)return
-  await bookingAdminShared.apiRequest(`admin/health-events/${encodeURIComponent(eventId)}`,{
+  await adminApiRequest(`admin/health-events/${encodeURIComponent(eventId)}`,{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{ status:'resolved' }
   })
   await refreshAdmin('Health event resolved.')
@@ -8373,9 +8428,8 @@ const handleHealthEventResolve=async(eventId)=>{
 
 const handleReconciliationAction=async(recordId,status)=>{
   if(!recordId||!status)return
-  await bookingAdminShared.apiRequest(`admin/reconciliation/${encodeURIComponent(recordId)}`,{
+  await adminApiRequest(`admin/reconciliation/${encodeURIComponent(recordId)}`,{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       status,
       notes:status==='cleared' ? 'Cleared in SkyBook reconciliation center.' : 'Flagged for review in SkyBook reconciliation center.'
@@ -8473,9 +8527,8 @@ const openReservationDeclineModal=defaultReason=>{
     ],
     onSubmit:async values=>{
       if(!state.selectedBookingId)return
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
         method:'PATCH',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{ workflow_action:'cancel_booking', status:'cancelled', payment_status:'', reason:values.reason, notes:values.reason }
       })
       await createActivityNote(state.selectedBookingId,`Reservation declined: ${values.reason}`)
@@ -8511,9 +8564,8 @@ const openTrashWorkflowModal=({recordType,reasonPlaceholder,successMessage,nextT
       const reason=normalizeText(values.reason)
       if(!reason)throw new Error('A deletion reason is required.')
       if(values.confirm_delete!==true)throw new Error('Check the confirmation box before deleting.')
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/trash`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/trash`,{
         method:'POST',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{ reason }
       })
       await refreshAdmin(successMessage)
@@ -8564,9 +8616,8 @@ const openBookingCancellationModal=()=>{
     onSubmit:async values=>{
       const reasonOption=CANCELLATION_REASON_OPTIONS.find(option=>option.value===values.reason_type)
       const reason=[reasonOption?.label||values.reason_type,values.consultant_comment].filter(Boolean).join(' - ')
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{
           workflow_action:'cancel_booking',
           status:'cancelled',
@@ -8614,9 +8665,8 @@ const openNoShowWorkflowModal=()=>{
       }
     ],
     onSubmit:async values=>{
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}`,{
         method:'PATCH',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{
           workflow_action:'no_show',
           status:'cancelled',
@@ -8660,9 +8710,8 @@ const openRescheduleWorkflowModal=()=>{
       }
     ],
     onSubmit:async values=>{
-      await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/reschedule`,{
+      await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/reschedule`,{
         method:'POST',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
         body:{
           preferred_date:values.preferred_date,
           reason:values.reason
@@ -8727,9 +8776,7 @@ const performCommandPaletteSearch=async query=>{
   }
   let results=buildCommandPaletteResults(trimmed)
   try{
-    const response=await bookingAdminShared.apiRequest(`admin/search?q=${encodeURIComponent(trimmed)}`,{
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
-    })
+    const response=await adminApiRequest(`admin/search?q=${encodeURIComponent(trimmed)}`)
     const seen=new Set()
     results=[...results,...(response?.results||[])].map(normalizeCommandResult).filter(result=>{
       const key=`${result.action}|${result.bookingId||result.customerId||result.id}|${result.label}`
@@ -8749,9 +8796,8 @@ const openCommandPalette=()=>{
 
 const handleBookingDuplicate=async()=>{
   if(!state.selectedBookingId)return
-  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/duplicate`,{
+  const response=await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}/duplicate`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   })
   if(response?.booking?.id)state.selectedBookingId=response.booking.id
@@ -8764,18 +8810,16 @@ const handleBookingReschedule=async()=>{
 
 const createActivityNote=async(bookingId,note,{isPrivate=true}={})=>{
   if(!bookingId||!note)return
-  await bookingAdminShared.apiRequest('admin/notes',{
+  await adminApiRequest('admin/notes',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{ booking_id:bookingId, note, is_private:isPrivate }
   })
 }
 
 const generatePaymentLink=async booking=>{
   if(!booking?.id)return
-  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/payment-link`,{
+  const response=await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/payment-link`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{reuse_existing:false}
   })
   let copied=false
@@ -8821,9 +8865,8 @@ const handleManualPaymentSave=async form=>{
 
 const issueClientInvoice=async booking=>{
   if(!booking?.id)return
-  const response=await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/client-invoice`,{
+  const response=await adminApiRequest(`admin/bookings/${encodeURIComponent(booking.id)}/client-invoice`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   })
   if(response?.version?.signed_url){
@@ -9094,12 +9137,17 @@ const handleBookingSave=async event=>{
     nodes.bookingSaveButton.classList.add('is-loading')
     setAdminStatus('Accepting reservation changes and preparing the full booking view...')
   }
+  // Tracks whether the booking itself reached the database. Everything after
+  // that call — reloading the workspace, posting split-payment rows — can still
+  // fail, and reporting those as "Booking could not be saved" sends the user
+  // back to Save and creates a duplicate.
+  let bookingWriteSucceeded=false
   try{
-  const response=await bookingAdminShared.apiRequest(wasEditing ? `admin/bookings/${encodeURIComponent(previousSelectedId)}` : 'admin/bookings',{
+  const response=await adminApiRequest(wasEditing ? `admin/bookings/${encodeURIComponent(previousSelectedId)}` : 'admin/bookings',{
     method:wasEditing ? 'PATCH' : 'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   })
+  bookingWriteSucceeded=true
   const savedReference=normalizeText(response?.booking?.reference)||normalizeText(response?.reference)||normalizeText(payload.reference)
   const savedBookingId=normalizeText(response?.booking?.id)||normalizeText(response?.id)||previousSelectedId
   await loadAdminData()
@@ -9190,6 +9238,12 @@ const handleBookingSave=async event=>{
       nodes.bookingSaveButton.classList.remove('is-loading')
     }
     const errMsg=error.message||'Booking could not be saved.'
+    if(bookingWriteSucceeded){
+      const savedMsg=`${wasEditing ? 'The booking was updated' : 'The booking was created'} and is safe. SkyBook could not finish refreshing the workspace: ${errMsg} Reload the page to see it — do not press Save again or you will create a duplicate.`
+      showValidationErrors(wasEditing ? 'Booking saved, but the screen could not refresh' : 'Booking created, but the screen could not refresh',[{label:'Saved',message:savedMsg}])
+      setAdminStatus(savedMsg,true)
+      return
+    }
     showValidationErrors('Booking could not be saved',[{label:'Error',message:errMsg}])
     setAdminStatus(errMsg,true)
   }
@@ -9298,9 +9352,8 @@ const handleServiceSave=async event=>{
     is_active:nodes.serviceActive.checked
   }
   try{
-    const response=await bookingAdminShared.apiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
+    const response=await adminApiRequest(payload.id ? `admin/services/${encodeURIComponent(payload.id)}` : 'admin/services',{
       method:payload.id ? 'PATCH' : 'POST',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:payload
     })
     state.selectedServiceId=String(response?.id||payload.id||state.selectedServiceId||'').trim()
@@ -9328,9 +9381,8 @@ const handleAdminUserSave=async event=>{
     permissions:collectPermissionOverrides()
   }
   if(!payload.id && !payload.password)throw new Error('Password is required when creating a new admin user.')
-  await bookingAdminShared.apiRequest(payload.id ? `admin/users/${encodeURIComponent(payload.id)}` : 'admin/users',{
+  await adminApiRequest(payload.id ? `admin/users/${encodeURIComponent(payload.id)}` : 'admin/users',{
     method:payload.id ? 'PATCH' : 'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   })
   nodes.adminUserForm.reset()
@@ -9360,9 +9412,8 @@ const handleSettingsSave=async event=>{
       iventure:iventureEmail
     }
   }
-  await bookingAdminShared.apiRequest('admin/settings',{
+  await adminApiRequest('admin/settings',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:payload
   })
   await refreshAdmin('Settings saved.')
@@ -9375,9 +9426,8 @@ const handleBookingFieldsSave=async event=>{
     return
   }
   const fields=normalizeBookingFieldDefinitions(collectBookingFieldManagerValues())
-  const response=await bookingAdminShared.apiRequest('admin/booking-fields',{
+  const response=await adminApiRequest('admin/booking-fields',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{fields}
   })
   state.bookingFormFields=normalizeBookingFieldDefinitions(response?.fields||fields)
@@ -9394,9 +9444,8 @@ const handleTemplateSave=async()=>{
     nextTemplates[key]=nextTemplates[key]||{}
     nextTemplates[key][field]=node.value
   })
-  await bookingAdminShared.apiRequest('admin/email-templates',{
+  await adminApiRequest('admin/email-templates',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:nextTemplates
   })
   await refreshAdmin('Email templates saved.')
@@ -9404,9 +9453,8 @@ const handleTemplateSave=async()=>{
 
 const handleScheduleSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/service-schedules',{
+  await adminApiRequest('admin/service-schedules',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       service_id:state.services.find(service=>service.slug===nodes.scheduleService.value)?.id||'',
       day_of_week:Number(nodes.scheduleDay.value||0),
@@ -9422,9 +9470,8 @@ const handleScheduleSave=async event=>{
 
 const handleBlackoutSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/blackout-dates',{
+  await adminApiRequest('admin/blackout-dates',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       service_id:state.services.find(service=>service.slug===nodes.blackoutService.value)?.id||null,
       starts_on:nodes.blackoutStart.value,
@@ -9439,9 +9486,8 @@ const handleBlackoutSave=async event=>{
 
 const handleCouponSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/coupons',{
+  await adminApiRequest('admin/coupons',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       code:nodes.couponCode.value.trim().toUpperCase(),
       description:nodes.couponDescription.value.trim(),
@@ -9455,13 +9501,11 @@ const handleCouponSave=async event=>{
   await refreshAdmin('Coupon saved.')
 }
 
-const discountQrAuthHeaders=()=>bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
-
 const renderDiscountQrList=async()=>{
   const wrap=document.getElementById('discountQrList')
   if(!wrap)return
   try{
-    const {discount_qr=[]}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'GET',headers:discountQrAuthHeaders()})
+    const {discount_qr=[]}=await adminApiRequest('admin/discount-qr',{method:'GET'})
     wrap.innerHTML=discount_qr.map(c=>`
       <div class="qr-list-row">
         <strong>${bookingAdminShared.escapeHtml(c.label||c.code)}</strong>
@@ -9492,7 +9536,7 @@ const handleDiscountQrSubmit=async event=>{
       label:data.get('label')||null
     }
     if(!(body.discount_value>0))throw new Error('Enter a discount value greater than zero.')
-    const {code,url}=await bookingAdminShared.apiRequest('admin/discount-qr',{method:'POST',headers:discountQrAuthHeaders(),body})
+    const {code,url}=await adminApiRequest('admin/discount-qr',{method:'POST',body})
     const canvas=document.getElementById('discountQrCanvas')
     canvas.innerHTML=''
     try{
@@ -9519,7 +9563,7 @@ document.getElementById('discountQrList')?.addEventListener('click',async event=
   const id=event.target.closest('[data-qr-disable]')?.dataset.qrDisable
   if(!id)return
   try{
-    await bookingAdminShared.apiRequest(`admin/discount-qr/${encodeURIComponent(id)}/disable`,{method:'POST',headers:discountQrAuthHeaders(),body:{}})
+    await adminApiRequest(`admin/discount-qr/${encodeURIComponent(id)}/disable`,{method:'POST',body:{}})
     showToast('Discount QR disabled.','info')
     renderDiscountQrList()
   }catch(error){
@@ -9536,9 +9580,8 @@ document.getElementById('discountQrDownload')?.addEventListener('click',()=>{
 const handleVoucherSave=async event=>{
   event.preventDefault()
   const amount=Number(nodes.voucherValue.value||0)
-  await bookingAdminShared.apiRequest('admin/vouchers',{
+  await adminApiRequest('admin/vouchers',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       code:nodes.voucherCode.value.trim().toUpperCase(),
       description:'Gift / credit voucher',
@@ -9556,9 +9599,8 @@ const handleVoucherSave=async event=>{
 
 const handleAgentSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/agents',{
+  await adminApiRequest('admin/agents',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       code:nodes.agentCode.value.trim().toUpperCase(),
       company_name:nodes.agentCompany.value.trim(),
@@ -9574,9 +9616,8 @@ const handleAgentSave=async event=>{
 
 const handleResourceSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/resources',{
+  await adminApiRequest('admin/resources',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       name:nodes.resourceName.value.trim(),
       slug:nodes.resourceSlug.value.trim(),
@@ -9599,9 +9640,8 @@ const handleResourceSave=async event=>{
 
 const handleRefundSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest(`admin/refunds/${encodeURIComponent(nodes.refundBookingId.value.trim())}`,{
+  await adminApiRequest(`admin/refunds/${encodeURIComponent(nodes.refundBookingId.value.trim())}`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       amount:Number(nodes.refundAmount.value||0),
       reason:nodes.refundReason.value.trim()
@@ -9613,9 +9653,8 @@ const handleRefundSave=async event=>{
 
 const handleAutomationSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/automation-rules',{
+  await adminApiRequest('admin/automation-rules',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:buildAutomationRulesPayload()
   })
   await refreshAdmin('Automation rules saved.')
@@ -9623,9 +9662,8 @@ const handleAutomationSave=async event=>{
 
 const handleEmailAutomationSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/automation-rules',{
+  await adminApiRequest('admin/automation-rules',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:buildAutomationRulesPayload()
   })
   await refreshAdmin('Guest email automation saved.')
@@ -9641,9 +9679,8 @@ const syncResourceCapacityState=()=>{
 
 const handlePortalSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/portal-settings',{
+  await adminApiRequest('admin/portal-settings',{
     method:'PATCH',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       enabled:nodes.portalEnabled.checked,
       allowBookingLookup:nodes.portalLookupEnabled.checked,
@@ -9660,9 +9697,8 @@ const handleWebhookSave=async event=>{
   event.preventDefault()
   const webhookUrl=nodes.webhookUrl.value.trim()
   try{new URL(webhookUrl)}catch{throw new Error('Webhook URL must be a valid absolute URL (e.g. https://example.com/hook).')}
-  await bookingAdminShared.apiRequest('admin/webhook-endpoints',{
+  await adminApiRequest('admin/webhook-endpoints',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       name:nodes.webhookName.value.trim(),
       target_url:webhookUrl,
@@ -9676,9 +9712,8 @@ const handleWebhookSave=async event=>{
 
 const handleOperatorSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/operators',{
+  await adminApiRequest('admin/operators',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       code:nodes.operatorCode.value.trim().toUpperCase(),
       company_name:nodes.operatorCompany.value.trim(),
@@ -9702,9 +9737,8 @@ const handleOperatorSave=async event=>{
 
 const handleOfficeInvoiceSave=async event=>{
   event.preventDefault()
-  await bookingAdminShared.apiRequest('admin/office-invoices',{
+  await adminApiRequest('admin/office-invoices',{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{
       booking_id:nodes.officeInvoiceBookingId.value.trim(),
       invoice_type:nodes.officeInvoiceType.value,
@@ -10275,9 +10309,8 @@ nodes.bookingTrashTable?.addEventListener('click',event=>{
   const action=event.target.dataset.trashAction
   const bookingId=event.target.dataset.bookingId||event.target.closest('[data-trash-booking-id]')?.dataset.trashBookingId
   if(action!=='restore'||!bookingId)return
-  void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
+  void adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   }).then(()=>refreshAdmin('Booking restored from trash.')).catch(error=>setAdminStatus(error.message||'Booking restore failed.',true))
 })
@@ -10286,9 +10319,8 @@ nodes.reservationTrashTable?.addEventListener('click',event=>{
   const action=event.target.dataset.trashAction
   const bookingId=event.target.dataset.bookingId||event.target.closest('[data-trash-booking-id]')?.dataset.trashBookingId
   if(action!=='restore'||!bookingId)return
-  void bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
+  void adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}/restore`,{
     method:'POST',
-    headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
     body:{}
   }).then(()=>refreshAdmin('Reservation restored from trash.')).catch(error=>setAdminStatus(error.message||'Reservation restore failed.',true))
 })
@@ -10368,9 +10400,8 @@ nodes.reservationDetail?.addEventListener('click',event=>{
       onSubmit:async values=>{
         const bookingId=state.selectedBookingId
         if(!bookingId)return
-        await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
+        await adminApiRequest(`admin/bookings/${encodeURIComponent(bookingId)}`,{
           method:'PATCH',
-          headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
           body:{status:'provisional',payment_status:'',reason:values.reason,workflow_action:'reinstate'}
         })
         await createActivityNote(bookingId,`Reservation reinstated: ${values.reason}`)
@@ -10386,9 +10417,8 @@ nodes.reservationDetail?.addEventListener('click',event=>{
     setAdminStatus('Accepting reservation and preparing the full booking view...')
     void (async()=>{
       try{
-        await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(reservationId)}`,{
+        await adminApiRequest(`admin/bookings/${encodeURIComponent(reservationId)}`,{
           method:'PATCH',
-          headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
           body:{ workflow_action:'accept_reservation', status:'finalised', reason:'Reservation accepted and moved to bookings.' }
         })
         await createActivityNote(reservationId,'Reservation accepted and moved to bookings.')
@@ -10472,9 +10502,8 @@ nodes.bookingDetail.addEventListener('click',event=>{
     return
   }
   if(inlineAction==='clear-operator'&&state.selectedBookingId){
-    runDetailButtonAction(()=>bookingAdminShared.apiRequest('admin/booking-operators',{
+    runDetailButtonAction(()=>adminApiRequest('admin/booking-operators',{
       method:'POST',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{
         booking_id:state.selectedBookingId,
         operator_id:'',
@@ -10555,9 +10584,8 @@ nodes.bookingDetail.addEventListener('click',event=>{
     const booking=state.bookings.find(b=>b.id===state.selectedBookingId)
     if(!booking){setAdminStatus('No booking selected.',true);return}
     if(!canConfirmBooking(booking)){setAdminStatus('Complete guest name, tour, brand, and date before confirming.',true);return}
-    runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+    runDetailButtonAction(()=>adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
       method:'PATCH',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{status:'finalised',workflow_action:'confirm_booking'}
     }).then(()=>createActivityNote(state.selectedBookingId,'Booking confirmed.')).then(()=>refreshAdmin('Booking confirmed.')),'Confirmation failed.','Confirming booking')
     return
@@ -10574,9 +10602,8 @@ nodes.bookingDetail.addEventListener('click',event=>{
       ],
       onSubmit:async values=>{
         if(!state.selectedBookingId)return
-        await bookingAdminShared.apiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
+        await adminApiRequest(`admin/bookings/${encodeURIComponent(state.selectedBookingId)}`,{
           method:'PATCH',
-          headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
           body:{status:'finalised',reason:values.reason,workflow_action:'reinstate'}
         })
         await createActivityNote(state.selectedBookingId,`Booking reinstated: ${values.reason}`)
@@ -10609,9 +10636,8 @@ nodes.bookingDetail.addEventListener('click',event=>{
     return
   }
   if(inlineAction==='complete-task'&&actionElement?.dataset.taskId){
-    runDetailButtonAction(()=>bookingAdminShared.apiRequest(`admin/booking-tasks/${encodeURIComponent(actionElement.dataset.taskId)}`,{
+    runDetailButtonAction(()=>adminApiRequest(`admin/booking-tasks/${encodeURIComponent(actionElement.dataset.taskId)}`,{
       method:'PATCH',
-      headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||''),
       body:{ status:'done' }
     }).then(()=>refreshAdmin('Task completed.')),'Task update failed.','Completing task')
     return
@@ -10712,9 +10738,8 @@ nodes.servicesTable.addEventListener('click',async event=>{
     deleteBtn.disabled=true
     deleteBtn.textContent='Deleting…'
     try{
-      await bookingAdminShared.apiRequest(`admin/services/${encodeURIComponent(serviceId)}`,{
-        method:'DELETE',
-        headers:bookingAdminShared.getAuthHeaders(state.session?.access_token||'')
+      await adminApiRequest(`admin/services/${encodeURIComponent(serviceId)}`,{
+        method:'DELETE'
       })
       await loadAdminData()
       showToast(`"${service.name}" deleted.`,'success')
@@ -10978,8 +11003,12 @@ startSessionTimeoutCheck()
       startLiveAdminSync()
       updateSessionTimeoutBanner()
       if(session.access_token!==previousToken && ['SIGNED_IN','TOKEN_REFRESHED'].includes(event)){
-        const quietRecordRefresh=isRecordWorkspaceOpen()
-        void refreshAdmin('Admin session refreshed.',quietRecordRefresh ? {silent:true,updateStatus:false} : {}).catch(error=>setAuthStatus(error.message||'Admin session refresh failed.',true))
+        // Tokens now get refreshed on demand right before a save, so this event
+        // can land mid-edit. Reload quietly then — a loud refresh re-renders the
+        // workspace and wipes the form the user is still typing into.
+        if(sessionRenewalPromise)return
+        const quietRefresh=isAdminEditingInPlace()
+        void refreshAdmin('Admin session refreshed.',quietRefresh ? {silent:true,updateStatus:false} : {}).catch(error=>setAuthStatus(error.message||'Admin session refresh failed.',true))
       }
     })
     const { data:{ session } }=await client.auth.getSession()

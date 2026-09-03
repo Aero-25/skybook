@@ -210,11 +210,26 @@ window.TrueTravelBooking=(()=>{
       .catch(()=>loadSupabaseClassicClient())
     return supabaseBrowserModulePromise
   }
+  // One Supabase client per page, cached against the URL/key it was built for.
+  // A second client sharing the same auth storage runs its own token
+  // auto-refresh, and whichever loses that race gets "Invalid Refresh Token:
+  // Already Used" — which drops the admin session mid-shift and turns the next
+  // save into "Authenticated admin user is required."
+  let supabaseClientCache={key:'',promise:null}
   const createSupabaseClient=async()=>{
     const config=readConfig()
     if(!config.supabaseUrl||!config.supabaseAnonKey)throw new Error('Supabase URL or anon key is missing from booking configuration.')
-    const { createClient }=await loadSupabaseBrowserModule()
-    return createClient(config.supabaseUrl,config.supabaseAnonKey)
+    const cacheKey=`${config.supabaseUrl}|${config.supabaseAnonKey}`
+    if(supabaseClientCache.key!==cacheKey||!supabaseClientCache.promise){
+      const pending=loadSupabaseBrowserModule()
+        .then(({ createClient })=>createClient(config.supabaseUrl,config.supabaseAnonKey))
+        .catch(error=>{
+          if(supabaseClientCache.promise===pending)supabaseClientCache={key:'',promise:null}
+          throw error
+        })
+      supabaseClientCache={key:cacheKey,promise:pending}
+    }
+    return supabaseClientCache.promise
   }
   const getAuthHeaders=token=>{
     const config=readConfig()
