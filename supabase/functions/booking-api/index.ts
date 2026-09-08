@@ -2178,12 +2178,15 @@ const renderBookingReceivedHtml=(vars:Record<string,string>,brandCode:string):st
   const primary=isTT?'#0E3A52':'#17110d'
   const accent=isTT?'#2B8BAD':'#f5a400'
   const bg=isTT?'#F7F0E3':'#faf7f0'
-  const logo=isTT
+  // Prefer the brand's configured logo so the admin controls it; fall back to
+  // the built-in brand artwork only when a brand has none.
+  const logo=normalizeText(vars.brand_logo) || (isTT
     ?'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/True%20Travel/TT_Logo-removebg-preview.png'
-    :'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png'
-  const brand=vars.brand_name||'True Travel'
-  const em=vars.brand_support_email||''
-  const ph=vars.brand_support_phone||''
+    :'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png')
+  // Everything below is interpolated into markup, so escape at the source.
+  const brand=escapeHtml(vars.brand_name||'True Travel')
+  const em=escapeHtml(vars.brand_support_email||'')
+  const ph=escapeHtml(vars.brand_support_phone||'')
   const emailRow=em?`<p style="margin:4px 0;font-size:14px"><a href="mailto:${em}" style="color:${accent};text-decoration:none">${em}</a></p>`:''
   const phoneRow=ph?`<p style="margin:4px 0;font-size:14px;color:#555">${ph}</p>`:''
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Booking Received – ${brand}</title></head>
@@ -2191,23 +2194,23 @@ const renderBookingReceivedHtml=(vars:Record<string,string>,brandCode:string):st
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
 <tr><td style="background:${primary};padding:36px;text-align:center">
-<img src="${logo}" alt="${brand}" height="64" style="height:64px;max-width:180px;object-fit:contain;display:block;margin:0 auto">
+<img src="${escapeHtml(logo)}" alt="${brand}" height="64" border="0" style="height:64px;width:auto;max-width:200px;display:block;margin:0 auto;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700">
 <p style="margin:16px 0 0;color:rgba(255,255,255,.75);font-size:12px;letter-spacing:3px;text-transform:uppercase">Booking Request Received</p>
 </td></tr>
 <tr><td style="padding:40px 40px 28px">
-<p style="margin:0 0 8px;color:#333;font-size:16px">Hi <strong>${vars.customer_name}</strong>,</p>
+<p style="margin:0 0 8px;color:#333;font-size:16px">Hi <strong>${escapeHtml(vars.customer_name)}</strong>,</p>
 <p style="margin:0 0 28px;color:#555;font-size:15px;line-height:1.65">Thank you for choosing <strong>${brand}</strong>! We have received your booking request and a consultant will be in touch shortly to confirm timing, pickup details, and payment.</p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px"><tr>
 <td style="background:${bg};border-radius:8px;padding:22px;text-align:center;border:2px solid ${accent}">
 <p style="margin:0 0 6px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#888">Booking Reference</p>
-<p style="margin:0;font-size:30px;font-weight:700;color:${primary};letter-spacing:3px">${vars.booking_reference}</p>
+<p style="margin:0;font-size:30px;font-weight:700;color:${primary};letter-spacing:3px">${escapeHtml(vars.booking_reference)}</p>
 </td></tr></table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
 <tr style="background:${primary}"><td colspan="2" style="padding:12px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">Your Booking Details</td></tr>
-<tr><td style="padding:14px 18px;font-size:13px;color:#888;width:42%;border-bottom:1px solid #f0f0f0">Activity / Tour</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.service_name}</td></tr>
-<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Preferred Date</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.booking_date}</td></tr>
-<tr><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Guests</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${vars.guest_count}</td></tr>
-<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888">Total Amount</td><td style="padding:14px 18px;font-size:15px;color:${primary};font-weight:700">${vars.total_amount}</td></tr>
+<tr><td style="padding:14px 18px;font-size:13px;color:#888;width:42%;border-bottom:1px solid #f0f0f0">Activity / Tour</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${escapeHtml(vars.service_name)}</td></tr>
+<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Preferred Date</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${escapeHtml(vars.booking_date)}</td></tr>
+<tr><td style="padding:14px 18px;font-size:13px;color:#888;border-bottom:1px solid #f0f0f0">Guests</td><td style="padding:14px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0">${escapeHtml(vars.guest_count)}</td></tr>
+<tr style="background:#fafafa"><td style="padding:14px 18px;font-size:13px;color:#888">Total Amount</td><td style="padding:14px 18px;font-size:15px;color:${primary};font-weight:700">${escapeHtml(vars.total_amount)}</td></tr>
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;background:${bg};border-radius:8px;border-left:4px solid ${accent}">
 <tr><td style="padding:20px">
@@ -2469,7 +2472,11 @@ const performQueuedEmailJob=async(job:Json)=>{
       brand_name:normalizeText(brand?.name) || BRAND_EMAIL_NAMES[normalizeText(booking.brand_code) as keyof typeof BRAND_EMAIL_NAMES] || 'SkyBook',
       brand_support_email:configuredSupportEmail || normalizeText(brand?.support_email) || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
       brand_support_phone:normalizeText(brand?.support_phone),
-      brand_website:normalizeText(brand?.website_url)
+      brand_website:normalizeText(brand?.website_url),
+      // Resolved brand logo (admin setting → brand metadata → built-in default),
+      // the same source the invoice PDF uses, so a logo change in the admin
+      // reaches guest email and documents together.
+      brand_logo:normalizeText(brand?.logo_url)
     }
     if(!subject)subject=renderTemplate(String(template.subject || fallbackTemplate.subject),templateVariables)
     if(!body)body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
