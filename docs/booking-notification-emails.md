@@ -20,12 +20,32 @@ A booking with an unknown brand code falls back to the True Travel inbox.
 
 ## What the alert contains
 
-Plain-text and HTML parts both carry: reference, booking status, payment
-status, service, preferred date, guest count, total, guest name / email /
-phone, guest notes, custom form fields, and the origin (source, capture page,
-created-via). Missing values render as "Not captured" rather than blank.
+The alert is built from the booking record itself, not from the editable
+template, so a template edit can never drop a field. Plain text and HTML are
+generated from the same structure and always agree. Sections:
 
-All interpolated values are HTML-escaped — guest-supplied text (names, notes)
+| Section | Contents |
+| --- | --- |
+| Booking | reference, brand, status, payment status, service, preferred and confirmed dates, booked-at, guide |
+| Guests | total, adults, children, infants (a zero prints as `0` — it is a captured fact, not a gap) |
+| Client | name, email, phone, WhatsApp |
+| Booking form answers | every field defined on the brand's booking form, in form order, under its configured label — including ones the guest left blank, so a consultant can see what was asked |
+| Operational details | everything under `metadata.operational_details` |
+| Money | currency, subtotal, discounts/add-ons, tax, service fee, total, due now, due later |
+| Notes | guest notes, internal notes, cancellation reason |
+| Origin | source, capture page, created-via |
+| Additional captured data | any other `metadata` key — the catch-all |
+
+That last section is the guarantee: a field the website starts sending
+tomorrow appears in the alert with no code change. Keys are humanised
+(`heard_about_us` → "Heard about us"), booleans render Yes/No, arrays join
+with commas, and nested objects flatten to `key: value` pairs.
+
+Only `customer_snapshot` and keys already shown elsewhere are suppressed, to
+keep the mail readable.
+
+Missing values render as "Not captured" rather than blank. All interpolated
+values are HTML-escaped — guest-supplied text (names, notes, form answers)
 cannot inject markup into the alert.
 
 ## Delivery: Resend

@@ -2226,6 +2226,155 @@ ${emailRow}${phoneRow}
 </body></html>`
 }
 
+// ── Consultant alert: the complete booking record ───────────────────────────
+// The ops inbox must be able to action a booking without opening SkyBook, so
+// every captured value is rendered — booking columns, the brand's booking-form
+// answers by their configured labels, money, notes, and finally any metadata
+// key not already shown, so a field the site starts sending tomorrow still
+// appears without a code change.
+
+const formatDetailValue=(value:unknown):string=>{
+  if(value===null||value===undefined)return ''
+  if(typeof value==='boolean')return value ? 'Yes' : 'No'
+  if(Array.isArray(value))return value.map(item=>formatDetailValue(item)).filter(Boolean).join(', ')
+  if(typeof value==='object'){
+    const entries=Object.entries(value as Record<string,unknown>)
+      .map(([k,v])=>{
+        const rendered=formatDetailValue(v)
+        return rendered ? `${humanizeFieldKey(k)}: ${rendered}` : ''
+      })
+      .filter(Boolean)
+    return entries.join(' · ')
+  }
+  return normalizeText(value)
+}
+
+const humanizeFieldKey=(key:string)=>normalizeText(key)
+  .replace(/[_-]+/g,' ')
+  .replace(/([a-z0-9])([A-Z])/g,'$1 $2')
+  .replace(/\s+/g,' ')
+  .trim()
+  .replace(/^./,c=>c.toUpperCase())
+
+// Metadata keys rendered in their own sections, or internal bookkeeping that
+// would only add noise to an ops email.
+const CONSULTANT_METADATA_SKIP=new Set([
+  'custom_fields','customer_snapshot','source','brand_code','source_page',
+  'created_via','guide_name','payment_link','operational_details'
+])
+
+type DetailRow=[string,string]
+type DetailSection={ title:string, rows:DetailRow[] }
+
+const buildConsultantSections=(
+  booking:Json,
+  customer:Json | null,
+  service:Json | null,
+  brand:Json | null,
+  formFields:Json[]
+):DetailSection[]=>{
+  const metadata=normalizeJsonRecord(booking.metadata)
+  const customFields=normalizeJsonRecord(metadata.custom_fields)
+  const currency=normalizeText(booking.currency_code) || 'NAD'
+  const money=(value:unknown)=>`${currency} ${Number(value || 0).toFixed(2)}`
+
+  const adults=Number(booking.adult_quantity || 0)
+  const children=Number(booking.child_quantity || 0)
+  const infants=Number(booking.infant_quantity || 0)
+
+  const sections:DetailSection[]=[]
+
+  sections.push({ title:'Booking', rows:[
+    ['Reference',normalizeText(booking.reference)],
+    ['Brand',normalizeText(brand?.name) || normalizeText(booking.brand_code)],
+    ['Status',normalizeText(booking.status)],
+    ['Payment status',normalizeText(booking.payment_status) || 'Not recorded'],
+    ['Service / tour',normalizeText(service?.name)],
+    ['Preferred date',normalizeText(booking.preferred_date)],
+    ['Confirmed date',normalizeText(booking.confirmed_date)],
+    ['Booked at',normalizeText(booking.created_at)],
+    ['Guide',normalizeText(metadata.guide_name)]
+  ]})
+
+  // Guest counts always print the number: a zero is a captured fact, not a gap.
+  sections.push({ title:'Guests', rows:[
+    ['Total guests',normalizeText(booking.quantity)],
+    ['Adults',String(adults)],
+    ['Children',String(children)],
+    ['Infants',String(infants)]
+  ]})
+
+  sections.push({ title:'Client', rows:[
+    ['Name',normalizeText(customer?.full_name)],
+    ['Email',normalizeText(customer?.email) || normalizeText(booking.lookup_email)],
+    ['Phone',normalizeText(customer?.phone)],
+    ['WhatsApp',normalizeText(customer?.whatsapp)]
+  ]})
+
+  // Every field defined on the brand's booking form, in form order, by label —
+  // including ones the guest left blank, so a consultant can see what was asked.
+  const seenCustomKeys=new Set<string>()
+  const formRows:DetailRow[]=[]
+  for(const field of formFields){
+    const id=normalizeText(field.id)
+    if(!id)continue
+    seenCustomKeys.add(id)
+    formRows.push([normalizeText(field.label) || humanizeFieldKey(id),formatDetailValue(customFields[id])])
+  }
+  // Anything the site submitted that the form definition does not describe.
+  for(const [key,value] of Object.entries(customFields)){
+    if(seenCustomKeys.has(key))continue
+    formRows.push([humanizeFieldKey(key),formatDetailValue(value)])
+  }
+  if(formRows.length)sections.push({ title:'Booking form answers', rows:formRows })
+
+  const opDetails=normalizeJsonRecord(metadata.operational_details)
+  const opRows=Object.entries(opDetails).map(([k,v])=>[humanizeFieldKey(k),formatDetailValue(v)] as DetailRow)
+  if(opRows.length)sections.push({ title:'Operational details', rows:opRows })
+
+  sections.push({ title:'Money', rows:[
+    ['Currency',currency],
+    ['Subtotal',money(booking.subtotal_amount)],
+    ['Discounts / add-ons',money(booking.addons_amount)],
+    ['Tax',money(booking.tax_amount)],
+    ['Service fee',money(booking.service_fee_amount)],
+    ['Total',money(booking.total_amount)],
+    ['Due now',money(booking.amount_due_now)],
+    ['Due later',money(booking.amount_due_later)]
+  ]})
+
+  sections.push({ title:'Notes', rows:[
+    ['Guest notes',normalizeText(booking.customer_notes)],
+    ['Internal notes',normalizeText(booking.internal_notes)],
+    ['Cancellation reason',normalizeText(booking.cancellation_reason)]
+  ]})
+
+  sections.push({ title:'Origin', rows:[
+    ['Source',normalizeText(booking.source) || normalizeText(metadata.source)],
+    ['Capture page',normalizeText(metadata.source_page)],
+    ['Created via',normalizeText(metadata.created_via)]
+  ]})
+
+  // Catch-all: any metadata the site sent that no section above covers.
+  const extraRows:DetailRow[]=[]
+  for(const [key,value] of Object.entries(metadata)){
+    if(CONSULTANT_METADATA_SKIP.has(key))continue
+    const rendered=formatDetailValue(value)
+    if(rendered)extraRows.push([humanizeFieldKey(key),rendered])
+  }
+  if(extraRows.length)sections.push({ title:'Additional captured data', rows:extraRows })
+
+  return sections
+}
+
+const renderConsultantAlertText=(sections:DetailSection[],heading:string)=>{
+  const blocks=sections.map(section=>{
+    const rows=section.rows.map(([label,value])=>`${label}: ${value || 'Not captured'}`)
+    return `${section.title.toUpperCase()}\n${rows.join('\n')}`
+  })
+  return `${heading}\n\n${blocks.join('\n\n')}\n\nOpen SkyBook to action this booking.`
+}
+
 const escapeHtml=(value:unknown)=>String(value ?? '')
   .replace(/&/g,'&amp;')
   .replace(/</g,'&lt;')
@@ -2236,19 +2385,19 @@ const escapeHtml=(value:unknown)=>String(value ?? '')
 // Operations alert for the brand's bookings@ inbox. Unlike the guest email this
 // one carries every captured field, so a consultant can action the booking
 // without opening SkyBook first.
-const renderConsultantAlertHtml=(vars:Record<string,string>,brandCode:string):string=>{
+const renderConsultantAlertHtml=(sections:DetailSection[],vars:Record<string,string>,brandCode:string):string=>{
   const isTT=brandCode==='true-travel'
   const primary=isTT?'#0E3A52':'#17110d'
   const accent=isTT?'#2B8BAD':'#f5a400'
   const bg=isTT?'#F7F0E3':'#faf7f0'
   const brand=escapeHtml(vars.brand_name||'SkyBook')
-  const row=(label:string,value:string,shaded:boolean)=>{
+  const row=([label,value]:DetailRow,shaded:boolean)=>{
     const text=normalizeText(value)
-    return `<tr${shaded?' style="background:#fafafa"':''}><td style="padding:12px 18px;font-size:13px;color:#888;width:38%;border-bottom:1px solid #f0f0f0;vertical-align:top">${escapeHtml(label)}</td><td style="padding:12px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0;vertical-align:top">${text?escapeHtml(text):'<span style="color:#bbb;font-weight:400">Not captured</span>'}</td></tr>`
+    return `<tr${shaded?' style="background:#fafafa"':''}><td style="padding:11px 18px;font-size:13px;color:#888;width:38%;border-bottom:1px solid #f0f0f0;vertical-align:top">${escapeHtml(label)}</td><td style="padding:11px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0;vertical-align:top;word-break:break-word">${text?escapeHtml(text):'<span style="color:#bbb;font-weight:400">Not captured</span>'}</td></tr>`
   }
-  const section=(title:string,rows:string)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:22px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
-<tr style="background:${primary}"><td colspan="2" style="padding:11px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">${escapeHtml(title)}</td></tr>
-${rows}</table>`
+  const section=(item:DetailSection)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
+<tr style="background:${primary}"><td colspan="2" style="padding:11px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">${escapeHtml(item.title)}</td></tr>
+${item.rows.map((r,i)=>row(r,i%2===1)).join('')}</table>`
   const mailto=normalizeText(vars.customer_email)
   const tel=normalizeText(vars.customer_phone)
   const contactLinks=[
@@ -2265,29 +2414,7 @@ ${rows}</table>`
 <p style="margin:6px 0 0;color:rgba(255,255,255,.75);font-size:14px">${escapeHtml(vars.customer_name)} · ${escapeHtml(vars.service_name)}</p>
 </td></tr>
 <tr><td style="padding:28px 36px 8px">
-${section('Booking',[
-  row('Reference',vars.booking_reference,false),
-  row('Status',vars.booking_status,true),
-  row('Payment status',vars.payment_status,false),
-  row('Service / tour',vars.service_name,true),
-  row('Preferred date',vars.booking_date,false),
-  row('Guests',vars.guest_count,true),
-  row('Total',vars.total_amount,false)
-].join(''))}
-${section('Client',[
-  row('Name',vars.customer_name,false),
-  row('Email',vars.customer_email,true),
-  row('Phone',vars.customer_phone,false)
-].join(''))}
-${section('Notes & custom fields',[
-  row('Guest notes',vars.customer_notes,false),
-  row('Custom fields',vars.custom_details,true)
-].join(''))}
-${section('Origin',[
-  row('Source',vars.booking_source,false),
-  row('Capture page',vars.capture_page,true),
-  row('Created via',vars.created_via,false)
-].join(''))}
+${sections.map(section).join('\n')}
 ${contactLinks?`<div style="margin:4px 0 24px">${contactLinks}</div>`:''}
 </td></tr>
 <tr><td style="background:${primary};padding:20px 36px;text-align:center">
@@ -2348,11 +2475,21 @@ const performQueuedEmailJob=async(job:Json)=>{
     if(!body)body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
   }
   const brandCodeForHtml=normalizeText(booking.brand_code) || 'true-travel'
-  const renderedHtml=isConsultantAlert
-    ? renderConsultantAlertHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
-    : (templateKey==='booking_received'
-      ? renderBookingReceivedHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
-      : '')
+  let renderedHtml=''
+  if(isConsultantAlert){
+    // The ops alert is built from the booking record itself rather than the
+    // editable template, so a field can never be dropped by a template edit.
+    const formFields=await getBookingFormFields(brandCodeForHtml,{publicOnly:false})
+    const sections=buildConsultantSections(booking,customer,service,brand,formFields)
+    const vars=templateVariables as unknown as Record<string,string>
+    renderedHtml=renderConsultantAlertHtml(sections,vars,brandCodeForHtml)
+    body=renderConsultantAlertText(
+      sections,
+      `A new ${normalizeText(brand?.name) || 'SkyBook'} booking needs review.`
+    )
+  }else if(templateKey==='booking_received'){
+    renderedHtml=renderBookingReceivedHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
+  }
   const emailLog=await queueEmailLog({
     bookingId,
     customerId:String(customer?.id || booking.customer_id || ''),
