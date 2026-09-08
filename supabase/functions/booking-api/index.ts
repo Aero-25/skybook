@@ -170,7 +170,7 @@ const BRAND_SUPPORT_EMAILS={
 }
 const BRAND_CONSULTANT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
-  iventure:'info@iventuretours.net'
+  iventure:'bookings@iventuretours.net'
 }
 const BRAND_RESEND_KEYS:Record<string,string>={} // kept for backwards compat, unused
 const BRAND_EMAIL_NAMES={
@@ -360,11 +360,19 @@ const formatReference=(prefix='TT')=>{
 const defaultEmailTemplates={
   booking_received:{
     subject:'We received your booking request {{booking_reference}}',
-    body:'Hi {{customer_name}},\n\nWe received your True Travel booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\n\nYour booking is under review by a True Travel consultant. A consultant will reach out shortly with the next steps.\n\nTrue Travel\n{{brand_support_email}}\n{{brand_support_phone}}'
+    body:'Hi {{customer_name}},\n\nWe received your {{brand_name}} booking request for {{service_name}}.\nReference: {{booking_reference}}\nPreferred date: {{booking_date}}\n\nYour booking is under review by a {{brand_name}} consultant. A consultant will reach out shortly with the next steps.\n\n{{brand_name}}\n{{brand_support_email}}\n{{brand_support_phone}}'
   },
   true_travel_consultant_alert:{
     subject:'New True Travel reservation {{booking_reference}}',
     body:'A new True Travel reservation needs review.\n\nReference: {{booking_reference}}\nGuest: {{customer_name}}\nEmail: {{customer_email}}\nPhone: {{customer_phone}}\nService: {{service_name}}\nPreferred date: {{booking_date}}\nGuests: {{guest_count}}\nTotal: {{total_amount}}\nSource: {{booking_source}}\nCapture page: {{capture_page}}\nCreated via: {{created_via}}\nNotes: {{customer_notes}}\nCustom fields: {{custom_details}}\n\nOpen SkyBook and review this reservation before sending payment details.'
+  },
+  // Operations alert sent to the brand's bookings@ inbox on every new booking.
+  // The key must stay 'consultant_alert' — that is the template_key the queued
+  // email job carries, and an unmatched key silently falls back to the thin
+  // guest-facing status_changed template.
+  consultant_alert:{
+    subject:'New {{brand_name}} booking {{booking_reference}} — {{customer_name}}',
+    body:'A new {{brand_name}} booking needs review.\n\nBOOKING\nReference: {{booking_reference}}\nStatus: {{booking_status}}\nPayment status: {{payment_status}}\nService: {{service_name}}\nPreferred date: {{booking_date}}\nGuests: {{guest_count}}\nTotal: {{total_amount}}\n\nCLIENT\nName: {{customer_name}}\nEmail: {{customer_email}}\nPhone: {{customer_phone}}\n\nNotes: {{customer_notes}}\nCustom fields: {{custom_details}}\n\nORIGIN\nSource: {{booking_source}}\nCapture page: {{capture_page}}\nCreated via: {{created_via}}\n\nOpen SkyBook and review this booking before sending payment details.'
   },
   payment_request:{
     subject:'Payment request for {{booking_reference}}',
@@ -1867,8 +1875,25 @@ const readEmailIntegrationConfig=async(brandCode='true-travel')=>{
     emailjsPublicKey:normalizeText(Deno.env.get('EMAILJS_PUBLIC_KEY') || emailConfig.emailjs_public_key),
     emailjsPrivateKey:normalizeText(Deno.env.get('EMAILJS_PRIVATE_KEY') || emailConfig.emailjs_private_key),
     emailjsTemplateBookingReceived:normalizeText(Deno.env.get('EMAILJS_TEMPLATE_BOOKING_RECEIVED') || emailConfig.emailjs_template_booking_received || 'template_booking_received'),
-    emailjsTemplateConsultantAlert:normalizeText(Deno.env.get('EMAILJS_TEMPLATE_CONSULTANT_ALERT') || emailConfig.emailjs_template_consultant_alert || 'template_consultant_alert')
+    emailjsTemplateConsultantAlert:normalizeText(Deno.env.get('EMAILJS_TEMPLATE_CONSULTANT_ALERT') || emailConfig.emailjs_template_consultant_alert || 'template_consultant_alert'),
+    // Resend. The API key is read from the function secret only — never from
+    // the settings table, so it is not exposed through the admin settings API.
+    resendApiKey:normalizeText(Deno.env.get('RESEND_API_KEY')),
+    resendFrom:normalizeText(
+      Deno.env.get('RESEND_FROM_' + brandCode.replace(/[^a-z0-9]+/gi,'_').toUpperCase())
+      || Deno.env.get('RESEND_FROM')
+      || emailConfig.resend_from
+    ),
+    resendReplyTo:normalizeText(Deno.env.get('RESEND_REPLY_TO') || emailConfig.resend_reply_to)
   }
+}
+
+// Default Resend sender per brand. Overridable with RESEND_FROM_TRUE_TRAVEL /
+// RESEND_FROM_IVENTURE (or a single RESEND_FROM for both). The sending domain
+// must be verified in Resend or the API rejects the message.
+const BRAND_RESEND_FROM:Record<string,string>={
+  'true-travel':'True Travel Bookings <bookings@truetravelnam.net>',
+  iventure:'Iventure Bookings <bookings@iventuretours.net>'
 }
 
 const tryParseJson=async(response:Response)=>{
@@ -1892,10 +1917,91 @@ const getConfiguredBrandSupportEmail=async(brandCode:string)=>{
   )
 }
 
+const markEmailLogSent=async(emailLog:Json,provider:string,responseStatus:number,extraMetadata:Json={})=>{
+  await adminClient.from('email_logs').update({
+    status:'sent',
+    sent_at:nowIso(),
+    error_message:null,
+    metadata:{
+      ...normalizeJsonRecord(emailLog.metadata),
+      dispatch_provider:provider,
+      response_status:responseStatus,
+      ...extraMetadata
+    }
+  }).eq('id',String(emailLog.id || ''))
+}
+
+const markEmailLogFailed=async(emailLog:Json,provider:string,responseStatus:number,errorMessage:string)=>{
+  await adminClient.from('email_logs').update({
+    status:'failed',
+    error_message:errorMessage,
+    metadata:{
+      ...normalizeJsonRecord(emailLog.metadata),
+      dispatch_provider:provider,
+      response_status:responseStatus
+    }
+  }).eq('id',String(emailLog.id || ''))
+}
+
+const dispatchViaResend=async(emailLog:Json,brandCode:string,config:Json)=>{
+  const apiKey=normalizeText(config.resendApiKey)
+  const from=normalizeText(config.resendFrom)
+    || BRAND_RESEND_FROM[brandCode as keyof typeof BRAND_RESEND_FROM]
+    || BRAND_RESEND_FROM['true-travel']
+  const to=normalizeText(emailLog.recipient_email)
+  if(!to)throw new Error('Resend dispatch is missing a recipient address.')
+  const html=normalizeText(emailLog.metadata?.rendered_html)
+  const text=String(emailLog.rendered_body || '')
+  const replyTo=normalizeText(config.resendReplyTo)
+  const payload:Json={
+    from,
+    to:[to],
+    subject:String(emailLog.subject || ''),
+    text,
+    ...(html ? {html} : {}),
+    ...(replyTo ? {reply_to:replyTo} : {})
+  }
+  const response=await fetch('https://api.resend.com/emails',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      Authorization:'Bearer ' + apiKey
+    },
+    body:JSON.stringify(payload)
+  })
+  if(!response.ok){
+    const errorText=await response.text().catch(()=>'')
+    const errorMessage=normalizeText(errorText) || ('Resend dispatch failed with status ' + response.status + '.')
+    await markEmailLogFailed(emailLog,'resend',response.status,errorMessage)
+    throw new Error(errorMessage)
+  }
+  const result=normalizeJsonRecord(await tryParseJson(response))
+  await markEmailLogSent(emailLog,'resend',response.status,{
+    resend_id:normalizeText(result.id),
+    resend_from:from
+  })
+  return { status:'sent', provider:'resend', id:normalizeText(result.id) }
+}
+
 const dispatchEmailLog=async(emailLog:Json)=>{
   const brandCode=normalizeText(emailLog.metadata?.brand_code) || 'true-travel'
   const config=await readEmailIntegrationConfig(brandCode)
   const provider=normalizeText(config.provider)
+  if(provider==='resend'){
+    if(!normalizeText(config.resendApiKey)){
+      await adminClient.from('email_logs').update({
+        status:'queued',
+        metadata:{
+          ...normalizeJsonRecord(emailLog.metadata),
+          dispatch_provider:'resend',
+          dispatch_mode:'queue_only',
+          dispatch_note:'RESEND_API_KEY is not set on the booking-api function.'
+        }
+      }).eq('id',String(emailLog.id || ''))
+      return { status:'queued', provider:'resend' }
+    }
+    return await dispatchViaResend(emailLog,brandCode,config as unknown as Json)
+  }
   if(provider!=='emailjs' || !config.emailjsServiceId || !config.emailjsPublicKey || !config.emailjsPrivateKey){
     await adminClient.from('email_logs').update({
       status:'queued',
@@ -2119,6 +2225,78 @@ ${emailRow}${phoneRow}
 </body></html>`
 }
 
+const escapeHtml=(value:unknown)=>String(value ?? '')
+  .replace(/&/g,'&amp;')
+  .replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;')
+  .replace(/'/g,'&#39;')
+
+// Operations alert for the brand's bookings@ inbox. Unlike the guest email this
+// one carries every captured field, so a consultant can action the booking
+// without opening SkyBook first.
+const renderConsultantAlertHtml=(vars:Record<string,string>,brandCode:string):string=>{
+  const isTT=brandCode==='true-travel'
+  const primary=isTT?'#0E3A52':'#17110d'
+  const accent=isTT?'#2B8BAD':'#f5a400'
+  const bg=isTT?'#F7F0E3':'#faf7f0'
+  const brand=escapeHtml(vars.brand_name||'SkyBook')
+  const row=(label:string,value:string,shaded:boolean)=>{
+    const text=normalizeText(value)
+    return `<tr${shaded?' style="background:#fafafa"':''}><td style="padding:12px 18px;font-size:13px;color:#888;width:38%;border-bottom:1px solid #f0f0f0;vertical-align:top">${escapeHtml(label)}</td><td style="padding:12px 18px;font-size:14px;color:#222;font-weight:600;border-bottom:1px solid #f0f0f0;vertical-align:top">${text?escapeHtml(text):'<span style="color:#bbb;font-weight:400">Not captured</span>'}</td></tr>`
+  }
+  const section=(title:string,rows:string)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:22px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
+<tr style="background:${primary}"><td colspan="2" style="padding:11px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">${escapeHtml(title)}</td></tr>
+${rows}</table>`
+  const mailto=normalizeText(vars.customer_email)
+  const tel=normalizeText(vars.customer_phone)
+  const contactLinks=[
+    mailto?`<a href="mailto:${escapeHtml(mailto)}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 18px;background:${accent};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Email guest</a>`:'',
+    tel?`<a href="tel:${escapeHtml(tel.replace(/[^+0-9]/g,''))}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 18px;background:${primary};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Call guest</a>`:''
+  ].join('')
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New booking ${escapeHtml(vars.booking_reference)}</title></head>
+<body style="margin:0;padding:0;background:${bg};font-family:Arial,Helvetica,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${bg}"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+<tr><td style="background:${primary};padding:28px 36px">
+<p style="margin:0;color:rgba(255,255,255,.7);font-size:11px;letter-spacing:3px;text-transform:uppercase">${brand} · New booking</p>
+<p style="margin:8px 0 0;color:#ffffff;font-size:26px;font-weight:700;letter-spacing:2px">${escapeHtml(vars.booking_reference)}</p>
+<p style="margin:6px 0 0;color:rgba(255,255,255,.75);font-size:14px">${escapeHtml(vars.customer_name)} · ${escapeHtml(vars.service_name)}</p>
+</td></tr>
+<tr><td style="padding:28px 36px 8px">
+${section('Booking',[
+  row('Reference',vars.booking_reference,false),
+  row('Status',vars.booking_status,true),
+  row('Payment status',vars.payment_status,false),
+  row('Service / tour',vars.service_name,true),
+  row('Preferred date',vars.booking_date,false),
+  row('Guests',vars.guest_count,true),
+  row('Total',vars.total_amount,false)
+].join(''))}
+${section('Client',[
+  row('Name',vars.customer_name,false),
+  row('Email',vars.customer_email,true),
+  row('Phone',vars.customer_phone,false)
+].join(''))}
+${section('Notes & custom fields',[
+  row('Guest notes',vars.customer_notes,false),
+  row('Custom fields',vars.custom_details,true)
+].join(''))}
+${section('Origin',[
+  row('Source',vars.booking_source,false),
+  row('Capture page',vars.capture_page,true),
+  row('Created via',vars.created_via,false)
+].join(''))}
+${contactLinks?`<div style="margin:4px 0 24px">${contactLinks}</div>`:''}
+</td></tr>
+<tr><td style="background:${primary};padding:20px 36px;text-align:center">
+<p style="margin:0;font-size:12px;color:rgba(255,255,255,.5)">Automated ${brand} operations alert from SkyBook.</p>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`
+}
+
 const performQueuedEmailJob=async(job:Json)=>{
   const bookingId=normalizeText(job.booking_id)
   const templateKey=normalizeText(job.payload?.template_key) || 'status_changed'
@@ -2130,7 +2308,8 @@ const performQueuedEmailJob=async(job:Json)=>{
   if(!recipientEmail)throw new Error('Email recipient is missing for queued email delivery.')
   let subject=normalizeText(job.payload?.subject)
   let body=normalizeText(job.payload?.body)
-  if(!subject || !body){
+  let templateVariables:Record<string,unknown>={}
+  {
     const emailTemplates=await getSettingValue('email_templates',defaultEmailTemplates)
     const fallbackTemplate=(defaultEmailTemplates as unknown as Record<string,Json>)[templateKey] || defaultEmailTemplates.status_changed
     const configuredTemplate=(((emailTemplates||{}) as Json)[templateKey] || fallbackTemplate) as Json
@@ -2142,7 +2321,7 @@ const performQueuedEmailJob=async(job:Json)=>{
     const customFields=normalizeJsonRecord(bookingMetadata.custom_fields)
     const customDetails=Object.keys(customFields).length ? JSON.stringify(customFields) : 'None captured'
     const totalAmount=`${normalizeText(booking.currency_code) || 'NAD'} ${Number(booking.total_amount || 0).toFixed(2)}`
-    const templateVariables={
+    templateVariables={
       customer_name:customer?.full_name || 'Guest',
       customer_email:customer?.email || '',
       customer_phone:customer?.phone || '',
@@ -2164,13 +2343,15 @@ const performQueuedEmailJob=async(job:Json)=>{
       brand_support_phone:normalizeText(brand?.support_phone),
       brand_website:normalizeText(brand?.website_url)
     }
-    subject=renderTemplate(String(template.subject || fallbackTemplate.subject),templateVariables)
-    body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
+    if(!subject)subject=renderTemplate(String(template.subject || fallbackTemplate.subject),templateVariables)
+    if(!body)body=renderTemplate(String(template.body || fallbackTemplate.body),templateVariables)
   }
   const brandCodeForHtml=normalizeText(booking.brand_code) || 'true-travel'
-  const renderedHtml=!isConsultantAlert && templateKey==='booking_received'
-    ? renderBookingReceivedHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
-    : ''
+  const renderedHtml=isConsultantAlert
+    ? renderConsultantAlertHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
+    : (templateKey==='booking_received'
+      ? renderBookingReceivedHtml(templateVariables as unknown as Record<string,string>,brandCodeForHtml)
+      : '')
   const emailLog=await queueEmailLog({
     bookingId,
     customerId:String(customer?.id || booking.customer_id || ''),
