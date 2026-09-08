@@ -86,7 +86,7 @@
     transform:translateX(-180%) rotate(8deg);transition:transform .9s var(--ease);opacity:.0}
   .glass:hover::after{transform:translateX(360%) rotate(8deg);opacity:1}
 
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,20px);perspective:1300px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(288px,1fr));gap:clamp(14px,2vw,20px);perspective:1300px}
   .card{display:flex;flex-direction:column;text-decoration:none;color:inherit;will-change:transform;
     padding:clamp(22px,2.6vw,30px);border-radius:24px;
     transform:translateY(var(--lift,0)) scale(var(--sc,1)) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
@@ -118,6 +118,7 @@
   .cta svg{transition:transform .3s var(--ease)}
   .card:hover .cta svg{transform:translateX(3px)}
   .card.studio{--accent:#c07d12;--accent-soft:rgba(192,125,18,.13);--accent-line:rgba(192,125,18,.30);--accent-grad:linear-gradient(120deg,#e09a2a,#c07d12);--accent-shadow:rgba(192,125,18,.30)}
+  .card.insight{--accent:#1b8f6b;--accent-soft:rgba(27,143,107,.12);--accent-line:rgba(27,143,107,.28);--accent-grad:linear-gradient(120deg,#2bb489,#1b8f6b);--accent-shadow:rgba(27,143,107,.30)}
   .card.ops{--accent:#1769aa;--accent-soft:rgba(23,105,170,.12);--accent-line:rgba(23,105,170,.28);--accent-grad:linear-gradient(120deg,#2b8fd8,#1769aa);--accent-shadow:rgba(23,105,170,.30)}
 
   /* ── Apps strip (glass tiles) ── */
@@ -194,6 +195,20 @@
           <li>Payments, commissions &amp; settlements</li>
         </ul>
         <span class="cta">Open Booking Admin
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
+      </a>
+
+      <a class="card glass insight rise d5" href="login.html?next=analytics.html">
+        <span class="card-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21H4a1 1 0 0 1-1-1V3"/><polyline points="7 14 11 9 15 12 20 5"/></svg></span>
+        <span class="chip">Site Analytics</span>
+        <h3>Visitors &amp; Traffic</h3>
+        <p class="desc">See who visits the Iventure and True Travel sites, where they come from, and what they look at.</p>
+        <ul class="feat">
+          <li>Visitors, sessions &amp; page views</li>
+          <li>Referrers, channels &amp; campaigns</li>
+          <li>Countries, devices &amp; top pages</li>
+        </ul>
+        <span class="cta">Open Site Analytics
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>
       </a>
     </section>

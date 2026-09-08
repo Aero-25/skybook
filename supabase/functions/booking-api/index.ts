@@ -5019,6 +5019,184 @@ const generateBookingPaymentLink=async(bookingId:string,payload:Json,userId:stri
   return { success:true, status:booking.status, payment_status:nextPaymentStatus, payment_link:paymentLink, payment_token:paymentToken }
 }
 
+// ── Site analytics ──────────────────────────────────────────────────────────
+// Visits arrive from a tiny first-party beacon on the public sites. No IP and
+// no cookies: the visitor id is a random string the browser keeps in
+// localStorage, and geography comes from the browser's own timezone.
+
+const ANALYTICS_TEXT_LIMIT=300
+
+const clampAnalyticsText=(value:unknown,limit=ANALYTICS_TEXT_LIMIT)=>normalizeText(value).slice(0,limit)
+
+const classifyReferrer=(referrerHost:string,selfHost:string,utmMedium:string)=>{
+  const host=referrerHost.toLowerCase()
+  const medium=utmMedium.toLowerCase()
+  if(medium==='cpc'||medium==='ppc'||medium==='paid')return 'paid'
+  if(medium==='email')return 'email'
+  if(!host)return 'direct'
+  if(selfHost && (host===selfHost || host.endsWith('.'+selfHost)))return 'internal'
+  if(/(^|\.)(google|bing|yahoo|duckduckgo|ecosia|baidu|yandex|brave)\./.test(host))return 'search'
+  if(/(^|\.)(facebook|instagram|twitter|x|t|linkedin|pinterest|reddit|tiktok|youtube|whatsapp|telegram|snapchat)\./.test(host))return 'social'
+  return 'referral'
+}
+
+const recordSiteVisit=async(payload:Json,brandCode:string)=>{
+  const referrer=clampAnalyticsText(payload.referrer,500)
+  let referrerHost=''
+  try{ referrerHost=referrer ? new URL(referrer).hostname.replace(/^www\./,'') : '' }catch{ referrerHost='' }
+  const selfHost=clampAnalyticsText(payload.host).replace(/^www\./,'').toLowerCase()
+  const utmMedium=clampAnalyticsText(payload.utm_medium,100)
+  const row={
+    brand_code:brandCode || 'true-travel',
+    visitor_id:clampAnalyticsText(payload.visitor_id,64),
+    session_id:clampAnalyticsText(payload.session_id,64),
+    is_new_visitor:payload.is_new_visitor===true,
+    path:clampAnalyticsText(payload.path,500) || '/',
+    page_title:clampAnalyticsText(payload.title,300),
+    query_string:clampAnalyticsText(payload.query,500),
+    referrer,
+    referrer_host:referrerHost,
+    referrer_type:classifyReferrer(referrerHost,selfHost,utmMedium),
+    utm_source:clampAnalyticsText(payload.utm_source,100),
+    utm_medium:utmMedium,
+    utm_campaign:clampAnalyticsText(payload.utm_campaign,100),
+    utm_term:clampAnalyticsText(payload.utm_term,100),
+    utm_content:clampAnalyticsText(payload.utm_content,100),
+    country:clampAnalyticsText(payload.country,100),
+    timezone:clampAnalyticsText(payload.timezone,100),
+    language:clampAnalyticsText(payload.language,20),
+    device_type:clampAnalyticsText(payload.device_type,20),
+    browser:clampAnalyticsText(payload.browser,40),
+    os:clampAnalyticsText(payload.os,40),
+    screen_width:Math.max(0,Math.min(20000,Number(payload.screen_width)||0)),
+    screen_height:Math.max(0,Math.min(20000,Number(payload.screen_height)||0))
+  }
+  if(!row.visitor_id||!row.session_id)return { ok:false }
+  const { error }=await adminClient.from('site_visits').insert(row)
+  if(error)return { ok:false }
+  return { ok:true }
+}
+
+// Second beacon, fired when the visitor leaves: fills in how long they stayed.
+const recordSiteVisitEngagement=async(payload:Json)=>{
+  const sessionId=clampAnalyticsText(payload.session_id,64)
+  const path=clampAnalyticsText(payload.path,500)
+  if(!sessionId||!path)return { ok:false }
+  const durationMs=Math.max(0,Math.min(7200000,Number(payload.duration_ms)||0))
+  const { data }=await adminClient.from('site_visits')
+    .select('id')
+    .eq('session_id',sessionId)
+    .eq('path',path)
+    .order('created_at',{ascending:false})
+    .limit(1)
+  const visitId=Array.isArray(data)&&data.length ? String((data[0] as Json).id||'') : ''
+  if(!visitId)return { ok:false }
+  await adminClient.from('site_visits').update({
+    duration_ms:durationMs,
+    max_scroll_pct:Math.max(0,Math.min(100,Number(payload.max_scroll_pct)||0)),
+    // Ten seconds of attention is engagement, not a bounce.
+    is_bounce:durationMs<10000
+  }).eq('id',visitId)
+  return { ok:true }
+}
+
+const tallyBy=(rows:Json[],key:string,limit=15)=>{
+  const counts=new Map<string,number>()
+  for(const row of rows){
+    const value=normalizeText((row as Json)[key]) || 'Unknown'
+    counts.set(value,(counts.get(value)||0)+1)
+  }
+  return [...counts.entries()]
+    .map(([label,count])=>({ label, count }))
+    .sort((a,b)=>b.count-a.count)
+    .slice(0,limit)
+}
+
+const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>{
+  // Pull the window once and aggregate in memory: at this traffic volume it is
+  // far cheaper than a round trip per breakdown.
+  const rows=await safeTableSelect<Json>(
+    adminClient.from('site_visits')
+      .select('*')
+      .eq('brand_code',brandCode)
+      .gte('created_at',fromDate)
+      .lte('created_at',toDate)
+      .order('created_at',{ascending:false})
+      .limit(50000),
+    []
+  )
+
+  const visitors=new Set<string>()
+  const sessions=new Set<string>()
+  const bouncedSessions=new Set<string>()
+  const engagedSessions=new Set<string>()
+  const byDay=new Map<string,{views:number,visitors:Set<string>}>()
+  const byHour=new Array(24).fill(0)
+  const byWeekday=new Array(7).fill(0)
+  let totalDuration=0
+  let durationSamples=0
+
+  for(const row of rows){
+    const visitorId=normalizeText(row.visitor_id)
+    const sessionId=normalizeText(row.session_id)
+    if(visitorId)visitors.add(visitorId)
+    if(sessionId)sessions.add(sessionId)
+    const created=new Date(String(row.created_at||''))
+    if(!Number.isNaN(created.getTime())){
+      const day=created.toISOString().slice(0,10)
+      const bucket=byDay.get(day) || { views:0, visitors:new Set<string>() }
+      bucket.views+=1
+      if(visitorId)bucket.visitors.add(visitorId)
+      byDay.set(day,bucket)
+      byHour[created.getUTCHours()]+=1
+      byWeekday[created.getUTCDay()]+=1
+    }
+    const duration=Number(row.duration_ms||0)
+    if(duration>0){ totalDuration+=duration; durationSamples+=1 }
+    if(sessionId){
+      if(duration>=10000)engagedSessions.add(sessionId)
+      else bouncedSessions.add(sessionId)
+    }
+  }
+  for(const sessionId of engagedSessions)bouncedSessions.delete(sessionId)
+
+  const pageViews=rows.length
+  const sessionCount=sessions.size
+  const timeline=[...byDay.entries()]
+    .map(([date,bucket])=>({ date, views:bucket.views, visitors:bucket.visitors.size }))
+    .sort((a,b)=>a.date<b.date ? -1 : 1)
+
+  return {
+    range:{ from:fromDate, to:toDate, brand_code:brandCode },
+    totals:{
+      page_views:pageViews,
+      visitors:visitors.size,
+      sessions:sessionCount,
+      views_per_session:sessionCount ? Number((pageViews/sessionCount).toFixed(2)) : 0,
+      bounce_rate:sessionCount ? Number(((bouncedSessions.size/sessionCount)*100).toFixed(1)) : 0,
+      avg_duration_seconds:durationSamples ? Math.round(totalDuration/durationSamples/1000) : 0,
+      new_visitors:rows.filter((row:Json)=>row.is_new_visitor===true).length
+    },
+    timeline,
+    by_hour:byHour.map((count,hour)=>({ label:String(hour).padStart(2,'0')+':00', count })),
+    by_weekday:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((label,index)=>({ label, count:byWeekday[index] })),
+    top_pages:tallyBy(rows,'path',20),
+    top_titles:tallyBy(rows,'page_title',15),
+    referrers:tallyBy(rows,'referrer_host',20),
+    channels:tallyBy(rows,'referrer_type',10),
+    countries:tallyBy(rows,'country',20),
+    timezones:tallyBy(rows,'timezone',15),
+    languages:tallyBy(rows,'language',15),
+    devices:tallyBy(rows,'device_type',10),
+    browsers:tallyBy(rows,'browser',15),
+    operating_systems:tallyBy(rows,'os',15),
+    utm_sources:tallyBy(rows,'utm_source',15),
+    utm_campaigns:tallyBy(rows,'utm_campaign',15),
+    utm_mediums:tallyBy(rows,'utm_medium',10),
+    sample_size:rows.length
+  }
+}
+
 // ── Guest review helpers ────────────────────────────────────────────────────
 const submitGuestReview=async(payload:Json)=>{
   const guestName=String(payload.guest_name||'').trim()
@@ -5089,6 +5267,16 @@ Deno.serve(async request=>{
       const ip=normalizeText(request.headers.get('x-forwarded-for')).split(',')[0]||'unknown'
       if(previewRateLimited(ip))return json(429,{valid:false,error:'rate_limited'})
       return json(200,await previewDiscountCode(id,brandCode))
+    }
+
+    // Public analytics beacon. No auth: it only ever writes anonymous
+    // aggregate rows, and answers 200 regardless so a tracking failure can
+    // never surface as an error on a guest's page.
+    if(request.method==='POST'&&resource==='analytics'&&id==='collect'){
+      return json(200,await recordSiteVisit(requestBody,brandCode).catch(()=>({ ok:false })))
+    }
+    if(request.method==='POST'&&resource==='analytics'&&id==='engagement'){
+      return json(200,await recordSiteVisitEngagement(requestBody).catch(()=>({ ok:false })))
     }
 
     if(request.method==='POST'&&resource==='bookings'&&!id){
@@ -5172,6 +5360,16 @@ Deno.serve(async request=>{
         }).eq('id',subresource).select().single()
         if(error)throw error
         return json(200,{ success:true, health_event:data })
+      }
+
+      if(request.method==='GET'&&id==='analytics'){
+        requireSkybookPermission(adminProfile,'reports')
+        const params=new URL(request.url).searchParams
+        const requestedBrand=normalizeText(params.get('brand')) || brandCode || 'true-travel'
+        const to=normalizeText(params.get('to')) || nowIso()
+        const from=normalizeText(params.get('from'))
+          || new Date(Date.now()-30*24*3600*1000).toISOString()
+        return json(200,await buildSiteAnalytics(requestedBrand,from,to))
       }
 
       if(request.method==='POST'&&id==='bookings'&&!subresource){

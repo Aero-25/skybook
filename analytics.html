@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Site Analytics — SkyBook</title>
+<link rel="icon" type="image/png" href="https://agfrphupwdcjgugvpiuj.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png">
+<style>
+:root{
+  color-scheme:light;
+  --surface-0:#f4f6fa; --surface-1:#ffffff; --surface-2:#f7f8fa;
+  --border:#e4e7ec; --border-strong:#d3d7de;
+  --text-primary:#0b1520; --text-secondary:#52596b; --text-muted:#8a91a1;
+  --series-1:#2a78d6; --series-2:#eb6834;
+  --grid:#eceef2; --accent:#2a78d6;
+  --good:#1baf7a; --warn:#eda100;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --surface-0:#12151a; --surface-1:#1a1e25; --surface-2:#20252d;
+    --border:#2c323c; --border-strong:#3a414d;
+    --text-primary:#ffffff; --text-secondary:#b3bac7; --text-muted:#7d8595;
+    --series-1:#3987e5; --series-2:#d95926;
+    --grid:#262c35; --accent:#3987e5;
+    --good:#199e70; --warn:#c98500;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --surface-0:#12151a; --surface-1:#1a1e25; --surface-2:#20252d;
+  --border:#2c323c; --border-strong:#3a414d;
+  --text-primary:#ffffff; --text-secondary:#b3bac7; --text-muted:#7d8595;
+  --series-1:#3987e5; --series-2:#d95926;
+  --grid:#262c35; --accent:#3987e5;
+  --good:#199e70; --warn:#c98500;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-primary);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent)}
+.wrap{max-width:1280px;margin:0 auto;padding:24px 20px 64px}
+
+header.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+header.top img{height:34px;width:auto}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+.sub{color:var(--text-secondary);font-size:13px;margin:2px 0 0}
+.spacer{flex:1}
+.backlink{font-size:13px;text-decoration:none;color:var(--text-secondary);
+  border:1px solid var(--border);padding:7px 13px;border-radius:8px;background:var(--surface-1)}
+.backlink:hover{border-color:var(--border-strong);color:var(--text-primary)}
+
+/* Filters: one row above the charts */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:22px;
+  background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:3px}
+.seg button{border:0;background:transparent;color:var(--text-secondary);padding:7px 14px;border-radius:6px;
+  font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.seg button[aria-pressed="true"]{background:var(--surface-1);color:var(--text-primary);
+  box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.filters label{font-size:12px;color:var(--text-muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.filters input[type=date]{background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary);
+  border-radius:8px;padding:7px 10px;font:inherit;font-size:13px}
+.btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text-primary);border-radius:8px;
+  padding:7px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:var(--border-strong)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Stat tiles — headline numbers are not charts */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:22px}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.tile .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);font-weight:700}
+.tile .v{font-size:27px;font-weight:700;margin-top:7px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .n{font-size:12px;color:var(--text-secondary);margin-top:3px}
+
+.panel{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.panel h2{font-size:14px;margin:0 0 3px;font-weight:700}
+.panel .desc{font-size:12px;color:var(--text-muted);margin:0 0 14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+
+/* Legend — always present at 2+ series */
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px;font-size:12px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.chartbox{position:relative;overflow-x:auto}
+svg{display:block;max-width:100%}
+.tip{position:absolute;pointer-events:none;background:var(--surface-1);border:1px solid var(--border-strong);
+  border-radius:8px;padding:8px 11px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.16);opacity:0;
+  transition:opacity .1s;white-space:nowrap;z-index:5;color:var(--text-primary)}
+.tip.on{opacity:1}
+.tip b{font-variant-numeric:tabular-nums}
+
+/* Ranked bars — single series, always directly labelled */
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:1fr auto;gap:4px}
+.bar .lbl{font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .num{font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums;font-weight:600}
+.bar .track{grid-column:1/-1;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;background:var(--series-1);border-radius:4px;min-width:3px}
+.empty{color:var(--text-muted);font-size:13px;padding:14px 0;text-align:center}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);padding:6px 0}
+
+.state{padding:56px 20px;text-align:center;color:var(--text-secondary)}
+.banner{background:var(--surface-1);border:1px solid var(--border);border-left:3px solid var(--warn);
+  border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--text-secondary)}
+.banner b{color:var(--text-primary)}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img src="https://agfrphupwdcjgugvpiuj.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png" alt="SkyBook">
+    <div>
+      <h1>Site Analytics</h1>
+      <p class="sub" id="sub">Visitor activity across the public brand sites</p>
+    </div>
+    <span class="spacer"></span>
+    <a class="backlink" href="admin.html">← Workspace</a>
+  </header>
+
+  <div id="gate" class="state">Checking your SkyBook session…</div>
+
+  <main id="app" class="hide">
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Brand">
+        <button type="button" data-brand="iventure" aria-pressed="true">Iventure</button>
+        <button type="button" data-brand="true-travel" aria-pressed="false">True Travel</button>
+      </div>
+      <div class="seg" role="group" aria-label="Date range">
+        <button type="button" data-days="7" aria-pressed="false">7d</button>
+        <button type="button" data-days="30" aria-pressed="true">30d</button>
+        <button type="button" data-days="90" aria-pressed="false">90d</button>
+        <button type="button" data-days="365" aria-pressed="false">1y</button>
+      </div>
+      <label for="from">From</label><input type="date" id="from">
+      <label for="to">To</label><input type="date" id="to">
+      <button class="btn primary" id="apply" type="button">Apply</button>
+      <span class="spacer"></span>
+      <button class="btn" id="csv" type="button">Export CSV</button>
+    </div>
+
+    <div id="nodata" class="banner hide"></div>
+    <div id="tiles" class="tiles"></div>
+
+    <section class="panel">
+      <h2>Traffic over time</h2>
+      <p class="desc">Page views and unique visitors per day</p>
+      <div class="legend">
+        <span><i style="background:var(--series-1)"></i>Page views</span>
+        <span><i style="background:var(--series-2)"></i>Unique visitors</span>
+      </div>
+      <div class="chartbox" id="tlbox"></div>
+    </section>
+
+    <div class="grid2" id="panels"></div>
+
+    <section class="panel">
+      <h2>When people visit</h2>
+      <p class="desc">Page views by hour (UTC) and by day of week</p>
+      <div class="chartbox" id="hourbox"></div>
+      <div class="chartbox" id="daybox" style="margin-top:18px"></div>
+    </section>
+  </main>
+</div>
+
+<script src="assets/js/shared.js"></script>
+<script src="assets/js/booking-shared.js"></script>
+<script src="assets/js/site-analytics-page.js"></script>
+</body>
+</html>
