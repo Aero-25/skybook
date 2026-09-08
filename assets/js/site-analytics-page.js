@@ -354,12 +354,20 @@
     // The time-of-day panel belongs to Overview only.
     $('whenpanel').classList.toggle('hide', state.tab !== 'overview');
 
+    // A missing table and genuinely-zero traffic look identical from the
+    // numbers alone, so say which one it is.
+    const diag = d.diagnostics || {};
     const none = !(d.totals || {}).page_views;
     $('nodata').classList.toggle('hide', !none);
-    if (none) {
+    if (diag.visits_table_missing) {
+      $('nodata').innerHTML = '<b>The analytics tables do not exist in the database yet.</b> This is a setup step, not a '
+        + 'traffic problem — the site_visits table has not been created, so nothing can be recorded. Run the analytics '
+        + 'migration (<code>supabase/migrations/202609080001_skybook_site_analytics.sql</code>) against this project, '
+        + 'then reload.' + (diag.visits_probe_error ? ' Database said: <code>' + esc(diag.visits_probe_error) + '</code>.' : '');
+    } else if (none) {
       $('nodata').innerHTML = '<b>No visits recorded for this brand yet.</b> Analytics counts visits from the moment the '
         + 'tracking script goes live on the site — it cannot show traffic from before then. If the site was deployed '
-        + 'recently, check back in a few hours.';
+        + 'recently, check back in a few minutes.';
     }
   }
 

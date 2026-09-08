@@ -217,8 +217,17 @@ const json=(status:number,payload:Json)=>new Response(JSON.stringify(payload),{
 
 const readBody=async(request:Request)=>{
   const contentType=request.headers.get('content-type')||''
-  if(!contentType.includes('application/json'))return {}
-  try{return await request.json()}catch{return {}}
+  // navigator.sendBeacon can only avoid a CORS preflight with a safelisted
+  // content type, so analytics beacons arrive as text/plain carrying JSON.
+  // An empty content type is treated the same way for the same reason.
+  const isJson=contentType.includes('application/json')
+  const isBeacon=contentType.includes('text/plain')||contentType===''
+  if(!isJson&&!isBeacon)return {}
+  try{
+    if(isJson)return await request.json()
+    const text=await request.text()
+    return text ? JSON.parse(text) : {}
+  }catch{return {}}
 }
 
 const normalizeText=(value:unknown)=>String(value ?? '').trim()
@@ -5207,6 +5216,13 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   const prevFrom=new Date(fromMs-windowMs).toISOString()
   const prevTo=new Date(fromMs-1).toISOString()
 
+  // Distinguish "no visits yet" from "the migration has not been run": both
+  // otherwise surface as a confident zero, which is how a missing table gets
+  // mistaken for missing traffic.
+  const probe=await adminClient.from('site_visits').select('id').limit(1)
+  const probeCode=String((probe as Json)?.error?.code || '')
+  const visitsTableMissing=['42P01','PGRST205','PGRST106'].includes(probeCode)
+
   const [rows,prevRows,events,bookings]=await Promise.all([
     safeTableSelect<Json>(adminClient.from('site_visits').select('*')
       .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
@@ -5442,6 +5458,10 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
     revenue_by_campaign:revenueBy('campaign'),
     revenue_by_country:revenueBy('country'),
     revenue_by_device:revenueBy('device'),
+    diagnostics:{
+      visits_table_missing:visitsTableMissing,
+      visits_probe_error:probeCode
+    },
     sample_size:rows.length,
     event_sample_size:events.length,
     booking_sample_size:bookings.length,

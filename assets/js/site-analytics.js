@@ -157,7 +157,11 @@
     function post(path, body) {
       try {
         var url = API + path, json = JSON.stringify(body);
-        if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([json], { type: 'application/json' }))) return;
+        // text/plain is CORS-safelisted, so the beacon skips the preflight
+        // entirely. With application/json the browser must preflight, and a
+        // beacon fired during unload frequently loses that race and is dropped
+        // silently. The server parses the body as JSON either way.
+        if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([json], { type: 'text/plain;charset=UTF-8' }))) return;
         fetch(url, {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'x-brand-code': BRAND },
           body: json, keepalive: true, mode: 'cors'
