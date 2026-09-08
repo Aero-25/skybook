@@ -1917,11 +1917,12 @@ const getConfiguredBrandSupportEmail=async(brandCode:string)=>{
   )
 }
 
-const markEmailLogSent=async(emailLog:Json,provider:string,responseStatus:number,extraMetadata:Json={})=>{
+const markEmailLogSent=async(emailLog:Json,provider:string,responseStatus:number,extraMetadata:Json={},providerMessageId='')=>{
   await adminClient.from('email_logs').update({
     status:'sent',
     sent_at:nowIso(),
     error_message:null,
+    ...(providerMessageId ? {provider_message_id:providerMessageId} : {}),
     metadata:{
       ...normalizeJsonRecord(emailLog.metadata),
       dispatch_provider:provider,
@@ -1979,7 +1980,7 @@ const dispatchViaResend=async(emailLog:Json,brandCode:string,config:Json)=>{
   await markEmailLogSent(emailLog,'resend',response.status,{
     resend_id:normalizeText(result.id),
     resend_from:from
-  })
+  },normalizeText(result.id))
   return { status:'sent', provider:'resend', id:normalizeText(result.id) }
 }
 
