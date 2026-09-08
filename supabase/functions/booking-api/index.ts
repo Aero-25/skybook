@@ -5028,6 +5028,27 @@ const ANALYTICS_TEXT_LIMIT=300
 
 const clampAnalyticsText=(value:unknown,limit=ANALYTICS_TEXT_LIMIT)=>normalizeText(value).slice(0,limit)
 
+const clampNumber=(value:unknown,min:number,max:number)=>{
+  const n=Number(value)
+  if(!Number.isFinite(n))return min
+  return Math.max(min,Math.min(max,Math.round(n)))
+}
+
+const recordSiteEvent=async(payload:Json,brandCode:string)=>{
+  const sessionId=clampAnalyticsText(payload.session_id,64)
+  if(!sessionId)return { ok:false }
+  const { error }=await adminClient.from('site_events').insert({
+    brand_code:brandCode || 'true-travel',
+    visitor_id:clampAnalyticsText(payload.visitor_id,64),
+    session_id:sessionId,
+    event_type:clampAnalyticsText(payload.event_type,40) || 'click',
+    label:clampAnalyticsText(payload.label,200),
+    href:clampAnalyticsText(payload.href,300),
+    path:clampAnalyticsText(payload.path,500)
+  })
+  return { ok:!error }
+}
+
 const classifyReferrer=(referrerHost:string,selfHost:string,utmMedium:string)=>{
   const host=referrerHost.toLowerCase()
   const medium=utmMedium.toLowerCase()
@@ -5067,9 +5088,29 @@ const recordSiteVisit=async(payload:Json,brandCode:string)=>{
     language:clampAnalyticsText(payload.language,20),
     device_type:clampAnalyticsText(payload.device_type,20),
     browser:clampAnalyticsText(payload.browser,40),
+    browser_version:clampAnalyticsText(payload.browser_version,20),
     os:clampAnalyticsText(payload.os,40),
-    screen_width:Math.max(0,Math.min(20000,Number(payload.screen_width)||0)),
-    screen_height:Math.max(0,Math.min(20000,Number(payload.screen_height)||0))
+    os_version:clampAnalyticsText(payload.os_version,20),
+    screen_width:clampNumber(payload.screen_width,0,20000),
+    screen_height:clampNumber(payload.screen_height,0,20000),
+    viewport_width:clampNumber(payload.viewport_width,0,20000),
+    viewport_height:clampNumber(payload.viewport_height,0,20000),
+    orientation:clampAnalyticsText(payload.orientation,20),
+    is_entry:payload.is_entry===true,
+    landing_path:clampAnalyticsText(payload.landing_path,500),
+    connection_type:clampAnalyticsText(payload.connection_type,20),
+    device_memory_gb:clampNumber(payload.device_memory_gb,0,1024),
+    cpu_cores:clampNumber(payload.cpu_cores,0,256),
+    is_touch:payload.is_touch===true,
+    prefers_dark:payload.prefers_dark===true,
+    prefers_reduced_motion:payload.prefers_reduced_motion===true,
+    local_hour:Number.isFinite(Number(payload.local_hour)) ? clampNumber(payload.local_hour,0,23) : -1,
+    // Page speed is capped at two minutes: anything above is a stalled tab,
+    // not a real load, and would wreck the averages.
+    ttfb_ms:clampNumber(payload.ttfb_ms,0,120000),
+    dom_ready_ms:clampNumber(payload.dom_ready_ms,0,120000),
+    load_ms:clampNumber(payload.load_ms,0,120000),
+    fcp_ms:clampNumber(payload.fcp_ms,0,120000)
   }
   if(!row.visitor_id||!row.session_id)return { ok:false }
   const { error }=await adminClient.from('site_visits').insert(row)
@@ -5091,11 +5132,14 @@ const recordSiteVisitEngagement=async(payload:Json)=>{
     .limit(1)
   const visitId=Array.isArray(data)&&data.length ? String((data[0] as Json).id||'') : ''
   if(!visitId)return { ok:false }
+  const engagedMs=Math.max(0,Math.min(7200000,Number(payload.engaged_ms)||0))
   await adminClient.from('site_visits').update({
     duration_ms:durationMs,
+    engaged_ms:engagedMs,
     max_scroll_pct:Math.max(0,Math.min(100,Number(payload.max_scroll_pct)||0)),
-    // Ten seconds of attention is engagement, not a bounce.
-    is_bounce:durationMs<10000
+    // Ten seconds of *visible* attention is engagement, not a bounce. Elapsed
+    // time is a poor proxy — a forgotten background tab would count as engaged.
+    is_bounce:(engagedMs||durationMs)<10000
   }).eq('id',visitId)
   return { ok:true }
 }
@@ -5112,88 +5156,296 @@ const tallyBy=(rows:Json[],key:string,limit=15)=>{
     .slice(0,limit)
 }
 
-const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>{
-  // Pull the window once and aggregate in memory: at this traffic volume it is
-  // far cheaper than a round trip per breakdown.
-  const rows=await safeTableSelect<Json>(
-    adminClient.from('site_visits')
-      .select('*')
-      .eq('brand_code',brandCode)
-      .gte('created_at',fromDate)
-      .lte('created_at',toDate)
-      .order('created_at',{ascending:false})
-      .limit(50000),
-    []
-  )
+const avgOf=(values:number[])=>values.length ? Math.round(values.reduce((a,b)=>a+b,0)/values.length) : 0
+const medianOf=(values:number[])=>{
+  if(!values.length)return 0
+  const sorted=[...values].sort((a,b)=>a-b)
+  const mid=Math.floor(sorted.length/2)
+  return sorted.length%2 ? sorted[mid] : Math.round((sorted[mid-1]+sorted[mid])/2)
+}
+const pctChange=(now:number,before:number)=>{
+  if(!before)return now ? 100 : 0
+  return Number((((now-before)/before)*100).toFixed(1))
+}
 
+// One pass over a window of visits, reduced to the numbers the dashboard shows.
+const summariseVisits=(rows:Json[])=>{
   const visitors=new Set<string>()
   const sessions=new Set<string>()
-  const bouncedSessions=new Set<string>()
-  const engagedSessions=new Set<string>()
-  const byDay=new Map<string,{views:number,visitors:Set<string>}>()
-  const byHour=new Array(24).fill(0)
-  const byWeekday=new Array(7).fill(0)
-  let totalDuration=0
-  let durationSamples=0
-
+  const engaged=new Set<string>()
+  const durations:number[]=[]
+  let engagedTotal=0
   for(const row of rows){
     const visitorId=normalizeText(row.visitor_id)
     const sessionId=normalizeText(row.session_id)
     if(visitorId)visitors.add(visitorId)
     if(sessionId)sessions.add(sessionId)
+    const engagedMs=Number(row.engaged_ms||0) || Number(row.duration_ms||0)
+    if(engagedMs>0){ durations.push(engagedMs); engagedTotal+=engagedMs }
+    if(sessionId&&engagedMs>=10000)engaged.add(sessionId)
+  }
+  const sessionCount=sessions.size
+  return {
+    page_views:rows.length,
+    visitors:visitors.size,
+    sessions:sessionCount,
+    engaged_sessions:engaged.size,
+    bounce_rate:sessionCount ? Number((((sessionCount-engaged.size)/sessionCount)*100).toFixed(1)) : 0,
+    views_per_session:sessionCount ? Number((rows.length/sessionCount).toFixed(2)) : 0,
+    avg_duration_seconds:durations.length ? Math.round(avgOf(durations)/1000) : 0,
+    median_duration_seconds:durations.length ? Math.round(medianOf(durations)/1000) : 0,
+    total_engaged_minutes:Math.round(engagedTotal/60000),
+    new_visitors:rows.filter((row:Json)=>row.is_new_visitor===true).length
+  }
+}
+
+const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>{
+  const fromMs=new Date(fromDate).getTime()
+  const toMs=new Date(toDate).getTime()
+  const windowMs=Math.max(86400000,toMs-fromMs)
+  // The immediately preceding window of the same length, for the deltas.
+  const prevFrom=new Date(fromMs-windowMs).toISOString()
+  const prevTo=new Date(fromMs-1).toISOString()
+
+  const [rows,prevRows,events,bookings]=await Promise.all([
+    safeTableSelect<Json>(adminClient.from('site_visits').select('*')
+      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
+      .order('created_at',{ascending:false}).limit(50000),[]),
+    safeTableSelect<Json>(adminClient.from('site_visits').select('session_id,visitor_id,duration_ms,engaged_ms,is_new_visitor')
+      .eq('brand_code',brandCode).gte('created_at',prevFrom).lte('created_at',prevTo).limit(50000),[]),
+    safeTableSelect<Json>(adminClient.from('site_events').select('*')
+      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate).limit(50000),[]),
+    safeTableSelect<Json>(adminClient.from('bookings')
+      .select('id,reference,total_amount,currency_code,status,created_at,metadata,brand_code')
+      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate).limit(5000),[])
+  ])
+
+  const totals=summariseVisits(rows)
+  const prevTotals=summariseVisits(prevRows)
+
+  // ── Time series and cyclical patterns ────────────────────────────────────
+  const byDay=new Map<string,{views:number,visitors:Set<string>,sessions:Set<string>,newVisitors:number}>()
+  const byHour=new Array(24).fill(0)
+  const byLocalHour=new Array(24).fill(0)
+  const byWeekday=new Array(7).fill(0)
+  const heat=new Array(7).fill(0).map(()=>new Array(24).fill(0))
+  const sessionFirst=new Map<string,Json>()
+  const sessionLast=new Map<string,Json>()
+  const sessionPaths=new Map<string,string[]>()
+  const perPage=new Map<string,{views:number,engaged:number[],scroll:number[],entries:number,exits:number}>()
+  const scrollBuckets={ '0–25%':0, '25–50%':0, '50–75%':0, '75–100%':0 }
+  const timeBuckets={ 'Under 10s':0, '10–30s':0, '30s–2m':0, '2–5m':0, 'Over 5m':0 }
+  const speedTtfb:number[]=[]; const speedFcp:number[]=[]; const speedLoad:number[]=[]
+
+  for(const row of rows){
     const created=new Date(String(row.created_at||''))
     if(!Number.isNaN(created.getTime())){
       const day=created.toISOString().slice(0,10)
-      const bucket=byDay.get(day) || { views:0, visitors:new Set<string>() }
+      const bucket=byDay.get(day) || { views:0, visitors:new Set<string>(), sessions:new Set<string>(), newVisitors:0 }
       bucket.views+=1
-      if(visitorId)bucket.visitors.add(visitorId)
+      if(normalizeText(row.visitor_id))bucket.visitors.add(normalizeText(row.visitor_id))
+      if(normalizeText(row.session_id))bucket.sessions.add(normalizeText(row.session_id))
+      if(row.is_new_visitor===true)bucket.newVisitors+=1
       byDay.set(day,bucket)
       byHour[created.getUTCHours()]+=1
       byWeekday[created.getUTCDay()]+=1
+      heat[created.getUTCDay()][created.getUTCHours()]+=1
     }
-    const duration=Number(row.duration_ms||0)
-    if(duration>0){ totalDuration+=duration; durationSamples+=1 }
-    if(sessionId){
-      if(duration>=10000)engagedSessions.add(sessionId)
-      else bouncedSessions.add(sessionId)
-    }
-  }
-  for(const sessionId of engagedSessions)bouncedSessions.delete(sessionId)
+    const localHour=Number(row.local_hour)
+    if(Number.isFinite(localHour)&&localHour>=0&&localHour<24)byLocalHour[localHour]+=1
 
-  const pageViews=rows.length
-  const sessionCount=sessions.size
+    const sessionId=normalizeText(row.session_id)
+    if(sessionId){
+      if(!sessionFirst.has(sessionId))sessionFirst.set(sessionId,row)
+      sessionLast.set(sessionId,row)
+      const seq=sessionPaths.get(sessionId) || []
+      seq.push(normalizeText(row.path) || '/')
+      sessionPaths.set(sessionId,seq)
+    }
+
+    const path=normalizeText(row.path) || '/'
+    const page=perPage.get(path) || { views:0, engaged:[], scroll:[], entries:0, exits:0 }
+    page.views+=1
+    const engagedMs=Number(row.engaged_ms||0) || Number(row.duration_ms||0)
+    if(engagedMs>0)page.engaged.push(engagedMs)
+    const scroll=Number(row.max_scroll_pct||0)
+    if(scroll>0)page.scroll.push(scroll)
+    if(row.is_entry===true)page.entries+=1
+    perPage.set(path,page)
+
+    if(scroll>0){
+      if(scroll<25)scrollBuckets['0–25%']+=1
+      else if(scroll<50)scrollBuckets['25–50%']+=1
+      else if(scroll<75)scrollBuckets['50–75%']+=1
+      else scrollBuckets['75–100%']+=1
+    }
+    if(engagedMs>0){
+      const seconds=engagedMs/1000
+      if(seconds<10)timeBuckets['Under 10s']+=1
+      else if(seconds<30)timeBuckets['10–30s']+=1
+      else if(seconds<120)timeBuckets['30s–2m']+=1
+      else if(seconds<300)timeBuckets['2–5m']+=1
+      else timeBuckets['Over 5m']+=1
+    }
+    const ttfb=Number(row.ttfb_ms||0); if(ttfb>0)speedTtfb.push(ttfb)
+    const fcp=Number(row.fcp_ms||0); if(fcp>0)speedFcp.push(fcp)
+    const load=Number(row.load_ms||0); if(load>0)speedLoad.push(load)
+  }
+
+  // Sessions that ended on a page — the exits.
+  for(const [,row] of sessionLast){
+    const path=normalizeText(row.path) || '/'
+    const page=perPage.get(path)
+    if(page)page.exits+=1
+  }
+
+  // ── Conversions: sessions that produced a real booking ───────────────────
+  const bookingSessions=new Set<string>()
+  const bookingVisitors=new Set<string>()
+  const revenueBy=(key:'channel'|'source'|'campaign'|'country'|'device')=>{
+    const map=new Map<string,{bookings:number,revenue:number}>()
+    for(const booking of bookings){
+      const analytics=normalizeJsonRecord(normalizeJsonRecord(booking.metadata).analytics)
+      if(!Object.keys(analytics).length)continue
+      const lastTouch=normalizeJsonRecord(analytics.last_touch)
+      const firstTouch=normalizeJsonRecord(analytics.first_touch)
+      const host=normalizeText(lastTouch.referrer_host)||normalizeText(firstTouch.referrer_host)
+      const utmSource=normalizeText(lastTouch.utm_source)||normalizeText(firstTouch.utm_source)
+      let label='Unknown'
+      if(key==='channel')label=classifyReferrer(host,'',normalizeText(lastTouch.utm_medium))
+      if(key==='source')label=utmSource || host || 'Direct'
+      if(key==='campaign')label=normalizeText(lastTouch.utm_campaign)||normalizeText(firstTouch.utm_campaign)||'None'
+      if(key==='country')label=normalizeText(analytics.country)||'Unknown'
+      if(key==='device')label=normalizeText(analytics.device_type)||'Unknown'
+      const entry=map.get(label) || { bookings:0, revenue:0 }
+      entry.bookings+=1
+      entry.revenue+=Number(booking.total_amount||0)
+      map.set(label,entry)
+    }
+    return [...map.entries()]
+      .map(([label,v])=>({ label, count:v.bookings, revenue:Number(v.revenue.toFixed(2)) }))
+      .sort((a,b)=>b.revenue-a.revenue)
+      .slice(0,15)
+  }
+  let attributedBookings=0
+  let attributedRevenue=0
+  for(const booking of bookings){
+    const analytics=normalizeJsonRecord(normalizeJsonRecord(booking.metadata).analytics)
+    const sessionId=normalizeText(analytics.session_id)
+    const visitorId=normalizeText(analytics.visitor_id)
+    if(sessionId){ bookingSessions.add(sessionId); attributedBookings+=1; attributedRevenue+=Number(booking.total_amount||0) }
+    if(visitorId)bookingVisitors.add(visitorId)
+  }
+
+  const pageViews=totals.page_views
   const timeline=[...byDay.entries()]
-    .map(([date,bucket])=>({ date, views:bucket.views, visitors:bucket.visitors.size }))
+    .map(([date,bucket])=>({ date, views:bucket.views, visitors:bucket.visitors.size, sessions:bucket.sessions.size, new_visitors:bucket.newVisitors }))
     .sort((a,b)=>a.date<b.date ? -1 : 1)
 
+  const pageTable=[...perPage.entries()].map(([path,p])=>({
+    label:path,
+    count:p.views,
+    entries:p.entries,
+    exits:p.exits,
+    avg_seconds:p.engaged.length ? Math.round(avgOf(p.engaged)/1000) : 0,
+    avg_scroll:p.scroll.length ? avgOf(p.scroll) : 0,
+    exit_rate:p.views ? Number(((p.exits/p.views)*100).toFixed(1)) : 0
+  })).sort((a,b)=>b.count-a.count).slice(0,40)
+
+  const journeys=new Map<string,number>()
+  for(const [,seq] of sessionPaths){
+    if(seq.length<2)continue
+    const trail=seq.slice(0,4).join(' → ')
+    journeys.set(trail,(journeys.get(trail)||0)+1)
+  }
+
+  const returningViews=rows.filter((row:Json)=>row.is_new_visitor!==true).length
+  const bucketRows=(obj:Record<string,number>)=>Object.entries(obj).map(([label,count])=>({ label, count }))
+
   return {
-    range:{ from:fromDate, to:toDate, brand_code:brandCode },
+    range:{ from:fromDate, to:toDate, brand_code:brandCode,
+      previous_from:prevFrom, previous_to:prevTo },
     totals:{
-      page_views:pageViews,
-      visitors:visitors.size,
-      sessions:sessionCount,
-      views_per_session:sessionCount ? Number((pageViews/sessionCount).toFixed(2)) : 0,
-      bounce_rate:sessionCount ? Number(((bouncedSessions.size/sessionCount)*100).toFixed(1)) : 0,
-      avg_duration_seconds:durationSamples ? Math.round(totalDuration/durationSamples/1000) : 0,
-      new_visitors:rows.filter((row:Json)=>row.is_new_visitor===true).length
+      ...totals,
+      conversions:attributedBookings,
+      conversion_rate:totals.sessions ? Number(((bookingSessions.size/totals.sessions)*100).toFixed(2)) : 0,
+      attributed_revenue:Number(attributedRevenue.toFixed(2)),
+      revenue_per_session:totals.sessions ? Number((attributedRevenue/totals.sessions).toFixed(2)) : 0,
+      total_bookings:bookings.length,
+      currency:normalizeText((bookings[0] as Json)?.currency_code) || 'NAD'
+    },
+    previous_totals:prevTotals,
+    deltas:{
+      page_views:pctChange(totals.page_views,prevTotals.page_views),
+      visitors:pctChange(totals.visitors,prevTotals.visitors),
+      sessions:pctChange(totals.sessions,prevTotals.sessions),
+      bounce_rate:Number((totals.bounce_rate-prevTotals.bounce_rate).toFixed(1)),
+      avg_duration_seconds:pctChange(totals.avg_duration_seconds,prevTotals.avg_duration_seconds)
     },
     timeline,
     by_hour:byHour.map((count,hour)=>({ label:String(hour).padStart(2,'0')+':00', count })),
+    by_local_hour:byLocalHour.map((count,hour)=>({ label:String(hour).padStart(2,'0')+':00', count })),
     by_weekday:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((label,index)=>({ label, count:byWeekday[index] })),
+    heatmap:{ days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], matrix:heat },
+    visitor_split:[{ label:'New visitors', count:totals.new_visitors },{ label:'Returning', count:returningViews }],
+    page_table:pageTable,
     top_pages:tallyBy(rows,'path',20),
     top_titles:tallyBy(rows,'page_title',15),
+    landing_pages:tallyBy(rows.filter((row:Json)=>row.is_entry===true),'path',15),
+    exit_pages:pageTable.slice().sort((a,b)=>b.exits-a.exits).slice(0,15).map(p=>({ label:p.label, count:p.exits })),
+    journeys:[...journeys.entries()].map(([label,count])=>({ label, count })).sort((a,b)=>b.count-a.count).slice(0,15),
     referrers:tallyBy(rows,'referrer_host',20),
     channels:tallyBy(rows,'referrer_type',10),
     countries:tallyBy(rows,'country',20),
     timezones:tallyBy(rows,'timezone',15),
     languages:tallyBy(rows,'language',15),
     devices:tallyBy(rows,'device_type',10),
+    orientations:tallyBy(rows,'orientation',5),
     browsers:tallyBy(rows,'browser',15),
+    browser_versions:tallyBy(rows,'browser_version',15),
     operating_systems:tallyBy(rows,'os',15),
+    os_versions:tallyBy(rows,'os_version',15),
+    connections:tallyBy(rows,'connection_type',10),
+    screen_sizes:tallyBy(rows.map((row:Json)=>({ size:`${row.screen_width}×${row.screen_height}` })),'size',15),
+    viewport_sizes:tallyBy(rows.map((row:Json)=>({ size:`${row.viewport_width}×${row.viewport_height}` })),'size',15),
+    cpu_cores:tallyBy(rows.map((row:Json)=>({ v:String(row.cpu_cores||'Unknown') })),'v',10),
+    device_memory:tallyBy(rows.map((row:Json)=>({ v:String(row.device_memory_gb||'Unknown') })),'v',10),
+    preferences:[
+      { label:'Prefers dark mode', count:rows.filter((row:Json)=>row.prefers_dark===true).length },
+      { label:'Prefers light mode', count:rows.filter((row:Json)=>row.prefers_dark!==true).length },
+      { label:'Reduced motion', count:rows.filter((row:Json)=>row.prefers_reduced_motion===true).length },
+      { label:'Touch screen', count:rows.filter((row:Json)=>row.is_touch===true).length }
+    ],
     utm_sources:tallyBy(rows,'utm_source',15),
     utm_campaigns:tallyBy(rows,'utm_campaign',15),
     utm_mediums:tallyBy(rows,'utm_medium',10),
-    sample_size:rows.length
+    engagement_time:bucketRows(timeBuckets),
+    scroll_depth:bucketRows(scrollBuckets),
+    speed:{
+      ttfb_avg:avgOf(speedTtfb), ttfb_median:medianOf(speedTtfb),
+      fcp_avg:avgOf(speedFcp), fcp_median:medianOf(speedFcp),
+      load_avg:avgOf(speedLoad), load_median:medianOf(speedLoad),
+      samples:speedLoad.length
+    },
+    slowest_pages:[...perPage.entries()].map(([path])=>path)
+      .map(path=>{
+        const pageRows=rows.filter((row:Json)=>normalizeText(row.path)===path && Number(row.load_ms||0)>0)
+        return { label:path, count:medianOf(pageRows.map((row:Json)=>Number(row.load_ms||0))) }
+      })
+      .filter(item=>item.count>0).sort((a,b)=>b.count-a.count).slice(0,12),
+    events:tallyBy(events,'event_type',12),
+    event_labels:tallyBy(events,'label',20),
+    outbound:tallyBy(events.filter((row:Json)=>normalizeText(row.event_type)==='outbound'),'label',15),
+    contact_clicks:tallyBy(events.filter((row:Json)=>normalizeText(row.event_type).startsWith('contact_')),'event_type',10),
+    revenue_by_channel:revenueBy('channel'),
+    revenue_by_source:revenueBy('source'),
+    revenue_by_campaign:revenueBy('campaign'),
+    revenue_by_country:revenueBy('country'),
+    revenue_by_device:revenueBy('device'),
+    sample_size:rows.length,
+    event_sample_size:events.length,
+    booking_sample_size:bookings.length,
+    attributed_booking_count:attributedBookings
   }
 }
 
@@ -5274,6 +5526,9 @@ Deno.serve(async request=>{
     // never surface as an error on a guest's page.
     if(request.method==='POST'&&resource==='analytics'&&id==='collect'){
       return json(200,await recordSiteVisit(requestBody,brandCode).catch(()=>({ ok:false })))
+    }
+    if(request.method==='POST'&&resource==='analytics'&&id==='event'){
+      return json(200,await recordSiteEvent(requestBody,brandCode).catch(()=>({ ok:false })))
     }
     if(request.method==='POST'&&resource==='analytics'&&id==='engagement'){
       return json(200,await recordSiteVisitEngagement(requestBody).catch(()=>({ ok:false })))

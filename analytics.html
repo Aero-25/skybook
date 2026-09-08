@@ -71,6 +71,7 @@ h1{font-size:21px;margin:0;letter-spacing:-.01em}
 .tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
 .tile .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-muted);font-weight:700}
 .tile .v{font-size:27px;font-weight:700;margin-top:7px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .v.long{font-size:20px}
 .tile .n{font-size:12px;color:var(--text-secondary);margin-top:3px}
 
 .panel{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
@@ -111,6 +112,32 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
   border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--text-secondary)}
 .banner b{color:var(--text-primary)}
 .hide{display:none!important}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px;background:var(--surface-1);
+  border:1px solid var(--border);border-radius:11px;padding:4px}
+.tabs button{border:0;background:transparent;color:var(--text-secondary);padding:9px 15px;border-radius:8px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:#fff}
+
+/* Delta chip on a stat tile */
+.tile .d{font-size:12px;font-weight:700;margin-top:5px;display:inline-block}
+.up{color:var(--good)} .down{color:#e34948} .flat{color:var(--text-muted)}
+
+/* Hour × weekday heatmap */
+.heat{border-collapse:separate;border-spacing:2px;width:100%}
+.heat td,.heat th{padding:0;border:0}
+.heat th{font-size:10px;color:var(--text-muted);font-weight:600;padding:2px}
+.heat .cell{height:19px;border-radius:3px;background:var(--surface-2)}
+.heat .rowlab{font-size:11px;color:var(--text-secondary);padding-right:6px;text-align:right;white-space:nowrap}
+
+/* Detail tables */
+.wide table{margin-top:4px}
+.scrollx{overflow-x:auto}
+.rev{display:grid;grid-template-columns:1fr auto auto;gap:6px 14px;align-items:baseline}
+.rev .r{font-variant-numeric:tabular-nums;font-weight:700;color:var(--text-primary)}
+.rev .c{font-variant-numeric:tabular-nums;color:var(--text-secondary);font-size:13px}
+.rev .h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700}
 </style>
 </head>
 <body>
@@ -149,6 +176,16 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
     <div id="nodata" class="banner hide"></div>
     <div id="tiles" class="tiles"></div>
 
+    <nav class="tabs" id="tabs" role="tablist">
+      <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="acquisition" aria-selected="false">Acquisition</button>
+      <button role="tab" data-tab="behaviour" aria-selected="false">Behaviour</button>
+      <button role="tab" data-tab="audience" aria-selected="false">Audience</button>
+      <button role="tab" data-tab="technology" aria-selected="false">Technology</button>
+      <button role="tab" data-tab="speed" aria-selected="false">Speed</button>
+      <button role="tab" data-tab="revenue" aria-selected="false">Revenue</button>
+    </nav>
+
     <section class="panel">
       <h2>Traffic over time</h2>
       <p class="desc">Page views and unique visitors per day</p>
@@ -159,14 +196,16 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
       <div class="chartbox" id="tlbox"></div>
     </section>
 
-    <div class="grid2" id="panels"></div>
-
-    <section class="panel">
+    <section class="panel" id="whenpanel">
       <h2>When people visit</h2>
-      <p class="desc">Page views by hour (UTC) and by day of week</p>
+      <p class="desc">Page views by hour and by day of week — server time (UTC)</p>
       <div class="chartbox" id="hourbox"></div>
       <div class="chartbox" id="daybox" style="margin-top:18px"></div>
+      <div id="heatwrap" style="margin-top:20px"></div>
     </section>
+
+    <div class="grid2" id="panels"></div>
+    <div id="wide"></div>
   </main>
 </div>
 

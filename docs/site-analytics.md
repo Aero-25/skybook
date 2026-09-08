@@ -24,6 +24,16 @@ nothing personally identifying is stored. Bots, `localhost` and any URL carrying
 Because it is first-party, an ad-blocker does not remove it — unlike Google
 Analytics, which a large share of European visitors block.
 
+## Tying traffic to revenue
+
+The tracker keeps a first-touch and last-touch attribution record (referrer,
+utm parameters, landing page) in `localStorage` and exposes it as
+`window.SkyBookAnalytics.attribution()`. Each site's `apiRequest` attaches it to
+every new booking under `metadata.analytics`, which is what lets the Revenue tab
+report bookings and money by channel, source, campaign, country and device —
+not just visits. That injection is wrapped: a missing or broken tracker can
+never stop a booking going through.
+
 ## What it reports
 
 Totals (page views, unique visitors, sessions, pages per session, bounce rate,
@@ -32,7 +42,17 @@ day-of-week; and ranked breakdowns of channel, referring site, page, country,
 timezone, language, device, browser, OS, utm_source and utm_campaign. Every
 panel has a table view, and the whole window exports to CSV.
 
-Bounce = a session that lasted under ten seconds.
+Bounce = a session with under ten seconds of *visible* engagement. Elapsed time
+is a poor proxy, since a forgotten background tab would otherwise count as
+engaged.
+
+The dashboard is tabbed: Overview, Acquisition, Behaviour, Audience, Technology,
+Speed and Revenue. Every headline tile carries a change figure against the
+immediately preceding period of the same length.
+
+Speed numbers are real-user measurements (TTFB, first contentful paint, load
+complete) taken from the Navigation Timing API in visitors' own browsers, so
+"slowest pages" reflects what guests actually experience rather than a lab test.
 
 ## Important: it starts from zero
 

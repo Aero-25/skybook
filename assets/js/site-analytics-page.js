@@ -10,7 +10,7 @@
   const $ = id => document.getElementById(id);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const state = { brand: 'iventure', from: '', to: '', data: null };
+  const state = { brand: 'iventure', from: '', to: '', tab: 'overview', data: null };
 
   const fmt = n => Number(n || 0).toLocaleString('en-GB');
   const dur = s => {
@@ -20,6 +20,17 @@
     return m ? `${m}m ${s % 60}s` : `${s}s`;
   };
   const isoDay = d => d.toISOString().slice(0, 10);
+  const money = (v, cur) => `${cur || 'NAD'} ${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const ms = v => (Number(v || 0) >= 1000 ? (Number(v) / 1000).toFixed(2) + 's' : Math.round(Number(v || 0)) + 'ms');
+  // A delta chip. `invert` marks metrics where a rise is bad (bounce rate).
+  function delta(v, invert) {
+    if (v === undefined || v === null) return '';
+    const n = Number(v);
+    if (!n) return '<span class="d flat">no change</span>';
+    const good = invert ? n < 0 : n > 0;
+    const arrow = n > 0 ? '▲' : '▼';
+    return `<span class="d ${good ? 'up' : 'down'}">${arrow} ${Math.abs(n)}${invert ? ' pts' : '%'}</span>`;
+  }
 
   function setRange(days) {
     const to = new Date();
@@ -68,6 +79,30 @@
         <span class="track"><span class="fill" style="width:${Math.max(2, (r.count / max) * 100)}%"></span></span>
       </div>`;
     }).join('') + '</div>';
+  }
+
+  function revenue(rows, cur, lab) {
+    if (!rows || !rows.length) return '<p class="empty">No bookings could be attributed to a traffic source in this period.</p>';
+    return '<div class="rev"><span class="h">Source</span><span class="h">Bookings</span><span class="h">Revenue</span>'
+      + rows.map(r => `<span class="lbl">${esc((lab ? lab(r.label) : r.label) || 'Unknown')}</span><span class="c">${fmt(r.count)}</span><span class="r">${esc(money(r.revenue, cur))}</span>`).join('')
+      + '</div>';
+  }
+
+  /* Hour × weekday heatmap — a sequential single hue, light to dark */
+  function heatmap(h) {
+    if (!h || !h.matrix) return '';
+    let max = 0;
+    h.matrix.forEach(row => row.forEach(v => { if (v > max) max = v; }));
+    if (!max) return '';
+    const head = '<tr><th></th>' + [...Array(24)].map((_, i) => `<th>${i % 3 ? '' : String(i).padStart(2, '0')}</th>`).join('') + '</tr>';
+    const body = h.matrix.map((row, d) => '<tr><td class="rowlab">' + esc(h.days[d]) + '</td>'
+      + row.map((v, hr) => {
+          const a = v / max;
+          const bg = v ? `background:color-mix(in oklab, var(--series-1) ${Math.round(12 + a * 88)}%, var(--surface-2))` : '';
+          return `<td><div class="cell" style="${bg}" title="${esc(h.days[d])} ${String(hr).padStart(2,'0')}:00 — ${fmt(v)} views"></div></td>`;
+        }).join('') + '</tr>').join('');
+    return `<p class="desc" style="margin:0 0 8px">Busiest hours across the week (UTC) — darker is busier</p>
+      <div class="scrollx"><table class="heat" style="min-width:560px">${head}${body}</table></div>`;
   }
 
   function tableView(rows, head) {
@@ -164,57 +199,198 @@
     return `<section class="panel"><h2>${esc(title)}</h2><p class="desc">${esc(desc)}</p>${bars(rows, { label: labeller })}${tableView(rows, head)}</section>`;
   }
 
+  function detailTable(rows, cols) {
+    if (!rows || !rows.length) return '<p class="empty">No data in this period.</p>';
+    return '<div class="scrollx"><table><thead><tr>'
+      + cols.map(c => `<th${c.n ? ' class="n"' : ''}>${esc(c.h)}</th>`).join('')
+      + '</tr></thead><tbody>'
+      + rows.map(r => '<tr>' + cols.map(c => `<td${c.n ? ' class="n"' : ''}>${esc(c.f ? c.f(r) : r[c.k])}</td>`).join('') + '</tr>').join('')
+      + '</tbody></table></div>';
+  }
+
+  function tiles(d) {
+    const t = d.totals || {}, dl = d.deltas || {};
+    const cur = t.currency;
+    const list = [
+      ['Page views', fmt(t.page_views), 'total pages opened', delta(dl.page_views)],
+      ['Unique visitors', fmt(t.visitors), 'distinct browsers', delta(dl.visitors)],
+      ['Sessions', fmt(t.sessions), 'separate visits', delta(dl.sessions)],
+      ['Pages per session', (t.views_per_session || 0).toFixed(2), 'depth of visit', ''],
+      ['Bounce rate', (t.bounce_rate || 0) + '%', 'under 10s engaged', delta(dl.bounce_rate, true)],
+      ['Avg time on page', dur(t.avg_duration_seconds), 'engaged time', delta(dl.avg_duration_seconds)],
+      ['Median time', dur(t.median_duration_seconds), 'typical visit', ''],
+      ['Total engaged', (t.total_engaged_minutes || 0) + 'm', 'attention across all visits', ''],
+      ['New visitors', fmt(t.new_visitors), 'first ever visit', ''],
+      ['Bookings', fmt(t.total_bookings), 'created in this period', ''],
+      ['Conversion rate', (t.conversion_rate || 0) + '%', 'sessions that booked', ''],
+      ['Attributed revenue', money(t.attributed_revenue, cur), 'from tracked sessions', '']
+    ];
+    // Long values (a formatted currency total) get a smaller step so the tile
+    // row keeps one height.
+    $('tiles').innerHTML = list.map(([k, v, n, dd]) =>
+      `<div class="tile"><div class="k">${esc(k)}</div><div class="v${String(v).length > 12 ? ' long' : ''}">${esc(v)}</div><div class="n">${esc(n)}</div>${dd}</div>`).join('');
+  }
+
+  const CHAN = { direct: 'Direct / typed in', search: 'Search engines', social: 'Social media', referral: 'Other websites', paid: 'Paid ads', email: 'Email', internal: 'Internal' };
+
+  function sections(d) {
+    const cur = (d.totals || {}).currency;
+    const P = (t, desc, rows, head, lab) => panel(t, desc, rows, head, lab);
+    const wide = (t, desc, inner) => `<section class="panel"><h2>${esc(t)}</h2><p class="desc">${esc(desc)}</p>${inner}</section>`;
+
+    if (state.tab === 'overview') return {
+      grid: [
+        P('Where visitors came from', 'Traffic channel', d.channels, 'Channel', l => CHAN[l] || l),
+        P('Referring sites', 'The domain that linked them here', d.referrers, 'Referrer', l => (!l || l === 'Unknown') ? 'Direct (no referrer)' : l),
+        P('Most viewed pages', 'By page views', d.top_pages, 'Path'),
+        P('Countries', 'From the visitor’s timezone', d.countries, 'Country'),
+        P('Devices', 'Phone, tablet or desktop', d.devices, 'Device'),
+        P('New vs returning', 'Page views by visitor type', d.visitor_split, 'Type')
+      ].join(''), wide: ''
+    };
+
+    if (state.tab === 'acquisition') return {
+      grid: [
+        P('Channels', 'How they arrived', d.channels, 'Channel', l => CHAN[l] || l),
+        P('Referring sites', 'Linking domain', d.referrers, 'Referrer', l => (!l || l === 'Unknown') ? 'Direct (no referrer)' : l),
+        P('Landing pages', 'First page of the visit', d.landing_pages, 'Path'),
+        P('Campaign sources', 'utm_source', d.utm_sources, 'Source'),
+        P('Campaigns', 'utm_campaign', d.utm_campaigns, 'Campaign'),
+        P('Campaign mediums', 'utm_medium', d.utm_mediums, 'Medium')
+      ].join(''), wide: ''
+    };
+
+    if (state.tab === 'behaviour') return {
+      grid: [
+        P('Landing pages', 'Where visits start', d.landing_pages, 'Path'),
+        P('Exit pages', 'Where visits end', d.exit_pages, 'Path'),
+        P('Time on page', 'Engaged time per view', d.engagement_time, 'Bucket'),
+        P('Scroll depth', 'How far down the page', d.scroll_depth, 'Depth'),
+        P('Outbound clicks', 'Links off the site', d.outbound, 'Destination'),
+        P('Contact clicks', 'Phone, email and WhatsApp taps', d.contact_clicks, 'Type',
+          l => ({ contact_phone: 'Phone tap', contact_email: 'Email tap', contact_whatsapp: 'WhatsApp tap' })[l] || l)
+      ].join(''),
+      wide: wide('Page detail', 'Views, entries, exits, engaged time and scroll for every page',
+          detailTable(d.page_table, [
+            { h: 'Page', k: 'label' }, { h: 'Views', k: 'count', n: 1, f: r => fmt(r.count) },
+            { h: 'Entries', k: 'entries', n: 1, f: r => fmt(r.entries) },
+            { h: 'Exits', k: 'exits', n: 1, f: r => fmt(r.exits) },
+            { h: 'Exit rate', k: 'exit_rate', n: 1, f: r => r.exit_rate + '%' },
+            { h: 'Avg time', k: 'avg_seconds', n: 1, f: r => dur(r.avg_seconds) },
+            { h: 'Avg scroll', k: 'avg_scroll', n: 1, f: r => r.avg_scroll + '%' }
+          ]))
+        + wide('Common journeys', 'The first pages of a session, in order', bars(d.journeys) + tableView(d.journeys, 'Journey'))
+        + wide('Tracked interactions', 'Events fired on the sites', bars(d.events, { label: l => ({ cta: 'Tagged CTA', outbound: 'Outbound link', contact_phone: 'Phone tap', contact_email: 'Email tap', contact_whatsapp: 'WhatsApp tap' })[l] || l }))
+    };
+
+    if (state.tab === 'audience') return {
+      grid: [
+        P('Countries', 'From the visitor’s timezone', d.countries, 'Country'),
+        P('Timezones', 'Raw browser timezone', d.timezones, 'Timezone'),
+        P('Languages', 'Browser language', d.languages, 'Language'),
+        P('New vs returning', 'Page views by visitor type', d.visitor_split, 'Type'),
+        P('Local time of day', 'The visitor’s own clock', d.by_local_hour, 'Hour'),
+        P('Preferences', 'What their device asks for', d.preferences, 'Preference')
+      ].join(''), wide: ''
+    };
+
+    if (state.tab === 'technology') return {
+      grid: [
+        P('Devices', 'Phone, tablet or desktop', d.devices, 'Device'),
+        P('Browsers', 'Browser in use', d.browsers, 'Browser'),
+        P('Browser versions', 'Major version', d.browser_versions, 'Version'),
+        P('Operating systems', 'Platform', d.operating_systems, 'OS'),
+        P('OS versions', 'Platform version', d.os_versions, 'Version'),
+        P('Screen sizes', 'Physical screen', d.screen_sizes, 'Resolution'),
+        P('Viewport sizes', 'Actual browser window', d.viewport_sizes, 'Size'),
+        P('Orientation', 'Portrait or landscape', d.orientations, 'Orientation'),
+        P('Connection quality', 'Reported network type', d.connections, 'Connection'),
+        P('CPU cores', 'Logical processors', d.cpu_cores, 'Cores'),
+        P('Device memory', 'Reported RAM (GB)', d.device_memory, 'GB')
+      ].join(''), wide: ''
+    };
+
+    if (state.tab === 'speed') {
+      const sp = d.speed || {};
+      const tile = (k, v, n) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="n">${esc(n)}</div></div>`;
+      return {
+        grid: '',
+        wide: wide('Real-user page speed', `Measured in visitors’ own browsers · ${fmt(sp.samples)} samples`,
+            '<div class="tiles" style="margin:0">'
+            + tile('Server response', ms(sp.ttfb_median), 'median time to first byte')
+            + tile('First paint', ms(sp.fcp_median), 'median first contentful paint')
+            + tile('Fully loaded', ms(sp.load_median), 'median load complete')
+            + tile('Avg response', ms(sp.ttfb_avg), 'mean TTFB')
+            + tile('Avg first paint', ms(sp.fcp_avg), 'mean FCP')
+            + tile('Avg loaded', ms(sp.load_avg), 'mean load')
+            + '</div>')
+          + wide('Slowest pages', 'Median full load time — the pages worth optimising first',
+              detailTable(d.slowest_pages, [{ h: 'Page', k: 'label' }, { h: 'Median load', k: 'count', n: 1, f: r => ms(r.count) }]))
+      };
+    }
+
+    // Revenue
+    return {
+      grid: '',
+      wide: wide('Revenue by channel', 'Bookings attributed to how the guest arrived', revenue(d.revenue_by_channel, cur, l => CHAN[l] || l))
+        + wide('Revenue by source', 'utm_source, or the referring domain', revenue(d.revenue_by_source, cur))
+        + wide('Revenue by campaign', 'utm_campaign on the landing URL', revenue(d.revenue_by_campaign, cur))
+        + wide('Revenue by country', 'Where the booking guest was browsing from', revenue(d.revenue_by_country, cur))
+        + wide('Revenue by device', 'What they booked on', revenue(d.revenue_by_device, cur))
+    };
+  }
+
   function render(d) {
     state.data = d;
-    const t = d.totals || {};
-    $('tiles').innerHTML = [
-      ['Page views', fmt(t.page_views), 'total pages opened'],
-      ['Unique visitors', fmt(t.visitors), 'distinct browsers'],
-      ['Sessions', fmt(t.sessions), 'separate visits'],
-      ['Pages per session', (t.views_per_session || 0).toFixed(2), 'depth of visit'],
-      ['Bounce rate', (t.bounce_rate || 0) + '%', 'left within 10s'],
-      ['Avg time on page', dur(t.avg_duration_seconds), 'engaged time'],
-      ['New visitors', fmt(t.new_visitors), 'first ever visit']
-    ].map(([k, v, n]) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="n">${esc(n)}</div></div>`).join('');
-
+    tiles(d);
     timeline(d.timeline || []);
     columns('hourbox', d.by_hour || [], 'Page views by hour of day (UTC)');
     columns('daybox', d.by_weekday || [], 'Page views by day of week');
+    $('heatwrap').innerHTML = heatmap(d.heatmap);
 
-    const chan = { direct: 'Direct / typed in', search: 'Search engines', social: 'Social media', referral: 'Other websites', paid: 'Paid ads', email: 'Email', internal: 'Internal' };
-    $('panels').innerHTML = [
-      panel('Where visitors came from', 'Traffic channel', d.channels || [], 'Channel', l => chan[l] || l),
-      panel('Referring sites', 'The domain that linked them here', d.referrers || [], 'Referrer', l => (l === 'Unknown' || !l) ? 'Direct (no referrer)' : l),
-      panel('Most viewed pages', 'By page views', d.top_pages || [], 'Path'),
-      panel('Countries', 'Derived from the visitor’s timezone', d.countries || [], 'Country'),
-      panel('Devices', 'Phone, tablet or desktop', d.devices || [], 'Device'),
-      panel('Browsers', 'Browser in use', d.browsers || [], 'Browser'),
-      panel('Operating systems', 'Platform in use', d.operating_systems || [], 'OS'),
-      panel('Languages', 'Browser language preference', d.languages || [], 'Language'),
-      panel('Campaign sources', 'utm_source on the landing URL', d.utm_sources || [], 'Source'),
-      panel('Campaigns', 'utm_campaign on the landing URL', d.utm_campaigns || [], 'Campaign'),
-      panel('Timezones', 'Raw timezone reported by the browser', d.timezones || [], 'Timezone'),
-      panel('Page titles', 'Titles of the pages opened', d.top_titles || [], 'Title')
-    ].join('');
+    const s = sections(d);
+    $('panels').innerHTML = s.grid;
+    $('wide').innerHTML = s.wide;
+    // The time-of-day panel belongs to Overview only.
+    $('whenpanel').classList.toggle('hide', state.tab !== 'overview');
 
-    const none = !t.page_views;
+    const none = !(d.totals || {}).page_views;
     $('nodata').classList.toggle('hide', !none);
     if (none) {
-      $('nodata').innerHTML = '<b>No visits recorded for this brand yet.</b> Analytics only counts visits from the moment the '
-        + 'tracking script is live on the site — it cannot show traffic from before then. If the site was deployed recently, '
-        + 'check back in a few hours.';
+      $('nodata').innerHTML = '<b>No visits recorded for this brand yet.</b> Analytics counts visits from the moment the '
+        + 'tracking script goes live on the site — it cannot show traffic from before then. If the site was deployed '
+        + 'recently, check back in a few hours.';
     }
   }
 
   function csv() {
     const d = state.data;
     if (!d) return;
-    const rows = [['section', 'label', 'count']];
-    [['channel', d.channels], ['referrer', d.referrers], ['page', d.top_pages], ['country', d.countries],
-     ['device', d.devices], ['browser', d.browsers], ['os', d.operating_systems], ['language', d.languages],
-     ['utm_source', d.utm_sources], ['utm_campaign', d.utm_campaigns], ['timezone', d.timezones]]
-      .forEach(([name, list]) => (list || []).forEach(r => rows.push([name, r.label, r.count])));
-    (d.timeline || []).forEach(p => { rows.push(['daily_views', p.date, p.views]); rows.push(['daily_visitors', p.date, p.visitors]); });
+    const rows = [['section', 'label', 'count', 'extra']];
+    [['channel', d.channels], ['referrer', d.referrers], ['page', d.top_pages], ['landing_page', d.landing_pages],
+     ['exit_page', d.exit_pages], ['journey', d.journeys], ['country', d.countries], ['timezone', d.timezones],
+     ['language', d.languages], ['device', d.devices], ['orientation', d.orientations], ['browser', d.browsers],
+     ['browser_version', d.browser_versions], ['os', d.operating_systems], ['os_version', d.os_versions],
+     ['connection', d.connections], ['screen_size', d.screen_sizes], ['viewport_size', d.viewport_sizes],
+     ['cpu_cores', d.cpu_cores], ['device_memory', d.device_memory], ['preference', d.preferences],
+     ['utm_source', d.utm_sources], ['utm_campaign', d.utm_campaigns], ['utm_medium', d.utm_mediums],
+     ['engagement_time', d.engagement_time], ['scroll_depth', d.scroll_depth], ['event', d.events],
+     ['outbound', d.outbound], ['contact_click', d.contact_clicks], ['slowest_page_ms', d.slowest_pages],
+     ['local_hour', d.by_local_hour], ['hour_utc', d.by_hour], ['weekday', d.by_weekday]]
+      .forEach(([name, list]) => (list || []).forEach(r => rows.push([name, r.label, r.count, ''])));
+    [['revenue_by_channel', d.revenue_by_channel], ['revenue_by_source', d.revenue_by_source],
+     ['revenue_by_campaign', d.revenue_by_campaign], ['revenue_by_country', d.revenue_by_country],
+     ['revenue_by_device', d.revenue_by_device]]
+      .forEach(([name, list]) => (list || []).forEach(r => rows.push([name, r.label, r.count, r.revenue])));
+    (d.page_table || []).forEach(r => rows.push(['page_detail', r.label, r.count,
+      `entries=${r.entries};exits=${r.exits};exit_rate=${r.exit_rate}%;avg_s=${r.avg_seconds};avg_scroll=${r.avg_scroll}%`]));
+    Object.entries(d.totals || {}).forEach(([k, v]) => rows.push(['total', k, v, '']));
+    Object.entries(d.speed || {}).forEach(([k, v]) => rows.push(['speed_ms', k, v, '']));
+    (d.timeline || []).forEach(p => {
+      rows.push(['daily_views', p.date, p.views, '']);
+      rows.push(['daily_visitors', p.date, p.visitors, '']);
+      rows.push(['daily_sessions', p.date, p.sessions, '']);
+    });
     const body = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([body], { type: 'text/csv' }));
@@ -254,6 +430,12 @@
       document.querySelectorAll('[data-days]').forEach(o => o.setAttribute('aria-pressed', 'false'));
       refresh();
     });
+    document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('#tabs button').forEach(o => o.setAttribute('aria-selected', String(o === b)));
+      state.tab = b.dataset.tab;
+      if (state.data) render(state.data);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }));
     $('csv').addEventListener('click', csv);
     let resizeTimer = null;
     window.addEventListener('resize', () => {
