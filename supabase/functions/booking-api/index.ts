@@ -4104,20 +4104,26 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await syncLifecycleTasks(bookingId,userId || null)
   await maybeCreateAutomatedOfficeSettlement(bookingId,userId || null)
   await syncReconciliationRecordForBooking(bookingId,userId || null)
-  await enqueueBookingEmailJob({
-    bookingId,
-    customerId:customer.id,
-    templateKey:'booking_received',
-    priority:'high',
-    createdBy:userId || null
-  })
-  await enqueueBookingEmailJob({
-    bookingId,
-    customerId:customer.id,
-    templateKey:'consultant_alert',
-    priority:'high',
-    createdBy:userId || null
-  })
+  // Automatic emails are for bookings that arrive unattended from a brand
+  // site. A booking captured in the SkyBook admin is already in front of a
+  // consultant, so neither the guest acknowledgement nor the ops alert is sent
+  // — the same rule the new-booking push already follows.
+  if(!isAdmin){
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:customer.id,
+      templateKey:'booking_received',
+      priority:'high',
+      createdBy:userId || null
+    })
+    await enqueueBookingEmailJob({
+      bookingId,
+      customerId:customer.id,
+      templateKey:'consultant_alert',
+      priority:'high',
+      createdBy:userId || null
+    })
+  }
   const consultantWhatsApp=normalizeText(brand.support_whatsapp) || '+264813224270'
   const waMeta=normalizeJsonRecord(requestMetadata)
   const waOpDetails=normalizeJsonRecord(waMeta.operational_details??waMeta)

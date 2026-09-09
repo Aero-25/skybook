@@ -7,6 +7,17 @@ Every new booking raises two emails from the `booking-api` edge function:
 | `booking_received` | the guest | "we have your request" acknowledgement |
 | `consultant_alert` | the brand's `bookings@` inbox | full ops handover with every captured field |
 
+## Which bookings send email
+
+Only bookings that arrive from a brand website. A booking captured in the
+SkyBook admin sends neither the guest acknowledgement nor the ops alert — it is
+already in front of a consultant, so an alert would tell them what they just
+typed. This matches the new-booking push, which is gated the same way.
+
+The gate is the `isAdmin` flag on `createBooking`: the public
+`POST /bookings` route leaves it false, the admin `POST /admin/bookings` route
+sets it true.
+
 ## Where the operations alert goes
 
 Recipients are fixed per brand in `BRAND_CONSULTANT_EMAILS`:
