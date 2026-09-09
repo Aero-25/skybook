@@ -5226,7 +5226,7 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   // otherwise surface as a confident zero, which is how a missing table gets
   // mistaken for missing traffic.
   const probe=await adminClient.from('site_visits').select('id').limit(1)
-  const probeCode=String((probe as Json)?.error?.code || '')
+  const probeCode=String(normalizeJsonRecord((probe as Json)?.error).code || '')
   const visitsTableMissing=['42P01','PGRST205','PGRST106'].includes(probeCode)
 
   const [rows,prevRows,events,bookings]=await Promise.all([
