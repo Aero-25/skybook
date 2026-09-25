@@ -6221,9 +6221,11 @@ const buildMonthlyChart=(bookings,{mode='count',currency='NAD'}={})=>{
   return buildBarChart(months,{valueKey:mode,labelKey:'label',currency:mode==='revenue'?currency:null,maxBars:6,colorFn:(_,i)=>i===months.length-1?'#0e3a52':'#8b5cf6'})
 }
 
-// ---- Guides Report: a guide may run several tours in one morning or one afternoon — that's
-// still 1 shift. A morning tour AND an afternoon tour the same day is 2. A booking with no
-// classifiable time can't be safely merged with anything else, so it always counts on its own.
+// ---- Guides Report: trips are counted per guide per day. A guide drives one car, so any
+// number of bookings in the same morning (or the same afternoon) is 1 trip; a morning tour
+// AND an afternoon tour the same day is 2. A combo is two tours back to back, so it fills
+// both windows and counts as 2 on its own. A booking with no recorded time rides along with
+// whatever the guide already runs that day instead of adding a trip.
 const splitGuideNames=value=>String(value||'').split(/[,;]+/).map(item=>item.trim()).filter(Boolean)
 // Reports must never lose data to metadata arriving as a JSON string instead of an object
 // (older rows / alternate write paths), so reads in the reporting pipeline go through this.
@@ -6242,16 +6244,32 @@ const getBookingGuideNames=booking=>{
   const raw=booking?.guide_name||meta.guide_name||meta.guides||meta.guide||''
   return splitGuideNames(Array.isArray(raw) ? raw.join(', ') : raw)
 }
+// A combo is recognised the same way the service catalogue does it: a category, slug or name
+// containing "combo", or a "Kayak + Sandwich Harbour" style name. The booking's own service
+// fields are checked as well, so a booking on an archived service still counts correctly.
+const isComboGuideBooking=booking=>{
+  const meta=readBookingMetadata(booking)
+  const service=state.services.find(item=>
+    (booking?.service_id&&String(item.id)===String(booking.service_id))||
+    (booking?.service_slug&&item.slug===booking.service_slug)
+  )||null
+  const names=[service?.name,booking?.service_name,meta.display_name,meta.service_name]
+  const haystack=[service?.category_slug,service?.slug,booking?.service_slug,...names].map(value=>String(value||'').toLowerCase())
+  return haystack.some(value=>value.includes('combo'))||names.some(value=>/[a-z]\s*\+\s*[a-z]/i.test(String(value||'')))
+}
 const classifyGuideBookingWindow=booking=>{
   const meta=readBookingMetadata(booking)
+  // The departure label is what the consultant picked (Morning / Afternoon / 8:00 AM …), so it
+  // wins over the derived pickup time: an 11:30 pickup for a 12:00 departure is still an
+  // afternoon trip.
+  const label=String(meta.departure_label||'').toLowerCase()
+  if(/\bam\b|morning/.test(label))return 'morning'
+  if(/\bpm\b|afternoon|evening|sunset/.test(label))return 'afternoon'
   const timeMatch=String(meta.pickup_time||'').trim().match(/^(\d{1,2}):(\d{2})/)
   if(timeMatch){
     const hour=Number(timeMatch[1])
     if(Number.isFinite(hour))return hour<12 ? 'morning' : 'afternoon'
   }
-  const label=String(meta.departure_label||'').toLowerCase()
-  if(/\bam\b|morning/.test(label))return 'morning'
-  if(/\bpm\b|afternoon|evening|sunset/.test(label))return 'afternoon'
   return 'unscheduled'
 }
 const getGuidesReportDateRange=period=>{
@@ -6312,25 +6330,41 @@ const buildGuidesReportData=(bookings,{start,end}={})=>{
       if(end&&dateValue>end)return
     }
     const dateKey=dateValue ? normalizeDateKey(booking.preferred_date) : ''
+    const combo=isComboGuideBooking(booking)
     const windowBucket=dateValue ? classifyGuideBookingWindow(booking) : 'unscheduled'
     guideNames.forEach(guide=>{
       const key=`${guide}||${dateKey}`
-      if(!byGuideDate.has(key))byGuideDate.set(key,{guide,dateKey,morning:[],afternoon:[],unscheduled:[]})
-      byGuideDate.get(key)[windowBucket].push(booking)
+      if(!byGuideDate.has(key))byGuideDate.set(key,{guide,dateKey,morning:[],afternoon:[],unscheduled:[],combos:0,rawBookings:0})
+      const entry=byGuideDate.get(key)
+      entry.rawBookings+=1
+      if(combo){
+        // Two tours back to back: the booking sits in both windows.
+        entry.combos+=1
+        entry.morning.push({booking,combo:true})
+        entry.afternoon.push({booking,combo:true})
+      }else{
+        entry[windowBucket].push({booking,combo:false})
+      }
     })
   })
-  const dayRows=[...byGuideDate.values()].map(entry=>({
-    ...entry,
-    countedUnits:(entry.morning.length?1:0)+(entry.afternoon.length?1:0)+entry.unscheduled.length,
-    rawBookings:entry.morning.length+entry.afternoon.length+entry.unscheduled.length
-  })).sort((a,b)=>a.guide.localeCompare(b.guide)||a.dateKey.localeCompare(b.dateKey))
+  const dayRows=[...byGuideDate.values()].map(entry=>{
+    const windows=(entry.morning.length?1:0)+(entry.afternoon.length?1:0)
+    // One car per day: bookings with no time ride along with the day's trip(s), and a day
+    // holding only untimed bookings is still 1 trip. Undated bookings have no day to share,
+    // so each counts on its own (a combo still counts 2).
+    const countedUnits=entry.dateKey
+      ? Math.max(windows,entry.rawBookings ? 1 : 0)
+      : entry.unscheduled.length+entry.combos*2
+    return {...entry,countedUnits}
+  }).sort((a,b)=>a.guide.localeCompare(b.guide)||a.dateKey.localeCompare(b.dateKey))
   const byGuide=new Map()
   dayRows.forEach(row=>{
-    const bucket=byGuide.get(row.guide)||{guide:row.guide,days:0,counted:0,raw:0,unscheduled:0}
+    const bucket=byGuide.get(row.guide)||{guide:row.guide,days:0,counted:0,raw:0,unscheduled:0,combos:0}
     bucket.days+=1
     bucket.counted+=row.countedUnits
     bucket.raw+=row.rawBookings
     bucket.unscheduled+=row.unscheduled.length
+    bucket.combos+=row.combos
     byGuide.set(row.guide,bucket)
   })
   return {dayRows,guideRows:[...byGuide.values()].sort((a,b)=>b.counted-a.counted||a.guide.localeCompare(b.guide))}
@@ -6613,16 +6647,21 @@ const renderReportsWorkbench=()=>{
   // financeBookings is already range-filtered; passing the range again only re-applies
   // the same bounds to the preferred_date buildGuidesReportData keys on.
   const guidesData=buildGuidesReportData(financeBookings,range)
-  const totalCountedShifts=guidesData.guideRows.reduce((sum,row)=>sum+row.counted,0)
+  const totalTrips=guidesData.guideRows.reduce((sum,row)=>sum+row.counted,0)
   const totalRawBookings=guidesData.guideRows.reduce((sum,row)=>sum+row.raw,0)
-  const totalUnscheduled=guidesData.guideRows.reduce((sum,row)=>sum+row.unscheduled,0)
+  const totalCombos=guidesData.guideRows.reduce((sum,row)=>sum+row.combos,0)
   if(nodes.guidesReportCards)nodes.guidesReportCards.innerHTML=metricCards([
     {label:'Distinct Guides',value:String(guidesData.guideRows.length)},
-    {label:'Counted Shifts (AM/PM rule)',value:String(totalCountedShifts)},
+    {label:'Trips (one car per AM / PM)',value:String(totalTrips)},
     {label:'Raw Guide Bookings',value:String(totalRawBookings)},
-    {label:'Unscheduled (counted individually)',value:String(totalUnscheduled)}
+    {label:'Combo Bookings (count as 2 trips)',value:String(totalCombos)}
   ])
-  const guideRefLabel=b=>bookingAdminShared.escapeHtml(String(b.reference||b.service_name||'—'))
+  // Detail cells list {booking, combo} entries; a combo is shown in both windows so the 2 is visible.
+  const guideRefLabel=item=>{
+    const booking=item.booking||item
+    const label=bookingAdminShared.escapeHtml(String(booking.reference||booking.service_name||'—'))
+    return item.combo ? `${label} <small class="table-subline">(combo)</small>` : label
+  }
   // When the window is empty, say WHY: guide bookings outside the range are the usual
   // cause, and that diagnosis needs the unfiltered booking list.
   const allGuideBookings=getVisibleBookings().filter(booking=>!isTrashedBooking(booking)&&!isCancelledFinancialBooking(booking)&&getBookingGuideNames(booking).length)
@@ -6632,23 +6671,24 @@ const renderReportsWorkbench=()=>{
   if(nodes.guidesReportBody)nodes.guidesReportBody.innerHTML=`
     <div class="table-wrap" style="margin-bottom:18px">
       <table>
-        <thead><tr><th>Guide</th><th>Days Worked</th><th>Counted Shifts</th><th>Raw Bookings</th><th>Unscheduled</th></tr></thead>
+        <thead><tr><th>Guide</th><th>Days Worked</th><th>Trips</th><th>Raw Bookings</th><th>Combos</th><th>No Time Set</th></tr></thead>
         <tbody>
           ${guidesData.guideRows.map(row=>`
             <tr>
               <td><strong>${bookingAdminShared.escapeHtml(row.guide)}</strong></td>
               <td>${bookingAdminShared.escapeHtml(String(row.days))}</td>
-              <td>${bookingAdminShared.escapeHtml(String(row.counted))}</td>
+              <td><strong>${bookingAdminShared.escapeHtml(String(row.counted))}</strong></td>
               <td>${bookingAdminShared.escapeHtml(String(row.raw))}</td>
-              <td>${row.unscheduled ? `<span class="status-badge is-bad">${bookingAdminShared.escapeHtml(String(row.unscheduled))}</span>` : '0'}</td>
+              <td>${bookingAdminShared.escapeHtml(String(row.combos))}</td>
+              <td>${row.unscheduled ? `<span class="status-badge is-neutral">${bookingAdminShared.escapeHtml(String(row.unscheduled))}</span>` : '0'}</td>
             </tr>
-          `).join('') || renderEmptyRow(5,guidesEmptyMessage)}
+          `).join('') || renderEmptyRow(6,guidesEmptyMessage)}
         </tbody>
       </table>
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>Unscheduled</th><th>Counted</th></tr></thead>
+        <thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>No Time Set</th><th>Trips</th></tr></thead>
         <tbody>
           ${guidesData.dayRows.map(row=>`
             <tr>
