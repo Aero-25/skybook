@@ -15,7 +15,9 @@ SkyBook is the small booking console behind the public **True Travel** and **Ive
 
 | Path | Purpose |
 |---|---|
+| `admin.html` | Workspace gateway: Design Studio, Booking Admin, Site Analytics and the app downloads |
 | `login.html` | Sign in (`assets/js/skybook-login.js`) |
+| `design-admin.html`, `tour-editor.html` | Design Studio for the public sites (`assets/js/admin.js`, `assets/css/admin.css`) |
 | `booking-admin.html` | The console page (`assets/js/skybook-admin.js`, `assets/css/skybook.css`) |
 | `analytics.html` | Website traffic analytics for both brands |
 | `portal.html`, `review.html` | Guest-facing pages linked from emails (use `assets/css/booking.css`) |
@@ -33,7 +35,7 @@ Everything talks to the shared Supabase project through the `booking-api` Edge F
 node scripts/smoke-server.mjs        # serves the static site at http://127.0.0.1:4173
 ```
 
-Open `http://127.0.0.1:4173/login.html` and sign in with a SkyBook user. The local instance uses the live Supabase backend, so it shows real data.
+Open `http://127.0.0.1:4173/admin.html` (the workspace gateway) and sign in with a SkyBook user. The local instance uses the live Supabase backend, so it shows real data.
 
 ## Deploy
 
