@@ -54,6 +54,7 @@
     <button class="adm-menu-toggle" id="menuToggle" type="button" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
     <nav class="adm-nav" aria-label="Console">
       <button type="button" data-admin-tab="dashboard" data-permission="dashboard">Dashboard</button>
+      <button type="button" data-admin-tab="calendar" data-permission="calendar">Calendar</button>
       <button type="button" data-admin-tab="reservations" data-permission="bookings">Reservations<span class="adm-nav-badge" id="reservationNavBadge" hidden></span></button>
       <button type="button" data-admin-tab="bookings" data-permission="bookings">Bookings</button>
       <button type="button" data-admin-tab="services" data-permission="services">Tours</button>
@@ -113,6 +114,57 @@
         </section>
       </div>
     </section>
+
+    <!-- ── Calendar ──────────────────────────────────── -->
+    <section class="adm-view" data-admin-view="calendar">
+      <div class="adm-head">
+        <div>
+          <h1>Calendar</h1>
+          <p id="calendarSummary">Every booking by tour date. Click a day to add a booking or see who is on it.</p>
+        </div>
+        <div class="adm-head-actions">
+          <button class="adm-btn ghost" type="button" data-open-cruise>Cruise liner booking</button>
+          <button class="adm-btn" type="button" data-open-new-booking>New booking</button>
+        </div>
+      </div>
+      <section class="adm-card">
+        <div class="cal-toolbar">
+          <div class="adm-chips" role="group" aria-label="Calendar view">
+            <button type="button" class="adm-chip" data-calendar-view="day" aria-pressed="false">Day</button>
+            <button type="button" class="adm-chip" data-calendar-view="week" aria-pressed="false">Week</button>
+            <button type="button" class="adm-chip" data-calendar-view="month" aria-pressed="true">Month</button>
+          </div>
+          <div class="cal-nav">
+            <button type="button" class="adm-btn ghost small" id="calNavPrev" aria-label="Previous">&#8592;</button>
+            <strong class="cal-nav-label" id="calNavLabel"></strong>
+            <button type="button" class="adm-btn ghost small" id="calNavNext" aria-label="Next">&#8594;</button>
+            <button type="button" class="adm-btn ghost small" id="calNavToday">Today</button>
+            <input class="adm-input" id="calendarFocusDate" type="date" aria-label="Go to date" style="width:auto">
+          </div>
+          <div class="adm-actions">
+            <button type="button" class="adm-btn ghost small" id="printArrivalsList">Print arrivals</button>
+          </div>
+        </div>
+        <div id="calendarCanvas" class="calendar-canvas"></div>
+      </section>
+    </section>
+
+    <div class="cal-day-panel" id="calendarDayPanel" hidden>
+      <div class="cal-day-panel-backdrop" id="calendarDayPanelBackdrop"></div>
+      <aside class="cal-day-panel-content" role="dialog" aria-modal="true" aria-labelledby="calendarDayPanelTitle">
+        <div class="adm-modal-head">
+          <div><h2 id="calendarDayPanelTitle">Day</h2><p id="calendarDayPanelSummary"></p></div>
+          <button type="button" class="adm-modal-close" id="calendarDayPanelClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="adm-actions" style="margin-bottom:16px">
+          <button type="button" class="adm-btn" id="calDayCreateBooking">Create booking</button>
+          <button type="button" class="adm-btn ghost" id="calDayCreateCruise">Create cruise liner</button>
+          <button type="button" class="adm-btn ghost" id="calDayViewBookings">View bookings</button>
+          <button type="button" class="adm-btn ghost" id="calDayPrint">Print arrivals</button>
+        </div>
+        <div id="calendarDayBookings" class="cal-day-bookings" hidden></div>
+      </aside>
+    </div>
 
     <!-- ── Reservations ──────────────────────────────── -->
     <section class="adm-view" data-admin-view="reservations">

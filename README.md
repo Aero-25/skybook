@@ -1,6 +1,6 @@
 # SkyBook
 
-SkyBook is the small booking console behind the public **True Travel** and **Iventure** websites. It is deliberately simple and looks and works like SkyTrack (the Sea Breeze console): a top bar, six pages, plain cards and tables.
+SkyBook is the small booking console behind the public **True Travel** and **Iventure** websites. It is deliberately simple and looks and works like SkyTrack (the Sea Breeze console): a top bar, seven pages, plain cards and tables.
 
 ## What it does
 
@@ -10,6 +10,7 @@ SkyBook is the small booking console behind the public **True Travel** and **Ive
 4. **Reports** — the five reports (Sales, Payment process, Agent / booked-by, Invoiced, Guides) with a date range and PDF download, plus a bookings CSV export and the website analytics page.
 5. **Users** — who can sign in, and which pages they can see.
 6. **Dashboard** — today's tours, new website reservations, the next seven days and unpaid balances.
+7. **Calendar** — month, week and day views of every booking by tour date. Click a day to create a booking or a cruise liner booking on that date, see who is on it, or print the arrivals sheet.
 
 ## Files
 

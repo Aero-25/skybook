@@ -58,7 +58,7 @@ const state={
   bookingFormFields:[],permissionCatalog:shared.clone(shared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:shared.clone(shared.SKYBOOK_ROLE_DEFAULTS||{}),
   settings:shared.readConfig(),
-  bookingQuickFilter:'today',
+  bookingQuickFilter:'today',calendarView:'month',calendarFocusDate:todayKey(),calendarSelectedDay:'',
   isBookingModalOpen:false,isServiceModalOpen:false,isCruiseModalOpen:false,
   workflow:null,liveTimer:null,refreshing:null,editingBookingId:''
 }
@@ -210,8 +210,9 @@ const permissions=()=>{
   const role=String(state.profile?.role||'booking_agent')
   return {...(state.roleDefaults?.[role]||{}),...(state.profile?.effective_permissions||state.profile?.permissions||{})}
 }
-const can=key=>!key||Boolean(permissions()[key])
-const TAB_PERMISSION={dashboard:'dashboard',reservations:'bookings','reservation-detail':'bookings',bookings:'bookings','booking-detail':'bookings',services:'services',reports:'reports',users:'admin_users'}
+// A key the catalog does not know about (older bootstrap payloads) is not a restriction.
+const can=key=>!key||Boolean(permissions()[key])||!state.permissionCatalog.some(item=>item.key===key)
+const TAB_PERMISSION={dashboard:'dashboard',calendar:'calendar',reservations:'bookings','reservation-detail':'bookings',bookings:'bookings','booking-detail':'bookings',services:'services',reports:'reports',users:'admin_users'}
 
 /* ── Modals ──────────────────────────────────────────────────────────── */
 const setModal=(modal,open)=>{
@@ -404,7 +405,7 @@ const switchTab=(tab,{scroll=true}={})=>{
     bookingId:target==='booking-detail' ? state.selectedBookingId : '',
     reservationId:target==='reservation-detail' ? state.selectedBookingId : ''
   })
-  document.title=`${{dashboard:'Dashboard',reservations:'Reservations','reservation-detail':'Reservation',bookings:'Bookings','booking-detail':'Booking',services:'Tours',reports:'Reports',users:'Users'}[target]||'SkyBook'} · SkyBook`
+  document.title=`${{dashboard:'Dashboard',calendar:'Calendar',reservations:'Reservations','reservation-detail':'Reservation',bookings:'Bookings','booking-detail':'Booking',services:'Tours',reports:'Reports',users:'Users'}[target]||'SkyBook'} · SkyBook`
   if(scroll)window.scrollTo({top:0})
 }
 const applyNavVisibility=()=>{
@@ -1084,9 +1085,10 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingSaveButton.textContent=booking ? 'Save changes' : 'Create booking'
   updatePricePreview()
 }
-const openBookingModal=(booking=null)=>{
+const openBookingModal=(booking=null,{date=''}={})=>{
   state.editingBookingId=booking?.id||''
   fillBookingForm(booking)
+  if(!booking&&date)nodes.bookingDate.value=date
   nodes.bookingModalTitle.textContent=booking ? (isReservation(booking) ? 'Edit reservation' : 'Edit booking') : 'Create booking'
   nodes.bookingModalSubtitle.textContent=booking ? `${booking.reference} · saving keeps its current status.` : 'Manual bookings are saved as finalised straight away.'
   setModal(nodes.bookingModal,true)
@@ -1174,9 +1176,9 @@ const updateCruisePaxPerCar=()=>{
   const pax=Number(cruiseField('cruisePax').value||0), cars=Number(cruiseField('cruiseCars').value||0)
   cruiseField('cruisePaxPerCarValue').textContent=cars>0 ? String(Math.ceil(pax/cars)) : '—'
 }
-const openCruiseModal=()=>{
+const openCruiseModal=(dateKey='')=>{
   nodes.cruiseForm.reset()
-  cruiseField('cruiseDate').value=todayKey()
+  cruiseField('cruiseDate').value=dateKey||todayKey()
   cruiseField('cruisePax').value='1'; cruiseField('cruiseBoats').value='1'; cruiseField('cruiseBuses').value='0'; cruiseField('cruiseCars').value='0'
   cruiseField('cruiseBoatsField').hidden=true
   updateCruisePaxPerCar()
@@ -1656,12 +1658,200 @@ const exportBookingsCsv=()=>{
   window.setTimeout(()=>URL.revokeObjectURL(url),15000)
 }
 
+
+/* ── Calendar (day / week / month, day panel, printed arrivals) ─────── */
+const calendarNodes={
+  canvas:$('calendarCanvas'),label:$('calNavLabel'),focus:$('calendarFocusDate'),prev:$('calNavPrev'),next:$('calNavNext'),today:$('calNavToday'),
+  print:$('printArrivalsList'),views:[...document.querySelectorAll('[data-calendar-view]')],
+  panel:$('calendarDayPanel'),panelBackdrop:$('calendarDayPanelBackdrop'),panelTitle:$('calendarDayPanelTitle'),panelSummary:$('calendarDayPanelSummary'),
+  panelClose:$('calendarDayPanelClose'),create:$('calDayCreateBooking'),cruise:$('calDayCreateCruise'),view:$('calDayViewBookings'),dayPrint:$('calDayPrint'),dayBookings:$('calendarDayBookings')
+}
+const createDateRange=(focusDate,span)=>{
+  const start=parseDate(focusDate)||new Date()
+  start.setHours(0,0,0,0)
+  if(span==='week'){ const day=start.getDay(); start.setDate(start.getDate()+(day===0 ? -6 : 1-day)) }
+  else if(span==='month'){ start.setDate(1); const day=start.getDay(); start.setDate(start.getDate()+(day===0 ? -6 : 1-day)) }
+  const total=span==='day' ? 1 : span==='week' ? 7 : 42
+  return Array.from({length:total},(_,i)=>{ const d=new Date(start); d.setDate(start.getDate()+i); return d })
+}
+const rowStatusClass=b=>{
+  if(isCruise(b))return 'is-cruise-liner'
+  const s=lower(b?.status)
+  return ['cancelled','failed','no_show'].includes(s) ? 'status-cancelled' : s ? `status-${s}` : ''
+}
+const calendarBookings=()=>state.bookings.filter(b=>!isTrashed(b)&&dateKey(b.preferred_date)&&lower(b.status)!=='cancelled')
+const calendarName=b=>isCruise(b) ? (meta(b).display_name||`${meta(b).cruise_company_label||'Cruise'} Group`) : (b.customer_name||'Guest')
+const calendarTour=b=>b.service_name||meta(b).display_name||'Tour'
+const renderCalendar=()=>{
+  if(!calendarNodes.canvas)return
+  const focusDate=calendarNodes.focus.value||state.calendarFocusDate||todayKey()
+  state.calendarFocusDate=focusDate
+  if(calendarNodes.focus.value!==focusDate)calendarNodes.focus.value=focusDate
+  calendarNodes.views.forEach(btn=>btn.setAttribute('aria-pressed',btn.dataset.calendarView===state.calendarView ? 'true' : 'false'))
+  const focus=parseDate(focusDate)||new Date()
+  const dates=createDateRange(focusDate,state.calendarView)
+  if(state.calendarView==='month')calendarNodes.label.textContent=focus.toLocaleDateString('en-GB',{month:'long',year:'numeric'})
+  else if(state.calendarView==='week')calendarNodes.label.textContent=`${dates[0].toLocaleDateString('en-GB',{day:'numeric',month:'short'})} – ${dates[6].toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}`
+  else calendarNodes.label.textContent=focus.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+  const keys=new Set(dates.map(dateKey))
+  const rangeBookings=calendarBookings().filter(b=>keys.has(dateKey(b.preferred_date))).sort((a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date))||pickupLabel(a).localeCompare(pickupLabel(b)))
+  const guests=rangeBookings.reduce((s,b)=>s+paxOf(b),0)
+  $('calendarSummary').textContent=`${rangeBookings.length} booking${rangeBookings.length===1?'':'s'} · ${guests} guest${guests===1?'':'s'} in view. Click a day to add a booking or see who is on it.`
+  const today=todayKey()
+  if(state.calendarView==='day'){
+    calendarNodes.canvas.innerHTML=`<div class="calendar-day-stack">${rangeBookings.map(b=>`
+      <article class="calendar-entry-card ${rowStatusClass(b)}" data-open-booking="${attr(b.id)}" title="${attr(`${calendarName(b)} · ${calendarTour(b)} · ${b.reference}`)}">
+        <div><strong>${esc(calendarName(b))}</strong><p>${esc(calendarTour(b))} · ${esc(b.reference)}</p></div>
+        <div class="calendar-entry-meta"><span>${esc(pickupLabel(b))}</span><span>${esc(paxLabel(b))} pax</span><span>${esc(pickupModeLabel(meta(b).pickup_mode)||'Transport TBC')}</span>${guideNames(b).length ? `<span>Guide: ${esc(guideNames(b).join(', '))}</span>` : ''}</div>
+        <div>${statusTag(b)} ${paymentTag(b)}</div>
+      </article>`).join('')||'<p class="adm-empty">No bookings are scheduled for this day.</p>'}</div>
+      <p style="margin-top:14px"><button type="button" class="adm-btn ghost small" data-cal-day="${attr(focusDate)}">Add a booking on this day</button></p>`
+    return
+  }
+  if(state.calendarView==='week'){
+    calendarNodes.canvas.innerHTML=`<div class="calendar-week-grid">${dates.map(d=>{
+      const key=dateKey(d)
+      const items=rangeBookings.filter(b=>dateKey(b.preferred_date)===key)
+      return `<section class="calendar-cell${key===today ? ' is-today' : ''}">
+        <header><strong>${esc(d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric'}))}</strong><span>${items.length||''}</span></header>
+        <div class="calendar-cell-body">${items.map(b=>`<article class="calendar-mini-card is-clickable ${rowStatusClass(b)}" data-open-booking="${attr(b.id)}" title="${attr(`${calendarName(b)} — ${calendarTour(b)} (${b.reference})`)}"><strong>${esc(calendarName(b))}</strong><span>${esc(calendarTour(b))} · ${esc(paxLabel(b))}</span>${statusTag(b)}</article>`).join('')}
+          <button type="button" class="cal-overflow-pill" data-cal-day="${attr(key)}">${items.length ? 'Day view / add' : '+ Add'}</button></div>
+      </section>`
+    }).join('')}</div>`
+    return
+  }
+  const DAY_NAMES=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+  const todayIdx=(new Date().getDay()+6)%7
+  calendarNodes.canvas.innerHTML=`<div class="calendar-month-grid">
+    ${DAY_NAMES.map((n,i)=>`<div class="cal-day-label${i===todayIdx ? ' is-today-col' : ''}">${n}</div>`).join('')}
+    ${dates.map(d=>{
+      const key=dateKey(d)
+      const items=rangeBookings.filter(b=>dateKey(b.preferred_date)===key)
+      return `<section class="calendar-cell${focus.getMonth()===d.getMonth() ? '' : ' is-muted'}${key===today ? ' is-today' : ''}" data-cal-day="${attr(key)}">
+        <header><strong>${d.getDate()}</strong><span>${items.length||''}</span></header>
+        <div class="calendar-cell-body">
+          ${items.slice(0,3).map(b=>`<article class="calendar-mini-card ${rowStatusClass(b)}"><strong>${esc(calendarName(b))}</strong><span>${esc(calendarTour(b))}</span></article>`).join('')}
+          ${items.length>3 ? `<button type="button" class="cal-overflow-pill" data-cal-day="${attr(key)}">+${items.length-3} more</button>` : ''}
+        </div>
+      </section>`
+    }).join('')}
+  </div>`
+}
+const shiftCalendar=delta=>{
+  const next=parseDate(calendarNodes.focus.value||state.calendarFocusDate)||new Date()
+  if(state.calendarView==='month')next.setMonth(next.getMonth()+delta)
+  else if(state.calendarView==='week')next.setDate(next.getDate()+delta*7)
+  else next.setDate(next.getDate()+delta)
+  calendarNodes.focus.value=dateKey(next)
+  renderCalendar()
+}
+const openCalendarDayPanel=key=>{
+  const d=parseDate(key)
+  if(!d)return
+  state.calendarSelectedDay=key
+  const items=calendarBookings().filter(b=>dateKey(b.preferred_date)===key)
+  calendarNodes.panelTitle.textContent=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+  calendarNodes.panelSummary.textContent=items.length ? `${items.length} booking${items.length===1?'':'s'} · ${items.reduce((s,b)=>s+paxOf(b),0)} guests` : 'Nothing booked yet.'
+  calendarNodes.dayBookings.hidden=true
+  calendarNodes.panel.hidden=false
+  document.body.classList.add('has-modal')
+  if(items.length)renderCalendarDayBookings(key)
+}
+const closeCalendarDayPanel=()=>{ calendarNodes.panel.hidden=true; state.calendarSelectedDay=''; document.body.classList.toggle('has-modal',[nodes.bookingModal,nodes.serviceModal,nodes.cruiseModal,nodes.workflowModal].some(m=>m&&!m.hidden)) }
+const renderCalendarDayBookings=key=>{
+  const items=calendarBookings().filter(b=>dateKey(b.preferred_date)===key).sort((a,b)=>pickupLabel(a).localeCompare(pickupLabel(b)))
+  calendarNodes.dayBookings.innerHTML=items.map(b=>{
+    const m=meta(b)
+    const notes=byDateDesc(state.adminNotes.filter(n=>n.booking_id===b.id),'created_at')
+    const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0),i=Number(b.infant_quantity||m.infant_quantity||0)
+    const parts=[a>0?`${a} adult${a!==1?'s':''}`:'',c>0?`${c} child${c!==1?'ren':''}`:'',i>0?`${i} infant${i!==1?'s':''}`:''].filter(Boolean)
+    const pax=parts.length ? `${paxOf(b)} pax (${parts.join(', ')})` : `${paxOf(b)} pax`
+    return `<article class="cal-day-block ${rowStatusClass(b)}" data-cal-block="${attr(b.id)}">
+        <strong>${esc(calendarName(b))}</strong>
+        <span>${esc(calendarTour(b))} · ${esc(pickupLabel(b))}</span>
+        <span>${esc(pax)}${isCruise(b)&&m.buses>0 ? ` · ${m.buses} bus${m.buses>1?'es':''}` : ''}</span>
+        <div class="cal-day-block-tags">${statusTag(b)} ${paymentTag(b)}</div>
+        <div class="block-amount">${money(b.total_amount,b.currency)}</div>
+      </article>
+      <div class="cal-day-block-detail" id="block-detail-${attr(b.id)}">
+        <dl>
+          <dt>Name</dt><dd>${esc(b.customer_name||calendarName(b))}</dd>
+          <dt>Pax</dt><dd>${esc(pax)}</dd>
+          <dt>Activity</dt><dd>${esc(calendarTour(b))}</dd>
+          <dt>Amount</dt><dd>${money(b.total_amount,b.currency)}</dd>
+          <dt>Status</dt><dd>${statusTag(b)}</dd>
+          <dt>Payment</dt><dd>${paymentTag(b)}</dd>
+          <dt>Booked by</dt><dd>${esc(m.booked_by||'—')}</dd>
+          <dt>Contact</dt><dd>${esc(b.customer_phone||b.customer_email||'—')}</dd>
+          <dt>Transport</dt><dd>${esc(pickupModeLabel(m.pickup_mode)||'—')}</dd>
+          ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(guideNames(b).join(', '))}</dd>` : ''}
+          ${m.skipper_name ? `<dt>Skipper</dt><dd>${esc(m.skipper_name)}</dd>` : ''}
+          ${b.notes||b.customer_notes ? `<dt>Notes</dt><dd>${esc(b.notes||b.customer_notes)}</dd>` : ''}
+          ${notes.length ? `<dt>Internal</dt><dd>${notes.map(n=>esc(n.note)).join('<br>')}</dd>` : ''}
+        </dl>
+        <div class="cal-day-block-actions"><button type="button" class="adm-btn small" data-open-booking="${attr(b.id)}">Open booking →</button></div>
+      </div>`
+  }).join('')||'<p class="adm-empty">No bookings for this day.</p>'
+  calendarNodes.dayBookings.hidden=false
+}
+// Printed arrivals sheet: one card per booking with everything the guide and driver need.
+const printArrivals=(key=todayKey())=>{
+  const rows=calendarBookings().filter(b=>dateKey(b.preferred_date)===key&&lower(b.status)!=='refunded').sort((a,b)=>pickupLabel(a).localeCompare(pickupLabel(b)))
+  const field=(l,v)=>v&&v!=='—' ? `<div class="field"><span class="label">${esc(l)}</span><span class="value">${esc(String(v))}</span></div>` : ''
+  const cards=rows.map(b=>{
+    const m=meta(b)
+    const a=Number(b.adult_quantity||0),c=Number(b.child_quantity||0),i=Number(b.infant_quantity||m.infant_quantity||0)
+    const parts=[a>0?`${a} Adult${a>1?'s':''}`:'',c>0?`${c} Child${c>1?'ren':''} (4–12)`:'',i>0?`${i} Under 4`:''].filter(Boolean)
+    return `<div class="booking-card">
+      <div class="card-header">
+        <div><div class="guest-name">${esc(calendarName(b))}</div><div class="tour-name">${esc(calendarTour(b))}${pickupLabel(b)!=='TBC' ? ` · ${esc(pickupLabel(b))}` : ''}</div></div>
+        <div class="card-meta"><div class="ref">${esc(b.reference)}</div>${isAdminEntered(b) ? '' : `<div class="status-pill">${esc(lower(b.status)==='provisional' ? 'Awaiting approval' : label(b.status))}</div>`}<div class="amount">${money(b.total_amount,b.currency)}</div></div>
+      </div>
+      <div class="card-body">
+        <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',guideNames(b).join(', '))}${field('Skipper(s)',m.skipper_name)}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
+        <div class="fields-col">${field('Dietary',m.dietary_requirements||m.dietary)}${field('Nationality',m.nationality)}${field('Booked by',m.booked_by)}${field('Agent',m.agent)}${field('Payment',paymentLabel(b.payment_status))}${field('Notes',b.customer_notes||b.notes)}</div>
+      </div>
+    </div>`
+  }).join('<hr class="card-divider">')
+  const css='.page-header{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #092d52;margin-bottom:20px}.page-header h1{font-size:22px;color:#092d52}.count{display:inline-block;background:#092d52;color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;margin-left:8px;vertical-align:middle}.booking-card{padding:14px 0 6px;page-break-inside:avoid}.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}.guest-name{font-size:17px;font-weight:800;color:#092d52}.tour-name{font-size:13px;color:#3a6480;font-weight:600;margin-top:2px}.card-meta{text-align:right;margin-left:20px;flex-shrink:0}.ref{font-size:11px;color:#516678;letter-spacing:.06em;font-weight:700}.status-pill{display:inline-block;margin-top:4px;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;text-transform:uppercase;background:#dbe8fa;color:#14509f}.amount{font-size:15px;font-weight:800;color:#092d52;margin-top:4px}.card-body{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}.fields-col{display:flex;flex-direction:column;gap:4px}.field{display:flex;gap:8px;align-items:baseline}.label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#516678;min-width:90px;white-space:nowrap}.value{font-size:13px;color:#142438}.card-divider{border:0;border-top:1px solid #dde9f2;margin:8px 0}'
+  openPrintWindow(`Arrivals — ${fmtDate(key)}`,`<style>${css}</style><div class="page-header"><div><h1>Arrivals<span class="count">${rows.length}</span></h1><p>${esc(fmtDate(key))} · ${rows.reduce((s,b)=>s+paxOf(b),0)} guests</p></div><div><p>Printed ${esc(fmtDateTime(new Date().toISOString()))}</p></div></div>${cards||`<p>No arrivals scheduled for ${esc(fmtDate(key))}.</p>`}`)
+}
+calendarNodes.views.forEach(btn=>btn.addEventListener('click',()=>{ state.calendarView=btn.dataset.calendarView||'month'; renderCalendar() }))
+calendarNodes.focus.addEventListener('change',renderCalendar)
+calendarNodes.prev.addEventListener('click',()=>shiftCalendar(-1))
+calendarNodes.next.addEventListener('click',()=>shiftCalendar(1))
+calendarNodes.today.addEventListener('click',()=>{ calendarNodes.focus.value=todayKey(); renderCalendar() })
+calendarNodes.print.addEventListener('click',()=>openWorkflow({
+  title:'Print arrivals',description:'Choose the tour date to print. The sheet lists every booking with pickup, pax, guide, transport and notes.',submitLabel:'Print',
+  fields:[{name:'date',label:'Tour date',type:'date',value:calendarNodes.focus.value||todayKey(),required:true}],
+  onSubmit:async values=>printArrivals(values.date)
+}))
+calendarNodes.canvas.addEventListener('click',event=>{
+  if(event.target.closest('[data-open-booking]'))return // handled by the global click handler
+  const day=event.target.closest('[data-cal-day]')
+  if(day)openCalendarDayPanel(day.dataset.calDay)
+})
+calendarNodes.panelClose.addEventListener('click',closeCalendarDayPanel)
+calendarNodes.panelBackdrop.addEventListener('click',closeCalendarDayPanel)
+calendarNodes.create.addEventListener('click',()=>{ const key=state.calendarSelectedDay; closeCalendarDayPanel(); openBookingModal(null,{date:key}) })
+calendarNodes.cruise.addEventListener('click',()=>{ const key=state.calendarSelectedDay; closeCalendarDayPanel(); openCruiseModal(key) })
+calendarNodes.view.addEventListener('click',()=>{ const key=state.calendarSelectedDay; closeCalendarDayPanel(); calendarNodes.focus.value=key; state.calendarView='day'; renderCalendar(); switchTab('calendar') })
+calendarNodes.dayPrint.addEventListener('click',()=>printArrivals(state.calendarSelectedDay||todayKey()))
+calendarNodes.dayBookings.addEventListener('click',event=>{
+  if(event.target.closest('[data-open-booking]')){ closeCalendarDayPanel(); return }
+  const block=event.target.closest('[data-cal-block]')
+  if(!block)return
+  const detail=document.getElementById(`block-detail-${block.dataset.calBlock}`)
+  if(detail&&detail.classList.toggle('is-open'))detail.scrollIntoView({behavior:'smooth',block:'nearest'})
+})
+
 /* ── Render everything ───────────────────────────────────────────────── */
 const renderAll=()=>{
   renderSession()
   applyNavVisibility()
   renderFormOptions()
   renderDashboard()
+  renderCalendar()
   renderReservations()
   renderBookings()
   renderServices()
@@ -1746,6 +1936,7 @@ document.addEventListener('change',event=>{
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return
   if(state.workflow)closeWorkflow()
+  else if(calendarNodes.panel&&!calendarNodes.panel.hidden)closeCalendarDayPanel()
   else if(state.isBookingModalOpen||!nodes.bookingModal.hidden)closeBookingModal()
   else if(!nodes.serviceModal.hidden)closeServiceModal()
   else if(!nodes.cruiseModal.hidden)setModal(nodes.cruiseModal,false)
