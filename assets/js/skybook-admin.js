@@ -341,9 +341,10 @@ const paxLabel=b=>{
   return parts ? `${paxOf(b)} (${parts})` : String(paxOf(b))
 }
 const paymentsOf=id=>state.payments.filter(p=>p.booking_id===id)
-const receivedOf=b=>Number(paymentsOf(b?.id)[0]?.amount_received||0)
-const PAID_STATUSES=['paid','cash','card','eft','voucher','foc','invoiced']
+const PAID_STATUSES=['paid','fully_paid','cash','card','eft','voucher','foc','invoiced']
+// A payment process on the booking means it is fully paid, whatever the payment rows say.
 const isSettled=b=>PAID_STATUSES.includes(lower(b?.payment_status))
+const receivedOf=b=>isSettled(b) ? Number(b?.total_amount||0) : Number(paymentsOf(b?.id)[0]?.amount_received||0)
 const outstandingOf=b=>{
   if(isSettled(b)||['cancelled','refunded'].includes(lower(b?.status)))return 0
   return Math.max(0,Number((Number(b?.total_amount||0)-receivedOf(b)).toFixed(2)))

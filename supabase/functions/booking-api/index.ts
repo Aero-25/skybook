@@ -2611,31 +2611,67 @@ const insertStatusHistory=async(bookingId:string,fromStatus:string|null,toStatus
   if(error)throw error
 }
 
+// A booking whose Payment Process is set (cash, card, EFT, voucher, FOC, invoiced) is fully
+// paid — the payment row is settled for the whole booking total, no matter how the money came in.
+const SETTLED_PAYMENT_PROCESSES=new Set(['paid','fully_paid','cash','card','eft','voucher','foc','invoiced'])
+const isSettledPaymentProcess=(value:unknown)=>SETTLED_PAYMENT_PROCESSES.has(normalizeText(value).toLowerCase())
+const paymentRowStatusFor=(paymentStatus:string)=>{
+  const normalized=normalizeText(paymentStatus).toLowerCase()
+  if(isSettledPaymentProcess(normalized))return 'paid'
+  if(['partially_paid','refunded','cancelled','failed','pending','authorized','unpaid','invoice'].includes(normalized))return normalized
+  return 'pending'
+}
 const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:number,currencyCode:string,provider='manual_eft')=>{
-  const paymentsStatus=paymentStatus||'pending'
-  const { data:existing }=await adminClient.from('payments').select('*').eq('booking_id',bookingId).maybeSingle()
+  const process=normalizeText(paymentStatus).toLowerCase()
+  const settled=isSettledPaymentProcess(process)
+  const rowStatus=paymentRowStatusFor(process)
+  const { data:existing }=await adminClient.from('payments').select('*').eq('booking_id',bookingId).order('created_at',{ascending:true}).limit(1).maybeSingle()
+  const previousReceived=Number(existing?.amount_received||0)
+  // Settled: the whole booking total counts as received. Otherwise keep whatever was already received.
+  const nextReceived=settled ? Math.max(previousReceived,Number(amount||0)) : previousReceived
+  const paymentType=['cash','card','eft','voucher','foc'].includes(process) ? process : ''
+  const rowProvider=process==='eft' ? 'manual_eft' : (paymentType ? 'custom' : provider)
+  let paymentId=String(existing?.id||'')
   if(existing){
     const { error }=await adminClient.from('payments').update({
-      provider,
-      status:paymentsStatus,
+      provider:rowProvider,
+      status:rowStatus,
       amount,
-      amount_received:paymentsStatus==='paid' ? Math.max(Number(existing.amount_received||0),Number(amount||0)) : Number(existing.amount_received||0),
-      paid_at:paymentsStatus==='paid' ? nowIso() : null
+      amount_received:nextReceived,
+      paid_at:rowStatus==='paid' ? (existing.paid_at||nowIso()) : null,
+      metadata:{...normalizeJsonRecord(existing.metadata),...(paymentType ? {payment_type:paymentType,payment_process:process} : {})}
     }).eq('id',existing.id)
     if(error)throw error
-    return
+  }else{
+    const { data,error }=await adminClient.from('payments').insert({
+      booking_id:bookingId,
+      provider:rowProvider,
+      status:rowStatus,
+      currency_code:currencyCode,
+      amount,
+      amount_received:nextReceived,
+      paid_at:rowStatus==='paid' ? nowIso() : null,
+      metadata:{source:'booking-api',...(paymentType ? {payment_type:paymentType,payment_process:process} : {})}
+    }).select('id').single()
+    if(error)throw error
+    paymentId=String(data?.id||'')
   }
-  const { error }=await adminClient.from('payments').insert({
-    booking_id:bookingId,
-    provider,
-    status:paymentsStatus,
-    currency_code:currencyCode,
-    amount,
-    amount_received:paymentsStatus==='paid' ? amount : 0,
-    paid_at:paymentsStatus==='paid' ? nowIso() : null,
-    metadata:{source:'booking-api'}
-  })
-  if(error)throw error
+  // Record the settlement as a transaction so the Payment Process report shows it by method.
+  const delta=Number((nextReceived-previousReceived).toFixed(2))
+  if(settled&&delta>0&&paymentId){
+    const { error }=await adminClient.from('payment_transactions').insert({
+      payment_id:paymentId,
+      provider:rowProvider,
+      transaction_reference:`PROCESS-${process.toUpperCase()}-${Date.now()}`,
+      transaction_type:'manual_payment',
+      status:'paid',
+      amount:delta,
+      currency_code:currencyCode,
+      raw_payload:{payment_type:paymentType||process,payment_process:process,source:'payment_process'},
+      reconciled_at:nowIso()
+    })
+    if(error)throw error
+  }
 }
 
 const normalizeManualPaymentType=(value:unknown)=>{

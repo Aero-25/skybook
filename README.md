@@ -38,9 +38,21 @@ node scripts/smoke-server.mjs        # serves the static site at http://127.0.0.
 
 Open `http://127.0.0.1:4173/admin.html` (the workspace gateway) and sign in with a SkyBook user. The local instance uses the live Supabase backend, so it shows real data.
 
+## Payment rule
+
+A booking whose **Payment Process** is set (Cash, Card, EFT, Voucher, FOC, Invoiced) is fully paid. The API settles its payment row for the full total and records the settlement by method; the console shows nothing outstanding. `supabase/migrations/202609290001_skybook_payment_process_means_paid.sql` applies the same rule to existing bookings.
+
 ## Deploy
 
 Static site — deploy the repository root to the admin domain (Cloudflare, `wrangler.jsonc`). Point both public sites at the same Supabase backend.
+
+Backend changes are deployed separately from the repo root:
+
+```sh
+supabase link --project-ref asagrwkixsaltkkrqdsz
+supabase db push                          # applies pending migrations
+supabase functions deploy booking-api     # deploys the Edge Function
+```
 
 ## Smoke tests
 
