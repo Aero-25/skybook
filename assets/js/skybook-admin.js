@@ -345,14 +345,20 @@ const PAID_STATUSES=['paid','fully_paid','cash','card','eft','voucher','foc','in
 // A payment process on the booking means it is fully paid, whatever the payment rows say.
 const isSettled=b=>PAID_STATUSES.includes(lower(b?.payment_status))
 const receivedOf=b=>isSettled(b) ? Number(b?.total_amount||0) : Number(paymentsOf(b?.id)[0]?.amount_received||0)
+// Admin-desk bookings are entered as settled deals; without a payment process they are simply
+// unrecorded, not unpaid. Only website bookings (and anything with money actually received)
+// carry an outstanding balance.
+const expectsPayment=b=>!isAdminEntered(b)||Boolean(lower(b?.payment_status))||Number(paymentsOf(b?.id)[0]?.amount_received||0)>0
 const outstandingOf=b=>{
   if(isSettled(b)||['cancelled','refunded'].includes(lower(b?.status)))return 0
+  if(!expectsPayment(b))return 0
   return Math.max(0,Number((Number(b?.total_amount||0)-receivedOf(b)).toFixed(2)))
 }
 const PAYMENT_LABELS={partially_paid:'Partially paid',fully_paid:'Fully paid',foc:'FOC',paid:'Paid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed',invoiced:'Invoiced',eft:'EFT',card:'Card',cash:'Cash',voucher:'Voucher'}
 const paymentLabel=status=>{ const key=lower(status); return key ? (PAYMENT_LABELS[key]||label(key)) : 'Unpaid' }
 const paymentTag=b=>{
   const key=lower(b?.payment_status)
+  if(!key&&!expectsPayment(b))return ''
   if(!key)return receivedOf(b)>0 ? tag('partially_paid','Partially paid') : tag('unpaid','Unpaid')
   return tag(key,paymentLabel(key))
 }
@@ -445,10 +451,11 @@ const renderDashboard=()=>{
     {value:thisMonth.length,label:'Bookings this month'},
     {value:unpaid.length,label:'Upcoming with balance due',cls:unpaid.length ? 'is-bad' : ''}
   ].map(s=>`<div class="adm-card adm-stat ${s.cls||''}"><strong>${esc(String(s.value))}</strong><span>${esc(s.label)}</span></div>`).join('')
-  const overdueUnpaid=active.filter(b=>outstandingOf(b)>0&&dateKey(b.preferred_date)<today)
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-30)
+  const overdueUnpaid=active.filter(b=>outstandingOf(b)>0&&dateKey(b.preferred_date)<today&&dateKey(b.preferred_date)>=dateKey(cutoff))
   nodes.dashboardAlerts.innerHTML=[
     pending.length ? `<p class="adm-note warn" style="margin-bottom:18px"><strong>${pending.length} website reservation${pending.length===1?'':'s'}</strong> waiting for approval. <button type="button" class="adm-link-btn" data-admin-tab="reservations">Review them</button>.</p>` : '',
-    overdueUnpaid.length ? `<p class="adm-note err" style="margin-bottom:18px"><strong>${overdueUnpaid.length} past booking${overdueUnpaid.length===1?'':'s'} still unpaid:</strong> ${overdueUnpaid.slice(0,5).map(b=>`${esc(b.customer_name||'Guest')} (${esc(b.reference)}, ${money(outstandingOf(b),b.currency)})`).join('; ')}${overdueUnpaid.length>5 ? ' …' : ''}</p>` : ''
+    overdueUnpaid.length ? `<p class="adm-note err" style="margin-bottom:18px"><strong>${overdueUnpaid.length} booking${overdueUnpaid.length===1?'':'s'} from the last 30 days still unpaid:</strong> ${overdueUnpaid.slice(0,5).map(b=>`${esc(b.customer_name||'Guest')} (${esc(b.reference)}, ${money(outstandingOf(b),b.currency)})`).join('; ')}${overdueUnpaid.length>5 ? ' …' : ''}</p>` : ''
   ].join('')
   nodes.dashboardToday.innerHTML=todays.map(b=>`<tr class="is-clickable" data-open-booking="${attr(b.id)}">
     <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.reference)} · ${esc(b.customer_phone||b.customer_email||'')}</span></td>
