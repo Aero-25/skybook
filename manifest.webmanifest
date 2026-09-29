@@ -1,14 +1,14 @@
 {
-  "name": "SkyBook Operations Console",
+  "name": "SkyBook",
   "short_name": "SkyBook",
-  "description": "SkyBook tour operations, bookings, calendar and finance console.",
+  "description": "SkyBook — reservations, bookings, tours and reports for True Travel and Iventure.",
   "id": "/booking-admin.html",
   "start_url": "/booking-admin.html",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d2d6e",
-  "theme_color": "#1769aa",
+  "background_color": "#f4f7fa",
+  "theme_color": "#092d52",
   "icons": [
     {
       "src": "https://agfrphupwdcjgugvpiuj.supabase.co/storage/v1/object/public/SkyBook/SkyBook.png",
