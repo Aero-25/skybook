@@ -392,7 +392,7 @@ const syncRoute=({tab='',bookingId='',reservationId=''}={})=>{
 }
 const NAV_PARENT={'reservation-detail':'reservations','booking-detail':'bookings'}
 const switchTab=(tab,{scroll=true}={})=>{
-  const target=TAB_PERMISSION[tab]!==undefined ? tab : 'dashboard'
+  const target=TAB_PERMISSION[tab]!==undefined ? tab : 'calendar'
   if(!can(TAB_PERMISSION[target])){ toast('Your role does not allow that section.','error'); return }
   state.activeTab=target
   document.querySelectorAll('[data-admin-view]').forEach(view=>view.classList.toggle('is-active',view.dataset.adminView===target))
@@ -1943,7 +1943,7 @@ document.addEventListener('keydown',event=>{
   else if(!nodes.cruiseModal.hidden)setModal(nodes.cruiseModal,false)
 })
 nodes.menuToggle.addEventListener('click',()=>{ const open=nodes.bar.classList.toggle('is-open'); nodes.menuToggle.setAttribute('aria-expanded',open ? 'true' : 'false') })
-nodes.brandHome.addEventListener('click',()=>switchTab('dashboard'))
+nodes.brandHome.addEventListener('click',()=>switchTab('calendar'))
 nodes.logout.addEventListener('click',()=>{ void signOut() })
 ;['input','change'].forEach(evt=>{
   nodes.bookingFilterSearch.addEventListener(evt,renderBookings)
@@ -2020,7 +2020,7 @@ const applyInitialRoute=()=>{
   if(route.bookingId&&bookingById(route.bookingId)){ openBooking(route.bookingId); return }
   if(route.reservationId&&bookingById(route.reservationId)){ openReservation(route.reservationId); return }
   if(route.serviceId){ const s=state.services.find(x=>x.id===route.serviceId); switchTab('services'); if(s)openServiceModal(s); return }
-  switchTab(route.tab||'dashboard',{scroll:false})
+  switchTab(route.tab||'calendar',{scroll:false})
 }
 ;(async()=>{
   try{
