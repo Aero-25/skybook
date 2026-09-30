@@ -264,65 +264,82 @@
       <div class="adm-head">
         <div>
           <h1>Reports</h1>
-          <p>Sales, payments, agents, invoiced bookings and guide shifts.</p>
+          <p id="reportsRangeSummary">Sales, payments, agents, invoiced bookings and guide shifts.</p>
         </div>
         <div class="adm-head-actions">
           <a class="adm-btn ghost" href="analytics.html">Website analytics</a>
           <button class="adm-btn ghost" type="button" id="exportBookingsCsv">Export bookings CSV</button>
         </div>
       </div>
-      <section class="adm-card">
-        <div class="report-range">
-          <label class="adm-field"><span>Date range</span>
-            <select id="reportsRangePreset">
-              <option value="all" selected>All time</option>
-              <option value="month">This month</option>
-              <option value="week">This week</option>
-              <option value="30days">Last 30 days</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
+
+      <section class="adm-card rep-filters">
+        <div class="adm-chips" id="reportsPresets" role="group" aria-label="Date range">
+          <button type="button" class="adm-chip" data-report-preset="all" aria-pressed="true">All time</button>
+          <button type="button" class="adm-chip" data-report-preset="month" aria-pressed="false">This month</button>
+          <button type="button" class="adm-chip" data-report-preset="lastmonth" aria-pressed="false">Last month</button>
+          <button type="button" class="adm-chip" data-report-preset="week" aria-pressed="false">This week</button>
+          <button type="button" class="adm-chip" data-report-preset="30days" aria-pressed="false">Last 30 days</button>
+          <button type="button" class="adm-chip" data-report-preset="90days" aria-pressed="false">Last 90 days</button>
+          <button type="button" class="adm-chip" data-report-preset="year" aria-pressed="false">This year</button>
+          <button type="button" class="adm-chip" data-report-preset="custom" aria-pressed="false">Custom</button>
+        </div>
+        <div class="rep-filter-row">
           <label class="adm-field"><span>From</span><input type="date" id="reportsRangeFrom"></label>
           <label class="adm-field"><span>To</span><input type="date" id="reportsRangeTo"></label>
-          <p class="report-range-summary" id="reportsRangeSummary"></p>
+          <label class="adm-field"><span>Brand</span>
+            <select id="reportsBrand"><option value="">All brands</option></select>
+          </label>
         </div>
       </section>
 
-      <details class="report-panel" open>
-        <summary>
-          <div><h2>1. Sales report</h2><p>Revenue and booking volume across brands, tours and channels. Cancelled and refunded bookings are excluded.</p></div>
-          <div class="report-panel-actions"><button type="button" class="adm-btn ghost small" data-report-pdf="sales">Download PDF</button><span class="report-chevron" aria-hidden="true"></span></div>
-        </summary>
-        <div class="report-panel-body"><div class="metric-cards" id="salesReportCards"></div><div id="salesReportBody"></div></div>
-      </details>
-      <details class="report-panel">
-        <summary>
-          <div><h2>2. Payment process report</h2><p>How guests actually paid, and the spread of the Payment Process field across active bookings.</p></div>
-          <div class="report-panel-actions"><button type="button" class="adm-btn ghost small" data-report-pdf="payments">Download PDF</button><span class="report-chevron" aria-hidden="true"></span></div>
-        </summary>
-        <div class="report-panel-body"><div class="metric-cards" id="paymentReportCards"></div><div id="paymentReportBody"></div></div>
-      </details>
-      <details class="report-panel">
-        <summary>
-          <div><h2>3. Agent / booked-by report</h2><p>Bookings and revenue attributed to selling partners (Agent field) and to the Booked By field.</p></div>
-          <div class="report-panel-actions"><button type="button" class="adm-btn ghost small" data-report-pdf="agents">Download PDF</button><span class="report-chevron" aria-hidden="true"></span></div>
-        </summary>
-        <div class="report-panel-body"><div class="metric-cards" id="agentReportCards"></div><div id="agentReportBody"></div></div>
-      </details>
-      <details class="report-panel">
-        <summary>
-          <div><h2>4. Invoiced report</h2><p>Every active booking whose Payment Process is Invoiced — cruise liner group bookings.</p></div>
-          <div class="report-panel-actions"><button type="button" class="adm-btn ghost small" data-report-pdf="invoiced">Download PDF</button><span class="report-chevron" aria-hidden="true"></span></div>
-        </summary>
-        <div class="report-panel-body"><div class="metric-cards" id="invoicedReportCards"></div><div id="invoicedReportBody"></div></div>
-      </details>
-      <details class="report-panel">
-        <summary>
-          <div><h2>5. Guides report</h2><p>Any number of bookings for a guide in the same morning (or afternoon) counts as <strong>1</strong>. A morning and an afternoon tour the same day count as <strong>2</strong>. Bookings with no recorded time count on their own.</p></div>
-          <div class="report-panel-actions"><button type="button" class="adm-btn ghost small" data-report-pdf="guides">Download PDF</button><span class="report-chevron" aria-hidden="true"></span></div>
-        </summary>
-        <div class="report-panel-body"><div class="metric-cards" id="guidesReportCards"></div><div id="guidesReportBody"></div></div>
-      </details>
+      <nav class="rep-tabs" id="reportsTabs" aria-label="Reports">
+        <button type="button" data-report-tab="sales" aria-current="page">Sales</button>
+        <button type="button" data-report-tab="payments">Payments</button>
+        <button type="button" data-report-tab="agents">Agents &amp; booked by</button>
+        <button type="button" data-report-tab="invoiced">Invoiced</button>
+        <button type="button" data-report-tab="guides">Guides</button>
+      </nav>
+
+      <section class="rep-panel" data-report-panel="sales">
+        <div class="rep-panel-head">
+          <div><h2>Sales report</h2><p>Revenue and booking volume across brands, tours and channels. Cancelled and refunded bookings are excluded.</p></div>
+          <button type="button" class="adm-btn ghost small" data-report-pdf="sales">Download PDF</button>
+        </div>
+        <div class="stat-row" id="salesReportCards"></div>
+        <div id="salesReportBody"></div>
+      </section>
+      <section class="rep-panel" data-report-panel="payments" hidden>
+        <div class="rep-panel-head">
+          <div><h2>Payment process report</h2><p>How guests paid, and the spread of the Payment Process field across active bookings.</p></div>
+          <button type="button" class="adm-btn ghost small" data-report-pdf="payments">Download PDF</button>
+        </div>
+        <div class="stat-row" id="paymentReportCards"></div>
+        <div id="paymentReportBody"></div>
+      </section>
+      <section class="rep-panel" data-report-panel="agents" hidden>
+        <div class="rep-panel-head">
+          <div><h2>Agent &amp; booked-by report</h2><p>Bookings and revenue attributed to selling partners (Agent field) and to the Booked By field.</p></div>
+          <button type="button" class="adm-btn ghost small" data-report-pdf="agents">Download PDF</button>
+        </div>
+        <div class="stat-row" id="agentReportCards"></div>
+        <div id="agentReportBody"></div>
+      </section>
+      <section class="rep-panel" data-report-panel="invoiced" hidden>
+        <div class="rep-panel-head">
+          <div><h2>Invoiced report</h2><p>Every active booking whose Payment Process is Invoiced — cruise liner group bookings.</p></div>
+          <button type="button" class="adm-btn ghost small" data-report-pdf="invoiced">Download PDF</button>
+        </div>
+        <div class="stat-row" id="invoicedReportCards"></div>
+        <div id="invoicedReportBody"></div>
+      </section>
+      <section class="rep-panel" data-report-panel="guides" hidden>
+        <div class="rep-panel-head">
+          <div><h2>Guides report</h2><p>Any number of bookings for a guide in the same morning (or afternoon) counts as <strong>1</strong> shift. A morning and an afternoon tour the same day count as <strong>2</strong>. Bookings with no recorded time count on their own.</p></div>
+          <button type="button" class="adm-btn ghost small" data-report-pdf="guides">Download PDF</button>
+        </div>
+        <div class="stat-row" id="guidesReportCards"></div>
+        <div id="guidesReportBody"></div>
+      </section>
     </section>
 
     <!-- ── Users ─────────────────────────────────────── -->

@@ -58,7 +58,7 @@ const state={
   bookingFormFields:[],permissionCatalog:shared.clone(shared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:shared.clone(shared.SKYBOOK_ROLE_DEFAULTS||{}),
   settings:shared.readConfig(),
-  bookingQuickFilter:'today',calendarView:'month',calendarFocusDate:todayKey(),calendarSelectedDay:'',
+  bookingQuickFilter:'today',reportPreset:'all',reportTab:'sales',calendarView:'month',calendarFocusDate:todayKey(),calendarSelectedDay:'',
   isBookingModalOpen:false,isServiceModalOpen:false,isCruiseModalOpen:false,
   workflow:null,liveTimer:null,refreshing:null,editingBookingId:''
 }
@@ -111,7 +111,7 @@ const nodes={
   adminUserFullName:$('adminUserFullName'),adminUserPassword:$('adminUserPassword'),adminUserRole:$('adminUserRole'),adminUserActive:$('adminUserActive'),
   adminUserPermissions:$('adminUserPermissions'),adminUserSaveButton:$('adminUserSaveButton'),adminUserReset:$('adminUserResetButton'),
   // reports
-  reportsRangePreset:$('reportsRangePreset'),reportsRangeFrom:$('reportsRangeFrom'),reportsRangeTo:$('reportsRangeTo'),reportsRangeSummary:$('reportsRangeSummary'),
+  reportsPresets:$('reportsPresets'),reportsRangeFrom:$('reportsRangeFrom'),reportsRangeTo:$('reportsRangeTo'),reportsRangeSummary:$('reportsRangeSummary'),reportsBrand:$('reportsBrand'),reportsTabs:$('reportsTabs'),
   salesReportCards:$('salesReportCards'),salesReportBody:$('salesReportBody'),paymentReportCards:$('paymentReportCards'),paymentReportBody:$('paymentReportBody'),
   agentReportCards:$('agentReportCards'),agentReportBody:$('agentReportBody'),invoicedReportCards:$('invoicedReportCards'),invoicedReportBody:$('invoicedReportBody'),
   guidesReportCards:$('guidesReportCards'),guidesReportBody:$('guidesReportBody'),exportCsv:$('exportBookingsCsv'),
@@ -1052,6 +1052,9 @@ const renderFormOptions=()=>{
   const currentFilterBrand=nodes.bookingFilterBrand.value
   nodes.bookingFilterBrand.innerHTML=`<option value="">All brands</option>${brandOptions}`
   nodes.bookingFilterBrand.value=currentFilterBrand
+  const currentReportBrand=nodes.reportsBrand.value
+  nodes.reportsBrand.innerHTML=`<option value="">All brands</option>${brandOptions}`
+  nodes.reportsBrand.value=currentReportBrand
   const uniq=values=>[...new Set(values.map(text).filter(Boolean))].sort((a,b)=>a.localeCompare(b))
   nodes.bookedByDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).booked_by)).map(v=>`<option value="${attr(v)}">`).join('')
   nodes.agentDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).agent)).map(v=>`<option value="${attr(v)}">`).join('')
@@ -1429,12 +1432,6 @@ const barChart=(items,{currency=null,maxBars=8}={})=>{
     return `<div class="bar-row"><span title="${attr(name)}">${esc(name.length>22 ? name.slice(0,20)+'…' : name)}</span><div class="bar-track"><div class="bar-fill" style="width:${((v/max)*100).toFixed(1)}%"></div></div><span>${esc(fmt(v))}</span></div>`
   }).join('')}</div>`
 }
-const monthlyChart=(bookings,{mode='count',currency='NAD'}={})=>{
-  const now=new Date()
-  const months=Array.from({length:6},(_,i)=>{ const d=new Date(now.getFullYear(),now.getMonth()-5+i,1); return {key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),count:0,revenue:0} })
-  bookings.forEach(b=>{ const bucket=months.find(m=>m.key===dateKey(b.preferred_date||b.created_at).slice(0,7)); if(bucket){bucket.count+=1;bucket.revenue+=Number(b.total_amount||0)} })
-  return barChart(months.map(m=>({label:m.label,value:m[mode]})),{currency:mode==='revenue' ? currency : null,maxBars:6})
-}
 const guideWindow=b=>{
   const m=meta(b)
   const match=String(m.pickup_time||'').trim().match(/^(\d{1,2}):(\d{2})/)
@@ -1450,11 +1447,14 @@ const presetRange=preset=>{
   const start=new Date(); start.setHours(0,0,0,0)
   if(preset==='week'){ const day=start.getDay()||7; start.setDate(start.getDate()-day+1) }
   else if(preset==='30days')start.setDate(start.getDate()-29)
+  else if(preset==='90days')start.setDate(start.getDate()-89)
+  else if(preset==='year')start.setMonth(0,1)
+  else if(preset==='lastmonth'){ start.setMonth(start.getMonth()-1,1); end.setDate(0); end.setHours(23,59,59,999) }
   else start.setDate(1)
   return {start,end}
 }
 const reportRange=()=>{
-  const preset=nodes.reportsRangePreset.value||'all'
+  const preset=state.reportPreset||'all'
   let start=null,end=null
   if(preset==='custom'){
     start=parseDate(nodes.reportsRangeFrom.value); end=parseDate(nodes.reportsRangeTo.value)
@@ -1464,6 +1464,14 @@ const reportRange=()=>{
   }else ({start,end}=presetRange(preset))
   const rangeLabel=(start||end) ? `${start ? fmtDate(start) : 'Start'} to ${end ? fmtDate(end) : 'Today'}` : 'All time'
   return {preset,start,end,label:rangeLabel}
+}
+// The same-length window immediately before the selected one, for "vs previous period".
+const previousRange=range=>{
+  if(!range.start||!range.end)return null
+  const length=range.end.getTime()-range.start.getTime()+1
+  const end=new Date(range.start.getTime()-1)
+  const start=new Date(range.start.getTime()-length)
+  return {start,end,label:`${fmtDate(start)} to ${fmtDate(end)}`}
 }
 const inRange=(b,range)=>{
   if(!range.start&&!range.end)return true
@@ -1493,120 +1501,233 @@ const guidesReport=(bookings,{start,end}={})=>{
   dayRows.forEach(r=>{ const g=byGuide.get(r.guide)||{guide:r.guide,days:0,counted:0,raw:0,unscheduled:0}; g.days+=1; g.counted+=r.countedUnits; g.raw+=r.rawBookings; g.unscheduled+=r.unscheduled.length; byGuide.set(r.guide,g) })
   return {dayRows,guideRows:[...byGuide.values()].sort((a,b)=>b.counted-a.counted||a.guide.localeCompare(b.guide))}
 }
-const metricCards=cards=>cards.map(c=>`<article class="metric-card"><span>${esc(c.label)}</span><strong>${esc(c.value)}</strong></article>`).join('')
+/* ── Chart primitives (plain SVG/HTML, one hue, hairline grid, hover tooltip) ── */
+const SERIES=['#145bc7','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948']
+const compact=v=>{ const n=Number(v||0); const a=Math.abs(n); if(a>=1e6)return `${(n/1e6).toFixed(1).replace(/\.0$/,'')}M`; if(a>=1e4)return `${Math.round(n/1e3)}K`; if(a>=1e3)return `${(n/1e3).toFixed(1).replace(/\.0$/,'')}K`; return String(Math.round(n)) }
+const compactMoney=v=>`${shared.readConfig().currencySymbol||'N$'}${compact(v)}`
+const niceMax=v=>{ if(v<=0)return 1; const p=Math.pow(10,Math.floor(Math.log10(v))); const f=v/p; const n=f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10; return n*p }
+const tipAttr=(title,lines)=>attr(JSON.stringify({title,lines}))
+const columnChart=(points,{fmt=String,axis=String,height=170,integer=false}={})=>{
+  if(!points.length||!points.some(p=>Number(p.value)>0))return '<p class="viz-empty">No data in this range.</p>'
+  const W=600,H=height,padL=44,padR=10,padT=18,padB=28
+  const plotW=W-padL-padR,plotH=H-padT-padB
+  const peak=Math.max(...points.map(p=>Number(p.value||0)))
+  // Four gridlines on clean steps; whole numbers only when the values are counts.
+  const step=integer ? Math.max(1,Math.ceil(niceMax(peak/4))) : niceMax(peak/4)
+  const max=step*Math.max(1,Math.ceil(peak/step))
+  const slot=plotW/points.length,barW=Math.min(24,slot*0.6)
+  const y=v=>padT+plotH-(Number(v||0)/max)*plotH
+  const ticks=Array.from({length:Math.round(max/step)+1},(_,i)=>i*step)
+  const maxIdx=points.reduce((mi,p,i)=>Number(p.value||0)>Number(points[mi].value||0)?i:mi,0)
+  const every=points.length>14 ? Math.ceil(points.length/12) : 1
+  return `<svg class="viz" viewBox="0 0 ${W} ${H}" role="img" aria-label="Column chart">
+    ${ticks.map(t=>`<line x1="${padL}" x2="${W-padR}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" stroke="#e3eaf1" stroke-width="1"/><text x="${padL-6}" y="${(y(t)+4).toFixed(1)}" text-anchor="end">${esc(axis(t))}</text>`).join('')}
+    ${points.map((p,i)=>{
+      const v=Number(p.value||0),x=padL+slot*i+(slot-barW)/2,top=y(v),h=Math.max(0,padT+plotH-top)
+      const r=Math.min(4,h,barW/2)
+      const path=h>0 ? `M${x.toFixed(1)},${(padT+plotH).toFixed(1)} v${(-(h-r)).toFixed(1)} a${r},${r} 0 0 1 ${r},${-r} h${(barW-2*r).toFixed(1)} a${r},${r} 0 0 1 ${r},${r} v${(h-r).toFixed(1)} z` : ''
+      const valueLabel=(i===maxIdx||i===points.length-1)&&v>0 ? `<text class="viz-val" x="${(x+barW/2).toFixed(1)}" y="${(top-5).toFixed(1)}" text-anchor="middle">${esc(fmt(v))}</text>` : ''
+      const axisLabel=i%every===0 ? `<text x="${(x+barW/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(p.label)}</text>` : ''
+      return `<g class="viz-mark" data-tip="${tipAttr(p.label,[fmt(v)])}"><rect x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent"/>${path ? `<path d="${path}" fill="${SERIES[0]}"/>` : ''}${valueLabel}${axisLabel}</g>`
+    }).join('')}
+    <line x1="${padL}" x2="${W-padR}" y1="${(padT+plotH).toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="#cfdbe6" stroke-width="1"/>
+  </svg>`
+}
+const hbarChart=(rows,{fmt=String,max=8,color=SERIES[0]}={})=>{
+  const top=rows.slice(0,max)
+  if(!top.length)return '<p class="viz-empty">No data in this range.</p>'
+  const peak=Math.max(...top.map(r=>Number(r.value||0)),1)
+  return `<div class="hbar">${top.map(r=>{ const v=Number(r.value||0); return `<div class="hbar-row" data-tip="${tipAttr(r.label,[fmt(v)].concat(r.extra||[]))}"><span title="${attr(r.label)}">${esc(r.label)}</span><div class="hbar-track"><div class="hbar-fill" style="width:${((v/peak)*100).toFixed(1)}%;background:${attr(color)}"></div></div><span>${esc(fmt(v))}</span></div>` }).join('')}</div>`
+}
+const shareBar=(segments,{fmt=String}={})=>{
+  const rows=segments.filter(x=>Number(x.value||0)>0)
+  const total=rows.reduce((t,x)=>t+Number(x.value||0),0)
+  if(!total)return '<p class="viz-empty">No data in this range.</p>'
+  return `<div class="share"><div class="share-bar">${rows.map((x,i)=>`<span style="width:${((Number(x.value)/total)*100).toFixed(2)}%;background:${SERIES[i%SERIES.length]}" data-tip="${tipAttr(x.label,[fmt(x.value),`${Math.round((Number(x.value)/total)*100)}%`])}"></span>`).join('')}</div>
+    <div class="share-legend">${rows.map((x,i)=>`<span><i style="background:${SERIES[i%SERIES.length]}"></i>${esc(x.label)} <b>${esc(fmt(x.value))}</b><small>${Math.round((Number(x.value)/total)*100)}%</small></span>`).join('')}</div></div>`
+}
+const statTile=({label:l,value,current,previous,goodUp=true,hint='',fmtDelta})=>{
+  let delta=''
+  if(previous!=null&&current!=null){
+    const diff=Number(current)-Number(previous)
+    const pct=Number(previous)!==0 ? Math.round((diff/Math.abs(Number(previous)))*100) : null
+    const dir=Math.abs(diff)<0.005 ? 'flat' : diff>0 ? 'up' : 'down'
+    const arrow=dir==='up' ? '▲' : dir==='down' ? '▼' : '•'
+    const textLabel=pct!=null ? `${arrow} ${Math.abs(pct)}%` : (diff>0 ? `${arrow} up from 0` : `${arrow} 0%`)
+    delta=`<span class="stat-delta is-${dir}${goodUp ? '' : ' is-bad'}" title="Previous period: ${attr(fmtDelta ? fmtDelta(previous) : previous)}">${esc(textLabel)} <span style="font-weight:500;opacity:.8">vs previous period</span></span>`
+  }
+  return `<article class="stat-tile"><span class="stat-label">${esc(l)}</span><span class="stat-value">${esc(value)}</span>${delta}${hint ? `<span class="stat-hint">${esc(hint)}</span>` : ''}</article>`
+}
+const repCard=(title,body,{sub='',span=false}={})=>`<section class="rep-card${span ? ' span-2' : ''}"><h3>${esc(title)}</h3>${sub ? `<p class="rep-sub">${esc(sub)}</p>` : ''}${body}</section>`
 const groupBy=(rows,keyFn)=>rows.reduce((acc,b)=>{ const k=keyFn(b); acc[k]=acc[k]||{count:0,revenue:0}; acc[k].count+=1; acc[k].revenue+=Number(b.total_amount||0); return acc },{})
+const sortedEntries=(obj,key)=>Object.entries(obj).sort((a,b)=>b[1][key]-a[1][key])
+const monthBuckets=(bookings,range)=>{
+  // Months covered by the range (or the last 12 for "all time"), so the columns always span the window.
+  const end=range.end ? new Date(range.end) : new Date()
+  let start=range.start ? new Date(range.start) : new Date(end.getFullYear(),end.getMonth()-11,1)
+  start=new Date(start.getFullYear(),start.getMonth(),1)
+  const months=[]
+  for(let d=new Date(start);d<=end&&months.length<24;d.setMonth(d.getMonth()+1))months.push({key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`,label:d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),count:0,revenue:0})
+  bookings.forEach(b=>{ const mo=months.find(x=>x.key===dateKey(b.preferred_date||b.created_at).slice(0,7)); if(mo){mo.count+=1;mo.revenue+=Number(b.total_amount||0)} })
+  return months
+}
+
+/* Shared hover tooltip for every chart mark carrying data-tip. */
+const vizTip=document.createElement('div'); vizTip.className='viz-tip'; vizTip.hidden=true; document.body.appendChild(vizTip)
+const showTip=(el,x,y)=>{
+  let data=null; try{ data=JSON.parse(el.dataset.tip||'') }catch{}
+  if(!data)return
+  vizTip.replaceChildren()
+  const strong=document.createElement('strong'); strong.textContent=String(data.title||''); vizTip.appendChild(strong)
+  ;(data.lines||[]).forEach(line=>{ const div=document.createElement('div'); div.textContent=String(line); vizTip.appendChild(div) })
+  vizTip.hidden=false
+  vizTip.style.left=`${x}px`; vizTip.style.top=`${y}px`
+}
+document.addEventListener('pointermove',event=>{
+  const el=event.target.closest?.('[data-tip]')
+  if(!el){ vizTip.hidden=true; return }
+  showTip(el,event.clientX,event.clientY)
+})
+document.addEventListener('pointerleave',()=>{ vizTip.hidden=true })
 
 const renderReports=()=>{
   const range=reportRange()
+  nodes.reportsPresets.querySelectorAll('[data-report-preset]').forEach(chip=>chip.setAttribute('aria-pressed',chip.dataset.reportPreset===range.preset ? 'true' : 'false'))
   if(range.preset!=='custom'){
     if(document.activeElement!==nodes.reportsRangeFrom)nodes.reportsRangeFrom.value=range.start ? dateKey(range.start) : ''
     if(document.activeElement!==nodes.reportsRangeTo)nodes.reportsRangeTo.value=range.end ? dateKey(range.end) : ''
   }
-  const reportBookings=state.bookings.filter(b=>!isTrashed(b)&&inRange(b,range))
-  nodes.reportsRangeSummary.textContent=`${reportBookings.length} booking${reportBookings.length===1?'':'s'} · ${range.label}`
-  const finance=financeBookings(reportBookings)
-  const cancelled=reportBookings.filter(isCancelledFinancial)
+  nodes.reportsTabs.querySelectorAll('[data-report-tab]').forEach(btn=>{ if(btn.dataset.reportTab===state.reportTab)btn.setAttribute('aria-current','page'); else btn.removeAttribute('aria-current') })
+  document.querySelectorAll('[data-report-panel]').forEach(panel=>{ panel.hidden=panel.dataset.reportPanel!==state.reportTab })
+  const brand=text(nodes.reportsBrand.value)
+  const scoped=rows=>rows.filter(b=>!isTrashed(b)&&(!brand||b.brand_code===brand))
+  const reportBookings=scoped(state.bookings).filter(b=>inRange(b,range))
+  const prev=previousRange(range)
+  const prevBookings=prev ? scoped(state.bookings).filter(b=>inRange(b,prev)) : null
   const currency=state.settings.currency||'NAD'
   const m=v=>money(v,currency)
+  nodes.reportsRangeSummary.textContent=`${reportBookings.length} booking${reportBookings.length===1?'':'s'} · ${range.label}${brand ? ` · ${brandName(brand)}` : ''}${prev ? ` · compared with ${prev.label}` : ''}`
 
-  // 1. Sales
-  const byBrand=groupBy(finance,b=>b.brand_code||'unassigned')
-  const byService=groupBy(finance,b=>b.service_name||'Unknown service')
-  const bySource=groupBy(finance,b=>b.source||meta(b).source||'website')
-  const accepted=finance.filter(b=>!['provisional','cancelled','failed'].includes(lower(b.status)))
-  const paid=finance.filter(b=>['paid','partially_paid','cash','card','eft','voucher','foc'].includes(lower(b.payment_status)))
+  const finance=financeBookings(reportBookings)
+  const prevFinance=prevBookings ? financeBookings(prevBookings) : null
+  const cancelled=reportBookings.filter(isCancelledFinancial)
+  const paidOf=rows=>rows.filter(b=>isSettled(b)||lower(b.payment_status)==='partially_paid')
+  const guestsOf=rows=>rows.reduce((t,b)=>t+paxOf(b),0)
+
+  // ── 1. Sales ──
   const gross=sum(finance,'total_amount')
-  nodes.salesReportCards.innerHTML=metricCards([
-    {label:'Gross revenue',value:m(gross)},{label:'Paid revenue',value:m(sum(paid,'total_amount'))},{label:'Active bookings',value:String(finance.length)},
-    {label:'Avg. booking value',value:m(finance.length ? gross/finance.length : 0)},{label:'Conversion',value:`${finance.length ? Math.round((accepted.length/finance.length)*100) : 0}% accepted`},{label:'Cancelled / refunded',value:String(cancelled.length)}
-  ])
-  const sorted=(obj,key)=>Object.entries(obj).sort((a,b)=>b[1][key]-a[1][key])
+  const prevGross=prevFinance ? sum(prevFinance,'total_amount') : null
+  nodes.salesReportCards.innerHTML=[
+    statTile({label:'Gross revenue',value:m(gross),current:gross,previous:prevGross,fmtDelta:m}),
+    statTile({label:'Paid revenue',value:m(sum(paidOf(finance),'total_amount')),current:sum(paidOf(finance),'total_amount'),previous:prevFinance ? sum(paidOf(prevFinance),'total_amount') : null,fmtDelta:m}),
+    statTile({label:'Active bookings',value:String(finance.length),current:finance.length,previous:prevFinance ? prevFinance.length : null}),
+    statTile({label:'Guests',value:String(guestsOf(finance)),current:guestsOf(finance),previous:prevFinance ? guestsOf(prevFinance) : null}),
+    statTile({label:'Avg. booking value',value:m(finance.length ? gross/finance.length : 0),current:finance.length ? gross/finance.length : 0,previous:prevFinance ? (prevFinance.length ? prevGross/prevFinance.length : 0) : null,fmtDelta:m}),
+    statTile({label:'Cancelled / refunded',value:String(cancelled.length),current:cancelled.length,previous:prevBookings ? prevBookings.filter(isCancelledFinancial).length : null,goodUp:false})
+  ].join('')
+  const months=monthBuckets(finance,range)
+  const byService=groupBy(finance,b=>b.service_name||meta(b).display_name||'Unknown tour')
+  const bySource=groupBy(finance,b=>label(b.source||meta(b).source||'website'))
+  const byBrand=groupBy(finance,b=>b.brand_code||'unassigned')
   nodes.salesReportBody.innerHTML=`
-    <div class="report-split-grid">
-      <article><h4>Bookings per month (last 6 months)</h4>${monthlyChart(finance,{mode:'count'})}</article>
-      <article><h4>Revenue per month (last 6 months)</h4>${monthlyChart(finance,{mode:'revenue',currency})}</article>
+    <div class="rep-grid">
+      ${repCard('Bookings per month',columnChart(months.map(x=>({label:x.label,value:x.count})),{integer:true}),{sub:'Active bookings by tour date'})}
+      ${repCard('Revenue per month',columnChart(months.map(x=>({label:x.label,value:x.revenue})),{fmt:m,axis:compactMoney}),{sub:'Gross revenue by tour date'})}
     </div>
-    <div class="report-split-grid">
-      <article><h4>Revenue by tour</h4>${barChart(sorted(byService,'revenue').slice(0,8).map(([l,v])=>({label:l,value:v.revenue})),{currency})}</article>
-      <article><h4>Bookings by tour</h4>${barChart(sorted(byService,'count').slice(0,8).map(([l,v])=>({label:l,value:v.count})))}</article>
+    <div class="rep-grid">
+      ${repCard('Revenue by tour',hbarChart(sortedEntries(byService,'revenue').map(([l,v])=>({label:l,value:v.revenue,extra:[`${v.count} booking${v.count===1?'':'s'}`]})),{fmt:m}))}
+      ${repCard('Bookings by tour',hbarChart(sortedEntries(byService,'count').map(([l,v])=>({label:l,value:v.count,extra:[m(v.revenue)]}))))}
     </div>
-    <div class="report-split-grid">
-      <article><h4>Sales by brand</h4><div class="report-stat-list">${Object.entries(byBrand).map(([code,v])=>`<div><strong>${esc(brandName(code))}</strong><span>${v.count} bookings — ${m(v.revenue)}</span></div>`).join('')||'<p class="muted-copy">No brand data yet.</p>'}</div></article>
-      <article><h4>Bookings by source</h4>${barChart(sorted(bySource,'count').map(([l,v])=>({label:label(l),value:v.count})))}</article>
+    <div class="rep-grid">
+      ${repCard('Sales by brand',shareBar(sortedEntries(byBrand,'revenue').map(([code,v])=>({label:brandName(code),value:v.revenue})),{fmt:m})+`<div class="table-wrap"><table><thead><tr><th>Brand</th><th>Bookings</th><th>Guests</th><th>Revenue</th><th>Avg / booking</th></tr></thead><tbody>${sortedEntries(byBrand,'revenue').map(([code,v])=>`<tr><td><strong>${esc(brandName(code))}</strong></td><td>${v.count}</td><td>${guestsOf(finance.filter(b=>(b.brand_code||'unassigned')===code))}</td><td>${m(v.revenue)}</td><td>${m(v.count ? v.revenue/v.count : 0)}</td></tr>`).join('')||emptyRow(5,'No bookings in this range.')}</tbody></table></div>`)}
+      ${repCard('Bookings by source',hbarChart(sortedEntries(bySource,'count').map(([l,v])=>({label:l,value:v.count,extra:[m(v.revenue)]}))),{sub:'Where the booking was made'})}
     </div>`
 
-  // 2. Payment process
+  // ── 2. Payments ──
   const payRows=reportPaymentRows(finance)
   const received=sum(payRows,'amount')
   const statusCounts=finance.reduce((acc,b)=>{ const k=lower(b.payment_status)||'not_set'; acc[k]=(acc[k]||0)+1; return acc },{})
-  const outstanding=finance.filter(b=>!['paid','partially_paid','cash','card','eft','voucher','foc','invoiced'].includes(lower(b.payment_status)))
-  nodes.paymentReportCards.innerHTML=metricCards([
-    {label:'Received (all methods)',value:m(received)},{label:'Payments logged',value:String(sum(payRows,'count'))},{label:'Paid bookings',value:`${paid.length}/${finance.length}`},
-    {label:'Not yet paid',value:String(outstanding.length)},{label:'Not yet paid — value',value:m(sum(outstanding,'total_amount'))}
-  ])
+  const outstanding=finance.filter(b=>outstandingOf(b)>0)
+  const outstandingValue=outstanding.reduce((t,b)=>t+outstandingOf(b),0)
+  nodes.paymentReportCards.innerHTML=[
+    statTile({label:'Received (all methods)',value:m(received),current:received,previous:prevFinance ? sum(reportPaymentRows(prevFinance),'amount') : null,fmtDelta:m}),
+    statTile({label:'Payments logged',value:String(sum(payRows,'count')),current:sum(payRows,'count'),previous:prevFinance ? sum(reportPaymentRows(prevFinance),'count') : null}),
+    statTile({label:'Paid bookings',value:`${paidOf(finance).length} / ${finance.length}`,hint:finance.length ? `${Math.round((paidOf(finance).length/finance.length)*100)}% of active bookings` : ''}),
+    statTile({label:'Awaiting payment',value:String(outstanding.length),current:outstanding.length,previous:prevFinance ? prevFinance.filter(b=>outstandingOf(b)>0).length : null,goodUp:false}),
+    statTile({label:'Outstanding value',value:m(outstandingValue),current:outstandingValue,previous:prevFinance ? prevFinance.reduce((t,b)=>t+outstandingOf(b),0) : null,goodUp:false,fmtDelta:m})
+  ].join('')
+  const statusLabel=k=>k==='not_set' ? 'Not set' : paymentLabel(k)
   nodes.paymentReportBody.innerHTML=`
-    <div class="report-split-grid">
-      <article><h4>Payments received by method</h4>${barChart(payRows.map(r=>({label:r.method,value:r.amount})),{currency})}</article>
-      <article><h4>Payments received — detail</h4><div class="table-wrap"><table><thead><tr><th>Method</th><th>Payments</th><th>Amount</th><th>%</th></tr></thead><tbody>
-        ${payRows.map(r=>`<tr><td>${esc(r.method)}</td><td>${r.count}</td><td>${m(r.amount)}</td><td>${received>0 ? Math.round((r.amount/received)*100) : 0}%</td></tr>`).join('')||emptyRow(4,'No received payments recorded yet.')}
-      </tbody></table></div></article>
+    <div class="rep-grid">
+      ${repCard('Received by method',hbarChart(payRows.map(r=>({label:r.method,value:r.amount,extra:[`${r.count} payment${r.count===1?'':'s'}`,`${received>0 ? Math.round((r.amount/received)*100) : 0}%`]})),{fmt:m}))}
+      ${repCard('Bookings by payment process',shareBar(Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>({label:statusLabel(k),value:c})))+`<div class="table-wrap"><table><thead><tr><th>Payment process</th><th>Bookings</th><th>Value</th><th>%</th></tr></thead><tbody>${Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<tr><td>${tag(k,statusLabel(k))}</td><td>${c}</td><td>${m(sum(finance.filter(b=>(lower(b.payment_status)||'not_set')===k),'total_amount'))}</td><td>${finance.length ? Math.round((c/finance.length)*100) : 0}%</td></tr>`).join('')||emptyRow(4,'No bookings in this range.')}</tbody></table></div>`)}
     </div>
-    <div class="report-split-grid">
-      <article><h4>Bookings by payment process status</h4><div class="table-wrap"><table><thead><tr><th>Status</th><th>Bookings</th><th>%</th></tr></thead><tbody>
-        ${Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([s,c])=>`<tr><td>${tag(s,s==='not_set' ? 'Not set / unpaid' : paymentLabel(s))}</td><td>${c}</td><td>${finance.length ? Math.round((c/finance.length)*100) : 0}%</td></tr>`).join('')||emptyRow(3,'No bookings yet.')}
-      </tbody></table></div></article>
-      <article><h4>Outstanding balances (not yet paid)</h4><div class="table-wrap"><table><thead><tr><th>Guest</th><th>Tour</th><th>Total</th></tr></thead><tbody>
-        ${outstanding.slice(0,25).map(b=>`<tr><td><strong>${esc(b.customer_name||'Guest')}</strong><div class="table-subline">${esc(b.reference||'')}</div></td><td>${esc(b.service_name||'—')}</td><td>${m(b.total_amount||0)}</td></tr>`).join('')||emptyRow(3,'Nothing outstanding — every active booking has a payment method recorded.')}
-      </tbody></table>${outstanding.length>25 ? `<p class="field-hint">Showing 25 of ${outstanding.length}.</p>` : ''}</div></article>
+    ${repCard('Awaiting payment',`<div class="table-wrap"><table><thead><tr><th>Guest</th><th>Tour</th><th>Date</th><th>Total</th><th>Received</th><th>Outstanding</th></tr></thead><tbody>${outstanding.sort((a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date))).slice(0,40).map(b=>`<tr><td><strong>${esc(b.customer_name||'Guest')}</strong><div class="table-subline">${esc(b.reference||'')}</div></td><td>${esc(b.service_name||'—')}</td><td>${esc(fmtDate(b.preferred_date))}</td><td>${m(b.total_amount||0)}</td><td>${m(receivedOf(b))}</td><td><strong>${m(outstandingOf(b))}</strong></td></tr>`).join('')||emptyRow(6,'Nothing outstanding — every active booking in this range is settled.')}</tbody></table>${outstanding.length>40 ? `<p class="field-hint">Showing 40 of ${outstanding.length}.</p>` : ''}</div>`,{sub:'Website bookings without a payment process, and anything partly paid'})}`
+
+  // ── 3. Agents / booked by ──
+  const byBookedBy=groupBy(finance,b=>text(meta(b).booked_by||b.booked_by)||'(Direct / not recorded)')
+  const byAgent=finance.reduce((acc,b)=>{ const k=text(meta(b).agent); if(!k)return acc; acc[k]=acc[k]||{count:0,revenue:0}; acc[k].count+=1; acc[k].revenue+=Number(b.total_amount||0); return acc },{})
+  const agentCount=Object.values(byAgent).reduce((t,v)=>t+v.count,0)
+  const agentRevenue=Object.values(byAgent).reduce((t,v)=>t+v.revenue,0)
+  const prevAgent=prevFinance ? prevFinance.filter(b=>text(meta(b).agent)) : null
+  nodes.agentReportCards.innerHTML=[
+    statTile({label:'Agent-sourced bookings',value:String(agentCount),current:agentCount,previous:prevAgent ? prevAgent.length : null}),
+    statTile({label:'Agent revenue',value:m(agentRevenue),current:agentRevenue,previous:prevAgent ? sum(prevAgent,'total_amount') : null,fmtDelta:m}),
+    statTile({label:'Share of revenue',value:`${gross ? Math.round((agentRevenue/gross)*100) : 0}%`,hint:'Revenue from agent-sourced bookings'}),
+    statTile({label:'Distinct agents',value:String(Object.keys(byAgent).length)}),
+    statTile({label:'Distinct booked-by sources',value:String(Object.keys(byBookedBy).length)})
+  ].join('')
+  const groupedTable=(entries,first)=>`<div class="table-wrap"><table><thead><tr><th>${esc(first)}</th><th>Bookings</th><th>Revenue</th><th>Avg / booking</th></tr></thead><tbody>${entries.map(([name,v])=>`<tr><td><strong>${esc(name)}</strong></td><td>${v.count}</td><td>${m(v.revenue)}</td><td>${m(v.count ? v.revenue/v.count : 0)}</td></tr>`).join('')||emptyRow(4,'No bookings recorded in this range.')}</tbody></table></div>`
+  nodes.agentReportBody.innerHTML=`
+    <div class="rep-grid">
+      ${repCard('Top agents by revenue',hbarChart(sortedEntries(byAgent,'revenue').map(([l,v])=>({label:l,value:v.revenue,extra:[`${v.count} booking${v.count===1?'':'s'}`]})),{fmt:m}))}
+      ${repCard('Top booked-by sources',hbarChart(sortedEntries(byBookedBy,'revenue').map(([l,v])=>({label:l,value:v.revenue,extra:[`${v.count} booking${v.count===1?'':'s'}`]})),{fmt:m}))}
+    </div>
+    <div class="rep-grid">
+      ${repCard('By agent / selling partner',groupedTable(sortedEntries(byAgent,'revenue'),'Agent'))}
+      ${repCard('By booked by',groupedTable(sortedEntries(byBookedBy,'revenue'),'Booked by'))}
     </div>`
 
-  // 3. Agent / booked by
-  const byBookedBy=groupBy(finance,b=>lower(meta(b).booked_by||b.booked_by||'')||'(Direct / not recorded)')
-  const byAgent=finance.reduce((acc,b)=>{ const k=text(meta(b).agent); if(!k)return acc; acc[k]=acc[k]||{count:0,revenue:0}; acc[k].count+=1; acc[k].revenue+=Number(b.total_amount||0); return acc },{})
-  const agentCount=Object.values(byAgent).reduce((s,v)=>s+v.count,0)
-  const commissionDue=sum(state.officeInvoices.filter(i=>!['paid','cancelled'].includes(lower(i.status))),'commission_amount')
-  const groupedTable=(entries,first)=>`<div class="table-wrap"><table><thead><tr><th>${esc(first)}</th><th>Bookings</th><th>Revenue</th><th>Avg / booking</th></tr></thead><tbody>
-    ${entries.map(([name,v])=>`<tr><td><strong>${esc(name)}</strong></td><td>${v.count}</td><td>${m(v.revenue)}</td><td>${m(v.count ? v.revenue/v.count : 0)}</td></tr>`).join('')||emptyRow(4,'No bookings recorded yet.')}
-  </tbody></table></div>`
-  nodes.agentReportCards.innerHTML=metricCards([
-    {label:'Agent-sourced bookings',value:String(agentCount)},{label:'Agent revenue',value:m(Object.values(byAgent).reduce((s,v)=>s+v.revenue,0))},{label:'Commission due',value:m(commissionDue)},
-    {label:'Distinct agents',value:String(Object.keys(byAgent).length)},{label:'Distinct booked-by sources',value:String(Object.keys(byBookedBy).length)}
-  ])
-  nodes.agentReportBody.innerHTML=`<div class="report-split-grid"><article><h4>By agent / selling partner</h4>${groupedTable(sorted(byAgent,'revenue'),'Agent')}</article><article><h4>By booked by</h4>${groupedTable(sorted(byBookedBy,'revenue'),'Booked by')}</article></div>`
-
-  // 4. Invoiced
+  // ── 4. Invoiced ──
   const invoiced=reportBookings.filter(b=>lower(b.payment_status)==='invoiced')
   const invoicedSorted=[...invoiced].sort((a,b)=>dateKey(b.preferred_date).localeCompare(dateKey(a.preferred_date)))
   const oldest=[...invoiced].sort((a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date)))[0]
-  nodes.invoicedReportCards.innerHTML=metricCards([
-    {label:'Invoiced bookings',value:String(invoiced.length)},{label:'Total pax',value:String(invoiced.reduce((s,b)=>s+paxOf(b),0))},{label:'Invoiced value',value:m(sum(invoiced,'total_amount'))},{label:'Oldest open',value:oldest ? fmtDate(oldest.preferred_date) : '—'}
-  ])
-  nodes.invoicedReportBody.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Company / guest</th><th>Tour</th><th>Pax</th><th>Amount</th></tr></thead><tbody>
-    ${invoicedSorted.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(b.reference||'')}</td><td><strong>${esc(b.customer_name||'Guest')}</strong></td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${paxOf(b)}</td><td>${m(b.total_amount||0)}</td></tr>`).join('')||emptyRow(6,'No bookings are currently invoiced.')}
-  </tbody></table>${invoiced.length ? '<p class="field-hint">Cruise liner group bookings are settled directly with the cruise company outside SkyBook, so Amount shows 0.</p>' : ''}</div>`
+  const byCompany=invoiced.reduce((acc,b)=>{ const k=meta(b).cruise_company_label||b.customer_name||'Group'; acc[k]=acc[k]||{count:0,pax:0}; acc[k].count+=1; acc[k].pax+=paxOf(b); return acc },{})
+  nodes.invoicedReportCards.innerHTML=[
+    statTile({label:'Invoiced bookings',value:String(invoiced.length),current:invoiced.length,previous:prevBookings ? prevBookings.filter(b=>lower(b.payment_status)==='invoiced').length : null}),
+    statTile({label:'Total pax',value:String(guestsOf(invoiced)),current:guestsOf(invoiced),previous:prevBookings ? guestsOf(prevBookings.filter(b=>lower(b.payment_status)==='invoiced')) : null}),
+    statTile({label:'Invoiced value',value:m(sum(invoiced,'total_amount')),hint:'Cruise liner groups are settled outside SkyBook'}),
+    statTile({label:'Oldest',value:oldest ? fmtDate(oldest.preferred_date) : '—'})
+  ].join('')
+  nodes.invoicedReportBody.innerHTML=`
+    ${Object.keys(byCompany).length ? `<div class="rep-grid">${repCard('Groups by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].count-a[1].count).map(([l,v])=>({label:l,value:v.count,extra:[`${v.pax} pax`]}))))}${repCard('Pax by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].pax-a[1].pax).map(([l,v])=>({label:l,value:v.pax,extra:[`${v.count} group${v.count===1?'':'s'}`]}))))}</div>` : ''}
+    ${repCard('Invoiced bookings',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Company / guest</th><th>Tour</th><th>Pax</th><th>Buses</th><th>Amount</th></tr></thead><tbody>${invoicedSorted.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(b.reference||'')}</td><td><strong>${esc(b.customer_name||'Guest')}</strong></td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${paxOf(b)}</td><td>${esc(String(meta(b).buses ?? '—'))}</td><td>${m(b.total_amount||0)}</td></tr>`).join('')||emptyRow(7,'No invoiced bookings in this range.')}</tbody></table></div>`)}`
 
-  // 5. Guides
+  // ── 5. Guides ──
   const guides=guidesReport(finance,range)
-  nodes.guidesReportCards.innerHTML=metricCards([
-    {label:'Distinct guides',value:String(guides.guideRows.length)},{label:'Counted shifts (AM/PM rule)',value:String(guides.guideRows.reduce((s,r)=>s+r.counted,0))},
-    {label:'Raw guide bookings',value:String(guides.guideRows.reduce((s,r)=>s+r.raw,0))},{label:'Unscheduled (counted individually)',value:String(guides.guideRows.reduce((s,r)=>s+r.unscheduled,0))}
-  ])
-  const allGuideBookings=state.bookings.filter(b=>!isTrashed(b)&&!isCancelledFinancial(b)&&guideNames(b).length)
-  const guidesEmpty=allGuideBookings.length ? `${allGuideBookings.length} guide-assigned booking${allGuideBookings.length===1?' falls':'s fall'} outside the selected date range — widen the range above to see them.` : 'No guide-assigned bookings yet — add names in the Guide(s) field of a booking.'
+  const counted=guides.guideRows.reduce((t,r)=>t+r.counted,0)
+  const prevGuides=prevFinance ? guidesReport(prevFinance,prev) : null
+  nodes.guidesReportCards.innerHTML=[
+    statTile({label:'Distinct guides',value:String(guides.guideRows.length),current:guides.guideRows.length,previous:prevGuides ? prevGuides.guideRows.length : null}),
+    statTile({label:'Counted shifts',value:String(counted),current:counted,previous:prevGuides ? prevGuides.guideRows.reduce((t,r)=>t+r.counted,0) : null,hint:'AM / PM rule'}),
+    statTile({label:'Raw guide bookings',value:String(guides.guideRows.reduce((t,r)=>t+r.raw,0))}),
+    statTile({label:'Unscheduled',value:String(guides.guideRows.reduce((t,r)=>t+r.unscheduled,0)),hint:'No pickup time — counted individually',goodUp:false})
+  ].join('')
+  const allGuideBookings=scoped(state.bookings).filter(b=>!isCancelledFinancial(b)&&guideNames(b).length)
+  const guidesEmpty=allGuideBookings.length ? `${allGuideBookings.length} guide-assigned booking${allGuideBookings.length===1?' falls':'s fall'} outside this range — widen the date range to see them.` : 'No guide-assigned bookings yet — add names in the Guide(s) field of a booking.'
   const ref=b=>esc(String(b.reference||b.service_name||'—'))
   nodes.guidesReportBody.innerHTML=`
-    <div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>Guide</th><th>Days worked</th><th>Counted shifts</th><th>Raw bookings</th><th>Unscheduled</th></tr></thead><tbody>
-      ${guides.guideRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.days}</td><td>${r.counted}</td><td>${r.raw}</td><td>${r.unscheduled ? `<span class="status-badge is-bad">${r.unscheduled}</span>` : '0'}</td></tr>`).join('')||emptyRow(5,guidesEmpty)}
-    </tbody></table></div>
-    <div class="table-wrap"><table><thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>Unscheduled</th><th>Counted</th></tr></thead><tbody>
-      ${guides.dayRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.dateKey ? esc(fmtDate(r.dateKey)) : '<em>No tour date</em>'}</td><td>${r.morning.length ? r.morning.map(ref).join(', ') : '—'}</td><td>${r.afternoon.length ? r.afternoon.map(ref).join(', ') : '—'}</td><td>${r.unscheduled.length ? r.unscheduled.map(ref).join(', ') : '—'}</td><td><strong>${r.countedUnits}</strong></td></tr>`).join('')||emptyRow(6,guidesEmpty)}
-    </tbody></table></div>`
+    <div class="rep-grid">
+      ${repCard('Shifts per guide',hbarChart(guides.guideRows.map(r=>({label:r.guide,value:r.counted,extra:[`${r.days} day${r.days===1?'':'s'} worked`,`${r.raw} booking${r.raw===1?'':'s'}`]})),{max:12}),{sub:'Counted shifts, AM / PM rule'})}
+      ${repCard('Per guide',`<div class="table-wrap"><table><thead><tr><th>Guide</th><th>Days</th><th>Shifts</th><th>Bookings</th><th>Unscheduled</th></tr></thead><tbody>${guides.guideRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.days}</td><td><strong>${r.counted}</strong></td><td>${r.raw}</td><td>${r.unscheduled ? `<span class="status-badge is-bad">${r.unscheduled}</span>` : '0'}</td></tr>`).join('')||emptyRow(5,guidesEmpty)}</tbody></table></div>`)}
+    </div>
+    ${repCard('Day by day',`<div class="table-wrap"><table><thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>Unscheduled</th><th>Counted</th></tr></thead><tbody>${guides.dayRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.dateKey ? esc(fmtDate(r.dateKey)) : '<em>No tour date</em>'}</td><td>${r.morning.length ? r.morning.map(ref).join(', ') : '—'}</td><td>${r.afternoon.length ? r.afternoon.map(ref).join(', ') : '—'}</td><td>${r.unscheduled.length ? r.unscheduled.map(ref).join(', ') : '—'}</td><td><strong>${r.countedUnits}</strong></td></tr>`).join('')||emptyRow(6,guidesEmpty)}</tbody></table></div>`)}`
 }
 
 /* PDF export: the on-screen report markup rendered through html2pdf in a hidden iframe. */
 const PDF_LIB_URL=(()=>{ try{ return new URL('assets/js/vendor/html2pdf.bundle.min.js',document.baseURI).href }catch{ return 'assets/js/vendor/html2pdf.bundle.min.js' } })()
 const PDF_LIB_FALLBACK='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
-const PDF_CSS='*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;padding:24px 30px 16px;color:#142438;background:#fff;line-height:1.45}header{background:#092d52;color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:4px}header h1{color:#fff;font-size:22px;margin:0 0 4px}header small{color:#cfe1f0;display:block;font-size:12px}.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}section{margin-top:16px;padding-top:14px;border-top:1px solid #e1ecf6}.metric-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.metric-card{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.metric-card span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#516678}.metric-card strong{display:block;margin-top:6px;font-size:18px;font-weight:800;color:#0f2b52}.report-split-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;page-break-inside:avoid}.report-split-grid+.report-split-grid{margin-top:14px}.report-split-grid article{border:1px solid #dde6ee;border-radius:10px;padding:14px;background:#fff;min-width:0;page-break-inside:avoid}.report-split-grid h4{margin:0 0 10px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e1ecf6;padding-bottom:6px}.report-stat-list{display:grid;gap:6px}.report-stat-list div{padding:8px 10px;border:1px solid #dde6ee;border-radius:8px;background:#f8fbfd}.report-stat-list strong{display:block}.report-stat-list span{display:block;margin-top:2px;color:#516678;font-size:11px}.bar-chart{display:flex;flex-direction:column;gap:6px}.bar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.bar-track{background:#edf2f7;border-radius:999px;height:12px;overflow:hidden}.bar-fill{height:100%;background:#145bc7;border-radius:999px}.bar-row>span:last-child{text-align:right;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed}th{text-align:left;background:#092d52;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:7px 6px}td{padding:7px 8px;border-bottom:1px solid #e1ecf6;font-size:11px;vertical-align:top;overflow-wrap:break-word}tbody tr:nth-child(even){background:#f7fbff}.tag,.status-badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:10px;font-weight:700}.status-badge.is-bad{background:#fdecec;color:#a33a3a}.muted-copy,.field-hint,.table-subline{color:#5f6f80;font-size:11px}.adm-empty{text-align:center;color:#5f6f80}.foot{margin-top:16px;padding-top:10px;border-top:1px solid #e1ecf6;text-align:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8299ad}'
+const PDF_CSS='.stat-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.stat-tile{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.stat-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#516678}.stat-value{display:block;margin-top:5px;font-size:18px;font-weight:800;color:#0f2b52}.stat-delta{display:block;margin-top:4px;font-size:10px;color:#516678}.stat-hint{display:block;font-size:10px;color:#516678}.rep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;page-break-inside:avoid}.rep-grid+.rep-grid,.rep-grid+.rep-card,.rep-card+.rep-grid,.rep-card+.rep-card{margin-top:12px}.rep-card{border:1px solid #dde6ee;border-radius:10px;padding:12px 14px;background:#fff;min-width:0;page-break-inside:avoid}.rep-card.span-2{grid-column:1/-1}.rep-card h3{margin:0 0 6px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.rep-sub{font-size:10px;color:#516678;margin:0 0 8px}.viz{width:100%;height:auto;font-family:Arial,sans-serif}.viz text{font-size:11px;fill:#516678}.viz .viz-val{fill:#142438;font-weight:700}.hbar{display:flex;flex-direction:column;gap:6px}.hbar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.hbar-track{position:relative;height:12px;background:#eef3f7;border-radius:0 4px 4px 0}.hbar-fill{position:absolute;left:0;top:0;bottom:0;background:#145bc7;border-radius:0 4px 4px 0}.hbar-row>span:last-child{text-align:right;font-weight:700}.share-bar{display:flex;height:14px;gap:2px;border-radius:4px;overflow:hidden;background:#eef3f7}.share-bar span{display:block;height:100%}.share-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:10px}.share-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}.share-legend b{font-weight:700}.share-legend small{color:#516678;margin-left:3px}.viz-empty{color:#516678;font-size:11px;text-align:center;padding:12px}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;padding:24px 30px 16px;color:#142438;background:#fff;line-height:1.45}header{background:#092d52;color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:4px}header h1{color:#fff;font-size:22px;margin:0 0 4px}header small{color:#cfe1f0;display:block;font-size:12px}.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}section{margin-top:16px;padding-top:14px;border-top:1px solid #e1ecf6}.metric-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.metric-card{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.metric-card span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#516678}.metric-card strong{display:block;margin-top:6px;font-size:18px;font-weight:800;color:#0f2b52}.report-split-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;page-break-inside:avoid}.report-split-grid+.report-split-grid{margin-top:14px}.report-split-grid article{border:1px solid #dde6ee;border-radius:10px;padding:14px;background:#fff;min-width:0;page-break-inside:avoid}.report-split-grid h4{margin:0 0 10px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e1ecf6;padding-bottom:6px}.report-stat-list{display:grid;gap:6px}.report-stat-list div{padding:8px 10px;border:1px solid #dde6ee;border-radius:8px;background:#f8fbfd}.report-stat-list strong{display:block}.report-stat-list span{display:block;margin-top:2px;color:#516678;font-size:11px}.bar-chart{display:flex;flex-direction:column;gap:6px}.bar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.bar-track{background:#edf2f7;border-radius:999px;height:12px;overflow:hidden}.bar-fill{height:100%;background:#145bc7;border-radius:999px}.bar-row>span:last-child{text-align:right;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed}th{text-align:left;background:#092d52;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:7px 6px}td{padding:7px 8px;border-bottom:1px solid #e1ecf6;font-size:11px;vertical-align:top;overflow-wrap:break-word}tbody tr:nth-child(even){background:#f7fbff}.tag,.status-badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:10px;font-weight:700}.status-badge.is-bad{background:#fdecec;color:#a33a3a}.muted-copy,.field-hint,.table-subline{color:#5f6f80;font-size:11px}.adm-empty{text-align:center;color:#5f6f80}.foot{margin-top:16px;padding-top:10px;border-top:1px solid #e1ecf6;text-align:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8299ad}'
 const REPORT_EXPORTS={
   sales:{title:'Sales Report',cards:'salesReportCards',body:'salesReportBody'},payments:{title:'Payment Process Report',cards:'paymentReportCards',body:'paymentReportBody'},
   agents:{title:'Agent / Booked By Report',cards:'agentReportCards',body:'agentReportBody'},invoiced:{title:'Invoiced Report',cards:'invoicedReportCards',body:'invoicedReportBody'},
@@ -1647,10 +1768,12 @@ const renderPdf=(title,bodyHtml,filename)=>{
 const downloadReportPdf=key=>{
   const config=REPORT_EXPORTS[key]
   if(!config)return
+  state.reportTab=key
   renderReports()
   const range=reportRange()
-  const title=`${config.title} — ${range.label}`
-  renderPdf(title,`<header><span class="pill">SkyBook</span><h1>${esc(title)}</h1><small>All brands · generated ${esc(fmtDateTime(new Date().toISOString()))}</small></header><div class="metric-cards">${nodes[config.cards].innerHTML}</div><section>${nodes[config.body].innerHTML}</section><div class="foot">SkyBook — Tour operations &amp; bookings</div>`,`skybook-${key}-report-${todayKey()}.pdf`)
+  const brand=text(nodes.reportsBrand.value)
+  const title=`${config.title} — ${range.label}${brand ? ` — ${brandName(brand)}` : ''}`
+  renderPdf(title,`<header><span class="pill">SkyBook</span><h1>${esc(title)}</h1><small>${esc(brand ? brandName(brand) : 'All brands')} · generated ${esc(fmtDateTime(new Date().toISOString()))}</small></header><div class="stat-row">${nodes[config.cards].innerHTML}</div><section>${nodes[config.body].innerHTML}</section><div class="foot">SkyBook — Tour operations &amp; bookings</div>`,`skybook-${key}-report-${todayKey()}.pdf`)
 }
 const exportBookingsCsv=()=>{
   const rows=state.bookings.filter(b=>!isTrashed(b)).map(b=>({
@@ -2014,10 +2137,20 @@ nodes.adminUserForm.addEventListener('submit',event=>{ event.preventDefault(); w
 nodes.adminUserRole.addEventListener('change',()=>renderPermissionEditor({},nodes.adminUserRole.value))
 nodes.adminUserReset.addEventListener('click',()=>{ fillUserForm(null); renderUsers() })
 // Reports
-;[nodes.reportsRangePreset,nodes.reportsRangeFrom,nodes.reportsRangeTo].forEach(el=>el.addEventListener('change',()=>{
-  if(el!==nodes.reportsRangePreset)nodes.reportsRangePreset.value='custom'
+nodes.reportsPresets.addEventListener('click',event=>{
+  const chip=event.target.closest('[data-report-preset]')
+  if(!chip)return
+  state.reportPreset=chip.dataset.reportPreset
   renderReports()
-}))
+})
+;[nodes.reportsRangeFrom,nodes.reportsRangeTo].forEach(el=>el.addEventListener('change',()=>{ state.reportPreset='custom'; renderReports() }))
+nodes.reportsBrand.addEventListener('change',renderReports)
+nodes.reportsTabs.addEventListener('click',event=>{
+  const btn=event.target.closest('[data-report-tab]')
+  if(!btn)return
+  state.reportTab=btn.dataset.reportTab
+  renderReports()
+})
 nodes.exportCsv.addEventListener('click',exportBookingsCsv)
 window.addEventListener('pagehide',stopLiveSync,{once:true})
 
