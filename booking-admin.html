@@ -485,15 +485,15 @@
           <div id="adminBookingSkipperList" style="display:flex;flex-direction:column;gap:8px"></div>
           <div><button type="button" class="adm-add" id="adminBookingAddSkipper">+ Add skipper</button></div>
         </div>
-        <label class="booking-field">
+        <div class="booking-field">
           <span>Nationality</span>
-          <select id="adminBookingNationality">
-            <option value="">— Select —</option>
-            <option value="Foreign">Foreign</option>
-            <option value="SADC">SADC</option>
-            <option value="Nam">Nam</option>
-          </select>
-        </label>
+          <div class="adm-check-group" id="adminBookingNationality" role="group" aria-label="Nationality">
+            <label class="inline-check"><input type="checkbox" value="Foreign"><span>Foreign</span></label>
+            <label class="inline-check"><input type="checkbox" value="SADC"><span>SADC</span></label>
+            <label class="inline-check"><input type="checkbox" value="Nam"><span>Nam</span></label>
+          </div>
+          <p class="field-hint">Tick every nationality in the group.</p>
+        </div>
         <label class="booking-field">
           <span>Booked By</span>
           <input id="adminBookingBookedBy" type="text" placeholder="Hotel, agent, or guest name" list="bookedByDatalist" autocomplete="off">
@@ -552,8 +552,9 @@
         </label>
         <div class="booking-field-full" id="adminBookingPaymentRowsWrap">
           <span>Split Payment</span>
-          <p class="field-hint">Add one row per tender (cash, card, EFT, etc). Recorded when you save this booking.</p>
+          <p class="field-hint">Paid with more than one method? Add one row per method. The rows must add up to the booking total, and they are all recorded together when you save, so the booking is fully paid.</p>
           <div id="adminBookingPaymentRowsList" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div class="split-summary" id="adminBookingSplitSummary" hidden></div>
           <div><button type="button" class="adm-add" id="adminBookingAddPaymentRow">+ Add payment</button></div>
         </div>
         <div class="booking-field-full booking-action-row">

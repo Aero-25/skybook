@@ -2681,120 +2681,142 @@ const normalizeManualPaymentType=(value:unknown)=>{
 
 const getProviderForManualPaymentType=(paymentType:string)=>['eft','bank_transfer'].includes(paymentType) ? 'manual_eft' : 'custom'
 
-const createManualBookingPayment=async(bookingId:string,payload:Json,userId:string)=>{
+type BookingPaymentRow={
+  payment_type:string
+  amount:number
+  provider_reference:string
+  terminal_serial_number:string
+  batch_number:string
+  notes:string
+}
+
+// Payment rows from the console: a single "Record payment" entry, or several rows when a guest
+// paid with more than one method (split payment).
+const normalizeSplitPayments=(input:unknown):BookingPaymentRow[]=>(Array.isArray(input) ? input : []).map(raw=>{
+  const row=normalizeJsonRecord(raw)
+  return {
+    payment_type:normalizeManualPaymentType(row.payment_type || row.type),
+    amount:Number(Number(row.amount || row.amount_received || 0).toFixed(2)),
+    provider_reference:normalizeText(row.provider_reference || row.reference),
+    terminal_serial_number:normalizeText(row.terminal_serial_number || row.serial_number),
+    batch_number:normalizeText(row.batch_number),
+    notes:normalizeText(row.notes)
+  }
+})
+
+const formatAmount=(value:number)=>Number(value || 0).toFixed(2)
+
+// Every row is checked before anything is written, so a payment is recorded in full or not at all.
+//   mode 'settle' — the rows must cover the whole outstanding balance (split payment on the booking form)
+//   mode 'upto'   — the rows may cover part of it (Record payment on a booking, e.g. a deposit)
+const validateBookingPayments=(rows:BookingPaymentRow[],outstanding:number,{mode='upto',allowOverpayment=false,isFoc=false}:{mode?:'settle'|'upto',allowOverpayment?:boolean,isFoc?:boolean}={})=>{
+  if(!rows.length)throw new Error('Add at least one payment.')
+  rows.forEach((row,index)=>{
+    const label=rows.length>1 ? `Payment ${index+1} (${displayLabel(row.payment_type)})` : `The ${displayLabel(row.payment_type)} payment`
+    if(!Number.isFinite(row.amount) || row.amount<=0)throw new Error(`${label} needs an amount greater than zero.`)
+    if(row.payment_type==='card' && (!row.terminal_serial_number || !row.batch_number)){
+      throw new Error(`${label} needs the card machine's terminal serial number and batch number.`)
+    }
+  })
+  const total=Number(rows.reduce((sum,row)=>sum+row.amount,0).toFixed(2))
+  const due=Number(Math.max(0,outstanding).toFixed(2))
+  if(allowOverpayment)return total
+  if(isFoc)throw new Error('This booking is Free of Charge — there is nothing to pay.')
+  if(due<=0.01)throw new Error('This booking is already fully paid — there is nothing outstanding.')
+  if(total>due+0.01){
+    throw new Error(`The payments add up to ${formatAmount(total)}, which is more than the ${formatAmount(due)} outstanding. Reduce an amount, or confirm the overpayment.`)
+  }
+  if(mode==='settle' && total<due-0.01){
+    throw new Error(`The split payments add up to ${formatAmount(total)}, but ${formatAmount(due)} is due. Add the remaining ${formatAmount(due-total)} or adjust the amounts.`)
+  }
+  return total
+}
+
+// Records one or more payment rows against a booking in a single step: one payment row holds the
+// running total, every method gets its own transaction (so reports count each method), and the
+// booking is settled when the payments cover it.
+const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],userId:string,{mode='upto',allowOverpayment=false,source='manual_admin_payment'}:{mode?:'settle'|'upto',allowOverpayment?:boolean,source?:string}={})=>{
   const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('*').eq('id',bookingId).maybeSingle())
   if(!booking)throw new Error('Booking not found.')
-  const amount=Number(payload.amount || payload.amount_received || 0)
-  if(!Number.isFinite(amount)||amount<=0)throw new Error('Payment amount must be greater than zero.')
-  const paymentType=normalizeManualPaymentType(payload.payment_type || payload.type)
-  const terminalSerialNumber=normalizeText(payload.terminal_serial_number || payload.serial_number)
-  const batchNumber=normalizeText(payload.batch_number)
-  if(paymentType==='card' && (!terminalSerialNumber||!batchNumber)){
-    throw new Error('Card payments require terminal serial number and batch number.')
-  }
-  const provider=getProviderForManualPaymentType(paymentType)
   const existingPayment=await safeMaybeSingle<Json>(
     adminClient.from('payments').select('*').eq('booking_id',bookingId).order('created_at',{ascending:true}).limit(1).maybeSingle()
   )
+  const currencyCode=normalizeText(booking.currency_code) || 'NAD'
   const previousReceived=Number(existingPayment?.amount_received || 0)
   const totalAmount=Number(booking.total_amount || existingPayment?.amount || 0)
-  const allowOverpayment=payload.allow_overpayment===true
-  const outstandingBeforeThis=Number(Math.max(0,(totalAmount-previousReceived)).toFixed(2))
-  if(!allowOverpayment){
-    if(normalizeText(booking.payment_status)==='foc' || totalAmount<=0){
-      throw new Error('This booking is Free of Charge — there is nothing to pay. Tick "Allow overpayment" only if you must record money against it.')
-    }
-    if(previousReceived+0.01>=totalAmount && totalAmount>0){
-      throw new Error(`Booking is already fully paid (received ${previousReceived.toFixed(2)} of ${totalAmount.toFixed(2)}). Tick "Allow overpayment" to record an additional amount.`)
-    }
-    if(amount>outstandingBeforeThis+0.01){
-      throw new Error(`Payment of ${amount.toFixed(2)} exceeds the outstanding balance of ${outstandingBeforeThis.toFixed(2)}. Reduce the amount or tick "Allow overpayment".`)
-    }
-  }
-  const nextReceived=Number((previousReceived+amount).toFixed(2))
-  const nextPaymentStatus=nextReceived>0 && nextReceived+0.01>=totalAmount ? 'paid' : 'partially_paid'
+  const isFoc=normalizeText(booking.payment_status)==='foc' || totalAmount<=0
+  const paidNow=validateBookingPayments(rows,totalAmount-previousReceived,{mode,allowOverpayment,isFoc})
+  const nextReceived=Number((previousReceived+paidNow).toFixed(2))
+  const settled=nextReceived+0.01>=totalAmount && totalAmount>0
   const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
-  const providerReference=normalizeText(payload.provider_reference || payload.reference) || `MAN-${Date.now()}`
-  const manualPaymentMeta={
-    payment_type:paymentType,
-    provider_reference:providerReference,
-    terminal_serial_number:terminalSerialNumber,
-    batch_number:batchNumber,
-    received_at:nowIso(),
-    received_by:userId,
-    notes:normalizeText(payload.notes)
-  }
+  const methods=[...new Set(rows.map(row=>row.payment_type))]
+  // A booking settled by one method carries that method as its Payment Process; several methods
+  // read as a split payment (Paid) with the methods listed on the booking.
+  const nextPaymentStatus=settled ? (methods.length===1&&previousReceived<=0.01 ? (methods[0]==='other' ? 'paid' : methods[0]) : 'paid') : 'partially_paid'
+  const receivedAt=nowIso()
+  const rowMeta=rows.map(row=>({
+    payment_type:row.payment_type,
+    amount:row.amount,
+    provider_reference:row.provider_reference,
+    terminal_serial_number:row.terminal_serial_number,
+    batch_number:row.batch_number,
+    notes:row.notes,
+    received_at:receivedAt,
+    received_by:userId
+  }))
+  const provider=methods.length===1 ? getProviderForManualPaymentType(methods[0]) : 'custom'
   const paymentPayload={
     booking_id:bookingId,
     provider,
-    status:nextPaymentStatus,
-    currency_code:normalizeText(payload.currency_code || booking.currency_code) || 'NAD',
+    status:settled ? 'paid' : 'partially_paid',
+    currency_code:currencyCode,
     amount:totalAmount || nextReceived,
     amount_received:nextReceived,
-    provider_reference:providerReference,
-    paid_at:nextPaymentStatus==='paid' ? nowIso() : (existingPayment?.paid_at || null),
+    provider_reference:rows[rows.length-1].provider_reference || `MAN-${Date.now()}`,
+    paid_at:settled ? receivedAt : (existingPayment?.paid_at || null),
     metadata:{
       ...normalizeJsonRecord(existingPayment?.metadata),
-      source:'manual_admin_payment',
-      latest_manual_payment:manualPaymentMeta
+      source,
+      latest_manual_payment:rowMeta[rowMeta.length-1],
+      ...(rows.length>1 ? {latest_split_payment:rowMeta} : {})
     }
   }
   const payment=existingPayment?.id
     ? await safeMaybeSingle<Json>(adminClient.from('payments').update(paymentPayload).eq('id',String(existingPayment.id)).select().single())
     : await safeMaybeSingle<Json>(adminClient.from('payments').insert(paymentPayload).select().single())
   if(!payment?.id)throw new Error('Unable to record payment.')
-  const transaction=await safeMaybeSingle<Json>(
-    adminClient
-      .from('payment_transactions')
-      .insert({
-        payment_id:String(payment.id),
-        provider,
-        transaction_reference:providerReference,
-        transaction_type:'manual_payment',
-        status:'paid',
-        amount,
-        currency_code:normalizeText(payload.currency_code || booking.currency_code) || 'NAD',
-        raw_payload:{
-          ...manualPaymentMeta,
-          booking_reference:booking.reference
-        },
-        reconciled_at:nowIso()
-      })
-      .select()
-      .single()
-  )
-  const currentStatus=normalizeText(booking.status)
-  // Lifecycle (status) stays a lifecycle value; payment outcome lives in payment_status.
-  // Recording a payment no longer changes the lifecycle status by itself — a still-unreviewed
-  // provisional website booking must go through Reservation Management before it becomes finalised,
-  // and a finalised booking simply stays finalised regardless of payment activity.
-  const nextBookingStatus=currentStatus
+  const { data:transactions,error:transactionError }=await adminClient.from('payment_transactions').insert(rows.map((row,index)=>({
+    payment_id:String(payment.id),
+    provider:getProviderForManualPaymentType(row.payment_type),
+    transaction_reference:row.provider_reference || `MAN-${Date.now()}-${index+1}`,
+    transaction_type:'manual_payment',
+    status:'paid',
+    amount:row.amount,
+    currency_code:currencyCode,
+    raw_payload:{...rowMeta[index],booking_reference:booking.reference,split_part:rows.length>1 ? `${index+1}/${rows.length}` : null},
+    reconciled_at:receivedAt
+  }))).select()
+  if(transactionError)throw transactionError
   const existingMetadata=normalizeJsonRecord(booking.metadata)
+  const previousSplit=normalizeJsonRecord(existingMetadata.split_payment)
+  const allMethods=[...new Set([...(Array.isArray(previousSplit.methods) ? previousSplit.methods as string[] : []),...methods])]
+  const isSplit=rows.length>1 || Boolean(previousSplit.methods) || (previousReceived>0.01 && settled)
   const { error:bookingUpdateError }=await adminClient.from('bookings').update({
-    status:nextBookingStatus,
     payment_status:nextPaymentStatus,
     amount_due_now:outstandingAmount,
     amount_due_later:0,
     metadata:{
       ...existingMetadata,
-      latest_manual_payment:manualPaymentMeta
+      latest_manual_payment:rowMeta[rowMeta.length-1],
+      ...(isSplit ? {split_payment:{methods:allMethods,parts:Number(previousSplit.parts || (previousReceived>0.01 ? 1 : 0))+rows.length,updated_at:receivedAt}} : {})
     },
     updated_by:safeUuid(userId)
   }).eq('id',bookingId)
   if(bookingUpdateError)throw bookingUpdateError
-  await insertStatusHistory(
-    bookingId,
-    String(booking.status),
-    nextBookingStatus,
-    `Manual ${displayLabel(paymentType)} payment recorded: ${amount.toFixed(2)} ${normalizeText(payload.currency_code || booking.currency_code) || 'NAD'}`,
-    `admin:${userId}`,
-    userId
-  )
-  await createAdminNote({
-    booking_id:bookingId,
-    note:`Manual ${displayLabel(paymentType)} payment recorded for ${amount.toFixed(2)} ${normalizeText(payload.currency_code || booking.currency_code) || 'NAD'}.${paymentType==='card' ? ` Serial ${terminalSerialNumber}, batch ${batchNumber}.` : ''}`,
-    is_private:true
-  },userId)
+  const summary=rows.map(row=>`${displayLabel(row.payment_type)} ${formatAmount(row.amount)}${row.payment_type==='card' ? ` (serial ${row.terminal_serial_number}, batch ${row.batch_number})` : ''}`).join(' + ')
+  const heading=rows.length>1 ? 'Split payment recorded' : `Manual ${displayLabel(rows[0].payment_type)} payment recorded`
+  await insertStatusHistory(bookingId,String(booking.status),String(booking.status),`${heading}: ${summary} ${currencyCode}`,`admin:${userId}`,userId)
+  await createAdminNote({booking_id:bookingId,note:`${heading}: ${summary} ${currencyCode}.${settled ? ' Booking fully paid.' : ` ${formatAmount(outstandingAmount)} ${currencyCode} still outstanding.`}`,is_private:true},userId)
   await syncInvoiceForBooking(bookingId)
   await syncLifecycleTasks(bookingId,userId)
   await syncReconciliationRecordForBooking(bookingId,userId)
@@ -2806,10 +2828,20 @@ const createManualBookingPayment=async(bookingId:string,payload:Json,userId:stri
     related_table:'payments',
     related_id:String(payment.id),
     created_by:userId,
-    payload:{ payment_type:paymentType, provider_reference:providerReference }
+    payload:{ payment_types:methods, parts:rows.length }
   })
   await processDueSystemJobs()
-  return { success:true, payment, transaction, payment_status:nextPaymentStatus, amount_received:nextReceived, balance_amount:outstandingAmount }
+  return { success:true, payment, transactions:transactions || [], transaction:(transactions || [])[0] || null, payment_status:nextPaymentStatus, amount_received:nextReceived, balance_amount:outstandingAmount }
+}
+
+// POST admin/bookings/:id/payments — one payment ({payment_type, amount, ...}) or several
+// ({payments:[...]}) recorded together.
+const createManualBookingPayment=async(bookingId:string,payload:Json,userId:string)=>{
+  const rows=Array.isArray(payload.payments) ? normalizeSplitPayments(payload.payments) : normalizeSplitPayments([payload])
+  return recordBookingPayments(bookingId,rows,userId,{
+    mode:payload.settle===true ? 'settle' : 'upto',
+    allowOverpayment:payload.allow_overpayment===true
+  })
 }
 
 const resolveOutstandingAmounts=(pricing:{
@@ -4052,6 +4084,13 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   // caller explicitly supplied a method.
   const paymentStatus=desiredPaymentStatus || ''
   const outstandingAmounts=resolveOutstandingAmounts(finalPricingCreate,paymentStatus)
+  // Split payments entered on the booking form are checked against the real total before the booking
+  // is written, so a booking is never saved with only some of its payments.
+  const splitRowsCreate=isAdmin ? normalizeSplitPayments(payload.split_payments) : []
+  if(splitRowsCreate.length){
+    if(isSettledPaymentProcess(paymentStatus))throw new Error('Use either a Payment Process or split payments, not both.')
+    validateBookingPayments(splitRowsCreate,Number(finalPricingCreate.totalAmount || 0),{mode:'settle',allowOverpayment:payload.allow_overpayment===true})
+  }
   const buildBookingInsert=(nextReference:string)=>({
     reference:nextReference,
     brand_code:String(brand.code || brandCode),
@@ -4119,6 +4158,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
     selectedPaymentProvider
   )
   await maybeCreateBookingDiscounts(bookingId,promotionState.discounts)
+  if(splitRowsCreate.length){
+    await recordBookingPayments(bookingId,splitRowsCreate,userId,{mode:'settle',allowOverpayment:payload.allow_overpayment===true,source:'booking_form_split_payment'})
+  }
   if(promotionState.couponReserved){
     const auditInsert=await adminClient.from('coupon_redemptions').insert({
       coupon_id:promotionState.couponReserved.id,
@@ -4339,6 +4381,13 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const focServiceFee=isFoc ? 0 : (priceOverride>0 ? 0 : pricing.serviceFeeAmount)
   const focDueNow=isFoc ? 0 : outstandingAmounts.amountDueNow
   const focDueLater=isFoc ? 0 : outstandingAmounts.amountDueLater
+  const splitRowsUpdate=normalizeSplitPayments(payload.split_payments)
+  if(splitRowsUpdate.length){
+    if(isSettledPaymentProcess(nextPaymentStatus) && nextPaymentStatus!==normalizeText(existing.payment_status)){
+      throw new Error('Use either a Payment Process or split payments, not both.')
+    }
+    validateBookingPayments(splitRowsUpdate,Number(focTotal || 0)-receivedAmount,{mode:'settle',allowOverpayment:payload.allow_overpayment===true,isFoc})
+  }
   const existingMetadata=normalizeJsonRecord(existing.metadata)
   const cancellationReason=normalizeText(payload.reason)
   const cancellationCategory=normalizeText(payload.cancellation_reason_type || payload.reason_type || requestMetadata.cancellation_reason_type)
@@ -4409,6 +4458,9 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
     selectedPaymentProvider
   )
   await syncBookingItems(id,service,pricing)
+  if(splitRowsUpdate.length){
+    await recordBookingPayments(id,splitRowsUpdate,userId,{mode:'settle',allowOverpayment:payload.allow_overpayment===true,source:'booking_form_split_payment'})
+  }
   await syncBookingOperatorAssignmentAmount(id,Number(pricing.totalAmount || 0))
   // Build structured field-level diff for amendment tracking
   const amendmentChanges:string[]=[]

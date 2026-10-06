@@ -356,7 +356,16 @@ const outstandingOf=b=>{
 }
 const PAYMENT_LABELS={partially_paid:'Partially paid',fully_paid:'Fully paid',foc:'FOC',paid:'Paid',refunded:'Refunded',cancelled:'Cancelled',failed:'Failed',invoiced:'Invoiced',eft:'EFT',card:'Card',cash:'Cash',voucher:'Voucher'}
 const paymentLabel=status=>{ const key=lower(status); return key ? (PAYMENT_LABELS[key]||label(key)) : 'Unpaid' }
+const splitMethodsOf=b=>{ const methods=record(meta(b).split_payment).methods; return Array.isArray(methods) ? methods : [] }
+// What the Payment Process column shows for a booking, including split payments.
+const paymentText=b=>{
+  const methods=splitMethodsOf(b)
+  if(isSettled(b)&&methods.length>1)return `Split · ${methods.map(paymentMethodLabel).join(' + ')}`
+  return paymentLabel(b?.payment_status)
+}
+const processKey=b=>splitMethodsOf(b).length>1&&isSettled(b) ? 'split' : (lower(b?.payment_status)||'not_set')
 const paymentTag=b=>{
+  if(isSettled(b)&&splitMethodsOf(b).length>1)return tag('paid',paymentText(b))
   const key=lower(b?.payment_status)
   if(!key&&!expectsPayment(b))return ''
   if(!key)return receivedOf(b)>0 ? tag('partially_paid','Partially paid') : tag('unpaid','Unpaid')
@@ -732,16 +741,11 @@ const renderBookingDetail=()=>{
             ||emptyRow(4,isSettled(b) ? `Marked ${paymentLabel(b.payment_status)} — no individual payments recorded.` : 'No payments recorded yet.')}</tbody>
         </table></div>
         ${canPay ? `
-        <form class="adm-form" id="manualPaymentForm" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)" hidden>
-          <div class="row three">
-            <label class="adm-field"><span>Method</span><select name="payment_type"><option value="eft">EFT / Bank transfer</option><option value="card">Card machine</option><option value="cash">Cash</option><option value="voucher">Voucher</option><option value="other">Other</option></select></label>
-            <label class="adm-field"><span>Amount</span><input name="amount" type="number" min="0.01" step="0.01" value="${attr(outstanding>0 ? outstanding.toFixed(2) : '')}" required></label>
-            <label class="adm-field"><span>Reference</span><input name="provider_reference" type="text" placeholder="Optional"></label>
-          </div>
-          <div class="row" data-card-fields hidden>
-            <label class="adm-field"><span>Terminal serial</span><input name="terminal_serial_number" type="text"></label>
-            <label class="adm-field"><span>Batch number</span><input name="batch_number" type="text"></label>
-          </div>
+        <form class="adm-form" id="manualPaymentForm" data-due="${attr(outstanding.toFixed(2))}" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--line)" hidden>
+          <p class="adm-muted">Paid with more than one method? Add a row per method — they are recorded together.</p>
+          <div data-manual-rows style="display:flex;flex-direction:column;gap:10px"></div>
+          <div class="split-summary" data-manual-summary hidden></div>
+          <div><button type="button" class="adm-add" data-booking-action="add-payment-row">+ Add another method</button></div>
           <div class="adm-actions"><button class="adm-btn" type="submit">Save payment</button><button class="adm-btn ghost" type="button" data-booking-action="hide-payment">Close</button></div>
         </form>` : ''}
         <h2 style="margin-top:22px">Internal notes</h2>
@@ -762,6 +766,7 @@ const paymentMethodLabel=value=>{
   if(key==='cash')return 'Cash'
   if(key==='voucher')return 'Voucher'
   if(key==='dpo')return 'DPO'
+  if(key==='unrecorded')return 'Not recorded'
   return label(key||'Manual')
 }
 
@@ -861,24 +866,32 @@ const confirmBooking=async(id,button)=>{
     renderBookingDetail()
   },'Finalising…')
 }
+const manualRowsOf=form=>form.querySelector('[data-manual-rows]')
+const syncManualSummary=form=>renderSplitSummary(form.querySelector('[data-manual-summary]'),readPaymentRows(manualRowsOf(form)),Number(form.dataset.due||0),{currency:bookingById(state.selectedBookingId)?.currency,onFill:diff=>fillLastRow(manualRowsOf(form),diff)})
+const addManualRow=(form,amount='')=>{
+  const row=paymentRow({amount,onChange:()=>syncManualSummary(form)})
+  manualRowsOf(form).appendChild(row)
+  syncManualSummary(form)
+  row.querySelector('[data-pay-amount]').focus()
+}
 const saveManualPayment=async(form,bookingId)=>{
-  const data=new FormData(form)
-  const body={
-    payment_type:text(data.get('payment_type'))||'eft',amount:Number(data.get('amount')||0),provider_reference:text(data.get('provider_reference')),
-    terminal_serial_number:text(data.get('terminal_serial_number')),batch_number:text(data.get('batch_number')),notes:'',allow_overpayment:false
-  }
-  if(!(body.amount>0))throw new Error('Enter the amount received.')
-  if(body.payment_type==='card'&&(!body.terminal_serial_number||!body.batch_number))throw new Error('Card payments need the terminal serial and batch number.')
+  const rows=readPaymentRows(manualRowsOf(form))
+  if(!rows.length)throw new Error('Enter the amount received.')
+  const problems=checkPaymentRows(rows)
+  if(problems.length)throw new Error(problems.join(' '))
   const b=bookingById(bookingId)
-  const outstanding=outstandingOf(b)
-  if(body.amount>outstanding+0.01){
-    const ok=window.confirm(`Outstanding balance is ${money(outstanding,b?.currency)}. Recording ${money(body.amount,b?.currency)} puts the booking in credit. Continue?`)
-    if(!ok)throw new Error('Payment not recorded.')
-    body.allow_overpayment=true
+  const due=outstandingOf(b)
+  const total=sumRows(rows)
+  let allowOverpayment=false
+  if(total>due+0.01){
+    if(!window.confirm(`Outstanding balance is ${money(due,b?.currency)}. Recording ${money(total,b?.currency)} puts the booking in credit. Continue?`))return
+    allowOverpayment=true
+  }else if(total<due-0.01){
+    if(!window.confirm(`This records ${money(total,b?.currency)} and leaves ${money(due-total,b?.currency)} outstanding (a part payment). Continue?`))return
   }
-  await api(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{method:'POST',body})
+  const result=await api(`admin/bookings/${encodeURIComponent(bookingId)}/payments`,{method:'POST',body:{payments:cleanPaymentRows(rows),allow_overpayment:allowOverpayment}})
   await refresh()
-  notify('Payment recorded.')
+  notify(Number(result?.balance_amount||0)<=0.01 ? `${rows.length>1 ? 'Split payment' : 'Payment'} recorded — booking fully paid.` : `${rows.length>1 ? 'Split payment' : 'Payment'} recorded — ${money(result.balance_amount,b?.currency)} still outstanding.`)
   renderBookingDetail()
 }
 
@@ -893,13 +906,13 @@ const openPrintWindow=(title,markup)=>{
 }
 const printBooking=b=>{
   const rows=submittedRows(b)
-  openPrintWindow(`Booking ${b.reference}`,`<h1>${esc(b.customer_name||'Guest')} · ${esc(b.service_name||meta(b).display_name||'Tour')}</h1><p>${esc(b.reference)} · ${esc(brandName(b.brand_code))} · ${esc(label(b.status))} · ${esc(paymentLabel(b.payment_status))}</p><h2>Details</h2><dl>${rows.map(r=>`<div><dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`)
+  openPrintWindow(`Booking ${b.reference}`,`<h1>${esc(b.customer_name||'Guest')} · ${esc(b.service_name||meta(b).display_name||'Tour')}</h1><p>${esc(b.reference)} · ${esc(brandName(b.brand_code))} · ${esc(label(b.status))} · ${esc(paymentText(b))}</p><h2>Details</h2><dl>${rows.map(r=>`<div><dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`)
 }
 const printDaySheet=(key=todayKey())=>{
   const rows=liveBookings().filter(b=>dateKey(b.preferred_date)===key&&!['cancelled','refunded'].includes(lower(b.status))).sort((a,b)=>pickupLabel(a).localeCompare(pickupLabel(b)))
   openPrintWindow(`Day sheet ${fmtDate(key)}`,`<h1>Day sheet — ${esc(fmtDate(key))}</h1><p>${rows.length} booking${rows.length===1?'':'s'} · ${rows.reduce((s,b)=>s+paxOf(b),0)} guests</p>
     <table><thead><tr><th>Pickup</th><th>Guest</th><th>Tour</th><th>Pax</th><th>Transport</th><th>Guide</th><th>Payment</th><th>Notes</th></tr></thead><tbody>
-    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(guideNames(b).join(', ')||'—')}</td><td>${esc(paymentLabel(b.payment_status))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
+    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(guideNames(b).join(', ')||'—')}</td><td>${esc(paymentText(b))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
     </tbody></table>`)
 }
 
@@ -986,27 +999,75 @@ const personNames=list=>Array.from(list.querySelectorAll('[data-person-name]')).
 const splitNames=value=>String(value||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
 const pickupMode=()=>nodes.bookingSelfDrive.checked ? 'self_drive' : nodes.bookingTransfer.checked ? 'transfer' : ''
 
-const paymentRow=()=>{
+const PAYMENT_METHOD_OPTIONS='<option value="eft">EFT / Bank Transfer</option><option value="card">Card Machine</option><option value="cash">Cash</option><option value="voucher">Voucher</option><option value="other">Other</option>'
+// One payment row: method, amount, reference, and the card machine fields when the method is card.
+const paymentRow=({amount='',type='eft',onChange=()=>{}}={})=>{
   const row=document.createElement('div')
   row.className='booking-payment-row'
   row.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:10px'
   row.innerHTML=`
-    <select data-pay-type style="flex:1;min-width:140px"><option value="eft">EFT / Bank Transfer</option><option value="card">Card Machine</option><option value="cash">Cash</option><option value="voucher">Voucher</option><option value="other">Other</option></select>
-    <input type="number" min="0.01" step="0.01" placeholder="Amount" data-pay-amount style="flex:1;min-width:110px">
-    <input type="text" placeholder="Reference (optional)" data-pay-reference style="flex:1;min-width:140px">
-    <input type="text" placeholder="Terminal serial" data-pay-terminal hidden style="flex:1;min-width:120px">
-    <input type="text" placeholder="Batch number" data-pay-batch hidden style="flex:1;min-width:120px">
+    <select data-pay-type aria-label="Payment method" style="flex:1;min-width:140px">${PAYMENT_METHOD_OPTIONS}</select>
+    <input type="number" min="0.01" step="0.01" placeholder="Amount" aria-label="Amount" data-pay-amount style="flex:1;min-width:110px">
+    <input type="text" placeholder="Reference (optional)" aria-label="Reference" data-pay-reference style="flex:1;min-width:140px">
+    <input type="text" placeholder="Terminal serial" aria-label="Terminal serial" data-pay-terminal hidden style="flex:1;min-width:120px">
+    <input type="text" placeholder="Batch number" aria-label="Batch number" data-pay-batch hidden style="flex:1;min-width:120px">
     <button type="button" class="adm-remove" data-pay-remove aria-label="Remove payment">×</button>`
   const typeEl=row.querySelector('[data-pay-type]')
+  typeEl.value=type
+  row.querySelector('[data-pay-amount]').value=amount
   const syncCard=()=>{ const isCard=typeEl.value==='card'; row.querySelector('[data-pay-terminal]').hidden=!isCard; row.querySelector('[data-pay-batch]').hidden=!isCard }
-  typeEl.addEventListener('change',syncCard)
-  row.querySelector('[data-pay-remove]').addEventListener('click',()=>row.remove())
+  syncCard()
+  typeEl.addEventListener('change',()=>{ syncCard(); onChange() })
+  row.addEventListener('input',event=>{ event.target.classList?.remove('is-invalid'); onChange() })
+  row.querySelector('[data-pay-remove]').addEventListener('click',()=>{ row.remove(); onChange() })
   return row
 }
-const paymentRows=()=>Array.from(nodes.bookingPaymentRowsList.querySelectorAll('.booking-payment-row')).map(row=>({
-  payment_type:row.querySelector('[data-pay-type]').value||'eft',amount:Number(row.querySelector('[data-pay-amount]').value||0),
-  provider_reference:row.querySelector('[data-pay-reference]').value.trim(),terminal_serial_number:row.querySelector('[data-pay-terminal]').value.trim(),batch_number:row.querySelector('[data-pay-batch]').value.trim()
-})).filter(r=>r.amount>0)
+// Reads the rows in a container. A row left completely blank is ignored; anything else is kept so
+// it can be validated rather than silently dropped.
+const readPaymentRows=container=>Array.from(container.querySelectorAll('.booking-payment-row')).map(row=>({
+  el:row,
+  payment_type:row.querySelector('[data-pay-type]').value||'eft',
+  amount:Number(Number(row.querySelector('[data-pay-amount]').value||0).toFixed(2)),
+  rawAmount:row.querySelector('[data-pay-amount]').value.trim(),
+  provider_reference:row.querySelector('[data-pay-reference]').value.trim(),
+  terminal_serial_number:row.querySelector('[data-pay-terminal]').value.trim(),
+  batch_number:row.querySelector('[data-pay-batch]').value.trim()
+})).filter(r=>r.rawAmount||r.provider_reference||r.terminal_serial_number||r.batch_number)
+// Checks every row before anything is sent; marks the offending inputs and returns the problems.
+const checkPaymentRows=rows=>{
+  const problems=[]
+  rows.forEach((row,i)=>{
+    const name=rows.length>1 ? `Payment ${i+1}` : 'The payment'
+    if(!(row.amount>0)){ problems.push(`${name} needs an amount.`); row.el.querySelector('[data-pay-amount]').classList.add('is-invalid') }
+    if(row.payment_type==='card'){
+      if(!row.terminal_serial_number){ row.el.querySelector('[data-pay-terminal]').classList.add('is-invalid') }
+      if(!row.batch_number){ row.el.querySelector('[data-pay-batch]').classList.add('is-invalid') }
+      if(!row.terminal_serial_number||!row.batch_number)problems.push(`${name} is a card payment — add the terminal serial and batch number.`)
+    }
+  })
+  return problems
+}
+const cleanPaymentRows=rows=>rows.map(({payment_type,amount,provider_reference,terminal_serial_number,batch_number})=>({payment_type,amount,provider_reference,terminal_serial_number,batch_number,notes:''}))
+const sumRows=rows=>Number(rows.reduce((t,r)=>t+Number(r.amount||0),0).toFixed(2))
+// Running total line under a set of rows: covered, still short (with a one-click fill) or over.
+const renderSplitSummary=(el,rows,due,{currency,onFill}={})=>{
+  if(!el)return
+  if(!rows.length||due==null){ el.hidden=true; el.replaceChildren(); return }
+  const total=sumRows(rows)
+  const diff=Number((due-total).toFixed(2))
+  el.hidden=false
+  el.className=`split-summary ${Math.abs(diff)<=0.01 ? 'is-ok' : diff>0 ? 'is-short' : 'is-over'}`
+  el.innerHTML=`<span>Payments <strong>${esc(money(total,currency))}</strong> of <strong>${esc(money(due,currency))}</strong> due</span><span>${Math.abs(diff)<=0.01 ? '✓ Covers the booking in full' : diff>0 ? `${esc(money(diff,currency))} still to allocate` : `${esc(money(-diff,currency))} over`}</span>${diff>0.01&&onFill ? '<button type="button" class="adm-link-btn" data-split-fill>Put the rest on the last row</button>' : ''}`
+  el.querySelector('[data-split-fill]')?.addEventListener('click',()=>onFill(diff))
+}
+const fillLastRow=(container,diff)=>{
+  const rows=container.querySelectorAll('.booking-payment-row')
+  const last=rows[rows.length-1]
+  if(!last)return
+  const input=last.querySelector('[data-pay-amount]')
+  input.value=(Number(input.value||0)+diff).toFixed(2)
+  input.dispatchEvent(new Event('input',{bubbles:true}))
+}
 
 const syncDepartureFields=(serviceSlug='',selectedLabel='',selectedPickup='')=>{
   const service=state.services.find(s=>s.slug===serviceSlug)
@@ -1019,6 +1080,29 @@ const syncDepartureFields=(serviceSlug='',selectedLabel='',selectedPickup='')=>{
   nodes.bookingPickup.value=pickup
   nodes.bookingPickupWrap.hidden=!pickup
   nodes.bookingDepartureWrap.hidden=false
+}
+// What the split rows on the booking form must cover: the price (override or calculated) less
+// anything already received on the booking.
+const bookingFormDue=()=>{
+  const override=Number(nodes.bookingPriceOverride.value||0)
+  let total=override>0 ? override : null
+  if(total==null){
+    const service=state.services.find(x=>x.slug===nodes.bookingService.value)
+    const adults=Math.max(0,Number(nodes.bookingAdultQuantity.value||0)),children=Math.max(0,Number(nodes.bookingChildQuantity.value||0)),infants=Math.max(0,Number(nodes.bookingInfantQuantity.value||0))
+    if(!service||!(adults+children+infants))return null
+    total=Number(shared.calculatePricing(service,{adult_quantity:adults,child_quantity:children,quantity:Math.max(1,adults+children+infants),addons:[]}).total_amount||0)
+  }
+  const existing=state.editingBookingId ? bookingById(state.editingBookingId) : null
+  const already=existing ? Number(paymentsOf(existing.id)[0]?.amount_received||0) : 0
+  return Math.max(0,Number((total-already).toFixed(2)))
+}
+const syncSplitPayments=()=>{
+  const rows=readPaymentRows(nodes.bookingPaymentRowsList)
+  const hasRows=nodes.bookingPaymentRowsList.querySelector('.booking-payment-row')!==null
+  // Split rows replace the single Payment Process: they say how the booking was paid.
+  nodes.bookingPaymentStatus.disabled=hasRows
+  nodes.bookingPaymentStatus.title=hasRows ? 'Split payment rows record how this booking is paid.' : ''
+  renderSplitSummary($('adminBookingSplitSummary'),rows,hasRows ? bookingFormDue() : null,{currency:state.settings.currency,onFill:diff=>fillLastRow(nodes.bookingPaymentRowsList,diff)})
 }
 const updateOverrideTag=()=>{ nodes.bookingOverrideTagRow.hidden=!(Number(nodes.bookingPriceOverride.value||0)>0) }
 const updatePricePreview=()=>{
@@ -1038,6 +1122,7 @@ const updatePricePreview=()=>{
   if(infants>0)lines.push(`${infants} under 4 — complimentary`)
   nodes.bookingPriceBreakdown.textContent=lines.join(' · ')
   nodes.bookingPriceTotal.textContent=money(pricing.total_amount,currency)
+  syncSplitPayments()
 }
 const renderFormOptions=()=>{
   const serviceOptions=state.services.map(s=>`<option value="${attr(s.slug)}">${esc(s.name)}${s.is_active===false ? ' (hidden)' : ''}</option>`).join('')
@@ -1069,6 +1154,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingStatus.value=booking?.status||'finalised'
   nodes.bookingPaymentStatus.value=String(booking?.payment_status||'')
   nodes.bookingPaymentRowsList.innerHTML=''
+  nodes.bookingPaymentStatus.disabled=false
   nodes.bookingDate.value=booking?.preferred_date ? dateKey(booking.preferred_date) : ''
   syncDepartureFields(booking?.service_slug||'',m.departure_label||'',m.pickup_time||'')
   nodes.bookingQuantity.value=booking?.quantity||2
@@ -1083,7 +1169,8 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''))
   renderPersonRows(nodes.bookingSkipperList,splitNames(m.skipper_name||''))
-  nodes.bookingNationality.value=m.nationality||booking?.nationality||''
+  const nationalities=new Set((Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>lower(v)).filter(Boolean))
+  nodes.bookingNationality.querySelectorAll('input[type=checkbox]').forEach(cb=>{ cb.checked=nationalities.has(lower(cb.value)) })
   nodes.bookingBookedBy.value=m.booked_by||booking?.booked_by||''
   nodes.bookingDietary.value=m.dietary_requirements||m.dietary||''
   nodes.bookingAgent.value=m.agent||''
@@ -1107,6 +1194,7 @@ const openBookingModal=(booking=null,{date=''}={})=>{
 }
 const closeBookingModal=()=>{ state.editingBookingId=''; setModal(nodes.bookingModal,false) }
 
+const checkedNationalities=()=>Array.from(nodes.bookingNationality.querySelectorAll('input[type=checkbox]:checked')).map(cb=>cb.value)
 const validateBookingForm=isEditing=>{
   const errors=[]
   if(!isEditing||nodes.bookingStatus.value==='provisional')return errors
@@ -1133,6 +1221,20 @@ const saveBooking=async()=>{
     if(dup&&!window.confirm(`A booking already exists for ${email} on ${date} for this tour (Ref: ${dup.reference}). Save anyway?`))return
   }
   const adults=Number(nodes.bookingAdultQuantity.value||0), children=Number(nodes.bookingChildQuantity.value||0), infants=Number(nodes.bookingInfantQuantity.value||0)
+  // Split payments are checked here and sent with the booking; the API records them together or not at all.
+  const splitRows=readPaymentRows(nodes.bookingPaymentRowsList)
+  let allowOverpayment=false
+  if(splitRows.length){
+    const problems=checkPaymentRows(splitRows)
+    if(problems.length){ toast(problems.join(' '),'error'); return }
+    const due=bookingFormDue()
+    const total=sumRows(splitRows)
+    if(due!=null&&total<due-0.01){ toast(`The split payments add up to ${money(total)}, but ${money(due)} is due. Add the remaining ${money(due-total)} or adjust the amounts.`,'error'); return }
+    if(due!=null&&total>due+0.01){
+      if(!window.confirm(`The split payments add up to ${money(total)}, which is ${money(total-due)} more than the ${money(due)} due. Record the overpayment?`))return
+      allowOverpayment=true
+    }
+  }
   const wasReservation=existing ? isReservation(existing) : false
   const payload={
     reference:nodes.bookingReference.value.trim(),
@@ -1141,7 +1243,7 @@ const saveBooking=async()=>{
     service_slug:nodes.bookingService.value,
     // A reservation being edited stays provisional until it is approved; new manual bookings are finalised.
     status:wasReservation ? 'provisional' : (nodes.bookingStatus.value||'finalised'),
-    payment_status:isEditing ? nodes.bookingPaymentStatus.value : '',
+    payment_status:isEditing ? (splitRows.length ? String(existing?.payment_status||'') : nodes.bookingPaymentStatus.value) : '',
     preferred_date:nodes.bookingDate.value,
     adult_quantity:adults,child_quantity:children,infant_quantity:infants,
     quantity:(adults+children+infants)>0 ? adults+children+infants : Number(nodes.bookingQuantity.value||1),
@@ -1151,7 +1253,7 @@ const saveBooking=async()=>{
     metadata:{
       ...meta(existing),
       custom_fields:collectCustomFields(),departure_label:nodes.bookingDeparture.value||'',pickup_time:nodes.bookingPickup.value||'',
-      nationality:nodes.bookingNationality.value.trim(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),
+      nationality:checkedNationalities().join(', '),nationalities:checkedNationalities(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),
       dietary_requirements:nodes.bookingDietary.value.trim(),skipper_name:personNames(nodes.bookingSkipperList).join(', '),pickup_mode:pickupMode(),
       infant_quantity:infants,price_override:Number(nodes.bookingPriceOverride.value||0)||0,
       ...(wasReservation ? {} : {admin_created:true,created_via:'skybook_admin'})
@@ -1159,25 +1261,14 @@ const saveBooking=async()=>{
     customer:{full_name:nodes.bookingCustomerName.value.trim(),email:nodes.bookingCustomerEmail.value.trim(),phone:nodes.bookingCustomerPhone.value.trim(),whatsapp:nodes.bookingCustomerPhone.value.trim()}
   }
   if(isEditing)payload.workflow_action='admin_edit'
+  if(splitRows.length){ payload.split_payments=cleanPaymentRows(splitRows); payload.allow_overpayment=allowOverpayment }
   const response=await api(isEditing ? `admin/bookings/${encodeURIComponent(editingId)}` : 'admin/bookings',{method:isEditing ? 'PATCH' : 'POST',body:payload})
   const savedId=text(response?.booking?.id)||text(response?.id)||editingId
   await loadData()
-  // Split-payment rows post against the real, priced booking once it exists.
-  const rows=paymentRows()
-  const failures=[]
-  let loaded=0
-  for(const row of rows){
-    if(row.payment_type==='card'&&(!row.terminal_serial_number||!row.batch_number)){ failures.push('Card payment skipped (terminal serial + batch number required).'); continue }
-    try{ await api(`admin/bookings/${encodeURIComponent(savedId)}/payments`,{method:'POST',body:{...row,notes:'',allow_overpayment:false}}); loaded+=1 }
-    catch(error){ failures.push(error?.message||'Payment failed.') }
-  }
-  if(loaded)await loadData()
   renderAll()
   closeBookingModal()
   const saved=bookingById(savedId)
-  const summary=`${isEditing ? 'Booking updated' : 'Booking created'}${saved ? ` · ${saved.reference}` : ''}${loaded ? ` · ${loaded} payment${loaded===1?'':'s'} recorded` : ''}`
-  notify(summary)
-  if(failures.length)toast(`Some payments were not recorded: ${failures.join(' ')}`,'error')
+  notify(`${isEditing ? 'Booking updated' : 'Booking created'}${saved ? ` · ${saved.reference}` : ''}${splitRows.length ? ` · ${splitRows.length} payment${splitRows.length===1?'':'s'} recorded, ${saved&&outstandingOf(saved)<=0.01 ? 'fully paid' : 'check the balance'}` : ''}`)
   if(saved){ if(isReservation(saved))openReservation(saved.id); else openBooking(saved.id) }
 }
 
@@ -1646,7 +1737,7 @@ const renderReports=()=>{
   // ── 2. Payments ──
   const payRows=reportPaymentRows(finance)
   const received=sum(payRows,'amount')
-  const statusCounts=finance.reduce((acc,b)=>{ const k=lower(b.payment_status)||'not_set'; acc[k]=(acc[k]||0)+1; return acc },{})
+  const statusCounts=finance.reduce((acc,b)=>{ const k=processKey(b); acc[k]=(acc[k]||0)+1; return acc },{})
   const outstanding=finance.filter(b=>outstandingOf(b)>0)
   const outstandingValue=outstanding.reduce((t,b)=>t+outstandingOf(b),0)
   nodes.paymentReportCards.innerHTML=[
@@ -1656,11 +1747,11 @@ const renderReports=()=>{
     statTile({label:'Awaiting payment',value:String(outstanding.length),current:outstanding.length,previous:prevFinance ? prevFinance.filter(b=>outstandingOf(b)>0).length : null,goodUp:false}),
     statTile({label:'Outstanding value',value:m(outstandingValue),current:outstandingValue,previous:prevFinance ? prevFinance.reduce((t,b)=>t+outstandingOf(b),0) : null,goodUp:false,fmtDelta:m})
   ].join('')
-  const statusLabel=k=>k==='not_set' ? 'Not set' : paymentLabel(k)
+  const statusLabel=k=>k==='not_set' ? 'Not set' : k==='split' ? 'Split payment' : paymentLabel(k)
   nodes.paymentReportBody.innerHTML=`
     <div class="rep-grid">
       ${repCard('Received by method',hbarChart(payRows.map(r=>({label:r.method,value:r.amount,extra:[`${r.count} payment${r.count===1?'':'s'}`,`${received>0 ? Math.round((r.amount/received)*100) : 0}%`]})),{fmt:m}))}
-      ${repCard('Bookings by payment process',shareBar(Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>({label:statusLabel(k),value:c})))+`<div class="table-wrap"><table><thead><tr><th>Payment process</th><th>Bookings</th><th>Value</th><th>%</th></tr></thead><tbody>${Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<tr><td>${tag(k,statusLabel(k))}</td><td>${c}</td><td>${m(sum(finance.filter(b=>(lower(b.payment_status)||'not_set')===k),'total_amount'))}</td><td>${finance.length ? Math.round((c/finance.length)*100) : 0}%</td></tr>`).join('')||emptyRow(4,'No bookings in this range.')}</tbody></table></div>`)}
+      ${repCard('Bookings by payment process',shareBar(Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>({label:statusLabel(k),value:c})))+`<div class="table-wrap"><table><thead><tr><th>Payment process</th><th>Bookings</th><th>Value</th><th>%</th></tr></thead><tbody>${Object.entries(statusCounts).sort((a,b)=>b[1]-a[1]).map(([k,c])=>`<tr><td>${tag(k,statusLabel(k))}</td><td>${c}</td><td>${m(sum(finance.filter(b=>processKey(b)===k),'total_amount'))}</td><td>${finance.length ? Math.round((c/finance.length)*100) : 0}%</td></tr>`).join('')||emptyRow(4,'No bookings in this range.')}</tbody></table></div>`)}
     </div>
     ${repCard('Awaiting payment',`<div class="table-wrap"><table><thead><tr><th>Guest</th><th>Tour</th><th>Date</th><th>Total</th><th>Received</th><th>Outstanding</th></tr></thead><tbody>${outstanding.sort((a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date))).slice(0,40).map(b=>`<tr><td><strong>${esc(b.customer_name||'Guest')}</strong><div class="table-subline">${esc(b.reference||'')}</div></td><td>${esc(b.service_name||'—')}</td><td>${esc(fmtDate(b.preferred_date))}</td><td>${m(b.total_amount||0)}</td><td>${m(receivedOf(b))}</td><td><strong>${m(outstandingOf(b))}</strong></td></tr>`).join('')||emptyRow(6,'Nothing outstanding — every active booking in this range is settled.')}</tbody></table>${outstanding.length>40 ? `<p class="field-hint">Showing 40 of ${outstanding.length}.</p>` : ''}</div>`,{sub:'Website bookings without a payment process, and anything partly paid'})}`
 
@@ -1777,7 +1868,7 @@ const downloadReportPdf=key=>{
 }
 const exportBookingsCsv=()=>{
   const rows=state.bookings.filter(b=>!isTrashed(b)).map(b=>({
-    reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentLabel(b.payment_status),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
+    reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentText(b),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
     guest:b.customer_name,email:b.customer_email,phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
     infants:b.infant_quantity||meta(b).infant_quantity||0,total:Number(b.total_amount||0).toFixed(2),received:receivedOf(b).toFixed(2),outstanding:outstandingOf(b).toFixed(2),
     guides:guideNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
@@ -1940,7 +2031,7 @@ const printArrivals=(key=todayKey())=>{
       </div>
       <div class="card-body">
         <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',guideNames(b).join(', '))}${field('Skipper(s)',m.skipper_name)}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
-        <div class="fields-col">${field('Dietary',m.dietary_requirements||m.dietary)}${field('Nationality',m.nationality)}${field('Booked by',m.booked_by)}${field('Agent',m.agent)}${field('Payment',paymentLabel(b.payment_status))}${field('Notes',b.customer_notes||b.notes)}</div>
+        <div class="fields-col">${field('Dietary',m.dietary_requirements||m.dietary)}${field('Nationality',m.nationality)}${field('Booked by',m.booked_by)}${field('Agent',m.agent)}${field('Payment',paymentText(b))}${field('Notes',b.customer_notes||b.notes)}</div>
       </div>
     </div>`
   }).join('<hr class="card-divider">')
@@ -2035,7 +2126,8 @@ document.addEventListener('click',event=>{
     else if(action==='reinstate')reinstate(id,'finalised')
     else if(action==='confirm')confirmBooking(id,bookingAction).catch(fail)
     else if(action==='print')printBooking(b)
-    else if(action==='load-payment'){ const form=document.getElementById('manualPaymentForm'); if(form){ form.hidden=false; form.querySelector('[name=amount]')?.focus() } }
+    else if(action==='load-payment'){ const form=document.getElementById('manualPaymentForm'); if(form){ form.hidden=false; if(!manualRowsOf(form).children.length)addManualRow(form,Number(form.dataset.due||0)>0 ? Number(form.dataset.due).toFixed(2) : '') } }
+    else if(action==='add-payment-row'){ const form=document.getElementById('manualPaymentForm'); if(form){ const remaining=Number(form.dataset.due||0)-sumRows(readPaymentRows(manualRowsOf(form))); addManualRow(form,remaining>0.01 ? remaining.toFixed(2) : '') } }
     else if(action==='hide-payment'){ const form=document.getElementById('manualPaymentForm'); if(form)form.hidden=true }
     return
   }
@@ -2059,10 +2151,6 @@ document.addEventListener('submit',event=>{
     if(!note)return
     withButtonLoading(form.querySelector('[type=submit]'),async()=>{ await addNote(state.selectedBookingId,note); await refresh(); renderBookingDetail(); notify('Note added.') },'…').catch(fail)
   }
-})
-document.addEventListener('change',event=>{
-  const cardFields=event.target.closest('#manualPaymentForm')?.querySelector('[data-card-fields]')
-  if(cardFields&&event.target.name==='payment_type')cardFields.hidden=event.target.value!=='card'
 })
 document.addEventListener('keydown',event=>{
   if(event.key!=='Escape')return
@@ -2089,7 +2177,7 @@ nodes.bookingQuickFilters.addEventListener('click',event=>{
 nodes.bookingForm.addEventListener('submit',event=>{ event.preventDefault(); withButtonLoading(nodes.bookingSaveButton,saveBooking,'Saving…').catch(fail) })
 nodes.bookingForm.addEventListener('input',event=>{
   if([nodes.bookingAdultQuantity,nodes.bookingChildQuantity,nodes.bookingInfantQuantity].includes(event.target))updatePricePreview()
-  if(event.target===nodes.bookingPriceOverride)updateOverrideTag()
+  if(event.target===nodes.bookingPriceOverride){ updateOverrideTag(); syncSplitPayments() }
 })
 nodes.bookingForm.addEventListener('change',event=>{
   if(event.target===nodes.bookingBrand){
@@ -2106,7 +2194,15 @@ nodes.bookingForm.addEventListener('change',event=>{
 nodes.bookingRevertPricing.addEventListener('click',()=>{ nodes.bookingPriceOverride.value=''; updatePricePreview(); toast('Reverted to calculated pax pricing — save the booking to apply.','info') })
 nodes.bookingAddGuide.addEventListener('click',()=>nodes.bookingGuideList.appendChild(personRow()))
 nodes.bookingAddSkipper.addEventListener('click',()=>nodes.bookingSkipperList.appendChild(personRow()))
-nodes.bookingAddPaymentRow.addEventListener('click',()=>nodes.bookingPaymentRowsList.appendChild(paymentRow()))
+nodes.bookingAddPaymentRow.addEventListener('click',()=>{
+  const due=bookingFormDue()
+  const allocated=sumRows(readPaymentRows(nodes.bookingPaymentRowsList))
+  const remaining=due!=null&&due-allocated>0.01 ? (due-allocated).toFixed(2) : ''
+  const row=paymentRow({amount:remaining,onChange:syncSplitPayments})
+  nodes.bookingPaymentRowsList.appendChild(row)
+  syncSplitPayments()
+  row.querySelector('[data-pay-amount]').focus()
+})
 nodes.bookingSelfDrive.addEventListener('change',()=>{ if(nodes.bookingSelfDrive.checked)nodes.bookingTransfer.checked=false })
 nodes.bookingTransfer.addEventListener('change',()=>{ if(nodes.bookingTransfer.checked)nodes.bookingSelfDrive.checked=false })
 nodes.closeBookingModal.addEventListener('click',closeBookingModal)

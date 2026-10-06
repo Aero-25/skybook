@@ -42,6 +42,10 @@ Open `http://127.0.0.1:4173/admin.html` (the workspace gateway) and sign in with
 
 A booking whose **Payment Process** is set (Cash, Card, EFT, Voucher, FOC, Invoiced) is fully paid. The API settles its payment row for the full total and records the settlement by method; the console shows nothing outstanding. `supabase/migrations/202609290001_skybook_payment_process_means_paid.sql` applies the same rule to existing bookings.
 
+## Split payments
+
+A guest who pays with more than one method gets one row per method, either on the booking form (Split Payment) or with "Record payment" on the booking. All rows are checked first (amounts, card terminal serial and batch number, and on the booking form that they add up to the amount due), then sent in one request and recorded together, so a booking is never left with only some of its payments. Each method becomes its own transaction, so the Payment Process report counts every method; the booking shows as "Split · Cash + Card". `supabase/migrations/202610060001_skybook_split_payment_repair.sql` repairs bookings left part-paid by the old behaviour.
+
 ## Deploy
 
 Static site — deploy the repository root to the admin domain (Cloudflare, `wrangler.jsonc`). Point both public sites at the same Supabase backend.

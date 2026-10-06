@@ -432,3 +432,14 @@ body.has-modal{overflow:hidden}
 .viz-tip strong{display:block;font-size:.9rem}
 @media (max-width:900px){.rep-grid{grid-template-columns:1fr}.rep-tabs{overflow-x:auto}.rep-tabs button{white-space:nowrap}}
 @media print{.rep-tabs,.rep-filters{display:none}}
+
+/* Nationality checkboxes and split-payment rows */
+.adm-check-group{display:flex;flex-wrap:wrap;gap:8px 18px;padding:9px 0 2px}
+.split-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 12px;border-radius:9px;font-size:.85rem;background:#f3f7fa;color:var(--ink);border:1px solid var(--line)}
+.split-summary strong{font-variant-numeric:tabular-nums}
+.split-summary.is-ok{background:#dcf3e4;border-color:#bfe6cd;color:#1a6b3c}
+.split-summary.is-short{background:#fdf0d5;border-color:#f0dcae;color:#7a5100}
+.split-summary.is-over{background:#fbe9ea;border-color:#f1cdd0;color:#9d1f2b}
+.split-summary .adm-link-btn{font-size:.82rem}
+.booking-payment-row input,.booking-payment-row select{padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem;background:#fff}
+.booking-payment-row input.is-invalid{border-color:#c7353f;background:#fff7f7}
