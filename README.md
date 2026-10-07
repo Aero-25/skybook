@@ -24,6 +24,7 @@ SkyBook is the small booking console behind the public **True Travel** and **Ive
 | `analytics.html` | Website traffic analytics for both brands |
 | `portal.html`, `review.html` | Guest-facing pages linked from emails (use `assets/css/booking.css`) |
 | `assets/js/booking-shared.js`, `assets/js/shared.js` | Shared Supabase / booking-api client used by the console and both public sites |
+| `assets/js/skybook-support.js` | The "Report an issue" bubble on signed-in pages: screenshot, mark-up and support ticket email (see `docs/support-tickets.md`) |
 | `supabase/` | Database migrations and the `booking-api`, `payment-*` and `daily-brief` Edge Functions |
 | `sw.js`, `manifest.webmanifest` | PWA / push support |
 

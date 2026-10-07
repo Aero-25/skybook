@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4'
 import { PDFDocument, StandardFonts, rgb } from 'https://esm.sh/pdf-lib@1.17.1'
 import { corsHeaders } from '../_shared/cors.ts'
+import { createSupportTicket } from './support-tickets.ts'
 
 const supabaseUrl=Deno.env.get('SUPABASE_URL') ?? ''
 const supabaseAnonKey=Deno.env.get('SUPABASE_ANON_KEY') ?? ''
@@ -6019,6 +6020,19 @@ Deno.serve(async request=>{
 
       if(request.method==='GET'&&id==='bootstrap'){
         return json(200,await fetchAdminBootstrap(user as unknown as Json,profile as unknown as Json))
+      }
+
+      // Who is signed in — the support bubble shows it as "Logged by".
+      if(request.method==='GET'&&id==='me'){
+        return json(200,{
+          user:{ id:user.id, email:/@skybook\.local$/i.test(String(user.email||'')) ? '' : String(user.email||'') },
+          profile:{ full_name:adminProfile.full_name||'', username:adminProfile.username||'', role:adminProfile.role||'' }
+        })
+      }
+
+      // Any signed-in staff member can log a ticket; it is emailed to Aero Digital support.
+      if(request.method==='POST'&&id==='support-tickets'&&!subresource){
+        return json(201,await createSupportTicket({ adminClient, user:user as unknown as Json, profile:adminProfile, body:requestBody as Json }))
       }
 
       if(request.method==='GET'&&id==='search'){
