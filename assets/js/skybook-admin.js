@@ -87,7 +87,7 @@ const nodes={
   bookingAdultQuantity:$('adminBookingAdultQuantity'),bookingChildQuantity:$('adminBookingChildQuantity'),bookingInfantQuantity:$('adminBookingInfantQuantity'),
   bookingCustomerName:$('adminBookingCustomerName'),bookingCustomerEmail:$('adminBookingCustomerEmail'),bookingCustomerPhone:$('adminBookingCustomerPhone'),
   bookingGuideList:$('adminBookingGuideList'),bookingAddGuide:$('adminBookingAddGuide'),bookingSkipperList:$('adminBookingSkipperList'),bookingAddSkipper:$('adminBookingAddSkipper'),
-  bookingNationality:$('adminBookingNationality'),bookingBookedBy:$('adminBookingBookedBy'),bookingAgent:$('adminBookingAgent'),bookingDietary:$('adminBookingDietary'),
+  bookingNationality:$('adminBookingNationality'),bookingBookedBy:$('adminBookingBookedBy'),bookingAgent:$('adminBookingAgent'),bookingHeardAbout:$('adminBookingHeardAbout'),bookingDietary:$('adminBookingDietary'),
   bookedByDatalist:$('bookedByDatalist'),agentDatalist:$('agentDatalist'),crewManage:$('crewManage'),
   bookingSelfDrive:$('adminBookingSelfDrive'),bookingTransfer:$('adminBookingTransfer'),bookingCustomFields:$('adminBookingCustomFields'),bookingNotes:$('adminBookingNotes'),
   bookingPriceBreakdown:$('adminBookingPriceBreakdown'),bookingPriceTotal:$('adminBookingPriceTotal'),bookingPriceOverride:$('adminBookingPriceOverride'),
@@ -398,6 +398,9 @@ const crewList=names=>{
   names.forEach(name=>{ const key=personKey(name); const c=counts.get(key)||{name,count:0}; c.count+=1; counts.set(key,c) })
   return [...counts.values()].map(c=>c.count>1 ? `${c.name} ×${c.count}` : c.name).join(', ')
 }
+// Where the guest heard about the business, asked by staff on the booking form.
+const HEARD_ABOUT_LABELS={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook',google:'Google search',website:'Our website',word_of_mouth:'Friend / word of mouth',returning:'Returning guest',hotel:'Hotel / lodge / guesthouse',agent:'Tour agent / reseller',travel_site:'TripAdvisor / travel site',walk_in:'Walk-in / saw us in town',other:'Other'}
+const heardAboutLabel=b=>HEARD_ABOUT_LABELS[meta(b).heard_about]||''
 const pickupModeLabel=mode=>mode==='self_drive' ? 'Self Drive' : mode==='transfer' ? 'Transfer' : ''
 const pickupLabel=b=>{ const m=meta(b); return [m.departure_label,m.pickup_time].filter(Boolean).join(' · ')||'TBC' }
 
@@ -562,6 +565,7 @@ const submittedRows=b=>{
   add('Nationality',m.nationality||b.nationality)
   add('Booked by',m.booked_by||b.booked_by)
   add('Agent / reseller',m.agent||b.agent)
+  add('Heard about us',heardAboutLabel(b))
   add('Dietary requirements',m.dietary_requirements||m.dietary)
   add('Guide(s)',crewList(guideNames(b)))
   add('Skipper(s)',crewList(skipperNames(b)))
@@ -735,7 +739,7 @@ const renderBookingDetail=()=>{
           {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'—'},{label:'Phone',value:b.customer_phone||'—'},
           {label:'Tour',value:b.service_name||m.display_name||'—'},{label:'Date',value:fmtDate(b.preferred_date)},{label:'Pickup',value:pickupLabel(b)},
           {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideNames(b))||'—'},{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
-          {label:'Nationality',value:m.nationality||'—'},{label:'Booked by',value:m.booked_by||'—'},{label:'Agent / reseller',value:m.agent||'—'},
+          {label:'Nationality',value:m.nationality||'—'},{label:'Booked by',value:m.booked_by||'—'},{label:'Agent / reseller',value:m.agent||'—'},{label:'Heard about us',value:heardAboutLabel(b)||'Not asked'},
           {label:'Dietary',value:m.dietary_requirements||m.dietary||'—'},{label:'Entered by',value:ownerName(b)},{label:'Created',value:fmtDateTime(b.created_at)}
         ])}
         ${Object.keys(record(m.custom_fields)).length ? `<div style="margin-top:14px">${detailGrid(Object.entries(record(m.custom_fields)).map(([k,v])=>({label:activeFormFields(b.brand_code).find(f=>f.id===fieldId(k))?.label||label(k),value:formatSubmitted(v)||'—'})))}</div>` : ''}
@@ -1230,6 +1234,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingBookedBy.value=m.booked_by||booking?.booked_by||''
   nodes.bookingDietary.value=m.dietary_requirements||m.dietary||''
   nodes.bookingAgent.value=m.agent||''
+  nodes.bookingHeardAbout.value=HEARD_ABOUT_LABELS[m.heard_about] ? m.heard_about : ''
   nodes.bookingSelfDrive.checked=m.pickup_mode==='self_drive'
   nodes.bookingTransfer.checked=m.pickup_mode==='transfer'
   renderBookingCustomFields(booking)
@@ -1310,7 +1315,7 @@ const saveBooking=async()=>{
     metadata:{
       ...meta(existing),
       custom_fields:collectCustomFields(),departure_label:nodes.bookingDeparture.value||'',pickup_time:nodes.bookingPickup.value||'',
-      nationality:checkedNationalities().join(', '),nationalities:checkedNationalities(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),
+      nationality:checkedNationalities().join(', '),nationalities:checkedNationalities(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),heard_about:nodes.bookingHeardAbout.value,
       dietary_requirements:nodes.bookingDietary.value.trim(),skipper_name:personNames(nodes.bookingSkipperList).join(', '),pickup_mode:pickupMode(),
       infant_quantity:infants,price_override:Number(nodes.bookingPriceOverride.value||0)||0,
       ...(wasReservation ? {} : {admin_created:true,created_via:'skybook_admin'})
@@ -2116,7 +2121,7 @@ const exportBookingsCsv=()=>{
     reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentText(b),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
     guest:b.customer_name,email:b.customer_email,phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
     infants:b.infant_quantity||meta(b).infant_quantity||0,total:Number(b.total_amount||0).toFixed(2),received:receivedOf(b).toFixed(2),outstanding:outstandingOf(b).toFixed(2),
-    guides:guideNames(b).join('; '),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
+    guides:guideNames(b).join('; '),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',heard_about:heardAboutLabel(b),source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
   }))
   const columns=Object.keys(rows[0]||{reference:''}).map(key=>({key,label:label(key)}))
   const blob=new Blob([shared.toCsv(rows,columns)],{type:'text/csv;charset=utf-8'})

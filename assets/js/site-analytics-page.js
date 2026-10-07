@@ -221,7 +221,7 @@
       ['Median time', dur(t.median_duration_seconds), 'typical visit', ''],
       ['Total engaged', (t.total_engaged_minutes || 0) + 'm', 'attention across all visits', ''],
       ['New visitors', fmt(t.new_visitors), 'first ever visit', ''],
-      ['Bookings', fmt(t.total_bookings), 'created in this period', ''],
+      ['Online bookings', fmt(t.website_bookings ?? t.total_bookings), 'booked on the website', ''],
       ['Conversion rate', (t.conversion_rate || 0) + '%', 'sessions that booked', ''],
       ['Attributed revenue', money(t.attributed_revenue, cur), 'from tracked sessions', '']
     ];
@@ -231,7 +231,133 @@
       `<div class="tile"><div class="k">${esc(k)}</div><div class="v${String(v).length > 12 ? ' long' : ''}">${esc(v)}</div><div class="n">${esc(n)}</div>${dd}</div>`).join('');
   }
 
-  const CHAN = { direct: 'Direct / typed in', search: 'Search engines', social: 'Social media', referral: 'Other websites', paid: 'Paid ads', email: 'Email', internal: 'Internal' };
+  const CHAN = {
+    direct: 'Direct / typed in', search: 'Search (Google, Bing…)', paid_ads: 'Google Ads & other paid', social: 'Social media',
+    paid_social: 'Paid social ads', messaging: 'WhatsApp & Messenger', ai: 'AI assistants (ChatGPT…)', travel: 'Travel sites',
+    email: 'Email', referral: 'Other websites', paid: 'Paid ads', internal: 'Internal'
+  };
+  // Where the guest heard about the business, as asked by staff on the booking form.
+  const HEARD = {
+    tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', google: 'Google search', website: 'Our website',
+    word_of_mouth: 'Friend / word of mouth', returning: 'Returning guest', hotel: 'Hotel / lodge / guesthouse',
+    agent: 'Tour agent / reseller', travel_site: 'TripAdvisor / travel site', walk_in: 'Walk-in / saw us in town', other: 'Other'
+  };
+  const SITE_URLS = { 'iventure': 'https://iventuretours.net/', 'true-travel': 'https://www.truetravelnam.net/' };
+  // Meta ads pass the campaign id unless the URL parameters ask for the name.
+  const campaignName = l => /^\d{12,}$/.test(String(l || '')) ? `Meta campaign …${String(l).slice(-6)}` : (l || 'None');
+
+  /* Small multiples: one column chart per platform, all on the same scale so they compare. */
+  function socialDaily(daily, platforms) {
+    if (!daily || !daily.length) return '<p class="empty">No data in this period.</p>';
+    let rows = daily, unit = 'day';
+    if (daily.length > 62) {
+      unit = 'week';
+      rows = [];
+      for (let i = 0; i < daily.length; i += 7) {
+        const chunk = daily.slice(i, i + 7);
+        const row = { date: chunk[0].date, to: chunk[chunk.length - 1].date };
+        platforms.forEach(p => { row[p] = chunk.reduce((t, r) => t + (r[p] || 0), 0); });
+        rows.push(row);
+      }
+    }
+    const max = Math.max(1, ...rows.map(r => Math.max(...platforms.map(p => r[p] || 0))));
+    const W = 360, H = 120, pad = { t: 8, r: 4, b: 18, l: 4 }, iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+    const slot = iw / rows.length, bw = Math.max(1, Math.min(14, slot - 2));
+    const mini = p => {
+      const total = rows.reduce((t, r) => t + (r[p] || 0), 0);
+      const marks = rows.map((r, i) => {
+        const v = r[p] || 0, h = (v / max) * ih, x = pad.l + slot * i + (slot - bw) / 2;
+        const when = unit === 'week' ? `week of ${r.date}` : r.date;
+        return `<rect class="hit" x="${(pad.l + slot * i).toFixed(1)}" y="${pad.t}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"><title>${esc(p)} · ${esc(when)}: ${fmt(v)} visit${v === 1 ? '' : 's'}</title></rect>`
+          + (v ? `<rect x="${x.toFixed(1)}" y="${(pad.t + ih - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="${Math.min(2, bw / 2)}" fill="var(--series-1)" pointer-events="none"/>` : '');
+      }).join('');
+      return `<div class="mini"><div class="mini-h"><b>${esc(p)}</b><span>${fmt(total)} visit${total === 1 ? '' : 's'}</span></div>
+        <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(p)} visits per ${unit}">
+          <line x1="${pad.l}" y1="${pad.t + ih}" x2="${W - pad.r}" y2="${pad.t + ih}" stroke="var(--grid)" stroke-width="1"/>
+          ${marks}
+          <text x="${pad.l}" y="${H - 4}" font-size="10" fill="var(--text-muted)">${esc(rows[0].date.slice(5))}</text>
+          <text x="${W - pad.r}" y="${H - 4}" font-size="10" text-anchor="end" fill="var(--text-muted)">${esc((rows[rows.length - 1].to || rows[rows.length - 1].date).slice(5))}</text>
+        </svg></div>`;
+    };
+    return `<p class="desc" style="margin:-8px 0 12px">Visits per ${unit}, same scale on every chart (busiest ${unit}: ${fmt(max)}) — hover a column for the number</p><div class="grid3">${platforms.map(mini).join('')}</div>`;
+  }
+
+  /* Promotion link builder: tagged links make every promotion show up by name. */
+  state.lb = { source: 'tiktok', medium: 'social', campaign: '', url: '' };
+  function linkBuilder() {
+    const lb = state.lb, url = lb.url || SITE_URLS[state.brand] || '';
+    const opt = (list, value) => list.map(([v, l]) => `<option value="${v}"${v === value ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    return `<section class="panel" id="linkbuilder"><h2>Promotion link builder</h2>
+      <p class="desc">Make one link per promotion and use it in the TikTok or Instagram bio, a story link sticker, a post, a WhatsApp status or an ad. Every visit, WhatsApp tap and booking from it then shows under “Promotions &amp; campaigns” by name.</p>
+      <div class="lb">
+        <label>Platform<select data-lb="source">${opt([['tiktok', 'TikTok'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['whatsapp', 'WhatsApp'], ['google', 'Google'], ['email', 'Email']], lb.source)}</select></label>
+        <label>Where it goes<select data-lb="medium">${opt([['social', 'Post, story or bio link'], ['paid_social', 'Paid ad'], ['message', 'Message or status']], lb.medium)}</select></label>
+        <label>Promotion name<input data-lb="campaign" value="${esc(lb.campaign)}" placeholder="e.g. October kayak special"></label>
+        <label class="full">Page on your site<input data-lb="url" value="${esc(url)}" placeholder="https://…"></label>
+      </div>
+      <div class="lb-out"><input readonly data-lb="out" aria-label="Tagged link" value="${esc(buildLink())}"><button class="btn primary" type="button" data-lb="copy">Copy link</button></div>
+    </section>`;
+  }
+  function buildLink() {
+    const lb = state.lb;
+    const slug = String(lb.campaign || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (!slug) return 'Give the promotion a name to get its link';
+    let url;
+    try { url = new URL(String(lb.url || SITE_URLS[state.brand] || '').trim()); } catch (e) { return 'Enter a full page address, starting with https://'; }
+    url.searchParams.set('utm_source', lb.source);
+    url.searchParams.set('utm_medium', lb.medium);
+    url.searchParams.set('utm_campaign', slug);
+    return url.toString();
+  }
+
+  function socialSection(d) {
+    const s = d.social || {}, cur = (d.totals || {}).currency, platforms = s.platforms || ['TikTok', 'Instagram', 'Facebook'];
+    const now = s.sessions || {}, prev = s.previous_sessions || {};
+    const tile = (k, v, n, dd) => `<div class="tile"><div class="k">${esc(k)}</div><div class="v${String(v).length > 12 ? ' long' : ''}">${esc(v)}</div><div class="n">${esc(n)}</div>${dd || ''}</div>`;
+    const change = p => prev[p] ? delta(Math.round(((now[p] - prev[p]) / prev[p]) * 100)) : (now[p] ? '<span class="d up">new this period</span>' : '');
+    const tiles = '<div class="tiles" style="margin:0">'
+      + platforms.map(p => tile(`${p} visits`, fmt(now[p]), `visits that started on ${p}`, change(p))).join('')
+      + tile('WhatsApp taps from social', fmt(s.whatsapp), 'social visitors who tapped WhatsApp')
+      + tile('Online bookings from social', fmt(s.bookings), 'website bookings credited to social')
+      + tile('Revenue from social', money(s.revenue, cur), 'from those bookings')
+      + '</div>';
+    const sources = detailTable(d.sources, [
+      { h: 'Source', k: 'label' },
+      { h: 'Channel', k: 'channel', f: r => CHAN[r.channel] || r.channel },
+      { h: 'Visits', k: 'count', n: 1, f: r => fmt(r.count) },
+      { h: 'From ads', k: 'paid_sessions', n: 1, f: r => r.paid_sessions ? fmt(r.paid_sessions) : '—' },
+      { h: 'Visitors', k: 'visitors', n: 1, f: r => fmt(r.visitors) },
+      { h: 'WhatsApp taps', k: 'whatsapp', n: 1, f: r => fmt(r.whatsapp) },
+      { h: 'Calls & emails', k: 'contacts', n: 1, f: r => fmt(Math.max(0, (r.contacts || 0) - (r.whatsapp || 0))) },
+      { h: 'Online bookings', k: 'bookings', n: 1, f: r => fmt(r.bookings) },
+      { h: 'Revenue', k: 'revenue', n: 1, f: r => r.revenue ? money(r.revenue, cur) : '—' }
+    ]);
+    const hasMetaId = (d.campaigns || []).some(c => /^\d{12,}$/.test(String(c.label)));
+    const campaigns = (d.campaigns && d.campaigns.length)
+      ? detailTable(d.campaigns, [
+          { h: 'Promotion / campaign', k: 'label', f: r => campaignName(r.label) },
+          { h: 'Platform', k: 'source' },
+          { h: 'Type', k: 'medium', f: r => r.medium || '—' },
+          { h: 'Visits', k: 'count', n: 1, f: r => fmt(r.count) },
+          { h: 'Contact taps', k: 'contacts', n: 1, f: r => fmt(r.contacts) },
+          { h: 'Online bookings', k: 'bookings', n: 1, f: r => fmt(r.bookings) },
+          { h: 'Revenue', k: 'revenue', n: 1, f: r => r.revenue ? money(r.revenue, cur) : '—' }
+        ])
+      : '<p class="empty">No tagged promotion links were used in this period. Make them with the link builder below.</p>';
+    const metaTip = hasMetaId ? '<div class="tip-note"><b>Meta ads show a campaign number, not its name.</b> In Ads Manager, open each ad → Tracking → URL parameters and use <code>utm_source={{site_source_name}}&amp;utm_medium=paid&amp;utm_campaign={{campaign.name}}&amp;utm_content={{ad.name}}</code> so campaigns appear here by name.</div>' : '';
+    const ha = d.heard_about || {}, haRows = (ha.rows || []).map(r => ({ label: HEARD[r.label] || r.label, count: r.count, revenue: r.revenue }));
+    const heard = (ha.asked
+        ? bars(haRows) + `<details><summary>Table view</summary><table><thead><tr><th>Heard about us</th><th class="n">Bookings</th><th class="n">Value</th></tr></thead><tbody>${haRows.map(r => `<tr><td>${esc(r.label)}</td><td class="n">${fmt(r.count)}</td><td class="n">${esc(money(r.revenue, cur))}</td></tr>`).join('')}</tbody></table></details>`
+        : '<p class="empty">No answers yet.</p>')
+      + `<p class="desc" style="margin:10px 0 0">${fmt(ha.asked)} of ${fmt(ha.desk_bookings)} bookings taken by staff in this period have “Heard about us” filled in. Ask every guest — WhatsApp and phone bookings never touch the website, so this is the only way to see which promotion they came from.</p>`;
+    const wide = (t, desc, inner) => `<section class="panel"><h2>${esc(t)}</h2><p class="desc">${esc(desc)}</p>${inner}</section>`;
+    return tiles
+      + wide('Where visitors came from', 'Each visit is credited to the platform it started on: tagged links first, then the TikTok, Instagram or Facebook app it opened in, then ad click ids, then the referring site. Online bookings are credited to the guest’s last visit from a known source before they booked.', sources)
+      + wide('TikTok, Instagram and Facebook over time', 'When promotions brought people to the site', socialDaily(s.daily, platforms))
+      + wide('Promotions & campaigns', 'Visits, taps and bookings from tagged links and ads', campaigns + metaTip)
+      + wide('Bookings taken by staff — where the guest heard about you', 'From the “Heard about us” field on the booking form', heard)
+      + linkBuilder();
+  }
 
   function sections(d) {
     const cur = (d.totals || {}).currency;
@@ -240,7 +366,8 @@
 
     if (state.tab === 'overview') return {
       grid: [
-        P('Where visitors came from', 'Traffic channel', d.channels, 'Channel', l => CHAN[l] || l),
+        P('Where visitors came from', 'Visits by platform — see Social & promotions for the detail', d.sources, 'Source'),
+        P('How they arrived', 'Visits by channel', d.channels, 'Channel', l => CHAN[l] || l),
         P('Referring sites', 'The domain that linked them here', d.referrers, 'Referrer', l => (!l || l === 'Unknown') ? 'Direct (no referrer)' : l),
         P('Most viewed pages', 'By page views', d.top_pages, 'Path'),
         P('Countries', 'From the visitor’s timezone', d.countries, 'Country'),
@@ -249,9 +376,12 @@
       ].join(''), wide: ''
     };
 
+    if (state.tab === 'social') return { grid: '', wide: socialSection(d) };
+
     if (state.tab === 'acquisition') return {
       grid: [
-        P('Channels', 'How they arrived', d.channels, 'Channel', l => CHAN[l] || l),
+        P('Channels', 'Visits by how they arrived', d.channels, 'Channel', l => CHAN[l] || l),
+        P('Sources', 'Visits by platform', d.sources, 'Source'),
         P('Referring sites', 'Linking domain', d.referrers, 'Referrer', l => (!l || l === 'Unknown') ? 'Direct (no referrer)' : l),
         P('Landing pages', 'First page of the visit', d.landing_pages, 'Path'),
         P('Campaign sources', 'utm_source', d.utm_sources, 'Source'),
@@ -333,8 +463,8 @@
     return {
       grid: '',
       wide: wide('Revenue by channel', 'Bookings attributed to how the guest arrived', revenue(d.revenue_by_channel, cur, l => CHAN[l] || l))
-        + wide('Revenue by source', 'utm_source, or the referring domain', revenue(d.revenue_by_source, cur))
-        + wide('Revenue by campaign', 'utm_campaign on the landing URL', revenue(d.revenue_by_campaign, cur))
+        + wide('Revenue by source', 'The platform the guest came from (TikTok, Instagram, Google…)', revenue(d.revenue_by_source, cur))
+        + wide('Revenue by campaign', 'The promotion or ad campaign on the link they came from', revenue(d.revenue_by_campaign, cur, campaignName))
         + wide('Revenue by country', 'Where the booking guest was browsing from', revenue(d.revenue_by_country, cur))
         + wide('Revenue by device', 'What they booked on', revenue(d.revenue_by_device, cur))
     };
@@ -390,6 +520,12 @@
      ['revenue_by_campaign', d.revenue_by_campaign], ['revenue_by_country', d.revenue_by_country],
      ['revenue_by_device', d.revenue_by_device]]
       .forEach(([name, list]) => (list || []).forEach(r => rows.push([name, r.label, r.count, r.revenue])));
+    (d.sources || []).forEach(r => rows.push(['source_visits', r.label, r.count,
+      `channel=${r.channel};from_ads=${r.paid_sessions};visitors=${r.visitors};whatsapp_taps=${r.whatsapp};contact_taps=${r.contacts};online_bookings=${r.bookings};revenue=${r.revenue}`]));
+    (d.campaigns || []).forEach(r => rows.push(['campaign_visits', r.label, r.count,
+      `platform=${r.source};type=${r.medium};contact_taps=${r.contacts};online_bookings=${r.bookings};revenue=${r.revenue}`]));
+    ((d.heard_about || {}).rows || []).forEach(r => rows.push(['heard_about_bookings', HEARD[r.label] || r.label, r.count, r.revenue]));
+    ((d.social || {}).daily || []).forEach(p => (d.social.platforms || []).forEach(name => rows.push([`daily_${name.toLowerCase()}_visits`, p.date, p[name] || 0, ''])));
     (d.page_table || []).forEach(r => rows.push(['page_detail', r.label, r.count,
       `entries=${r.entries};exits=${r.exits};exit_rate=${r.exit_rate}%;avg_s=${r.avg_seconds};avg_scroll=${r.avg_scroll}%`]));
     Object.entries(d.totals || {}).forEach(([k, v]) => rows.push(['total', k, v, '']));
@@ -425,6 +561,7 @@
     document.querySelectorAll('[data-brand]').forEach(b => b.addEventListener('click', () => {
       document.querySelectorAll('[data-brand]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
       state.brand = b.dataset.brand;
+      state.lb.url = '';
       refresh();
     }));
     document.querySelectorAll('[data-days]').forEach(b => b.addEventListener('click', () => {
@@ -445,6 +582,25 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }));
     $('csv').addEventListener('click', csv);
+    // Promotion link builder (re-rendered with the tab, so listen on its container).
+    const lbInput = ev => {
+      const el = ev.target && ev.target.closest && ev.target.closest('[data-lb]');
+      if (!el || !['source', 'medium', 'campaign', 'url'].includes(el.dataset.lb)) return;
+      state.lb[el.dataset.lb] = el.value;
+      const out = document.querySelector('[data-lb="out"]');
+      if (out) out.value = buildLink();
+    };
+    $('wide').addEventListener('input', lbInput);
+    $('wide').addEventListener('change', lbInput);
+    $('wide').addEventListener('click', async ev => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('[data-lb="copy"]');
+      if (!btn) return;
+      const out = document.querySelector('[data-lb="out"]');
+      if (!out || !/^https?:\/\//.test(out.value)) { const name = document.querySelector('[data-lb="campaign"]'); if (name) name.focus(); return; }
+      try { await navigator.clipboard.writeText(out.value); } catch (e) { out.select(); try { document.execCommand('copy'); } catch (err) {} }
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = 'Copy link'; }, 1600);
+    });
     let resizeTimer = null;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);

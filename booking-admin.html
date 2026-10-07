@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-cleanup">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-social">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -530,6 +530,25 @@
           <span>Agent / Reseller</span>
           <input id="adminBookingAgent" type="text" placeholder="Agent or reseller name" list="agentDatalist" autocomplete="off">
         </label>
+        <label class="booking-field">
+          <span>Heard about us</span>
+          <select id="adminBookingHeardAbout">
+            <option value="">— Not asked —</option>
+            <option value="tiktok">TikTok</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="google">Google search</option>
+            <option value="website">Our website</option>
+            <option value="word_of_mouth">Friend / word of mouth</option>
+            <option value="returning">Returning guest</option>
+            <option value="hotel">Hotel / lodge / guesthouse</option>
+            <option value="agent">Tour agent / reseller</option>
+            <option value="travel_site">TripAdvisor / travel site</option>
+            <option value="walk_in">Walk-in / saw us in town</option>
+            <option value="other">Other</option>
+          </select>
+          <p class="field-hint">Ask the guest — it shows which promotions bring in bookings (Site Analytics → Social &amp; promotions).</p>
+        </label>
         <datalist id="bookedByDatalist"></datalist>
         <datalist id="agentDatalist"></datalist>
         <label class="booking-field">
@@ -732,8 +751,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-cleanup"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-cleanup"></script>
+  <script src="assets/js/shared.js?v=20261007-social"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-social"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -742,6 +761,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-cleanup" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-social" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

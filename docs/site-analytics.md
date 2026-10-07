@@ -34,6 +34,38 @@ report bookings and money by channel, source, campaign, country and device —
 not just visits. That injection is wrapped: a missing or broken tracker can
 never stop a booking going through.
 
+## Where visitors came from (TikTok, Instagram, Facebook…)
+
+Every session is credited to the platform it started on, decided on the server from the stored visit,
+so older traffic is classified the same way (`visitSource` in `booking-api`). In order:
+
+1. **utm tags** — `utm_source=tiktok|instagram|facebook|fb|ig|…` (normalised to a platform name).
+2. **The app's built-in browser** — TikTok, Instagram, Facebook and Messenger open links inside
+   themselves and name themselves in the user agent. The tracker sends only the app name (`in_app`),
+   never the user agent. This catches social visits that carry no referrer and no tags.
+3. **Ad click ids** — `ttclid` (TikTok ad), `gclid`/`gbraid`/`wbraid` (Google Ads), `msclkid` (Bing),
+   and `fbclid` (Meta, split into Facebook or Instagram by the referrer or app).
+4. **The referring site** — tiktok.com, instagram.com, facebook.com, google.*, chatgpt.com, …
+
+A visit is "from ads" when the utm medium says paid/cpc/paid_social or a paid click id is present
+(`fbclid` alone is not paid — Meta adds it to every link). Contact taps on the site (WhatsApp, phone,
+email) are counted per source, which matters because most guests book over WhatsApp.
+
+Website bookings are credited to the guest's last visit from a known source before booking (a TikTok
+click followed by a direct return still counts for TikTok), else their first visit.
+
+Bookings taken by staff never touch the website: the booking form's **Heard about us** field
+(`metadata.heard_about`) records where the guest found the business, and the Social & promotions tab
+reports it alongside the website numbers.
+
+The **Social & promotions** tab shows TikTok / Instagram / Facebook visits against the previous
+period, every source with its visits, ad visits, WhatsApp taps, online bookings and revenue, daily
+charts per platform, promotions and campaigns, the staff "heard about us" answers, and a **promotion
+link builder** that makes a tagged link (`utm_source`, `utm_medium`, `utm_campaign`) for a bio link,
+story, post, WhatsApp status or ad. For Meta ads, set the URL parameters to
+`utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}`
+so campaigns appear by name rather than by number.
+
 ## What it reports
 
 Totals (page views, unique visitors, sessions, pages per session, bounce rate,

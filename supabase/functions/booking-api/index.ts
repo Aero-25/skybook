@@ -5265,6 +5265,95 @@ const classifyReferrer=(referrerHost:string,selfHost:string,utmMedium:string)=>{
   return 'referral'
 }
 
+// ── Where a visit came from, by platform ────────────────────────────────────
+// Explicit utm tags win, then the in-app browser the page opened in (TikTok, Instagram and Facebook
+// open links inside their own apps and say so in the user agent), then the ad click id the platform
+// appended, then the referring site. Works on stored visits, so older traffic is classified too.
+const SITE_HOSTS:Record<string,string[]>={ 'iventure':['iventuretours.net'], 'true-travel':['truetravelnam.net'] }
+const UTM_SOURCE_NAMES:[RegExp,string][]=[
+  [/^(fb|facebook|meta|facebook\.com|m\.facebook\.com|l\.facebook\.com|lm\.facebook\.com)$/,'Facebook'],
+  [/^(ig|insta|instagram|instagram\.com|l\.instagram\.com)$/,'Instagram'],
+  [/^(tt|tiktok|tik ?tok|tiktok\.com|tiktok_ads|tiktokads)$/,'TikTok'],
+  [/^(messenger)$/,'Messenger'],
+  [/^(wa|whatsapp|whats ?app)$/,'WhatsApp'],
+  [/^(google|google ?ads|googleads|adwords|google\.com)$/,'Google'],
+  [/^(bing|microsoft|microsoft ?ads)$/,'Bing'],
+  [/^(chatgpt|chatgpt\.com|openai)$/,'ChatGPT'],
+  [/^(youtube|yt)$/,'YouTube'],
+  [/^(x|twitter)$/,'X (Twitter)'],
+  [/^(linkedin)$/,'LinkedIn'],
+  [/^(pinterest)$/,'Pinterest'],
+  [/^(snapchat|snap)$/,'Snapchat'],
+  [/^(email|newsletter|mailchimp|e-?mail)$/,'Email']
+]
+const HOST_SOURCE_NAMES:[RegExp,string][]=[
+  [/(^|\.)tiktok\.com$|^com\.zhiliaoapp\.musically|^com\.ss\.android\.ugc/,'TikTok'],
+  [/(^|\.)instagram\.com$|^com\.instagram\./,'Instagram'],
+  [/(^|\.)messenger\.com$|^com\.facebook\.orca/,'Messenger'],
+  [/(^|\.)(facebook\.com|fb\.com|fb\.me)$|^com\.facebook\./,'Facebook'],
+  [/(^|\.)whatsapp\.(com|net)$|^l\.wl\.co$|^com\.whatsapp/,'WhatsApp'],
+  [/(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com)$/,'Google'],
+  [/(^|\.)gemini\.google\.com$/,'Gemini'],
+  [/(^|\.)google\.[a-z.]+$|^com\.google\.android\.googlequicksearchbox/,'Google'],
+  [/(^|\.)bing\.com$/,'Bing'],
+  [/(^|\.)yahoo\.[a-z.]+$/,'Yahoo'],
+  [/(^|\.)duckduckgo\.com$/,'DuckDuckGo'],
+  [/(^|\.)ecosia\.org$/,'Ecosia'],
+  [/(^|\.)(chatgpt\.com|chat\.openai\.com)$/,'ChatGPT'],
+  [/(^|\.)perplexity\.ai$/,'Perplexity'],
+  [/(^|\.)copilot\.microsoft\.com$/,'Copilot'],
+  [/(^|\.)youtube\.com$|^com\.google\.android\.youtube/,'YouTube'],
+  [/(^|\.)(t\.co|x\.com|twitter\.com)$/,'X (Twitter)'],
+  [/(^|\.)linkedin\.com$|^lnkd\.in$/,'LinkedIn'],
+  [/(^|\.)pinterest\.[a-z.]+$/,'Pinterest'],
+  [/(^|\.)reddit\.com$|^com\.reddit\./,'Reddit'],
+  [/(^|\.)snapchat\.com$/,'Snapchat'],
+  [/(^|\.)tripadvisor\.[a-z.]+$/,'TripAdvisor'],
+  [/(^|\.)getyourguide\.[a-z.]+$/,'GetYourGuide'],
+  [/(^|\.)viator\.com$/,'Viator'],
+  [/(^|\.)booking\.com$/,'Booking.com']
+]
+const SOURCE_CHANNELS:Record<string,string>={
+  'TikTok':'social','Instagram':'social','Facebook':'social','Facebook or Instagram':'social','YouTube':'social',
+  'X (Twitter)':'social','LinkedIn':'social','Pinterest':'social','Reddit':'social','Snapchat':'social',
+  'WhatsApp':'messaging','Messenger':'messaging',
+  'Google':'search','Bing':'search','Yahoo':'search','DuckDuckGo':'search','Ecosia':'search',
+  'ChatGPT':'ai','Perplexity':'ai','Gemini':'ai','Copilot':'ai',
+  'TripAdvisor':'travel','GetYourGuide':'travel','Viator':'travel','Booking.com':'travel',
+  'Email':'email','Direct':'direct'
+}
+// Ad click ids: these are only added to clicks on a paid ad (fbclid is not — Meta adds it to every link).
+const PAID_CLICK_IDS:Record<string,string>={ ttclid:'TikTok', gclid:'Google', gbraid:'Google', wbraid:'Google', msclkid:'Bing', twclid:'X (Twitter)', li_fat_id:'LinkedIn', sccid:'Snapchat' }
+const nameFrom=(list:[RegExp,string][],value:string)=>list.find(([pattern])=>pattern.test(value))?.[1] || ''
+type VisitSource={ source:string, channel:string, paid:boolean, campaign:string, medium:string }
+const visitSource=(input:{ referrer_host?:unknown, utm_source?:unknown, utm_medium?:unknown, utm_campaign?:unknown, query?:unknown, in_app?:unknown, click_id?:unknown },brandCode:string):VisitSource=>{
+  const host=normalizeText(input.referrer_host).toLowerCase().replace(/^www\./,'')
+  const own=(SITE_HOSTS[brandCode] || Object.values(SITE_HOSTS).flat()).some(site=>host===site || host.endsWith('.'+site))
+  const utmSource=normalizeText(input.utm_source).toLowerCase()
+  const medium=normalizeText(input.utm_medium).toLowerCase()
+  const campaign=normalizeText(input.utm_campaign)
+  const query=normalizeText(input.query).toLowerCase()
+  const clickIds=new Set<string>(normalizeText(input.click_id).toLowerCase() ? [normalizeText(input.click_id).toLowerCase()] : [])
+  for(const id of [...Object.keys(PAID_CLICK_IDS),'fbclid'])if(new RegExp(`[?&]${id}=`).test(query))clickIds.add(id)
+  const paidClick=[...clickIds].find(id=>PAID_CLICK_IDS[id])
+  const hostName=host && !own ? (nameFrom(HOST_SOURCE_NAMES,host) || host) : ''
+  let source=''
+  if(utmSource)source=nameFrom(UTM_SOURCE_NAMES,utmSource) || nameFrom(HOST_SOURCE_NAMES,utmSource) || normalizeText(input.utm_source)
+  if(!source)source=normalizeText(input.in_app)
+  if(!source&&paidClick)source=PAID_CLICK_IDS[paidClick]
+  if(!source&&clickIds.has('fbclid'))source=['Facebook','Instagram','Messenger'].includes(hostName) ? hostName : 'Facebook or Instagram'
+  if(!source)source=hostName || 'Direct'
+  if(medium==='email')source=source==='Direct' ? 'Email' : source
+  const base=SOURCE_CHANNELS[source] || (medium==='email' ? 'email' : 'referral')
+  const paid=/(^|[^a-z])(cpc|ppc|cpm|paid|ads?|paidsocial|paid_social|sponsored|boost(ed)?)([^a-z]|$)/.test(medium)
+    || Boolean(paidClick)
+    || /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com)$/.test(host)
+  const channel=paid&&['social','search','referral','direct','ai'].includes(base)
+    ? (base==='social' ? 'paid_social' : 'paid_ads')
+    : base
+  return { source, channel, paid, campaign, medium }
+}
+
 const recordSiteVisit=async(payload:Json,brandCode:string)=>{
   const referrer=clampAnalyticsText(payload.referrer,500)
   let referrerHost=''
@@ -5287,6 +5376,7 @@ const recordSiteVisit=async(payload:Json,brandCode:string)=>{
     utm_campaign:clampAnalyticsText(payload.utm_campaign,100),
     utm_term:clampAnalyticsText(payload.utm_term,100),
     utm_content:clampAnalyticsText(payload.utm_content,100),
+    in_app:clampAnalyticsText(payload.in_app,40),
     country:clampAnalyticsText(payload.country,100),
     timezone:clampAnalyticsText(payload.timezone,100),
     language:clampAnalyticsText(payload.language,20),
@@ -5422,7 +5512,7 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
     safeTableSelect<Json>(adminClient.from('site_visits').select('*')
       .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
       .order('created_at',{ascending:false}).limit(50000),[]),
-    safeTableSelect<Json>(adminClient.from('site_visits').select('session_id,visitor_id,duration_ms,engaged_ms,is_new_visitor')
+    safeTableSelect<Json>(adminClient.from('site_visits').select('session_id,visitor_id,duration_ms,engaged_ms,is_new_visitor,is_entry,created_at,referrer_host,utm_source,utm_medium,utm_campaign,query_string,in_app')
       .eq('brand_code',brandCode).gte('created_at',prevFrom).lte('created_at',prevTo).limit(50000),[]),
     safeTableSelect<Json>(adminClient.from('site_events').select('*')
       .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate).limit(50000),[]),
@@ -5513,19 +5603,143 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   // ── Conversions: sessions that produced a real booking ───────────────────
   const bookingSessions=new Set<string>()
   const bookingVisitors=new Set<string>()
+  const metaOf=(booking:Json)=>normalizeJsonRecord(booking.metadata)
+  const isLive=(booking:Json)=>!['cancelled','refunded'].includes(normalizeText(booking.status)) && !normalizeJsonRecord(metaOf(booking).trash).archived_at
+  // Website bookings carry the visitor's analytics ids; bookings taken by staff do not.
+  const webBookings=bookings.filter((booking:Json)=>isLive(booking) && Object.keys(normalizeJsonRecord(metaOf(booking).analytics)).length>0)
+
+  // ── Where visitors came from, by platform ────────────────────────────────
+  const sourceOfVisit=(row:Json)=>visitSource({ referrer_host:row.referrer_host, utm_source:row.utm_source, utm_medium:row.utm_medium, utm_campaign:row.utm_campaign, query:row.query_string, in_app:row.in_app },brandCode)
+  // A session is credited to the page it started on.
+  const sessionOrigins=(list:Json[])=>{
+    const origins=new Map<string,Json>()
+    for(const row of list){
+      const sessionId=normalizeText(row.session_id)
+      if(!sessionId)continue
+      const current=origins.get(sessionId)
+      const earlier=String(row.created_at||'')<String(current?.created_at||'')
+      if(!current || (row.is_entry===true&&current.is_entry!==true) || (Boolean(row.is_entry)===Boolean(current.is_entry)&&earlier))origins.set(sessionId,row)
+    }
+    return origins
+  }
+  const origins=sessionOrigins(rows)
+  const prevOrigins=sessionOrigins(prevRows)
+  const sessionsWith=(test:(type:string)=>boolean)=>new Set(events.filter((row:Json)=>test(normalizeText(row.event_type))).map((row:Json)=>normalizeText(row.session_id)).filter(Boolean))
+  const contactSessions=sessionsWith(type=>type.startsWith('contact_'))
+  const whatsappSessions=sessionsWith(type=>type==='contact_whatsapp')
+
+  // A website booking is credited to the guest's last visit from a known source before they booked —
+  // so a TikTok click followed by a direct return still counts for TikTok — else their first visit.
+  const bookingVisitorIds=[...new Set(webBookings.map((booking:Json)=>normalizeText(normalizeJsonRecord(metaOf(booking).analytics).visitor_id)).filter(Boolean))]
+  const visitorEntries=bookingVisitorIds.length
+    ? await safeTableSelect<Json>(adminClient.from('site_visits')
+        .select('visitor_id,created_at,referrer_host,utm_source,utm_medium,utm_campaign,query_string,in_app')
+        .eq('brand_code',brandCode).eq('is_entry',true).in('visitor_id',bookingVisitorIds)
+        .order('created_at',{ascending:true}).limit(20000),[])
+    : []
+  const touchSource=(touch:Json)=>visitSource({ referrer_host:touch.referrer_host, utm_source:touch.utm_source, utm_medium:touch.utm_medium, utm_campaign:touch.utm_campaign, in_app:touch.in_app, click_id:touch.click_id },brandCode)
+  const bookingSource=(booking:Json):VisitSource=>{
+    const analytics=normalizeJsonRecord(metaOf(booking).analytics)
+    const visitorId=normalizeText(analytics.visitor_id)
+    const bookedAt=Date.parse(String(booking.created_at||'')) || Date.now()
+    const visits=visitorEntries
+      .filter((visit:Json)=>normalizeText(visit.visitor_id)===visitorId && (Date.parse(String(visit.created_at||''))||0)<=bookedAt+60000)
+      .map(sourceOfVisit)
+    const known=visits.filter(s=>s.source!=='Direct')
+    if(known.length)return known[known.length-1]
+    const touched=[normalizeJsonRecord(analytics.last_touch),normalizeJsonRecord(analytics.first_touch)].map(touchSource).find(s=>s.source!=='Direct')
+    return touched || visits[0] || { source:'Direct', channel:'direct', paid:false, campaign:'', medium:'' }
+  }
+  const creditedSources=new Map<string,VisitSource>(webBookings.map((booking:Json)=>[String(booking.id),bookingSource(booking)]))
+
+  type SourceTally={ source:string, channel:string, channels:Map<string,number>, sessions:number, paid_sessions:number, visitors:Set<string>, contacts:number, whatsapp:number, bookings:number, revenue:number }
+  const bySource=new Map<string,SourceTally>()
+  const tallyFor=(s:VisitSource)=>{
+    if(!bySource.has(s.source))bySource.set(s.source,{ source:s.source, channel:s.channel, channels:new Map<string,number>(), sessions:0, paid_sessions:0, visitors:new Set<string>(), contacts:0, whatsapp:0, bookings:0, revenue:0 })
+    return bySource.get(s.source)!
+  }
+  const byChannel=new Map<string,{ sessions:number, bookings:number, revenue:number }>()
+  const channelFor=(channel:string)=>{ if(!byChannel.has(channel))byChannel.set(channel,{ sessions:0, bookings:0, revenue:0 }); return byChannel.get(channel)! }
+  const byCampaign=new Map<string,{ campaign:string, source:string, medium:string, sessions:number, contacts:number, bookings:number, revenue:number }>()
+  const campaignFor=(s:VisitSource)=>{
+    const key=`${s.campaign}|${s.source}`
+    if(!byCampaign.has(key))byCampaign.set(key,{ campaign:s.campaign, source:s.source, medium:s.medium, sessions:0, contacts:0, bookings:0, revenue:0 })
+    return byCampaign.get(key)!
+  }
+  const SOCIAL_PLATFORMS=['TikTok','Instagram','Facebook']
+  const socialByDay=new Map<string,Record<string,number>>()
+  const social={ sessions:0, contacts:0, whatsapp:0, bookings:0, revenue:0 }
+  for(const [sessionId,row] of origins){
+    const s=sourceOfVisit(row)
+    const t=tallyFor(s)
+    t.sessions+=1
+    t.channels.set(s.channel,(t.channels.get(s.channel)||0)+1)
+    if(s.paid)t.paid_sessions+=1
+    if(normalizeText(row.visitor_id))t.visitors.add(normalizeText(row.visitor_id))
+    if(contactSessions.has(sessionId))t.contacts+=1
+    if(whatsappSessions.has(sessionId))t.whatsapp+=1
+    channelFor(s.channel).sessions+=1
+    if(s.campaign){ const c=campaignFor(s); c.sessions+=1; if(contactSessions.has(sessionId))c.contacts+=1 }
+    if(['social','paid_social'].includes(s.channel)){
+      social.sessions+=1
+      if(contactSessions.has(sessionId))social.contacts+=1
+      if(whatsappSessions.has(sessionId))social.whatsapp+=1
+    }
+    const created=new Date(String(row.created_at||''))
+    const day=Number.isNaN(created.getTime()) ? '' : created.toISOString().slice(0,10)
+    if(day&&SOCIAL_PLATFORMS.includes(s.source)){
+      const counts=socialByDay.get(day) || Object.fromEntries(SOCIAL_PLATFORMS.map(p=>[p,0]))
+      counts[s.source]+=1
+      socialByDay.set(day,counts)
+    }
+  }
+  for(const booking of webBookings){
+    const s=creditedSources.get(String(booking.id))!
+    const amount=Number(booking.total_amount||0)
+    const t=tallyFor(s); t.bookings+=1; t.revenue+=amount
+    const ch=channelFor(s.channel); ch.bookings+=1; ch.revenue+=amount
+    if(s.campaign){ const c=campaignFor(s); c.bookings+=1; c.revenue+=amount }
+    if(['social','paid_social'].includes(s.channel)){ social.bookings+=1; social.revenue+=amount }
+  }
+  const platformSessions=(list:Map<string,Json>)=>{
+    const counts=Object.fromEntries(SOCIAL_PLATFORMS.map(p=>[p,0])) as Record<string,number>
+    for(const [,row] of list){ const s=sourceOfVisit(row); if(SOCIAL_PLATFORMS.includes(s.source))counts[s.source]+=1 }
+    return counts
+  }
+  // Every day of the window, so the per-platform charts share one axis.
+  const socialDaily:Json[]=[]
+  for(let day=new Date(fromDate.slice(0,10)+'T00:00:00Z');day.getTime()<=toMs&&socialDaily.length<400;day=new Date(day.getTime()+86400000)){
+    const key=day.toISOString().slice(0,10)
+    socialDaily.push({ date:key, ...(socialByDay.get(key) || Object.fromEntries(SOCIAL_PLATFORMS.map(p=>[p,0]))) })
+  }
+  const money2=(value:number)=>Number(value.toFixed(2))
+  const sourceRows=[...bySource.values()].map(t=>({
+    // A source's channel is the one most of its sessions came through (Google is mostly ads, not search).
+    label:t.source, channel:[...t.channels].sort((a,b)=>b[1]-a[1])[0]?.[0] || t.channel, count:t.sessions, paid_sessions:t.paid_sessions, visitors:t.visitors.size,
+    contacts:t.contacts, whatsapp:t.whatsapp, bookings:t.bookings, revenue:money2(t.revenue),
+    conversion:t.sessions ? Number(((t.bookings/t.sessions)*100).toFixed(2)) : 0
+  })).sort((a,b)=>b.count-a.count||b.revenue-a.revenue)
+
+  // Bookings taken by staff: where the guest said they heard about the business.
+  const deskBookings=bookings.filter((booking:Json)=>isLive(booking) && !Object.keys(normalizeJsonRecord(metaOf(booking).analytics)).length)
+  const heard=new Map<string,{ count:number, revenue:number }>()
+  for(const booking of deskBookings){
+    const key=normalizeText(metaOf(booking).heard_about)
+    if(!key)continue
+    const entry=heard.get(key) || { count:0, revenue:0 }
+    entry.count+=1; entry.revenue+=Number(booking.total_amount||0)
+    heard.set(key,entry)
+  }
+
   const revenueBy=(key:'channel'|'source'|'campaign'|'country'|'device')=>{
     const map=new Map<string,{bookings:number,revenue:number}>()
-    for(const booking of bookings){
-      const analytics=normalizeJsonRecord(normalizeJsonRecord(booking.metadata).analytics)
-      if(!Object.keys(analytics).length)continue
-      const lastTouch=normalizeJsonRecord(analytics.last_touch)
-      const firstTouch=normalizeJsonRecord(analytics.first_touch)
-      const host=normalizeText(lastTouch.referrer_host)||normalizeText(firstTouch.referrer_host)
-      const utmSource=normalizeText(lastTouch.utm_source)||normalizeText(firstTouch.utm_source)
+    for(const booking of webBookings){
+      const analytics=normalizeJsonRecord(metaOf(booking).analytics)
+      const credited=creditedSources.get(String(booking.id))!
       let label='Unknown'
-      if(key==='channel')label=classifyReferrer(host,'',normalizeText(lastTouch.utm_medium))
-      if(key==='source')label=utmSource || host || 'Direct'
-      if(key==='campaign')label=normalizeText(lastTouch.utm_campaign)||normalizeText(firstTouch.utm_campaign)||'None'
+      if(key==='channel')label=credited.channel
+      if(key==='source')label=credited.source
+      if(key==='campaign')label=credited.campaign||'None'
       if(key==='country')label=normalizeText(analytics.country)||'Unknown'
       if(key==='device')label=normalizeText(analytics.device_type)||'Unknown'
       const entry=map.get(label) || { bookings:0, revenue:0 }
@@ -5540,8 +5754,8 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   }
   let attributedBookings=0
   let attributedRevenue=0
-  for(const booking of bookings){
-    const analytics=normalizeJsonRecord(normalizeJsonRecord(booking.metadata).analytics)
+  for(const booking of webBookings){
+    const analytics=normalizeJsonRecord(metaOf(booking).analytics)
     const sessionId=normalizeText(analytics.session_id)
     const visitorId=normalizeText(analytics.visitor_id)
     if(sessionId){ bookingSessions.add(sessionId); attributedBookings+=1; attributedRevenue+=Number(booking.total_amount||0) }
@@ -5582,7 +5796,8 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
       conversion_rate:totals.sessions ? Number(((bookingSessions.size/totals.sessions)*100).toFixed(2)) : 0,
       attributed_revenue:Number(attributedRevenue.toFixed(2)),
       revenue_per_session:totals.sessions ? Number((attributedRevenue/totals.sessions).toFixed(2)) : 0,
-      total_bookings:bookings.length,
+      total_bookings:bookings.filter(isLive).length,
+      website_bookings:webBookings.length,
       currency:normalizeText((bookings[0] as Json)?.currency_code) || 'NAD'
     },
     previous_totals:prevTotals,
@@ -5606,7 +5821,24 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
     exit_pages:pageTable.slice().sort((a,b)=>b.exits-a.exits).slice(0,15).map(p=>({ label:p.label, count:p.exits })),
     journeys:[...journeys.entries()].map(([label,count])=>({ label, count })).sort((a,b)=>b.count-a.count).slice(0,15),
     referrers:tallyBy(rows,'referrer_host',20),
-    channels:tallyBy(rows,'referrer_type',10),
+    // Sessions by how they arrived (channel) and by platform (source), with what they led to.
+    channels:[...byChannel.entries()].map(([label,c])=>({ label, count:c.sessions, bookings:c.bookings, revenue:money2(c.revenue) })).sort((a,b)=>b.count-a.count),
+    sources:sourceRows.slice(0,30),
+    campaigns:[...byCampaign.values()].map(c=>({ label:c.campaign, source:c.source, medium:c.medium, count:c.sessions, contacts:c.contacts, bookings:c.bookings, revenue:money2(c.revenue) }))
+      .sort((a,b)=>b.count-a.count||b.revenue-a.revenue).slice(0,30),
+    social:{
+      platforms:SOCIAL_PLATFORMS,
+      sessions:platformSessions(origins),
+      previous_sessions:platformSessions(prevOrigins),
+      daily:socialDaily,
+      total_sessions:social.sessions, contacts:social.contacts, whatsapp:social.whatsapp,
+      bookings:social.bookings, revenue:money2(social.revenue)
+    },
+    heard_about:{
+      rows:[...heard.entries()].map(([label,v])=>({ label, count:v.count, revenue:money2(v.revenue) })).sort((a,b)=>b.count-a.count),
+      asked:[...heard.values()].reduce((n,v)=>n+v.count,0),
+      desk_bookings:deskBookings.length
+    },
     countries:tallyBy(rows,'country',20),
     timezones:tallyBy(rows,'timezone',15),
     languages:tallyBy(rows,'language',15),

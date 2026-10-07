@@ -125,17 +125,41 @@
     var params = new URLSearchParams(location.search);
     function utm(n) { return params.get(n) || ''; }
 
+    // TikTok, Instagram and Facebook open links in their own built-in browser, which names the app in
+    // its user agent. Often the only sign of a social visit: these browsers tend to send no referrer.
+    // Only the app name is reported, never the user agent.
+    function inApp() {
+      if (/musical_ly|BytedanceWebview|TikTok|trill_\d/i.test(ua)) return 'TikTok';
+      if (/Instagram/i.test(ua)) return 'Instagram';
+      if (/FBAN\/Messenger|MessengerForiOS|MessengerLite|FB_IAB\/MESSENGER|Orca-Android/i.test(ua)) return 'Messenger';
+      if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A|\[FB/.test(ua)) return 'Facebook';
+      if (/Snapchat/i.test(ua)) return 'Snapchat';
+      if (/LinkedInApp/i.test(ua)) return 'LinkedIn';
+      if (/Pinterest/i.test(ua)) return 'Pinterest';
+      if (/Twitter for|TwitterAndroid/i.test(ua)) return 'X (Twitter)';
+      return '';
+    }
+    // The click id an ad platform appends to its links (ttclid = TikTok ad, gclid = Google ad, fbclid = Meta).
+    var CLICK_IDS = ['ttclid', 'gclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'li_fat_id', 'ScCid', 'sccid', 'fbclid'];
+    function clickId() { for (var i = 0; i < CLICK_IDS.length; i++) { if (params.get(CLICK_IDS[i])) return CLICK_IDS[i].toLowerCase(); } return ''; }
+    var IN_APP = inApp(), CLICK_ID = clickId();
+
     var referrerHost = '';
     try { referrerHost = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : ''; } catch (e) {}
+    var selfHost = location.hostname.replace(/^www\./, '');
+    var externalReferrer = !!referrerHost && referrerHost !== selfHost && referrerHost.slice(-(selfHost.length + 1)) !== '.' + selfHost;
 
     /* ---- Attribution: remembered so a booking can be traced to its source ---- */
     var touch = {
       referrer: document.referrer || '', referrer_host: referrerHost,
       utm_source: utm('utm_source'), utm_medium: utm('utm_medium'), utm_campaign: utm('utm_campaign'),
       utm_term: utm('utm_term'), utm_content: utm('utm_content'),
+      in_app: IN_APP, click_id: CLICK_ID,
       landing_path: location.pathname, at: new Date().toISOString()
     };
-    var isRealTouch = !!(touch.referrer_host || touch.utm_source || touch.utm_campaign);
+    // Moving between pages of the site is not a new source: only an outside referrer, a tagged link,
+    // an ad click or an app's browser replaces the remembered last touch.
+    var isRealTouch = !!(externalReferrer || touch.utm_source || touch.utm_campaign || CLICK_ID || IN_APP);
     if (!getJson(localStorage, K_FIRST)) set(localStorage, K_FIRST, JSON.stringify(touch));
     if (isRealTouch || !getJson(localStorage, K_LAST)) set(localStorage, K_LAST, JSON.stringify(touch));
 
@@ -203,7 +227,7 @@
         path: location.pathname, query: location.search.slice(0, 500), title: document.title,
         host: location.hostname, referrer: document.referrer,
         utm_source: utm('utm_source'), utm_medium: utm('utm_medium'), utm_campaign: utm('utm_campaign'),
-        utm_term: utm('utm_term'), utm_content: utm('utm_content'),
+        utm_term: utm('utm_term'), utm_content: utm('utm_content'), in_app: IN_APP,
         country: country(), timezone: tz, language: (navigator.language || '').slice(0, 20),
         local_hour: new Date().getHours(),
         device_type: device(), browser: browser(), browser_version: browserVersion(),

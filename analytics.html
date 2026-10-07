@@ -138,6 +138,21 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
 .rev .r{font-variant-numeric:tabular-nums;font-weight:700;color:var(--text-primary)}
 .rev .c{font-variant-numeric:tabular-nums;color:var(--text-secondary);font-size:13px}
 .rev .h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);font-weight:700}
+
+/* Social & promotions */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.mini-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px;margin-bottom:6px}
+.mini-h span{color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.mini svg rect.hit:hover+rect{opacity:.8}
+.lb{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.lb label{display:grid;gap:5px;font-size:12px;font-weight:600;color:var(--text-secondary)}
+.lb .full{grid-column:1/-1}
+.lb input,.lb select,.lb-out input{background:var(--surface-2);border:1px solid var(--border);color:var(--text-primary);border-radius:8px;padding:8px 10px;font:inherit;font-size:13px;min-width:0}
+.lb-out{display:flex;gap:8px;margin-top:14px}
+.lb-out input{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.tip-note{font-size:12px;color:var(--text-secondary);background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:12px}
+.tip-note code{font-size:11.5px;word-break:break-all}
+@media (max-width:600px){.lb-out{flex-direction:column}}
 </style>
 </head>
 <body>
@@ -178,6 +193,7 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
 
     <nav class="tabs" id="tabs" role="tablist">
       <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+      <button role="tab" data-tab="social" aria-selected="false">Social &amp; promotions</button>
       <button role="tab" data-tab="acquisition" aria-selected="false">Acquisition</button>
       <button role="tab" data-tab="behaviour" aria-selected="false">Behaviour</button>
       <button role="tab" data-tab="audience" aria-selected="false">Audience</button>
@@ -211,6 +227,6 @@ details summary{cursor:pointer;font-size:12px;color:var(--text-secondary);paddin
 
 <script src="assets/js/shared.js"></script>
 <script src="assets/js/booking-shared.js"></script>
-<script src="assets/js/site-analytics-page.js"></script>
+<script src="assets/js/site-analytics-page.js?v=20261007-social"></script>
 </body>
 </html>
