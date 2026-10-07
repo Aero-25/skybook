@@ -88,23 +88,6 @@
       + '</div>';
   }
 
-  /* Hour × weekday heatmap — a sequential single hue, light to dark */
-  function heatmap(h) {
-    if (!h || !h.matrix) return '';
-    let max = 0;
-    h.matrix.forEach(row => row.forEach(v => { if (v > max) max = v; }));
-    if (!max) return '';
-    const head = '<tr><th></th>' + [...Array(24)].map((_, i) => `<th>${i % 3 ? '' : String(i).padStart(2, '0')}</th>`).join('') + '</tr>';
-    const body = h.matrix.map((row, d) => '<tr><td class="rowlab">' + esc(h.days[d]) + '</td>'
-      + row.map((v, hr) => {
-          const a = v / max;
-          const bg = v ? `background:color-mix(in oklab, var(--series-1) ${Math.round(12 + a * 88)}%, var(--surface-2))` : '';
-          return `<td><div class="cell" style="${bg}" title="${esc(h.days[d])} ${String(hr).padStart(2,'0')}:00 — ${fmt(v)} views"></div></td>`;
-        }).join('') + '</tr>').join('');
-    return `<p class="desc" style="margin:0 0 8px">Busiest hours across the week (UTC) — darker is busier</p>
-      <div class="scrollx"><table class="heat" style="min-width:560px">${head}${body}</table></div>`;
-  }
-
   function tableView(rows, head) {
     if (!rows || !rows.length) return '';
     return `<details><summary>Table view</summary><table><thead><tr><th>${esc(head)}</th><th class="n">Views</th></tr></thead><tbody>`
@@ -174,25 +157,6 @@
       tip.style.top = '8px';
     });
     box.querySelector('#hit').addEventListener('mouseleave', () => { tip.classList.remove('on'); cross.setAttribute('opacity', '0'); });
-  }
-
-  /* ---- Column chart for cyclical buckets (hour, weekday) ---- */
-  function columns(target, rows, title) {
-    const box = $(target);
-    if (!rows || !rows.length) { box.innerHTML = ''; return; }
-    const W = Math.max(560, box.clientWidth || 900), H = 170, pad = { t: 10, r: 10, b: 26, l: 40 };
-    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-    const max = Math.max(1, ...rows.map(r => r.count));
-    const bw = Math.max(6, (iw / rows.length) - 6);
-    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(title)}">
-      <line x1="${pad.l}" y1="${pad.t + ih}" x2="${W - pad.r}" y2="${pad.t + ih}" stroke="var(--grid)" stroke-width="1"/>
-      <text x="${pad.l - 8}" y="${pad.t + 8}" text-anchor="end" font-size="10" fill="var(--text-muted)">${fmt(max)}</text>
-      ${rows.map((r, i) => {
-        const h = (r.count / max) * ih, bx = pad.l + (iw / rows.length) * i + 3;
-        return `<rect x="${bx}" y="${pad.t + ih - h}" width="${bw}" height="${Math.max(0, h)}" rx="4" fill="var(--series-1)"><title>${esc(r.label)}: ${fmt(r.count)} views</title></rect>`
-          + `<text x="${bx + bw / 2}" y="${H - 9}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${esc(r.label)}</text>`;
-      }).join('')}
-    </svg>`;
   }
 
   function panel(title, desc, rows, head, labeller) {
@@ -474,15 +438,10 @@
     state.data = d;
     tiles(d);
     timeline(d.timeline || []);
-    columns('hourbox', d.by_hour || [], 'Page views by hour of day (UTC)');
-    columns('daybox', d.by_weekday || [], 'Page views by day of week');
-    $('heatwrap').innerHTML = heatmap(d.heatmap);
 
     const s = sections(d);
     $('panels').innerHTML = s.grid;
     $('wide').innerHTML = s.wide;
-    // The time-of-day panel belongs to Overview only.
-    $('whenpanel').classList.toggle('hide', state.tab !== 'overview');
 
     // A missing table and genuinely-zero traffic look identical from the
     // numbers alone, so say which one it is.
