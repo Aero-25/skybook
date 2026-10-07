@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-crew">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-trips">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -334,7 +334,7 @@
       </section>
       <section class="rep-panel" data-report-panel="guides" hidden>
         <div class="rep-panel-head">
-          <div><h2>Guides &amp; skippers report</h2><p>Every time a name appears on a booking counts as <strong>1</strong> booking for that guide or skipper. A double or combo booking lists the name twice and counts as <strong>2</strong>. Cancelled and refunded bookings are excluded.</p></div>
+          <div><h2>Guides &amp; skippers report</h2><p>Counted in <strong>trips</strong>. Bookings with the same guide or skipper on the same day and trip (AM or PM) share a car or boat and count as <strong>1</strong> trip. A combo with the name entered twice covers the AM and the PM trip. Cancelled and refunded bookings are excluded.</p></div>
           <div class="rep-panel-actions">
             <label class="adm-field"><span>Person</span>
               <select id="guidesReportPerson"><option value="">Everyone</option></select>
@@ -497,7 +497,7 @@
             <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
             <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
           </div>
-          <p class="field-hint">Each guide counts as one booking in the Guides report. Double or combo booking? Choose the same guide twice. Not in the list? Use <strong>+ New guide</strong>.</p>
+          <p class="field-hint">Bookings with the same guide on the same day and trip (AM or PM) count as one trip. Combo with an AM and a PM part? Choose the same guide twice. Not in the list? Use <strong>+ New guide</strong>.</p>
         </div>
         <div class="booking-field-full" id="adminBookingSkipperWrap">
           <span>Skipper(s)</span>
@@ -511,7 +511,7 @@
             <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
             <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
           </div>
-          <p class="field-hint">Counted the same way as guides. Choose the same skipper twice for a double or combo booking.</p>
+          <p class="field-hint">Counted the same way: bookings on the same boat trip count once. Choose the same skipper twice only if they do both an AM and a PM part.</p>
         </div>
         <div class="booking-field">
           <span>Nationality</span>
@@ -683,6 +683,13 @@
           <div id="adminServiceDepartureTimesList" style="display:flex;flex-direction:column;gap:8px"></div>
           <div><button type="button" class="adm-add" id="adminServiceAddDepartureTime">+ Add pickup time</button></div>
         </div>
+        <label class="booking-field"><span>Guide's trip (Guides report)</span>
+          <select id="adminServiceGuideSlot"><option value="">Same as the pickup time</option><option value="am">Morning (AM)</option><option value="pm">Afternoon (PM)</option></select>
+        </label>
+        <label class="booking-field"><span>Skipper's trip (Guides report)</span>
+          <select id="adminServiceSkipperSlot"><option value="">Same as the pickup time</option><option value="am">Morning (AM)</option><option value="pm">Afternoon (PM)</option></select>
+        </label>
+        <p class="field-hint booking-field-full">Bookings with the same guide or skipper on the same day and trip (AM or PM) share a car or boat and count as one trip. Only change these for a combo where the guide or skipper does one part — e.g. Marine &amp; Sandwich Harbour: skipper on the morning boat, guide on the afternoon Sandwich Harbour leg.</p>
         <label class="booking-field" hidden><span>Pickup Time</span><input id="adminServicePickupTime" type="text"></label>
         <label class="booking-field-full"><span>Summary</span><textarea id="adminServiceSummary" rows="4"></textarea></label>
         <label class="booking-field-full"><span>Learn More Description</span><textarea id="adminServiceLearnMoreDescription" rows="6" placeholder="Richer popup copy for the public tours page."></textarea></label>
@@ -725,8 +732,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-crew"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-crew"></script>
+  <script src="assets/js/shared.js?v=20261007-trips"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-trips"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -735,6 +742,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-crew" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-trips" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

@@ -102,7 +102,7 @@ const nodes={
   serviceId:$('adminServiceId'),serviceSlug:$('adminServiceSlug'),serviceName:$('adminServiceName'),serviceCategory:$('adminServiceCategory'),
   servicePricingMode:$('adminServicePricingMode'),servicePrice:$('adminServicePrice'),serviceAdultPrice:$('adminServiceAdultPrice'),serviceChildPrice:$('adminServiceChildPrice'),
   serviceQuoteOnly:$('adminServiceQuoteOnly'),serviceDuration:$('adminServiceDuration'),serviceMinPax:$('adminServiceMinPax'),
-  serviceDepartureTimesList:$('adminServiceDepartureTimesList'),serviceAddDepartureTime:$('adminServiceAddDepartureTime'),servicePickupTime:$('adminServicePickupTime'),
+  serviceDepartureTimesList:$('adminServiceDepartureTimesList'),serviceAddDepartureTime:$('adminServiceAddDepartureTime'),servicePickupTime:$('adminServicePickupTime'),serviceGuideSlot:$('adminServiceGuideSlot'),serviceSkipperSlot:$('adminServiceSkipperSlot'),
   serviceSummary:$('adminServiceSummary'),serviceLearnMoreDescription:$('adminServiceLearnMoreDescription'),
   serviceImageDropZone:$('adminServiceImageDropZone'),serviceImageInput:$('adminServiceImageInput'),serviceImagePreviews:$('adminServiceImagePreviews'),serviceLandscapeImages:$('adminServiceLandscapeImages'),
   serviceBrandTrueTravel:$('adminServiceBrandTrueTravel'),serviceBrandIventure:$('adminServiceBrandIventure'),serviceActive:$('adminServiceActive'),deleteService:$('deleteServiceButton'),
@@ -1458,6 +1458,9 @@ const fillServiceForm=(service=null)=>{
   nodes.serviceDepartureTimesList.innerHTML=''
   ;(Array.isArray(service?.departure_times) ? service.departure_times : []).forEach(t=>nodes.serviceDepartureTimesList.appendChild(departureRow(t.label||'',t.time||'',t.pickup_time||service?.pickup_time||'')))
   nodes.servicePickupTime.value=service?.pickup_time||''
+  const crewSlots=record(record(service?.metadata).crew_slots)
+  nodes.serviceGuideSlot.value=['am','pm'].includes(crewSlots.guide) ? crewSlots.guide : ''
+  nodes.serviceSkipperSlot.value=['am','pm'].includes(crewSlots.skipper) ? crewSlots.skipper : ''
   nodes.serviceSummary.value=service?.short_description||''
   nodes.serviceLearnMoreDescription.value=service?.full_description||service?.short_description||''
   renderServiceImages((service?.media_gallery||[]).map(i=>text(i?.url)).filter(Boolean))
@@ -1488,6 +1491,7 @@ const saveService=async()=>{
     adult_price:nodes.serviceAdultPrice.value ? Number(nodes.serviceAdultPrice.value) : null,child_price:nodes.serviceChildPrice.value ? Number(nodes.serviceChildPrice.value) : null,
     preferred_date_mode:'required',is_quote_only:nodes.serviceQuoteOnly.checked,duration_label:nodes.serviceDuration.value.trim(),
     minimum_pax:Math.max(1,Number(nodes.serviceMinPax.value||1)||1),departure_times:departureTimes(),pickup_time:nodes.servicePickupTime.value.trim(),
+    crew_slots:{guide:nodes.serviceGuideSlot.value,skipper:nodes.serviceSkipperSlot.value},
     short_description:nodes.serviceSummary.value.trim(),full_description:nodes.serviceLearnMoreDescription.value.trim()||nodes.serviceSummary.value.trim(),
     highlight_points:[],media_urls:serviceImageUrls(),brand_codes:brandCodes,is_active:nodes.serviceActive.checked
   }
@@ -1542,7 +1546,7 @@ const renderCrewManage=()=>{
     const word=role==='skipper' ? 'skipper' : 'guide'
     const members=state.crewMembers.filter(c=>c.role===role).sort((a,b)=>text(a.name).localeCompare(text(b.name)))
     const active=members.filter(c=>c.is_active!==false), retired=members.filter(c=>c.is_active===false)
-    const info=c=>{ const u=usage.get(`${role}|${personKey(c.name)}`); return u ? `${plural(u.bookings,'booking')}${u.last ? ` · last ${fmtDate(u.last)}` : ''}` : 'No bookings yet' }
+    const info=c=>{ const u=usage.get(`${role}|${personKey(c.name)}`); return u ? `${plural(u.trips,'trip')}${u.last ? ` · last ${fmtDate(u.last)}` : ''}` : 'No trips yet' }
     const item=(c,makeActive,action)=>`<li><span><strong>${esc(c.name)}</strong> <small>${esc(info(c))}</small></span><button type="button" class="adm-link-btn" data-crew-toggle="${attr(c.id)}" data-crew-active="${makeActive}">${action}</button></li>`
     return `<div><h3>${word==='skipper' ? 'Skippers' : 'Guides'} (${active.length})</h3>
       <ul class="crew-list">${active.map(c=>item(c,'false','Retire')).join('')||`<li class="adm-muted">No ${word}s on the list yet.</li>`}</ul>
@@ -1640,17 +1644,37 @@ const inRange=(b,range)=>{
   if(range.end&&d>range.end)return false
   return true
 }
-// Guides & skippers: every time a name appears on a booking counts as one booking for that person,
-// so a double or combo booking that lists a name twice counts twice. Names match regardless of case.
+// Guides & skippers are counted in trips. Bookings with the same guide (or skipper) on the same day and
+// the same trip — AM or PM — share a car or boat and count as one trip. A combo booking with the name
+// entered twice covers both the AM and the PM trip, so three combos in one car are still two trips.
+// Names match regardless of case.
 const CREW_ROLES=[{role:'guide',label:'Guide',names:guideNames},{role:'skipper',label:'Skipper',names:skipperNames}]
 const tourOf=b=>b.service_name||meta(b).display_name||'Tour'
+const serviceOf=b=>state.services.find(s=>(b?.service_id&&s.id===b.service_id)||(b?.service_slug&&s.slug===b.service_slug))
+// Which trip of the day a booking is for this role: the tour's own setting (combos where the guide or
+// skipper does one part), else the time of the booking's departure, else AM / PM in its label.
+// '' when it cannot be told — the booking then counts as a trip of its own.
+const tripSlot=(b,role)=>{
+  const service=serviceOf(b)
+  const set=lower(record(record(service?.metadata).crew_slots)[role])
+  if(set==='am'||set==='pm')return set
+  const label=text(meta(b).departure_label)
+  const departure=label ? (Array.isArray(service?.departure_times) ? service.departure_times : []).find(t=>lower(t.label)===lower(label)) : null
+  const hour=String(departure?.time||meta(b).pickup_time||'').match(/^(\d{1,2}):\d{2}/)
+  if(hour)return Number(hour[1])<12 ? 'am' : 'pm'
+  if(/\bam\b|morning/i.test(label))return 'am'
+  if(/\bpm\b|afternoon|evening|sunset/i.test(label))return 'pm'
+  return ''
+}
+const SLOT_ORDER={am:0,pm:1}
+const slotLabel=slot=>slot==='am' ? 'AM' : slot==='pm' ? 'PM' : slot.startsWith('extra') ? 'Extra trip' : 'Own trip'
 const crewReport=bookings=>{
   const entries=[]
   bookings.forEach(b=>CREW_ROLES.forEach(({role,names})=>{
     const byPerson=new Map()
     names(b).forEach(name=>{
       const key=personKey(name)
-      const entry=byPerson.get(key)||{booking:b,role,key,name,count:0}
+      const entry=byPerson.get(key)||{booking:b,role,key,name,count:0,slot:tripSlot(b,role)}
       entry.count+=1
       byPerson.set(key,entry)
     })
@@ -1660,25 +1684,44 @@ const crewReport=bookings=>{
   const spellings=new Map()
   entries.forEach(e=>{ const s=spellings.get(e.key)||new Map(); s.set(e.name,(s.get(e.name)||0)+e.count); spellings.set(e.key,s) })
   const nameOf=key=>[...(spellings.get(key)||[])].sort((a,b)=>b[1]-a[1])[0]?.[0]||key
+  // One trip per person, role, day and AM / PM. A name entered twice fills both; a booking whose trip
+  // cannot be told is a trip of its own.
+  const tripMap=new Map()
+  entries.forEach(e=>{
+    const day=dateKey(e.booking.preferred_date)
+    const slots=e.count>1
+      ? ['am','pm',...Array.from({length:e.count-2},(_,i)=>`extra${i+1}:${e.booking.id}`)]
+      : [e.slot||`own:${e.booking.id}`]
+    slots.forEach(slot=>{
+      const id=`${e.role}|${e.key}|${day}|${slot}`
+      const trip=tripMap.get(id)||{id,role:e.role,key:e.key,day,slot,bookings:[]}
+      if(!trip.bookings.includes(e.booking))trip.bookings.push(e.booking)
+      tripMap.set(id,trip)
+    })
+  })
+  const trips=[...tripMap.values()].sort((a,b)=>a.day.localeCompare(b.day)||(SLOT_ORDER[a.slot]??2)-(SLOT_ORDER[b.slot]??2))
   const people=role=>{
     const rows=new Map()
+    const row=key=>{ if(!rows.has(key))rows.set(key,{key,name:nameOf(key),role,trips:0,shared:0,bookings:new Set(),combos:0,days:new Set(),guests:0,tours:new Map(),last:''}); return rows.get(key) }
+    trips.filter(t=>t.role===role).forEach(t=>{ const r=row(t.key); r.trips+=1; if(t.bookings.length>1)r.shared+=1; if(t.day){ r.days.add(t.day); if(t.day>r.last)r.last=t.day } })
     entries.filter(e=>e.role===role).forEach(e=>{
-      const r=rows.get(e.key)||{key:e.key,name:nameOf(e.key),role,bookings:0,doubles:0,days:new Set(),guests:0,tours:new Map(),last:''}
-      const day=dateKey(e.booking.preferred_date)
-      r.bookings+=e.count
-      if(e.count>1)r.doubles+=1
-      if(day){ r.days.add(day); if(day>r.last)r.last=day }
-      r.guests+=paxOf(e.booking)
-      r.tours.set(tourOf(e.booking),(r.tours.get(tourOf(e.booking))||0)+e.count)
-      rows.set(e.key,r)
+      const r=row(e.key)
+      if(e.count>1)r.combos+=1
+      if(r.bookings.has(e.booking.id))return
+      r.bookings.add(e.booking.id); r.guests+=paxOf(e.booking)
+      r.tours.set(tourOf(e.booking),(r.tours.get(tourOf(e.booking))||0)+1)
     })
-    return [...rows.values()].map(r=>({...r,days:r.days.size,tours:[...r.tours].sort((a,b)=>b[1]-a[1])})).sort((a,b)=>b.bookings-a.bookings||a.name.localeCompare(b.name))
+    return [...rows.values()].map(r=>({...r,bookings:r.bookings.size,days:r.days.size,tours:[...r.tours].sort((a,b)=>b[1]-a[1])})).sort((a,b)=>b.trips-a.trips||a.name.localeCompare(b.name))
   }
-  const counted=list=>list.reduce((t,e)=>t+e.count,0)
+  const bookingsWith=role=>new Set(entries.filter(e=>e.role===role).map(e=>e.booking.id)).size
   return {
-    entries,nameOf,guides:people('guide'),skippers:people('skipper'),
-    guideTotal:counted(entries.filter(e=>e.role==='guide')),skipperTotal:counted(entries.filter(e=>e.role==='skipper')),
-    doubles:entries.filter(e=>e.count>1).length
+    entries,trips,nameOf,guides:people('guide'),skippers:people('skipper'),
+    guideTrips:trips.filter(t=>t.role==='guide').length,skipperTrips:trips.filter(t=>t.role==='skipper').length,
+    guideBookings:bookingsWith('guide'),skipperBookings:bookingsWith('skipper'),
+    sharedTrips:trips.filter(t=>t.bookings.length>1).length,
+    combos:entries.filter(e=>e.count>1).length,
+    // Bookings whose trip cannot be told (no departure): each counts as a trip of its own.
+    unplaced:[...new Set(entries.filter(e=>e.count===1&&!e.slot).map(e=>e.booking))]
   }
 }
 // Columns for a date range: days for up to a month, weeks up to four months, months beyond.
@@ -1703,10 +1746,10 @@ const timeBuckets=range=>{
   }
   return {unit,buckets}
 }
-const crewOverTime=(entries,range)=>{
+const crewOverTime=(trips,range)=>{
   const {unit,buckets}=timeBuckets(range)
-  entries.forEach(e=>{ const day=dateKey(e.booking.preferred_date); const bucket=day&&buckets.find(x=>x.from<=day&&day<=x.to); if(bucket)bucket.value+=e.count })
-  return {unit,points:buckets.map(x=>({label:x.label,value:x.value,tip:[`${x.value} booking${x.value===1?'':'s'}`].concat(unit==='week' ? [`${fmtDate(x.from)} – ${fmtDate(x.to)}`] : [])}))}
+  trips.forEach(t=>{ const bucket=t.day&&buckets.find(x=>x.from<=t.day&&t.day<=x.to); if(bucket)bucket.value+=1 })
+  return {unit,points:buckets.map(x=>({label:x.label,value:x.value,tip:[`${x.value} trip${x.value===1?'':'s'}`].concat(unit==='week' ? [`${fmtDate(x.from)} – ${fmtDate(x.to)}`] : [])}))}
 }
 /* ── Chart primitives (plain SVG/HTML, one hue, hairline grid, hover tooltip) ── */
 const SERIES=['#145bc7','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948']
@@ -1921,10 +1964,11 @@ const topTours=tours=>tours.slice(0,2).map(([tour,n])=>`${tour} (${n})`).join(',
 const crewTable=(rows,roleLabel)=>{
   if(!rows.length)return `<p class="viz-empty">No ${lower(roleLabel)} names in this range.</p>`
   const total=key=>rows.reduce((t,r)=>t+r[key],0)
-  return `<div class="table-wrap"><table><thead><tr><th>${esc(roleLabel)}</th><th class="num">Bookings</th><th class="num">Doubles</th><th class="num">Days</th><th class="num">Guests</th><th>Main tours</th><th>Last tour</th></tr></thead>
-    <tbody>${rows.map(r=>`<tr><td><button type="button" class="adm-link-btn" data-crew-person="${attr(r.key)}" title="Show the statement for ${attr(r.name)}">${esc(r.name)}</button></td><td class="num"><strong>${r.bookings}</strong></td><td class="num">${r.doubles||'—'}</td><td class="num">${r.days}</td><td class="num">${r.guests}</td><td>${esc(topTours(r.tours))}</td><td>${r.last ? esc(fmtDate(r.last)) : '—'}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>Total</td><td class="num">${total('bookings')}</td><td class="num">${total('doubles')}</td><td colspan="4"></td></tr></tfoot></table></div>`
+  return `<div class="table-wrap"><table><thead><tr><th>${esc(roleLabel)}</th><th class="num">Trips</th><th class="num">Bookings</th><th class="num">Combos</th><th class="num">Days</th><th class="num">Guests</th><th>Main tours</th><th>Last trip</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td><button type="button" class="adm-link-btn" data-crew-person="${attr(r.key)}" title="Show the statement for ${attr(r.name)}">${esc(r.name)}</button></td><td class="num"><strong>${r.trips}</strong></td><td class="num">${r.bookings}</td><td class="num">${r.combos||'—'}</td><td class="num">${r.days}</td><td class="num">${r.guests}</td><td>${esc(topTours(r.tours))}</td><td>${r.last ? esc(fmtDate(r.last)) : '—'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">${total('trips')}</td><td class="num">${total('bookings')}</td><td class="num">${total('combos')}</td><td colspan="4"></td></tr></tfoot></table></div>`
 }
+const bookingsTable=rows=>`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${rows.slice(0,25).map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table>${rows.length>25 ? `<p class="field-hint">Showing 25 of ${rows.length}.</p>` : ''}</div>`
 const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
   const crew=crewReport(finance)
   const prevCrew=prevFinance ? crewReport(prevFinance) : null
@@ -1937,65 +1981,72 @@ const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
   nodes.guidesReportPerson.value=selected
   const named=b=>guideNames(b).length>0||skipperNames(b).length>0
   const elsewhere=allBookings.filter(b=>!isCancelledFinancial(b)&&named(b)).length
-  const empty=elsewhere ? `No guide or skipper bookings in this range — ${plural(elsewhere,'booking')} with names fall outside it.` : 'No guide or skipper names recorded yet — add them in the Guide(s) and Skipper(s) fields of a booking.'
+  const empty=elsewhere ? `No guide or skipper trips in this range — ${plural(elsewhere,'booking')} with names fall outside it.` : 'No guide or skipper names recorded yet — add them in the Guide(s) and Skipper(s) fields of a booking.'
   if(selected)return renderCrewStatement({crew,prevCrew,range,key:selected,name:people.get(selected)})
 
   const crewed=finance.filter(named)
   const today=todayKey()
   const missing=finance.filter(b=>!named(b)&&lower(b.status)==='finalised'&&dateKey(b.preferred_date)&&dateKey(b.preferred_date)<=today).sort(byTourDate)
+  const unplaced=[...crew.unplaced].sort(byTourDate)
   nodes.guidesReportCards.innerHTML=[
-    statTile({label:'Guide bookings',value:String(crew.guideTotal),current:crew.guideTotal,previous:prevCrew ? prevCrew.guideTotal : null,hint:plural(crew.guides.length,'guide')}),
-    statTile({label:'Skipper bookings',value:String(crew.skipperTotal),current:crew.skipperTotal,previous:prevCrew ? prevCrew.skipperTotal : null,hint:plural(crew.skippers.length,'skipper')}),
-    statTile({label:'Doubles & combos',value:String(crew.doubles),current:crew.doubles,previous:prevCrew ? prevCrew.doubles : null,hint:'A name entered twice on one booking'}),
+    statTile({label:'Guide trips',value:String(crew.guideTrips),current:crew.guideTrips,previous:prevCrew ? prevCrew.guideTrips : null,hint:`${plural(crew.guides.length,'guide')} · ${plural(crew.guideBookings,'booking')}`}),
+    statTile({label:'Skipper trips',value:String(crew.skipperTrips),current:crew.skipperTrips,previous:prevCrew ? prevCrew.skipperTrips : null,hint:`${plural(crew.skippers.length,'skipper')} · ${plural(crew.skipperBookings,'booking')}`}),
+    statTile({label:'Shared trips',value:String(crew.sharedTrips),current:crew.sharedTrips,previous:prevCrew ? prevCrew.sharedTrips : null,hint:'More than one booking in the same car or boat'}),
+    statTile({label:'Combos',value:String(crew.combos),current:crew.combos,previous:prevCrew ? prevCrew.combos : null,hint:'Name entered twice — counts the AM and PM trips'}),
     statTile({label:'Bookings with names',value:`${crewed.length} / ${finance.length}`,hint:missing.length ? `${plural(missing.length,'past booking')} without a guide or skipper` : 'Every past booking has a guide or skipper'})
   ].join('')
-  const perPerson=rows=>rows.map(r=>({label:r.name,value:r.bookings,extra:[`${plural(r.days,'day')} worked`,plural(r.guests,'guest')].concat(r.doubles ? [`${r.doubles} double / combo`] : [])}))
-  const guideTime=crewOverTime(crew.entries.filter(e=>e.role==='guide'),range)
-  const skipperTime=crewOverTime(crew.entries.filter(e=>e.role==='skipper'),range)
+  const perPerson=rows=>rows.map(r=>({label:r.name,value:r.trips,extra:[plural(r.bookings,'booking'),`${plural(r.days,'day')} worked`].concat(r.combos ? [plural(r.combos,'combo')] : [])}))
+  const guideTime=crewOverTime(crew.trips.filter(t=>t.role==='guide'),range)
+  const skipperTime=crewOverTime(crew.trips.filter(t=>t.role==='skipper'),range)
   const logRows=[...crewed].sort(byTourDate)
   nodes.guidesReportBody.innerHTML=crew.entries.length ? `
     <div class="rep-grid">
-      ${repCard('Bookings per guide',hbarChart(perPerson(crew.guides),{max:12}),{sub:'Each name on a booking counts once'})}
-      ${repCard('Bookings per skipper',hbarChart(perPerson(crew.skippers),{max:12}),{sub:'Each name on a booking counts once'})}
+      ${repCard('Trips per guide',hbarChart(perPerson(crew.guides),{max:12}),{sub:'Bookings on the same day and trip share a car and count once'})}
+      ${repCard('Trips per skipper',hbarChart(perPerson(crew.skippers),{max:12}),{sub:'Bookings on the same day and trip share a boat and count once'})}
     </div>
     <div class="rep-grid">
-      ${repCard(`Guide bookings per ${guideTime.unit}`,columnChart(guideTime.points,{integer:true}))}
-      ${repCard(`Skipper bookings per ${skipperTime.unit}`,columnChart(skipperTime.points,{integer:true}))}
+      ${repCard(`Guide trips per ${guideTime.unit}`,columnChart(guideTime.points,{integer:true}))}
+      ${repCard(`Skipper trips per ${skipperTime.unit}`,columnChart(skipperTime.points,{integer:true}))}
     </div>
-    ${repCard('Guides',crewTable(crew.guides,'Guide'),{sub:'Select a name to see that person’s statement'})}
-    ${repCard('Skippers',crewTable(crew.skippers,'Skipper'),{sub:'Select a name to see that person’s statement'})}
-    ${missing.length ? repCard('No guide or skipper recorded',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th></tr></thead><tbody>${missing.slice(0,25).map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td></tr>`).join('')}</tbody></table>${missing.length>25 ? `<p class="field-hint">Showing 25 of ${missing.length}.</p>` : ''}</div>`,{sub:'Past bookings in this range with no names. Add them so the tour counts for the right person.'}) : ''}
-    ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their statement.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
+    ${repCard('Guides',crewTable(crew.guides,'Guide'),{sub:'Select a name to see that person’s trips'})}
+    ${repCard('Skippers',crewTable(crew.skippers,'Skipper'),{sub:'Select a name to see that person’s trips'})}
+    ${unplaced.length ? repCard('No departure time',bookingsTable(unplaced),{sub:'These bookings have no AM or PM departure, so each counts as a trip of its own. Set the departure on the booking so it joins the right trip.'}) : ''}
+    ${missing.length ? repCard('No guide or skipper recorded',bookingsTable(missing),{sub:'Past bookings in this range with no names. Add them so the trip counts for the right person.'}) : ''}
+    ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Departure</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(text(meta(b).departure_label)||'—')}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their trips.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
 }
 const renderCrewStatement=({crew,prevCrew,range,key,name})=>{
-  const mine=crew.entries.filter(e=>e.key===key).sort((a,b)=>byTourDate(a.booking,b.booking)||a.role.localeCompare(b.role))
-  const prevMine=prevCrew ? prevCrew.entries.filter(e=>e.key===key) : null
-  const counted=list=>list.reduce((t,e)=>t+e.count,0)
-  const asGuide=counted(mine.filter(e=>e.role==='guide')), asSkipper=counted(mine.filter(e=>e.role==='skipper'))
-  const bookings=[...new Map(mine.map(e=>[e.booking.id,e.booking])).values()]
-  const days=new Set(bookings.map(b=>dateKey(b.preferred_date)).filter(Boolean)).size
+  const mine=crew.trips.filter(t=>t.key===key)
+  const prevMine=prevCrew ? prevCrew.trips.filter(t=>t.key===key) : null
+  const entries=crew.entries.filter(e=>e.key===key)
+  const asGuide=mine.filter(t=>t.role==='guide').length, asSkipper=mine.filter(t=>t.role==='skipper').length
+  const bookings=[...new Map(entries.map(e=>[e.booking.id,e.booking])).values()]
+  const days=new Set(mine.map(t=>t.day).filter(Boolean)).size
   const guests=bookings.reduce((t,b)=>t+paxOf(b),0)
-  const doubles=mine.filter(e=>e.count>1).length
+  const combos=entries.filter(e=>e.count>1).length
   nodes.guidesReportCards.innerHTML=[
-    statTile({label:`${name} — bookings`,value:String(counted(mine)),current:counted(mine),previous:prevMine ? counted(prevMine) : null,hint:'Each name on a booking counts once'}),
+    statTile({label:`${name} — trips`,value:String(mine.length),current:mine.length,previous:prevMine ? prevMine.length : null,hint:`${plural(bookings.length,'booking')} · ${plural(mine.filter(t=>t.bookings.length>1).length,'shared trip')}`}),
     ...(asGuide&&asSkipper ? [statTile({label:'As guide',value:String(asGuide)}),statTile({label:'As skipper',value:String(asSkipper)})] : []),
-    statTile({label:'Doubles & combos',value:String(doubles),hint:'Name entered twice on one booking'}),
+    statTile({label:'Combos',value:String(combos),hint:'Name entered twice — AM and PM trips'}),
     statTile({label:'Days worked',value:String(days)}),
     statTile({label:'Guests',value:String(guests)})
   ].join('')
-  if(!mine.length){ nodes.guidesReportBody.innerHTML=repCard(name,`<p class="viz-empty">${esc(`${name} has no bookings in this range.`)}</p>`); return }
+  if(!mine.length){ nodes.guidesReportBody.innerHTML=repCard(name,`<p class="viz-empty">${esc(`${name} has no trips in this range.`)}</p>`); return }
   const overTime=crewOverTime(mine,range)
   const tours=new Map()
-  mine.forEach(e=>tours.set(tourOf(e.booking),(tours.get(tourOf(e.booking))||0)+e.count))
+  bookings.forEach(b=>tours.set(tourOf(b),(tours.get(tourOf(b))||0)+1))
   const roleLabel=role=>CREW_ROLES.find(r=>r.role===role)?.label||label(role)
+  const combo=new Set(entries.filter(e=>e.count>1).map(e=>`${e.role}|${e.booking.id}`))
+  const tripRow=t=>`<tr><td>${t.day ? esc(fmtDate(t.day)) : '<em>No date</em>'}</td><td><strong>${esc(slotLabel(t.slot))}</strong>${t.slot.startsWith('own') ? '<span class="table-subline">no departure time</span>' : ''}</td><td>${esc(roleLabel(t.role))}</td>
+    <td>${t.bookings.map(b=>`<div>${rowLink(b)} · ${esc(tourOf(b))} · ${esc(b.customer_name||'Guest')} (${paxOf(b)})${combo.has(`${t.role}|${b.id}`) ? ' <span class="table-subline">combo — AM and PM</span>' : ''}</div>`).join('')}</td>
+    <td class="num">${t.bookings.reduce((n,b)=>n+paxOf(b),0)}</td><td class="num"><strong>1</strong></td></tr>`
   nodes.guidesReportBody.innerHTML=`
     <div class="rep-grid">
-      ${repCard(`Bookings per ${overTime.unit}`,columnChart(overTime.points,{integer:true}))}
+      ${repCard(`Trips per ${overTime.unit}`,columnChart(overTime.points,{integer:true}))}
       ${repCard('Bookings by tour',hbarChart([...tours].sort((a,b)=>b[1]-a[1]).map(([tour,n])=>({label:tour,value:n})),{max:10}))}
     </div>
-    ${repCard(`Statement — ${name}`,`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Role</th><th class="num">Counts</th></tr></thead>
-      <tbody>${mine.map(e=>`<tr><td>${esc(fmtDate(e.booking.preferred_date))}</td><td>${rowLink(e.booking)}</td><td>${esc(tourOf(e.booking))}</td><td>${esc(e.booking.customer_name||'Guest')}</td><td class="num">${paxOf(e.booking)}</td><td>${esc(roleLabel(e.role))}${e.count>1 ? ' <span class="table-subline">double / combo</span>' : ''}</td><td class="num"><strong>${e.count}</strong></td></tr>`).join('')}</tbody>
-      <tfoot><tr><td colspan="4">Total</td><td class="num">${guests}</td><td></td><td class="num">${counted(mine)}</td></tr></tfoot></table></div>`,{sub:'Every booking this person is named on, by tour date'})}`
+    ${repCard(`Trips — ${name}`,`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Trip</th><th>Role</th><th>Bookings on this trip</th><th class="num">Guests</th><th class="num">Counts</th></tr></thead>
+      <tbody>${mine.map(tripRow).join('')}</tbody>
+      <tfoot><tr><td colspan="5">Total trips</td><td class="num">${mine.length}</td></tr></tfoot></table></div>`,{sub:'Each row is one trip. Bookings that shared the car or boat are listed together.'})}`
 }
 
 /* PDF export: the on-screen report markup rendered through html2pdf in a hidden iframe. */

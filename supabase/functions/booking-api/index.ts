@@ -1687,6 +1687,8 @@ const fetchServices=async({slug='',includeInactive=false,brandCode=''}:{slug?:st
     minimum_pax:Math.max(1,Number(service.metadata?.minimum_pax||1)||1),
     departure_window:normalizeText(service.metadata?.departure_window),
     pickup_time:normalizeText(service.metadata?.pickup_time),
+    // Carried as metadata so the console's shared service normaliser keeps it (Guides report trips).
+    metadata:{ crew_slots:normalizeCrewSlots(service.metadata?.crew_slots) },
     departure_times:Array.isArray(service.metadata?.departure_times)
       ? (service.metadata.departure_times as Array<{label?:string,time?:string,pickup_time?:string}|string>).map(item=>
           typeof item==='object' && item!==null
@@ -4732,7 +4734,21 @@ const rescheduleBooking=async(bookingId:string,payload:Json,userId:string)=>{
 
 const slugifyServiceName=(name:string)=>name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,80)
 
+// Which half of the day the guide and the skipper work on a tour, for counting trips in the Guides
+// report — set on combos where each does one part (e.g. skipper on the morning boat, guide on the
+// afternoon Sandwich Harbour leg). Blank means "the booking's departure time".
+const normalizeCrewSlots=(value:unknown)=>{
+  const record=normalizeJsonRecord(value)
+  const slot=(raw:unknown)=>{ const v=normalizeText(raw).toLowerCase(); return v==='am'||v==='pm' ? v : '' }
+  return { guide:slot(record.guide), skipper:slot(record.skipper) }
+}
+
 const upsertService=async(payload:Json)=>{
+  // A save that does not send crew_slots keeps the tour's current setting.
+  const existingService=normalizeText(payload.id) && payload.crew_slots===undefined
+    ? await safeMaybeSingle<Json>(adminClient.from('services').select('metadata').eq('id',normalizeText(payload.id)).maybeSingle())
+    : null
+  const crewSlots=normalizeCrewSlots(payload.crew_slots ?? normalizeJsonRecord(existingService?.metadata).crew_slots)
   const categorySlug=normalizeText(payload.category_slug)||'coastal-tours'
   const { data:category }=await adminClient.from('service_categories').select('id').eq('slug',categorySlug).maybeSingle()
   const brandCodes=Array.isArray(payload.brand_codes)
@@ -4767,6 +4783,7 @@ const upsertService=async(payload:Json)=>{
       departure_window:normalizeText(payload.departure_window),
       pickup_time:normalizeText(payload.pickup_time),
       is_quote_only:Boolean(payload.is_quote_only),
+      crew_slots:crewSlots,
       departure_times:Array.isArray(payload.departure_times)
         ? payload.departure_times.map((item:unknown)=>({
             label:normalizeText((item as Record<string,unknown>)?.label),

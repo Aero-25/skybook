@@ -409,6 +409,7 @@ body.has-modal{overflow:hidden}
 .rep-panel-actions select{padding:8px 10px;font-size:.875rem}
 .table-wrap tfoot td{border-top:1px solid #d9e3ea;border-bottom:0;font-weight:700}
 .table-wrap .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.table-wrap td .table-subline{display:block}
 .rep-panel-head h2{font-size:1.2rem;letter-spacing:-.025em}
 .rep-panel-head p{font-size:.875rem;margin-top:3px;max-width:70ch}
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:12px;margin-bottom:16px}
