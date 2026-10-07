@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-guides">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-crew">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -393,6 +393,11 @@
           </form>
         </section>
       </div>
+      <section class="adm-card crew-manage">
+        <h2>Guides &amp; skippers</h2>
+        <p class="adm-muted">The names offered on the booking form. Retire someone who has left: they disappear from the dropdown, but their name stays on past bookings and in the reports.</p>
+        <div class="adm-grid cols-2" id="crewManage"></div>
+      </section>
     </section>
   </main>
 
@@ -482,18 +487,32 @@
         </label>
         <div class="booking-field-full" id="adminBookingGuideWrap">
           <span>Assigned guide(s)</span>
-          <div id="adminBookingGuideList" data-suggest="guideNameOptions" style="display:flex;flex-direction:column;gap:8px"></div>
-          <div><button type="button" class="adm-add" id="adminBookingAddGuide">+ Add guide</button></div>
-          <p class="field-hint">Each name counts as one booking in the Guides report. Double or combo booking? Add the same name twice.</p>
+          <div id="adminBookingGuideList" data-crew-role="guide" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="crew-actions">
+            <button type="button" class="adm-add" id="adminBookingAddGuide">+ Add guide</button>
+            <button type="button" class="adm-add" data-crew-new="guide">+ New guide</button>
+          </div>
+          <div class="crew-new" data-crew-new-panel="guide" hidden>
+            <input type="text" maxlength="80" placeholder="New guide's full name" aria-label="New guide's name" autocomplete="off" data-crew-new-name>
+            <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
+            <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
+          </div>
+          <p class="field-hint">Each guide counts as one booking in the Guides report. Double or combo booking? Choose the same guide twice. Not in the list? Use <strong>+ New guide</strong>.</p>
         </div>
         <div class="booking-field-full" id="adminBookingSkipperWrap">
           <span>Skipper(s)</span>
-          <div id="adminBookingSkipperList" data-suggest="skipperNameOptions" style="display:flex;flex-direction:column;gap:8px"></div>
-          <div><button type="button" class="adm-add" id="adminBookingAddSkipper">+ Add skipper</button></div>
-          <p class="field-hint">Counted the same way as guides — add the name twice for a double or combo booking.</p>
+          <div id="adminBookingSkipperList" data-crew-role="skipper" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div class="crew-actions">
+            <button type="button" class="adm-add" id="adminBookingAddSkipper">+ Add skipper</button>
+            <button type="button" class="adm-add" data-crew-new="skipper">+ New skipper</button>
+          </div>
+          <div class="crew-new" data-crew-new-panel="skipper" hidden>
+            <input type="text" maxlength="80" placeholder="New skipper's full name" aria-label="New skipper's name" autocomplete="off" data-crew-new-name>
+            <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
+            <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
+          </div>
+          <p class="field-hint">Counted the same way as guides. Choose the same skipper twice for a double or combo booking.</p>
         </div>
-        <datalist id="guideNameOptions"></datalist>
-        <datalist id="skipperNameOptions"></datalist>
         <div class="booking-field">
           <span>Nationality</span>
           <div class="adm-check-group" id="adminBookingNationality" role="group" aria-label="Nationality">
@@ -706,8 +725,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-guides"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-guides"></script>
+  <script src="assets/js/shared.js?v=20261007-crew"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-crew"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -716,6 +735,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-guides" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-crew" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

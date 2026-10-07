@@ -53,7 +53,7 @@ const tag=(value,textLabel='')=>{
 const state={
   session:null,user:null,profile:null,
   activeTab:'dashboard',selectedBookingId:'',selectedServiceId:'',
-  brands:[],bookings:[],services:[],customers:[],payments:[],paymentTransactions:[],refunds:[],
+  brands:[],bookings:[],services:[],customers:[],payments:[],paymentTransactions:[],refunds:[],crewMembers:[],
   officeInvoices:[],invoices:[],statusHistory:[],adminNotes:[],staffDirectory:[],adminUsers:[],
   bookingFormFields:[],permissionCatalog:shared.clone(shared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:shared.clone(shared.SKYBOOK_ROLE_DEFAULTS||{}),
@@ -88,7 +88,7 @@ const nodes={
   bookingCustomerName:$('adminBookingCustomerName'),bookingCustomerEmail:$('adminBookingCustomerEmail'),bookingCustomerPhone:$('adminBookingCustomerPhone'),
   bookingGuideList:$('adminBookingGuideList'),bookingAddGuide:$('adminBookingAddGuide'),bookingSkipperList:$('adminBookingSkipperList'),bookingAddSkipper:$('adminBookingAddSkipper'),
   bookingNationality:$('adminBookingNationality'),bookingBookedBy:$('adminBookingBookedBy'),bookingAgent:$('adminBookingAgent'),bookingDietary:$('adminBookingDietary'),
-  bookedByDatalist:$('bookedByDatalist'),agentDatalist:$('agentDatalist'),guideNameOptions:$('guideNameOptions'),skipperNameOptions:$('skipperNameOptions'),
+  bookedByDatalist:$('bookedByDatalist'),agentDatalist:$('agentDatalist'),crewManage:$('crewManage'),
   bookingSelfDrive:$('adminBookingSelfDrive'),bookingTransfer:$('adminBookingTransfer'),bookingCustomFields:$('adminBookingCustomFields'),bookingNotes:$('adminBookingNotes'),
   bookingPriceBreakdown:$('adminBookingPriceBreakdown'),bookingPriceTotal:$('adminBookingPriceTotal'),bookingPriceOverride:$('adminBookingPriceOverride'),
   bookingOverrideTagRow:$('adminBookingOverrideTagRow'),bookingRevertPricing:$('adminBookingRevertPricing'),bookingPaymentStatus:$('adminBookingPaymentStatusField'),
@@ -277,6 +277,7 @@ const loadData=async()=>{
   state.customers=payload.customers||[]
   state.payments=payload.payments||[]
   state.paymentTransactions=payload.payment_transactions||[]
+  state.crewMembers=payload.crew_members||[]
   state.refunds=payload.refunds||[]
   state.invoices=payload.invoices||[]
   state.officeInvoices=payload.office_invoices||[]
@@ -995,14 +996,53 @@ const syncReference=({booking=null,brandCode='',forceNew=false}={})=>{
   nodes.bookingReference.value=forceNew||!existing ? newReference(code) : existing
 }
 
-const personRow=(value='',suggest='')=>{
+// Guides and skippers are chosen from the managed list. A name on an older booking that is not on the
+// list (or belongs to someone retired) stays selected, so editing the booking never drops it.
+const crewNamesFor=role=>state.crewMembers.filter(c=>c.role===role&&c.is_active!==false).map(c=>text(c.name)).sort((a,b)=>a.localeCompare(b))
+const crewOptions=(role,current='')=>{
+  const names=crewNamesFor(role)
+  const match=names.find(n=>personKey(n)===personKey(current))
+  const word=role==='skipper' ? 'skipper' : 'guide'
+  return `<option value="">Choose ${word}…</option>${names.map(n=>`<option value="${attr(n)}"${n===match ? ' selected' : ''}>${esc(n)}</option>`).join('')}${current&&!match ? `<option value="${attr(current)}" selected>${esc(current)} (not on the list)</option>` : ''}`
+}
+const personRow=(value='',role='')=>{
   const row=document.createElement('div')
   row.className='adm-person-row'
-  row.innerHTML=`<input type="text" placeholder="Full name" value="${attr(value)}"${suggest ? ` list="${attr(suggest)}" autocomplete="off"` : ''} data-person-name><button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
+  const field=role
+    ? `<select data-person-name aria-label="${role==='skipper' ? 'Skipper' : 'Guide'}">${crewOptions(role,value)}</select>`
+    : `<input type="text" placeholder="Full name" value="${attr(value)}" data-person-name>`
+  row.innerHTML=`${field}<button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
   row.querySelector('[data-person-remove]').addEventListener('click',()=>row.remove())
   return row
 }
-const renderPersonRows=(list,names=[])=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.suggest))) }
+const renderPersonRows=(list,names=[])=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.crewRole))) }
+// After the list changes, rebuild every dropdown in a booking form list, keeping what each row shows.
+const refreshCrewSelects=list=>list.querySelectorAll('select[data-person-name]').forEach(select=>{ select.innerHTML=crewOptions(list.dataset.crewRole,select.value) })
+const addCrewMember=async(role,name)=>{
+  const result=await api('admin/crew',{method:'POST',body:{role,name}})
+  const member=result?.crew_member
+  if(!member?.id)throw new Error('The name could not be added.')
+  state.crewMembers=[...state.crewMembers.filter(c=>c.id!==member.id),member]
+  return {member,existing:Boolean(result.existing),reactivated:Boolean(result.reactivated)}
+}
+const crewNewPanel=role=>nodes.bookingForm.querySelector(`[data-crew-new-panel="${role}"]`)
+const closeCrewNew=role=>{ const panel=crewNewPanel(role); if(!panel)return; panel.hidden=true; panel.querySelector('[data-crew-new-name]').value='' }
+// "+ New guide" on the booking form: add the name to the list and put it on this booking straight away.
+const saveCrewNew=async role=>{
+  const panel=crewNewPanel(role)
+  const input=panel.querySelector('[data-crew-new-name]')
+  const name=text(input.value).replace(/\s+/g,' ')
+  if(!name){ input.focus(); toast(`Enter the new ${role}'s name.`,'error'); return }
+  const {member,existing,reactivated}=await addCrewMember(role,name)
+  const list=role==='skipper' ? nodes.bookingSkipperList : nodes.bookingGuideList
+  refreshCrewSelects(list)
+  const empty=[...list.querySelectorAll('select[data-person-name]')].find(select=>!select.value)
+  if(empty)empty.value=member.name
+  else list.appendChild(personRow(member.name,role))
+  closeCrewNew(role)
+  renderCrewManage()
+  notify(existing ? `${member.name} is already on the ${role} list — selected.` : `${member.name} ${reactivated ? 'is back on' : 'added to'} the ${role} list.`)
+}
 const personNames=list=>Array.from(list.querySelectorAll('[data-person-name]')).map(i=>i.value.trim()).filter(Boolean)
 const splitNames=value=>String(value||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
 const pickupMode=()=>nodes.bookingSelfDrive.checked ? 'self_drive' : nodes.bookingTransfer.checked ? 'transfer' : ''
@@ -1151,11 +1191,6 @@ const renderFormOptions=()=>{
   const uniq=values=>[...new Set(values.map(text).filter(Boolean))].sort((a,b)=>a.localeCompare(b))
   nodes.bookedByDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).booked_by)).map(v=>`<option value="${attr(v)}">`).join('')
   nodes.agentDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).agent)).map(v=>`<option value="${attr(v)}">`).join('')
-  // Guide and skipper names already in use, under their most common spelling, so names are typed the same way each time.
-  const crew=crewReport(state.bookings.filter(b=>!isTrashed(b)))
-  const nameOptions=rows=>rows.map(r=>r.name).sort((a,b)=>a.localeCompare(b)).map(v=>`<option value="${attr(v)}">`).join('')
-  nodes.guideNameOptions.innerHTML=nameOptions(crew.guides)
-  nodes.skipperNameOptions.innerHTML=nameOptions(crew.skippers)
 }
 const fillBookingForm=(booking=null)=>{
   const m=meta(booking)
@@ -1182,6 +1217,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''))
   renderPersonRows(nodes.bookingSkipperList,splitNames(m.skipper_name||''))
+  closeCrewNew('guide'); closeCrewNew('skipper')
   const nationalities=(Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>text(v)).filter(Boolean)
   const ticked=new Set(nationalities.map(lower))
   nodes.bookingNationality.querySelectorAll('[data-other-nationality]').forEach(el=>el.remove())
@@ -1494,6 +1530,26 @@ const renderUsers=()=>{
     <td>${esc(label(u.role||''))}</td>
     <td>${u.is_active ? tag('active','Active') : tag('inactive','Inactive')}</td>
   </tr>`).join('')||emptyRow(4,'No users loaded.')
+  renderCrewManage()
+}
+// Users page: the guides and skippers offered on the booking form. Retiring someone hides them from the
+// dropdown; their name stays on past bookings and in the reports.
+const renderCrewManage=()=>{
+  if(!nodes.crewManage)return
+  const history=crewReport(state.bookings.filter(b=>!isTrashed(b)&&!isCancelledFinancial(b)))
+  const usage=new Map([...history.guides,...history.skippers].map(r=>[`${r.role}|${r.key}`,r]))
+  const column=role=>{
+    const word=role==='skipper' ? 'skipper' : 'guide'
+    const members=state.crewMembers.filter(c=>c.role===role).sort((a,b)=>text(a.name).localeCompare(text(b.name)))
+    const active=members.filter(c=>c.is_active!==false), retired=members.filter(c=>c.is_active===false)
+    const info=c=>{ const u=usage.get(`${role}|${personKey(c.name)}`); return u ? `${plural(u.bookings,'booking')}${u.last ? ` · last ${fmtDate(u.last)}` : ''}` : 'No bookings yet' }
+    const item=(c,makeActive,action)=>`<li><span><strong>${esc(c.name)}</strong> <small>${esc(info(c))}</small></span><button type="button" class="adm-link-btn" data-crew-toggle="${attr(c.id)}" data-crew-active="${makeActive}">${action}</button></li>`
+    return `<div><h3>${word==='skipper' ? 'Skippers' : 'Guides'} (${active.length})</h3>
+      <ul class="crew-list">${active.map(c=>item(c,'false','Retire')).join('')||`<li class="adm-muted">No ${word}s on the list yet.</li>`}</ul>
+      <form class="crew-add" data-crew-add="${role}"><input type="text" maxlength="80" placeholder="New ${word}'s full name" aria-label="New ${word}'s name" autocomplete="off"><button type="submit" class="adm-btn small">Add ${word}</button></form>
+      ${retired.length ? `<details class="crew-retired"><summary>Retired (${retired.length})</summary><ul class="crew-list">${retired.map(c=>item(c,'true','Bring back')).join('')}</ul></details>` : ''}</div>`
+  }
+  nodes.crewManage.innerHTML=column('guide')+column('skipper')
 }
 const saveUser=async()=>{
   const permissions={}
@@ -2325,8 +2381,31 @@ nodes.bookingForm.addEventListener('change',event=>{
   }
 })
 nodes.bookingRevertPricing.addEventListener('click',()=>{ nodes.bookingPriceOverride.value=''; updatePricePreview(); toast('Reverted to calculated pax pricing — save the booking to apply.','info') })
-nodes.bookingAddGuide.addEventListener('click',()=>nodes.bookingGuideList.appendChild(personRow('',nodes.bookingGuideList.dataset.suggest)))
-nodes.bookingAddSkipper.addEventListener('click',()=>nodes.bookingSkipperList.appendChild(personRow('',nodes.bookingSkipperList.dataset.suggest)))
+nodes.bookingAddGuide.addEventListener('click',()=>nodes.bookingGuideList.appendChild(personRow('','guide')))
+nodes.bookingAddSkipper.addEventListener('click',()=>nodes.bookingSkipperList.appendChild(personRow('','skipper')))
+nodes.bookingForm.addEventListener('click',event=>{
+  const open=event.target.closest('[data-crew-new]')
+  if(open){
+    const panel=crewNewPanel(open.dataset.crewNew)
+    panel.hidden=false
+    panel.querySelector('[data-crew-new-name]').focus()
+    return
+  }
+  const panel=event.target.closest('[data-crew-new-panel]')
+  if(!panel)return
+  const role=panel.dataset.crewNewPanel
+  if(event.target.closest('[data-crew-new-cancel]'))closeCrewNew(role)
+  const save=event.target.closest('[data-crew-new-save]')
+  if(save)withButtonLoading(save,()=>saveCrewNew(role),'Adding…').catch(fail)
+})
+// Enter in the new-name box adds the name instead of submitting the booking; Escape closes the box.
+nodes.bookingForm.addEventListener('keydown',event=>{
+  const input=event.target.closest?.('[data-crew-new-name]')
+  if(!input)return
+  const role=input.closest('[data-crew-new-panel]').dataset.crewNewPanel
+  if(event.key==='Enter'){ event.preventDefault(); const save=input.parentElement.querySelector('[data-crew-new-save]'); withButtonLoading(save,()=>saveCrewNew(role),'Adding…').catch(fail) }
+  if(event.key==='Escape'){ event.preventDefault(); event.stopPropagation(); closeCrewNew(role) }
+})
 nodes.bookingAddPaymentRow.addEventListener('click',()=>{
   const due=bookingFormDue()
   const allocated=sumRows(readPaymentRows(nodes.bookingPaymentRowsList))
@@ -2363,6 +2442,32 @@ nodes.deleteService.addEventListener('click',()=>withButtonLoading(nodes.deleteS
 wireDropZone()
 // Users
 nodes.adminUserForm.addEventListener('submit',event=>{ event.preventDefault(); withButtonLoading(nodes.adminUserSaveButton,saveUser,'Saving…').catch(fail) })
+nodes.crewManage.addEventListener('click',event=>{
+  const btn=event.target.closest('[data-crew-toggle]')
+  if(!btn)return
+  const makeActive=btn.dataset.crewActive==='true'
+  withButtonLoading(btn,async()=>{
+    const result=await api(`admin/crew/${encodeURIComponent(btn.dataset.crewToggle)}`,{method:'PATCH',body:{is_active:makeActive}})
+    const member=result?.crew_member
+    if(member?.id)state.crewMembers=[...state.crewMembers.filter(c=>c.id!==member.id),member]
+    renderCrewManage()
+    notify(makeActive ? `${member?.name||'They'} can be chosen on bookings again.` : `${member?.name||'They'} retired — no longer offered on the booking form.`)
+  },'…').catch(fail)
+})
+nodes.crewManage.addEventListener('submit',event=>{
+  const form=event.target.closest('[data-crew-add]')
+  if(!form)return
+  event.preventDefault()
+  const input=form.querySelector('input')
+  const name=text(input.value).replace(/\s+/g,' ')
+  if(!name){ input.focus(); return }
+  const role=form.dataset.crewAdd
+  withButtonLoading(form.querySelector('button'),async()=>{
+    const {member,existing,reactivated}=await addCrewMember(role,name)
+    renderCrewManage()
+    notify(existing ? `${member.name} is already on the ${role} list.` : `${member.name} ${reactivated ? 'is back on' : 'added to'} the ${role} list.`)
+  },'Adding…').catch(fail)
+})
 nodes.adminUserRole.addEventListener('change',()=>renderPermissionEditor({},nodes.adminUserRole.value))
 nodes.adminUserReset.addEventListener('click',()=>{ fillUserForm(null); renderUsers() })
 // Reports

@@ -3350,6 +3350,35 @@ const deleteDutyAssignment=async(id:string)=>{
   return { success:true }
 }
 
+// Guides and skippers offered on the booking form. Adding a name already on the list (in any case)
+// brings it back if it was retired, rather than creating a second entry.
+const CREW_MEMBER_ROLES=new Set(['guide','skipper'])
+const saveCrewMember=async(payload:Json,userId:string)=>{
+  const name=normalizeText(payload.name).replace(/\s+/g,' ')
+  const role=normalizeText(payload.role).toLowerCase()
+  if(!CREW_MEMBER_ROLES.has(role))throw new Error('Choose guide or skipper.')
+  if(!name)throw new Error(`Enter the ${role}'s name.`)
+  if(name.length>80)throw new Error('That name is too long.')
+  if(/[,;/]/.test(name))throw new Error('Enter one name at a time — no commas or slashes.')
+  const { data:rows,error }=await adminClient.from('crew_members').select('*').eq('role',role)
+  if(error)throw new Error(error.message||`Could not load the ${role}s.`)
+  const match=(rows || []).find(row=>normalizeText(row.name).toLowerCase()===name.toLowerCase())
+  if(match?.is_active)return { success:true, crew_member:match, existing:true }
+  const { data,error:saveError }=match
+    ? await adminClient.from('crew_members').update({ is_active:true, updated_at:nowIso() }).eq('id',String(match.id)).select().single()
+    : await adminClient.from('crew_members').insert({ name, role, created_by:safeUuid(userId) }).select().single()
+  if(saveError)throw new Error(saveError.message||`Could not save the ${role}.`)
+  return { success:true, crew_member:data, reactivated:Boolean(match) }
+}
+
+// Retire someone who has left (or bring them back). Their name stays on past bookings and in reports.
+const updateCrewMember=async(id:string,payload:Json)=>{
+  if(typeof payload.is_active!=='boolean')throw new Error('Nothing to change.')
+  const { data,error }=await adminClient.from('crew_members').update({ is_active:payload.is_active, updated_at:nowIso() }).eq('id',id).select().single()
+  if(error)throw new Error(error.message||'Could not update the list.')
+  return { success:true, crew_member:data }
+}
+
 const buildLifecycleTaskBlueprints=(booking:Json,{ hasOperator, hasResources }:{ hasOperator:boolean, hasResources:boolean })=>{
   const status=normalizeText(booking.status)
   const paymentStatus=normalizeText(booking.payment_status)
@@ -4853,7 +4882,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     void processDueSystemJobs().catch(()=>{})
   }
   void syncAllReconciliationRecords(String(user.id || '')).catch(()=>{})
-  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,staffDutyAssignments,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords]=await Promise.all([
+  const [bookingsResult,customersResult,paymentsResult,services,settings,emailTemplates,automationRules,portalSettings,integrationSettings,reportingSettings,opsTemplates,bookingFields,brands,schedules,dateRules,blackoutDates,coupons,vouchers,agents,operators,bookingAgents,bookingOperators,bookingDiscounts,resources,resourceAllocations,invoices,officeInvoices,refunds,paymentTransactions,webhookEndpoints,supportedLanguages,supportedCurrencies,customerAccounts,calendarConnections,emailLogs,statusHistory,adminNotes,bookingTasks,bookingDocuments,bookingMemories,portalRequests,staffDirectory,staffDutyAssignments,documentVersionsRaw,portalSessions,systemJobs,healthEvents,reconciliationRecords,crewMembers]=await Promise.all([
     adminClient
       .from('bookings')
       .select('id,reference,brand_code,status,payment_status,preferred_date,confirmed_date,quantity,adult_quantity,child_quantity,infant_quantity,total_amount,currency_code,amount_due_now,amount_due_later,source,customer_notes,cancellation_reason,metadata,created_at,updated_at,updated_by,customer_id,service_id,customers(full_name,email,phone),services(name,slug)')
@@ -4934,7 +4963,8 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     safeTableSelect<Json>(adminClient.from('customer_portal_sessions').select('*').order('created_at',{ascending:false}).limit(200)),
     safeTableSelect<Json>(adminClient.from('system_jobs').select('*').order('created_at',{ascending:false}).limit(200)),
     safeTableSelect<Json>(adminClient.from('system_health_events').select('*').order('created_at',{ascending:false}).limit(200)),
-    safeTableSelect<Json>(adminClient.from('reconciliation_records').select('*').order('created_at',{ascending:false}).limit(400))
+    safeTableSelect<Json>(adminClient.from('reconciliation_records').select('*').order('created_at',{ascending:false}).limit(400)),
+    safeTableSelect<Json>(adminClient.from('crew_members').select('*').order('name',{ascending:true}))
   ])
   if(bookingsResult.error)throw bookingsResult.error
   if(customersResult.error)throw customersResult.error
@@ -5117,6 +5147,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
     portal_sessions:canSeeBookings ? portalSessions : [],
     staff_directory:canSeeBookings ? staffDirectory : [],
     staff_duty_assignments:canSeeBookings ? staffDutyAssignments : [],
+    crew_members:canSeeBookings ? crewMembers : [],
     lifecycle_rules:BOOKING_STATUS_TRANSITIONS,
     system_jobs:canSeeHealth ? systemJobs : [],
     health_events:canSeeHealth ? healthEvents : [],
@@ -6053,6 +6084,16 @@ Deno.serve(async request=>{
       if(request.method==='POST'&&id==='notes'){
         requireSkybookPermission(adminProfile,'bookings')
         return json(201,await createAdminNote(requestBody,user.id))
+      }
+
+      if(request.method==='POST'&&id==='crew'&&!subresource){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(201,await saveCrewMember(requestBody,user.id))
+      }
+
+      if(request.method==='PATCH'&&id==='crew'&&subresource){
+        requireSkybookPermission(adminProfile,'bookings')
+        return json(200,await updateCrewMember(subresource,requestBody))
       }
 
       if(request.method==='POST'&&id==='duty-assignments'&&!subresource){

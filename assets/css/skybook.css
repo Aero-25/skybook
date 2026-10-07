@@ -132,6 +132,19 @@ input:disabled,select:disabled{background:#f3f7fa;color:var(--muted-foreground);
 .booking-payment-row select,.booking-payment-row input{padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
 .adm-person-row{display:flex;gap:8px;align-items:center}
 .adm-person-row input{flex:1;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
+.adm-person-row select{flex:1;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem;background:#fff}
+.crew-actions{display:flex;flex-wrap:wrap;gap:8px}
+.crew-new{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid #cfdbe6;border-radius:9px;background:#f7fafc}
+.crew-new input{flex:1 1 200px;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
+.crew-manage{margin-top:16px}
+.crew-manage h3{font-size:.95rem;margin-bottom:8px}
+.crew-list{list-style:none;margin:0;padding:0;border-top:1px solid #eef3f7}
+.crew-list li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 2px;border-bottom:1px solid #eef3f7;font-size:.875rem}
+.crew-list li small{color:var(--muted-foreground)}
+.crew-add{display:flex;gap:8px;margin-top:10px}
+.crew-add input{flex:1;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
+.crew-retired{margin-top:10px}
+.crew-retired>summary{cursor:pointer;font-size:.8125rem;font-weight:600;color:var(--muted-foreground)}
 .adm-remove{background:none;border:0;font-size:18px;line-height:1;padding:0 6px;color:var(--muted-foreground)}
 .adm-remove:hover{color:var(--bad-fg)}
 .adm-add{margin-top:8px;background:none;border:1px dashed #b9c8d6;border-radius:7px;padding:6px 14px;font-size:.8125rem;color:var(--muted-foreground)}
