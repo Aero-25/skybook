@@ -1137,7 +1137,7 @@ const splitNames=value=>String(value||'').split(/[,;]+/).map(s=>s.trim()).filter
 const pickupMode=()=>nodes.bookingSelfDrive.checked ? 'self_drive' : nodes.bookingTransfer.checked ? 'transfer' : ''
 
 const PAYMENT_METHOD_OPTIONS='<option value="eft">EFT / Bank Transfer</option><option value="card">Card Machine</option><option value="cash">Cash</option><option value="voucher">Voucher</option><option value="other">Other</option>'
-// One payment row: method, amount, reference, and the card machine fields when the method is card.
+// One payment row: method, amount and an optional reference.
 const paymentRow=({amount='',type='eft',onChange=()=>{}}={})=>{
   const row=document.createElement('div')
   row.className='booking-payment-row'
@@ -1146,15 +1146,11 @@ const paymentRow=({amount='',type='eft',onChange=()=>{}}={})=>{
     <select data-pay-type aria-label="Payment method" style="flex:1;min-width:140px">${PAYMENT_METHOD_OPTIONS}</select>
     <input type="number" min="0.01" step="0.01" placeholder="Amount" aria-label="Amount" data-pay-amount style="flex:1;min-width:110px">
     <input type="text" placeholder="Reference (optional)" aria-label="Reference" data-pay-reference style="flex:1;min-width:140px">
-    <input type="text" placeholder="Terminal serial" aria-label="Terminal serial" data-pay-terminal hidden style="flex:1;min-width:120px">
-    <input type="text" placeholder="Batch number" aria-label="Batch number" data-pay-batch hidden style="flex:1;min-width:120px">
     <button type="button" class="adm-remove" data-pay-remove aria-label="Remove payment">×</button>`
   const typeEl=row.querySelector('[data-pay-type]')
   typeEl.value=type
   row.querySelector('[data-pay-amount]').value=amount
-  const syncCard=()=>{ const isCard=typeEl.value==='card'; row.querySelector('[data-pay-terminal]').hidden=!isCard; row.querySelector('[data-pay-batch]').hidden=!isCard }
-  syncCard()
-  typeEl.addEventListener('change',()=>{ syncCard(); onChange() })
+  typeEl.addEventListener('change',()=>onChange())
   row.addEventListener('input',event=>{ event.target.classList?.remove('is-invalid'); onChange() })
   row.querySelector('[data-pay-remove]').addEventListener('click',()=>{ row.remove(); onChange() })
   return row
@@ -1166,25 +1162,18 @@ const readPaymentRows=container=>Array.from(container.querySelectorAll('.booking
   payment_type:row.querySelector('[data-pay-type]').value||'eft',
   amount:Number(Number(row.querySelector('[data-pay-amount]').value||0).toFixed(2)),
   rawAmount:row.querySelector('[data-pay-amount]').value.trim(),
-  provider_reference:row.querySelector('[data-pay-reference]').value.trim(),
-  terminal_serial_number:row.querySelector('[data-pay-terminal]').value.trim(),
-  batch_number:row.querySelector('[data-pay-batch]').value.trim()
-})).filter(r=>r.rawAmount||r.provider_reference||r.terminal_serial_number||r.batch_number)
+  provider_reference:row.querySelector('[data-pay-reference]').value.trim()
+})).filter(r=>r.rawAmount||r.provider_reference)
 // Checks every row before anything is sent; marks the offending inputs and returns the problems.
 const checkPaymentRows=rows=>{
   const problems=[]
   rows.forEach((row,i)=>{
     const name=rows.length>1 ? `Payment ${i+1}` : 'The payment'
     if(!(row.amount>0)){ problems.push(`${name} needs an amount.`); row.el.querySelector('[data-pay-amount]').classList.add('is-invalid') }
-    if(row.payment_type==='card'){
-      if(!row.terminal_serial_number){ row.el.querySelector('[data-pay-terminal]').classList.add('is-invalid') }
-      if(!row.batch_number){ row.el.querySelector('[data-pay-batch]').classList.add('is-invalid') }
-      if(!row.terminal_serial_number||!row.batch_number)problems.push(`${name} is a card payment — add the terminal serial and batch number.`)
-    }
   })
   return problems
 }
-const cleanPaymentRows=rows=>rows.map(({payment_type,amount,provider_reference,terminal_serial_number,batch_number})=>({payment_type,amount,provider_reference,terminal_serial_number,batch_number,notes:''}))
+const cleanPaymentRows=rows=>rows.map(({payment_type,amount,provider_reference})=>({payment_type,amount,provider_reference,notes:''}))
 const sumRows=rows=>Number(rows.reduce((t,r)=>t+Number(r.amount||0),0).toFixed(2))
 // Running total line under a set of rows: covered, still short (with a one-click fill) or over.
 const renderSplitSummary=(el,rows,due,{currency,onFill}={})=>{

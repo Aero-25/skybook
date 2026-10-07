@@ -2748,8 +2748,6 @@ type BookingPaymentRow={
   payment_type:string
   amount:number
   provider_reference:string
-  terminal_serial_number:string
-  batch_number:string
   notes:string
 }
 
@@ -2761,8 +2759,6 @@ const normalizeSplitPayments=(input:unknown):BookingPaymentRow[]=>(Array.isArray
     payment_type:normalizeManualPaymentType(row.payment_type || row.type),
     amount:Number(Number(row.amount || row.amount_received || 0).toFixed(2)),
     provider_reference:normalizeText(row.provider_reference || row.reference),
-    terminal_serial_number:normalizeText(row.terminal_serial_number || row.serial_number),
-    batch_number:normalizeText(row.batch_number),
     notes:normalizeText(row.notes)
   }
 })
@@ -2777,9 +2773,6 @@ const validateBookingPayments=(rows:BookingPaymentRow[],outstanding:number,{mode
   rows.forEach((row,index)=>{
     const label=rows.length>1 ? `Payment ${index+1} (${displayLabel(row.payment_type)})` : `The ${displayLabel(row.payment_type)} payment`
     if(!Number.isFinite(row.amount) || row.amount<=0)throw new Error(`${label} needs an amount greater than zero.`)
-    if(row.payment_type==='card' && (!row.terminal_serial_number || !row.batch_number)){
-      throw new Error(`${label} needs the card machine's terminal serial number and batch number.`)
-    }
   })
   const total=Number(rows.reduce((sum,row)=>sum+row.amount,0).toFixed(2))
   const due=Number(Math.max(0,outstanding).toFixed(2))
@@ -2826,8 +2819,6 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
     payment_type:row.payment_type,
     amount:row.amount,
     provider_reference:row.provider_reference,
-    terminal_serial_number:row.terminal_serial_number,
-    batch_number:row.batch_number,
     notes:row.notes,
     received_at:receivedAt,
     received_by:userId
@@ -2878,7 +2869,7 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
     updated_by:safeUuid(userId)
   }).eq('id',bookingId)
   if(bookingUpdateError)throw bookingUpdateError
-  const summary=rows.map(row=>`${displayLabel(row.payment_type)} ${formatAmount(row.amount)}${row.payment_type==='card' ? ` (serial ${row.terminal_serial_number}, batch ${row.batch_number})` : ''}`).join(' + ')
+  const summary=rows.map(row=>`${displayLabel(row.payment_type)} ${formatAmount(row.amount)}`).join(' + ')
   const heading=rows.length>1 ? 'Split payment recorded' : `Manual ${displayLabel(rows[0].payment_type)} payment recorded`
   await insertStatusHistory(bookingId,String(booking.status),String(booking.status),`${heading}: ${summary} ${currencyCode}`,`admin:${userId}`,userId)
   await createAdminNote({booking_id:bookingId,note:`${heading}: ${summary} ${currencyCode}.${settled ? ' Booking fully paid.' : ` ${formatAmount(outstandingAmount)} ${currencyCode} still outstanding.`}`,is_private:true},userId)
