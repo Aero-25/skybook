@@ -766,7 +766,7 @@ const paymentMethodLabel=value=>{
   if(key==='cash')return 'Cash'
   if(key==='voucher')return 'Voucher'
   if(key==='dpo')return 'DPO'
-  if(key==='unrecorded')return 'Not recorded'
+  if(['unrecorded','paid','fully paid'].includes(key))return 'Not recorded'
   return label(key||'Manual')
 }
 
@@ -1169,8 +1169,15 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
   renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''))
   renderPersonRows(nodes.bookingSkipperList,splitNames(m.skipper_name||''))
-  const nationalities=new Set((Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>lower(v)).filter(Boolean))
-  nodes.bookingNationality.querySelectorAll('input[type=checkbox]').forEach(cb=>{ cb.checked=nationalities.has(lower(cb.value)) })
+  const nationalities=(Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>text(v)).filter(Boolean)
+  const ticked=new Set(nationalities.map(lower))
+  nodes.bookingNationality.querySelectorAll('[data-other-nationality]').forEach(el=>el.remove())
+  const boxes=[...nodes.bookingNationality.querySelectorAll('input[type=checkbox]')]
+  boxes.forEach(cb=>{ cb.checked=ticked.has(lower(cb.value)) })
+  // Older bookings may hold a nationality typed in by hand; it gets its own ticked box so saving keeps it.
+  nationalities.filter(v=>!boxes.some(cb=>lower(cb.value)===lower(v))).forEach(v=>{
+    nodes.bookingNationality.insertAdjacentHTML('beforeend',`<label class="inline-check" data-other-nationality><input type="checkbox" value="${attr(v)}" checked><span>${esc(v)}</span></label>`)
+  })
   nodes.bookingBookedBy.value=m.booked_by||booking?.booked_by||''
   nodes.bookingDietary.value=m.dietary_requirements||m.dietary||''
   nodes.bookingAgent.value=m.agent||''
@@ -1243,7 +1250,8 @@ const saveBooking=async()=>{
     service_slug:nodes.bookingService.value,
     // A reservation being edited stays provisional until it is approved; new manual bookings are finalised.
     status:wasReservation ? 'provisional' : (nodes.bookingStatus.value||'finalised'),
-    payment_status:isEditing ? (splitRows.length ? String(existing?.payment_status||'') : nodes.bookingPaymentStatus.value) : '',
+    // Split rows say how the booking was paid; otherwise the Payment Process chosen on the form is kept.
+    payment_status:splitRows.length ? String(existing?.payment_status||'') : nodes.bookingPaymentStatus.value,
     preferred_date:nodes.bookingDate.value,
     adult_quantity:adults,child_quantity:children,infant_quantity:infants,
     quantity:(adults+children+infants)>0 ? adults+children+infants : Number(nodes.bookingQuantity.value||1),

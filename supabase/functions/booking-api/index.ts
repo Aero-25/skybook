@@ -2656,6 +2656,21 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
     if(error)throw error
     paymentId=String(data?.id||'')
   }
+  // Settlements made by a Payment Process (not money recorded row by row) follow the process: when
+  // staff set or correct the method, the amount it settled is attributed to that method.
+  if(settled&&paymentType&&existing?.id){
+    const { data:settlements,error:settlementsError }=await adminClient.from('payment_transactions').select('id,raw_payload').eq('payment_id',String(existing.id))
+    if(settlementsError)throw settlementsError
+    for(const row of settlements || []){
+      const rawPayload=normalizeJsonRecord(row.raw_payload)
+      if(!SETTLEMENT_TRANSACTION_SOURCES.has(normalizeText(rawPayload.source)) || normalizeText(rawPayload.payment_type)===paymentType)continue
+      const { error }=await adminClient.from('payment_transactions').update({
+        provider:rowProvider,
+        raw_payload:{...rawPayload,payment_type:paymentType,payment_process:process,method_set_at:nowIso()}
+      }).eq('id',String(row.id))
+      if(error)throw error
+    }
+  }
   // Record the settlement as a transaction so the Payment Process report shows it by method.
   const delta=Number((nextReceived-previousReceived).toFixed(2))
   if(settled&&delta>0&&paymentId){
@@ -2672,6 +2687,41 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
     })
     if(error)throw error
   }
+  if(paymentId)await syncSplitPaymentMethods(bookingId,paymentId)
+}
+
+// Transactions written when a Payment Process settles a booking, rather than money recorded row by row.
+const SETTLEMENT_TRANSACTION_SOURCES=new Set(['payment_process','payment_process_backfill','split_payment_repair'])
+
+// The methods a booking was actually paid with, read from its payment transactions.
+const paidMethodsOf=async(paymentId:string)=>{
+  const { data,error }=await adminClient.from('payment_transactions').select('amount,status,raw_payload').eq('payment_id',paymentId).order('created_at',{ascending:true})
+  if(error)throw error
+  return [...new Set((data || [])
+    .filter(row=>normalizeText(row.status)==='paid' && Number(row.amount || 0)>0)
+    .map(row=>normalizeText(normalizeJsonRecord(row.raw_payload).payment_type).toLowerCase())
+    .filter(Boolean))]
+}
+
+// A booking paid with more than one method is a split payment ("Split · Cash + Card"). The booking
+// carries the list of methods, kept in step with its transactions, so the console and reports show it.
+const syncSplitPaymentMethods=async(bookingId:string,paymentId:string)=>{
+  const methods=await paidMethodsOf(paymentId)
+  const booking=await safeMaybeSingle<Json>(adminClient.from('bookings').select('metadata').eq('id',bookingId).maybeSingle())
+  if(!booking)return methods
+  const metadata=normalizeJsonRecord(booking.metadata)
+  const current=normalizeJsonRecord(metadata.split_payment)
+  const currentMethods=Array.isArray(current.methods) ? current.methods as string[] : []
+  if(methods.length>1){
+    if(currentMethods.length===methods.length && methods.every(method=>currentMethods.includes(method)))return methods
+    metadata.split_payment={...current,methods,updated_at:nowIso()}
+  }else{
+    if(!metadata.split_payment)return methods
+    delete metadata.split_payment
+  }
+  const { error }=await adminClient.from('bookings').update({metadata}).eq('id',bookingId)
+  if(error)throw error
+  return methods
 }
 
 const normalizeManualPaymentType=(value:unknown)=>{
@@ -2750,9 +2800,14 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
   const settled=nextReceived+0.01>=totalAmount && totalAmount>0
   const outstandingAmount=Math.max(0,Number((totalAmount-nextReceived).toFixed(2)))
   const methods=[...new Set(rows.map(row=>row.payment_type))]
+  // Earlier payments count too: a deposit in cash finished by card is a split payment.
+  const priorMethods=existingPayment?.id ? await paidMethodsOf(String(existingPayment.id)) : []
+  const allMethods=[...new Set([...priorMethods,...methods])]
+  const knownPrior=previousReceived<=0.01 || priorMethods.length>0
+  const singleMethod=allMethods.length===1 && knownPrior && !['other','paid','unrecorded'].includes(allMethods[0]) ? allMethods[0] : ''
   // A booking settled by one method carries that method as its Payment Process; several methods
   // read as a split payment (Paid) with the methods listed on the booking.
-  const nextPaymentStatus=settled ? (methods.length===1&&previousReceived<=0.01 ? (methods[0]==='other' ? 'paid' : methods[0]) : 'paid') : 'partially_paid'
+  const nextPaymentStatus=settled ? (singleMethod || 'paid') : 'partially_paid'
   const receivedAt=nowIso()
   const rowMeta=rows.map(row=>({
     payment_type:row.payment_type,
@@ -2797,10 +2852,7 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
     reconciled_at:receivedAt
   }))).select()
   if(transactionError)throw transactionError
-  const existingMetadata=normalizeJsonRecord(booking.metadata)
-  const previousSplit=normalizeJsonRecord(existingMetadata.split_payment)
-  const allMethods=[...new Set([...(Array.isArray(previousSplit.methods) ? previousSplit.methods as string[] : []),...methods])]
-  const isSplit=rows.length>1 || Boolean(previousSplit.methods) || (previousReceived>0.01 && settled)
+  const { split_payment:_previousSplit,...existingMetadata }=normalizeJsonRecord(booking.metadata)
   const { error:bookingUpdateError }=await adminClient.from('bookings').update({
     payment_status:nextPaymentStatus,
     amount_due_now:outstandingAmount,
@@ -2808,7 +2860,7 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
     metadata:{
       ...existingMetadata,
       latest_manual_payment:rowMeta[rowMeta.length-1],
-      ...(isSplit ? {split_payment:{methods:allMethods,parts:Number(previousSplit.parts || (previousReceived>0.01 ? 1 : 0))+rows.length,updated_at:receivedAt}} : {})
+      ...(allMethods.length>1 ? {split_payment:{methods:allMethods,updated_at:receivedAt}} : {})
     },
     updated_by:safeUuid(userId)
   }).eq('id',bookingId)
@@ -2849,7 +2901,7 @@ const resolveOutstandingAmounts=(pricing:{
   amountDueLater:number
 },paymentStatus:string)=>{
   const normalized=normalizeText(paymentStatus).toLowerCase()
-  if(['paid','refunded','cancelled','foc','cash','card','eft','voucher'].includes(normalized)){
+  if(isSettledPaymentProcess(normalized) || ['refunded','cancelled'].includes(normalized)){
     return { amountDueNow:0, amountDueLater:0 }
   }
   return {
@@ -4150,10 +4202,11 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   bookingPersisted=true
 
   await syncBookingItems(bookingId,service,pricing)
+  // A Payment Process chosen on the booking form settles the whole total (FOC settles nothing).
   await createOrUpdatePayment(
     bookingId,
     paymentStatus,
-    paymentStatus==='paid' ? pricing.totalAmount : outstandingAmounts.amountDueNow,
+    isSettledPaymentProcess(paymentStatus) ? (paymentStatus==='foc' ? 0 : Number(finalPricingCreate.totalAmount || 0)) : outstandingAmounts.amountDueNow,
     service.currency,
     selectedPaymentProvider
   )

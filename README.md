@@ -40,11 +40,11 @@ Open `http://127.0.0.1:4173/admin.html` (the workspace gateway) and sign in with
 
 ## Payment rule
 
-A booking whose **Payment Process** is set (Cash, Card, EFT, Voucher, FOC, Invoiced) is fully paid. The API settles its payment row for the full total and records the settlement by method; the console shows nothing outstanding. `supabase/migrations/202609290001_skybook_payment_process_means_paid.sql` applies the same rule to existing bookings.
+A booking whose **Payment Process** is set (Cash, Card, EFT, Voucher, FOC, Invoiced) is fully paid, whether it is set when the booking is created or later. The API settles its payment row for the full total and records the settlement by method; the console shows nothing outstanding. Setting or correcting the Payment Process later moves the settled amount to that method, so a booking marked "Paid (method not recorded)" can be corrected and the reports follow. `supabase/migrations/202609290001_skybook_payment_process_means_paid.sql` applies the same rule to existing bookings.
 
 ## Split payments
 
-A guest who pays with more than one method gets one row per method, either on the booking form (Split Payment) or with "Record payment" on the booking. All rows are checked first (amounts, card terminal serial and batch number, and on the booking form that they add up to the amount due), then sent in one request and recorded together, so a booking is never left with only some of its payments. Each method becomes its own transaction, so the Payment Process report counts every method; the booking shows as "Split · Cash + Card". `supabase/migrations/202610060001_skybook_split_payment_repair.sql` repairs bookings left part-paid by the old behaviour.
+A guest who pays with more than one method gets one row per method, either on the booking form (Split Payment) or with "Record payment" on the booking. All rows are checked first (amounts, card terminal serial and batch number, and on the booking form that they add up to the amount due), then sent in one request and recorded together, so a booking is never left with only some of its payments. Each method becomes its own transaction, so the Payment Process report counts every method; the booking shows as "Split · Cash + Card". Methods are read from all of a booking's transactions, so a cash deposit finished later by card (with "Record payment" or by setting the Payment Process) is a split payment too. `supabase/migrations/202610060001_skybook_split_payment_repair.sql` repairs bookings left part-paid by the old behaviour, and `202610070001_skybook_payment_process_and_split_repair.sql` marks past bookings without a payment process as paid and labels every booking paid by more than one method as split.
 
 ## Deploy
 
