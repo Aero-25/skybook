@@ -7,7 +7,8 @@ SkyBook is the small booking console behind the public **True Travel** and **Ive
 1. **Reservations** — booking requests submitted on the two websites arrive as *provisional* and wait here. Staff review them and **Approve** (they become finalised bookings) or **Decline**.
 2. **Bookings** — manual bookings entered by staff (phone, WhatsApp, walk-in, cruise liner groups). The booking form is the same one SkyBook has always used, including split payments, guides, pickup schedules and custom fields.
 3. **Tours** — the shared tour catalogue used by both websites and by the booking form.
-4. **Reports** — the five reports (Sales, Payment process, Agent / booked-by, Invoiced, Guides) as tabs over one filter row (date presets, custom range, brand). Each has KPI tiles with change versus the previous period, charts with hover detail, the underlying tables, and a PDF download. Plus a bookings CSV export and the website analytics page.
+4. **Reports** — the five reports (Sales, Payment process, Agent / booked-by, Invoiced, Guides & skippers) as tabs over one filter row (date presets, custom range, brand). Each has KPI tiles with change versus the previous period, charts with hover detail, the underlying tables, and a PDF download. Plus a bookings CSV export and the website analytics page.
+   In the Guides & skippers report every time a name appears on a booking counts as one booking for that person; a double or combo booking lists the name twice and counts twice. Pick a person for their statement (every booking they are named on, with totals) and download it as a PDF.
 5. **Users** — who can sign in, and which pages they can see.
 6. **Dashboard** — today's tours, new website reservations, the next seven days and unpaid balances.
 7. **Calendar** (the landing page) — month, week and day views of every booking by tour date. Click a day to create a booking or a cruise liner booking on that date, see who is on it, or print the arrivals sheet.

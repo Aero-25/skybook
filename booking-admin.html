@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-split">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-guides">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -264,7 +264,7 @@
       <div class="adm-head">
         <div>
           <h1>Reports</h1>
-          <p id="reportsRangeSummary">Sales, payments, agents, invoiced bookings and guide shifts.</p>
+          <p id="reportsRangeSummary">Sales, payments, agents, invoiced bookings, guides and skippers.</p>
         </div>
         <div class="adm-head-actions">
           <a class="adm-btn ghost" href="analytics.html">Website analytics</a>
@@ -334,8 +334,13 @@
       </section>
       <section class="rep-panel" data-report-panel="guides" hidden>
         <div class="rep-panel-head">
-          <div><h2>Guides report</h2><p>Any number of bookings for a guide in the same morning (or afternoon) counts as <strong>1</strong> shift. A morning and an afternoon tour the same day count as <strong>2</strong>. Bookings with no recorded time count on their own.</p></div>
-          <button type="button" class="adm-btn ghost small" data-report-pdf="guides">Download PDF</button>
+          <div><h2>Guides &amp; skippers report</h2><p>Every time a name appears on a booking counts as <strong>1</strong> booking for that guide or skipper. A double or combo booking lists the name twice and counts as <strong>2</strong>. Cancelled and refunded bookings are excluded.</p></div>
+          <div class="rep-panel-actions">
+            <label class="adm-field"><span>Person</span>
+              <select id="guidesReportPerson"><option value="">Everyone</option></select>
+            </label>
+            <button type="button" class="adm-btn ghost small" data-report-pdf="guides">Download PDF</button>
+          </div>
         </div>
         <div class="stat-row" id="guidesReportCards"></div>
         <div id="guidesReportBody"></div>
@@ -477,14 +482,18 @@
         </label>
         <div class="booking-field-full" id="adminBookingGuideWrap">
           <span>Assigned guide(s)</span>
-          <div id="adminBookingGuideList" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div id="adminBookingGuideList" data-suggest="guideNameOptions" style="display:flex;flex-direction:column;gap:8px"></div>
           <div><button type="button" class="adm-add" id="adminBookingAddGuide">+ Add guide</button></div>
+          <p class="field-hint">Each name counts as one booking in the Guides report. Double or combo booking? Add the same name twice.</p>
         </div>
         <div class="booking-field-full" id="adminBookingSkipperWrap">
           <span>Skipper(s)</span>
-          <div id="adminBookingSkipperList" style="display:flex;flex-direction:column;gap:8px"></div>
+          <div id="adminBookingSkipperList" data-suggest="skipperNameOptions" style="display:flex;flex-direction:column;gap:8px"></div>
           <div><button type="button" class="adm-add" id="adminBookingAddSkipper">+ Add skipper</button></div>
+          <p class="field-hint">Counted the same way as guides — add the name twice for a double or combo booking.</p>
         </div>
+        <datalist id="guideNameOptions"></datalist>
+        <datalist id="skipperNameOptions"></datalist>
         <div class="booking-field">
           <span>Nationality</span>
           <div class="adm-check-group" id="adminBookingNationality" role="group" aria-label="Nationality">
@@ -697,8 +706,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-split"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-split"></script>
+  <script src="assets/js/shared.js?v=20261007-guides"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-guides"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -707,6 +716,6 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-split" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-guides" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
 </body>
 </html>

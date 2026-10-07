@@ -58,7 +58,7 @@ const state={
   bookingFormFields:[],permissionCatalog:shared.clone(shared.SKYBOOK_PERMISSION_CATALOG||[]),
   roleDefaults:shared.clone(shared.SKYBOOK_ROLE_DEFAULTS||{}),
   settings:shared.readConfig(),
-  bookingQuickFilter:'today',reportPreset:'all',reportTab:'sales',calendarView:'month',calendarFocusDate:todayKey(),calendarSelectedDay:'',
+  bookingQuickFilter:'today',reportPreset:'all',reportTab:'sales',guidesPerson:'',guidesPersonName:'',calendarView:'month',calendarFocusDate:todayKey(),calendarSelectedDay:'',
   isBookingModalOpen:false,isServiceModalOpen:false,isCruiseModalOpen:false,
   workflow:null,liveTimer:null,refreshing:null,editingBookingId:''
 }
@@ -88,7 +88,7 @@ const nodes={
   bookingCustomerName:$('adminBookingCustomerName'),bookingCustomerEmail:$('adminBookingCustomerEmail'),bookingCustomerPhone:$('adminBookingCustomerPhone'),
   bookingGuideList:$('adminBookingGuideList'),bookingAddGuide:$('adminBookingAddGuide'),bookingSkipperList:$('adminBookingSkipperList'),bookingAddSkipper:$('adminBookingAddSkipper'),
   bookingNationality:$('adminBookingNationality'),bookingBookedBy:$('adminBookingBookedBy'),bookingAgent:$('adminBookingAgent'),bookingDietary:$('adminBookingDietary'),
-  bookedByDatalist:$('bookedByDatalist'),agentDatalist:$('agentDatalist'),
+  bookedByDatalist:$('bookedByDatalist'),agentDatalist:$('agentDatalist'),guideNameOptions:$('guideNameOptions'),skipperNameOptions:$('skipperNameOptions'),
   bookingSelfDrive:$('adminBookingSelfDrive'),bookingTransfer:$('adminBookingTransfer'),bookingCustomFields:$('adminBookingCustomFields'),bookingNotes:$('adminBookingNotes'),
   bookingPriceBreakdown:$('adminBookingPriceBreakdown'),bookingPriceTotal:$('adminBookingPriceTotal'),bookingPriceOverride:$('adminBookingPriceOverride'),
   bookingOverrideTagRow:$('adminBookingOverrideTagRow'),bookingRevertPricing:$('adminBookingRevertPricing'),bookingPaymentStatus:$('adminBookingPaymentStatusField'),
@@ -114,7 +114,7 @@ const nodes={
   reportsPresets:$('reportsPresets'),reportsRangeFrom:$('reportsRangeFrom'),reportsRangeTo:$('reportsRangeTo'),reportsRangeSummary:$('reportsRangeSummary'),reportsBrand:$('reportsBrand'),reportsTabs:$('reportsTabs'),
   salesReportCards:$('salesReportCards'),salesReportBody:$('salesReportBody'),paymentReportCards:$('paymentReportCards'),paymentReportBody:$('paymentReportBody'),
   agentReportCards:$('agentReportCards'),agentReportBody:$('agentReportBody'),invoicedReportCards:$('invoicedReportCards'),invoicedReportBody:$('invoicedReportBody'),
-  guidesReportCards:$('guidesReportCards'),guidesReportBody:$('guidesReportBody'),exportCsv:$('exportBookingsCsv'),
+  guidesReportCards:$('guidesReportCards'),guidesReportBody:$('guidesReportBody'),guidesReportPerson:$('guidesReportPerson'),exportCsv:$('exportBookingsCsv'),
   // workflow modal
   workflowModal:$('workflowModal'),workflowTitle:$('workflowModalTitle'),workflowDescription:$('workflowModalDescription'),workflowForm:$('workflowModalForm'),
   workflowFields:$('workflowModalFields'),workflowSubmit:$('workflowModalSubmit'),
@@ -389,6 +389,14 @@ const guideNames=b=>{
   const raw=b?.guide_name||m.guide_name||m.guides||m.guide||''
   return String(Array.isArray(raw) ? raw.join(', ') : raw).split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
 }
+const skipperNames=b=>String(meta(b).skipper_name||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
+const personKey=name=>lower(name).replace(/\s+/g,' ')
+// "Pieter ×2, Jannie" — a name entered twice (a double or combo booking) is shown once with its count.
+const crewList=names=>{
+  const counts=new Map()
+  names.forEach(name=>{ const key=personKey(name); const c=counts.get(key)||{name,count:0}; c.count+=1; counts.set(key,c) })
+  return [...counts.values()].map(c=>c.count>1 ? `${c.name} ×${c.count}` : c.name).join(', ')
+}
 const pickupModeLabel=mode=>mode==='self_drive' ? 'Self Drive' : mode==='transfer' ? 'Transfer' : ''
 const pickupLabel=b=>{ const m=meta(b); return [m.departure_label,m.pickup_time].filter(Boolean).join(' · ')||'TBC' }
 
@@ -468,7 +476,7 @@ const renderDashboard=()=>{
   ].join('')
   nodes.dashboardToday.innerHTML=todays.map(b=>`<tr class="is-clickable" data-open-booking="${attr(b.id)}">
     <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.reference)} · ${esc(b.customer_phone||b.customer_email||'')}</span></td>
-    <td>${esc(b.service_name||meta(b).display_name||'—')}${guideNames(b).length ? `<span class="sub">Guide: ${esc(guideNames(b).join(', '))}</span>` : ''}</td>
+    <td>${esc(b.service_name||meta(b).display_name||'—')}${guideNames(b).length ? `<span class="sub">Guide: ${esc(crewList(guideNames(b)))}</span>` : ''}</td>
     <td class="num">${esc(pickupLabel(b))}</td>
     <td class="num">${esc(paxLabel(b))}</td>
     <td>${paymentTag(b)}</td>
@@ -554,8 +562,8 @@ const submittedRows=b=>{
   add('Booked by',m.booked_by||b.booked_by)
   add('Agent / reseller',m.agent||b.agent)
   add('Dietary requirements',m.dietary_requirements||m.dietary)
-  add('Guide(s)',guideNames(b).join(', '))
-  add('Skipper(s)',m.skipper_name)
+  add('Guide(s)',crewList(guideNames(b)))
+  add('Skipper(s)',crewList(skipperNames(b)))
   add('Guests',paxLabel(b))
   add('Total',money(b.total_amount,b.currency))
   add('Guest notes',b.customer_notes||b.notes)
@@ -672,7 +680,7 @@ const renderBookings=()=>{
   nodes.bookingsTable.innerHTML=rows.map(b=>`<tr class="is-clickable${b.id===state.selectedBookingId ? ' is-selected' : ''}" data-open-booking="${attr(b.id)}">
     <td class="num">${esc(b.reference)}<span class="sub">${brandTag(b.brand_code)}</span></td>
     <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.customer_phone||b.customer_email||'')}</span></td>
-    <td>${esc(b.service_name||meta(b).display_name||'—')}<span class="sub">${esc(pickupLabel(b))}${guideNames(b).length ? ` · ${esc(guideNames(b).join(', '))}` : ''}</span></td>
+    <td>${esc(b.service_name||meta(b).display_name||'—')}<span class="sub">${esc(pickupLabel(b))}${guideNames(b).length ? ` · ${esc(crewList(guideNames(b)))}` : ''}</span></td>
     <td class="num">${esc(fmtDate(b.preferred_date))}</td>
     <td class="num">${esc(paxLabel(b))}</td>
     <td class="num">${money(b.total_amount,b.currency)}${outstandingOf(b)>0 ? `<span class="sub">${money(outstandingOf(b),b.currency)} due</span>` : ''}</td>
@@ -725,7 +733,7 @@ const renderBookingDetail=()=>{
         ${detailGrid([
           {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'—'},{label:'Phone',value:b.customer_phone||'—'},
           {label:'Tour',value:b.service_name||m.display_name||'—'},{label:'Date',value:fmtDate(b.preferred_date)},{label:'Pickup',value:pickupLabel(b)},
-          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:guideNames(b).join(', ')||'—'},{label:'Skipper(s)',value:m.skipper_name||'—'},
+          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideNames(b))||'—'},{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
           {label:'Nationality',value:m.nationality||'—'},{label:'Booked by',value:m.booked_by||'—'},{label:'Agent / reseller',value:m.agent||'—'},
           {label:'Dietary',value:m.dietary_requirements||m.dietary||'—'},{label:'Entered by',value:ownerName(b)},{label:'Created',value:fmtDateTime(b.created_at)}
         ])}
@@ -912,7 +920,7 @@ const printDaySheet=(key=todayKey())=>{
   const rows=liveBookings().filter(b=>dateKey(b.preferred_date)===key&&!['cancelled','refunded'].includes(lower(b.status))).sort((a,b)=>pickupLabel(a).localeCompare(pickupLabel(b)))
   openPrintWindow(`Day sheet ${fmtDate(key)}`,`<h1>Day sheet — ${esc(fmtDate(key))}</h1><p>${rows.length} booking${rows.length===1?'':'s'} · ${rows.reduce((s,b)=>s+paxOf(b),0)} guests</p>
     <table><thead><tr><th>Pickup</th><th>Guest</th><th>Tour</th><th>Pax</th><th>Transport</th><th>Guide</th><th>Payment</th><th>Notes</th></tr></thead><tbody>
-    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(guideNames(b).join(', ')||'—')}</td><td>${esc(paymentText(b))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
+    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(paymentText(b))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
     </tbody></table>`)
 }
 
@@ -987,14 +995,14 @@ const syncReference=({booking=null,brandCode='',forceNew=false}={})=>{
   nodes.bookingReference.value=forceNew||!existing ? newReference(code) : existing
 }
 
-const personRow=(value='')=>{
+const personRow=(value='',suggest='')=>{
   const row=document.createElement('div')
   row.className='adm-person-row'
-  row.innerHTML=`<input type="text" placeholder="Full name" value="${attr(value)}" data-person-name><button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
+  row.innerHTML=`<input type="text" placeholder="Full name" value="${attr(value)}"${suggest ? ` list="${attr(suggest)}" autocomplete="off"` : ''} data-person-name><button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
   row.querySelector('[data-person-remove]').addEventListener('click',()=>row.remove())
   return row
 }
-const renderPersonRows=(list,names=[])=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n))) }
+const renderPersonRows=(list,names=[])=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.suggest))) }
 const personNames=list=>Array.from(list.querySelectorAll('[data-person-name]')).map(i=>i.value.trim()).filter(Boolean)
 const splitNames=value=>String(value||'').split(/[,;]+/).map(s=>s.trim()).filter(Boolean)
 const pickupMode=()=>nodes.bookingSelfDrive.checked ? 'self_drive' : nodes.bookingTransfer.checked ? 'transfer' : ''
@@ -1143,6 +1151,11 @@ const renderFormOptions=()=>{
   const uniq=values=>[...new Set(values.map(text).filter(Boolean))].sort((a,b)=>a.localeCompare(b))
   nodes.bookedByDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).booked_by)).map(v=>`<option value="${attr(v)}">`).join('')
   nodes.agentDatalist.innerHTML=uniq(state.bookings.map(b=>meta(b).agent)).map(v=>`<option value="${attr(v)}">`).join('')
+  // Guide and skipper names already in use, under their most common spelling, so names are typed the same way each time.
+  const crew=crewReport(state.bookings.filter(b=>!isTrashed(b)))
+  const nameOptions=rows=>rows.map(r=>r.name).sort((a,b)=>a.localeCompare(b)).map(v=>`<option value="${attr(v)}">`).join('')
+  nodes.guideNameOptions.innerHTML=nameOptions(crew.guides)
+  nodes.skipperNameOptions.innerHTML=nameOptions(crew.skippers)
 }
 const fillBookingForm=(booking=null)=>{
   const m=meta(booking)
@@ -1531,15 +1544,6 @@ const barChart=(items,{currency=null,maxBars=8}={})=>{
     return `<div class="bar-row"><span title="${attr(name)}">${esc(name.length>22 ? name.slice(0,20)+'…' : name)}</span><div class="bar-track"><div class="bar-fill" style="width:${((v/max)*100).toFixed(1)}%"></div></div><span>${esc(fmt(v))}</span></div>`
   }).join('')}</div>`
 }
-const guideWindow=b=>{
-  const m=meta(b)
-  const match=String(m.pickup_time||'').trim().match(/^(\d{1,2}):(\d{2})/)
-  if(match)return Number(match[1])<12 ? 'morning' : 'afternoon'
-  const l=String(m.departure_label||'').toLowerCase()
-  if(/\bam\b|morning/.test(l))return 'morning'
-  if(/\bpm\b|afternoon|evening|sunset/.test(l))return 'afternoon'
-  return 'unscheduled'
-}
 const presetRange=preset=>{
   if(preset==='all')return {start:null,end:null}
   const end=new Date(); end.setHours(23,59,59,999)
@@ -1580,25 +1584,73 @@ const inRange=(b,range)=>{
   if(range.end&&d>range.end)return false
   return true
 }
-const guidesReport=(bookings,{start,end}={})=>{
-  const byGuideDate=new Map()
-  bookings.forEach(b=>{
-    const names=guideNames(b)
-    if(!names.length)return
-    const d=parseDate(b.preferred_date)
-    if(d){ if(start&&d<start)return; if(end&&d>end)return }
-    const key=d ? dateKey(b.preferred_date) : ''
-    const bucket=d ? guideWindow(b) : 'unscheduled'
-    names.forEach(guide=>{
-      const k=`${guide}||${key}`
-      if(!byGuideDate.has(k))byGuideDate.set(k,{guide,dateKey:key,morning:[],afternoon:[],unscheduled:[]})
-      byGuideDate.get(k)[bucket].push(b)
+// Guides & skippers: every time a name appears on a booking counts as one booking for that person,
+// so a double or combo booking that lists a name twice counts twice. Names match regardless of case.
+const CREW_ROLES=[{role:'guide',label:'Guide',names:guideNames},{role:'skipper',label:'Skipper',names:skipperNames}]
+const tourOf=b=>b.service_name||meta(b).display_name||'Tour'
+const crewReport=bookings=>{
+  const entries=[]
+  bookings.forEach(b=>CREW_ROLES.forEach(({role,names})=>{
+    const byPerson=new Map()
+    names(b).forEach(name=>{
+      const key=personKey(name)
+      const entry=byPerson.get(key)||{booking:b,role,key,name,count:0}
+      entry.count+=1
+      byPerson.set(key,entry)
     })
-  })
-  const dayRows=[...byGuideDate.values()].map(e=>({...e,countedUnits:(e.morning.length?1:0)+(e.afternoon.length?1:0)+e.unscheduled.length,rawBookings:e.morning.length+e.afternoon.length+e.unscheduled.length})).sort((a,b)=>a.guide.localeCompare(b.guide)||a.dateKey.localeCompare(b.dateKey))
-  const byGuide=new Map()
-  dayRows.forEach(r=>{ const g=byGuide.get(r.guide)||{guide:r.guide,days:0,counted:0,raw:0,unscheduled:0}; g.days+=1; g.counted+=r.countedUnits; g.raw+=r.rawBookings; g.unscheduled+=r.unscheduled.length; byGuide.set(r.guide,g) })
-  return {dayRows,guideRows:[...byGuide.values()].sort((a,b)=>b.counted-a.counted||a.guide.localeCompare(b.guide))}
+    entries.push(...byPerson.values())
+  }))
+  // Each person is shown under the spelling used most often.
+  const spellings=new Map()
+  entries.forEach(e=>{ const s=spellings.get(e.key)||new Map(); s.set(e.name,(s.get(e.name)||0)+e.count); spellings.set(e.key,s) })
+  const nameOf=key=>[...(spellings.get(key)||[])].sort((a,b)=>b[1]-a[1])[0]?.[0]||key
+  const people=role=>{
+    const rows=new Map()
+    entries.filter(e=>e.role===role).forEach(e=>{
+      const r=rows.get(e.key)||{key:e.key,name:nameOf(e.key),role,bookings:0,doubles:0,days:new Set(),guests:0,tours:new Map(),last:''}
+      const day=dateKey(e.booking.preferred_date)
+      r.bookings+=e.count
+      if(e.count>1)r.doubles+=1
+      if(day){ r.days.add(day); if(day>r.last)r.last=day }
+      r.guests+=paxOf(e.booking)
+      r.tours.set(tourOf(e.booking),(r.tours.get(tourOf(e.booking))||0)+e.count)
+      rows.set(e.key,r)
+    })
+    return [...rows.values()].map(r=>({...r,days:r.days.size,tours:[...r.tours].sort((a,b)=>b[1]-a[1])})).sort((a,b)=>b.bookings-a.bookings||a.name.localeCompare(b.name))
+  }
+  const counted=list=>list.reduce((t,e)=>t+e.count,0)
+  return {
+    entries,nameOf,guides:people('guide'),skippers:people('skipper'),
+    guideTotal:counted(entries.filter(e=>e.role==='guide')),skipperTotal:counted(entries.filter(e=>e.role==='skipper')),
+    doubles:entries.filter(e=>e.count>1).length
+  }
+}
+// Columns for a date range: days for up to a month, weeks up to four months, months beyond.
+const timeBuckets=range=>{
+  const end=range.end ? new Date(range.end) : new Date()
+  const start=range.start ? new Date(range.start) : new Date(end.getFullYear(),end.getMonth()-11,1)
+  start.setHours(0,0,0,0)
+  const span=Math.round((end-start)/864e5)+1
+  const unit=span<=31 ? 'day' : span<=124 ? 'week' : 'month'
+  const cursor=new Date(start)
+  if(unit==='week')cursor.setDate(cursor.getDate()-((cursor.getDay()||7)-1))
+  if(unit==='month')cursor.setDate(1)
+  const buckets=[]
+  while(cursor<=end&&buckets.length<36){
+    const from=new Date(cursor)
+    if(unit==='day')cursor.setDate(cursor.getDate()+1)
+    else if(unit==='week')cursor.setDate(cursor.getDate()+7)
+    else cursor.setMonth(cursor.getMonth()+1)
+    const to=new Date(cursor); to.setDate(to.getDate()-1)
+    const short=from.toLocaleDateString('en-GB',unit==='month' ? {month:'short',year:'2-digit'} : {day:'numeric',month:'short'})
+    buckets.push({from:dateKey(from),to:dateKey(to),label:short,value:0})
+  }
+  return {unit,buckets}
+}
+const crewOverTime=(entries,range)=>{
+  const {unit,buckets}=timeBuckets(range)
+  entries.forEach(e=>{ const day=dateKey(e.booking.preferred_date); const bucket=day&&buckets.find(x=>x.from<=day&&day<=x.to); if(bucket)bucket.value+=e.count })
+  return {unit,points:buckets.map(x=>({label:x.label,value:x.value,tip:[`${x.value} booking${x.value===1?'':'s'}`].concat(unit==='week' ? [`${fmtDate(x.from)} – ${fmtDate(x.to)}`] : [])}))}
 }
 /* ── Chart primitives (plain SVG/HTML, one hue, hairline grid, hover tooltip) ── */
 const SERIES=['#145bc7','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948']
@@ -1627,7 +1679,7 @@ const columnChart=(points,{fmt=String,axis=String,height=170,integer=false}={})=
       const path=h>0 ? `M${x.toFixed(1)},${(padT+plotH).toFixed(1)} v${(-(h-r)).toFixed(1)} a${r},${r} 0 0 1 ${r},${-r} h${(barW-2*r).toFixed(1)} a${r},${r} 0 0 1 ${r},${r} v${(h-r).toFixed(1)} z` : ''
       const valueLabel=(i===maxIdx||i===points.length-1)&&v>0 ? `<text class="viz-val" x="${(x+barW/2).toFixed(1)}" y="${(top-5).toFixed(1)}" text-anchor="middle">${esc(fmt(v))}</text>` : ''
       const axisLabel=i%every===0 ? `<text x="${(x+barW/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(p.label)}</text>` : ''
-      return `<g class="viz-mark" data-tip="${tipAttr(p.label,[fmt(v)])}"><rect x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent"/>${path ? `<path d="${path}" fill="${SERIES[0]}"/>` : ''}${valueLabel}${axisLabel}</g>`
+      return `<g class="viz-mark" data-tip="${tipAttr(p.label,p.tip||[fmt(v)])}"><rect x="${(padL+slot*i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent"/>${path ? `<path d="${path}" fill="${SERIES[0]}"/>` : ''}${valueLabel}${axisLabel}</g>`
     }).join('')}
     <line x1="${padL}" x2="${W-padR}" y1="${(padT+plotH).toFixed(1)}" y2="${(padT+plotH).toFixed(1)}" stroke="#cfdbe6" stroke-width="1"/>
   </svg>`
@@ -1802,35 +1854,102 @@ const renderReports=()=>{
     ${Object.keys(byCompany).length ? `<div class="rep-grid">${repCard('Groups by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].count-a[1].count).map(([l,v])=>({label:l,value:v.count,extra:[`${v.pax} pax`]}))))}${repCard('Pax by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].pax-a[1].pax).map(([l,v])=>({label:l,value:v.pax,extra:[`${v.count} group${v.count===1?'':'s'}`]}))))}</div>` : ''}
     ${repCard('Invoiced bookings',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Company / guest</th><th>Tour</th><th>Pax</th><th>Buses</th><th>Amount</th></tr></thead><tbody>${invoicedSorted.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(b.reference||'')}</td><td><strong>${esc(b.customer_name||'Guest')}</strong></td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${paxOf(b)}</td><td>${esc(String(meta(b).buses ?? '—'))}</td><td>${m(b.total_amount||0)}</td></tr>`).join('')||emptyRow(7,'No invoiced bookings in this range.')}</tbody></table></div>`)}`
 
-  // ── 5. Guides ──
-  const guides=guidesReport(finance,range)
-  const counted=guides.guideRows.reduce((t,r)=>t+r.counted,0)
-  const prevGuides=prevFinance ? guidesReport(prevFinance,prev) : null
+  // ── 5. Guides & skippers ──
+  renderCrewReport({finance,prevFinance,range,allBookings:scoped(state.bookings)})
+}
+
+/* Guides & skippers report: everyone at a glance, or one person's statement (the Person filter). */
+const plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`
+const byTourDate=(a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date))||String(a.reference||'').localeCompare(String(b.reference||''))
+const topTours=tours=>tours.slice(0,2).map(([tour,n])=>`${tour} (${n})`).join(', ')+(tours.length>2 ? ` +${tours.length-2} more` : '')
+const crewTable=(rows,roleLabel)=>{
+  if(!rows.length)return `<p class="viz-empty">No ${lower(roleLabel)} names in this range.</p>`
+  const total=key=>rows.reduce((t,r)=>t+r[key],0)
+  return `<div class="table-wrap"><table><thead><tr><th>${esc(roleLabel)}</th><th class="num">Bookings</th><th class="num">Doubles</th><th class="num">Days</th><th class="num">Guests</th><th>Main tours</th><th>Last tour</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td><button type="button" class="adm-link-btn" data-crew-person="${attr(r.key)}" title="Show the statement for ${attr(r.name)}">${esc(r.name)}</button></td><td class="num"><strong>${r.bookings}</strong></td><td class="num">${r.doubles||'—'}</td><td class="num">${r.days}</td><td class="num">${r.guests}</td><td>${esc(topTours(r.tours))}</td><td>${r.last ? esc(fmtDate(r.last)) : '—'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td class="num">${total('bookings')}</td><td class="num">${total('doubles')}</td><td colspan="4"></td></tr></tfoot></table></div>`
+}
+const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
+  const crew=crewReport(finance)
+  const prevCrew=prevFinance ? crewReport(prevFinance) : null
+  // Everyone with bookings in the range; a chosen person stays listed even when the range has none for them.
+  const people=new Map()
+  ;[...crew.guides,...crew.skippers].forEach(r=>{ if(!people.has(r.key))people.set(r.key,r.name) })
+  const selected=state.guidesPerson||''
+  if(selected&&!people.has(selected))people.set(selected,state.guidesPersonName||selected)
+  nodes.guidesReportPerson.innerHTML=`<option value="">Everyone</option>${[...people].sort((a,b)=>a[1].localeCompare(b[1])).map(([key,name])=>`<option value="${attr(key)}">${esc(name)}</option>`).join('')}`
+  nodes.guidesReportPerson.value=selected
+  const named=b=>guideNames(b).length>0||skipperNames(b).length>0
+  const elsewhere=allBookings.filter(b=>!isCancelledFinancial(b)&&named(b)).length
+  const empty=elsewhere ? `No guide or skipper bookings in this range — ${plural(elsewhere,'booking')} with names fall outside it.` : 'No guide or skipper names recorded yet — add them in the Guide(s) and Skipper(s) fields of a booking.'
+  if(selected)return renderCrewStatement({crew,prevCrew,range,key:selected,name:people.get(selected)})
+
+  const crewed=finance.filter(named)
+  const today=todayKey()
+  const missing=finance.filter(b=>!named(b)&&lower(b.status)==='finalised'&&dateKey(b.preferred_date)&&dateKey(b.preferred_date)<=today).sort(byTourDate)
   nodes.guidesReportCards.innerHTML=[
-    statTile({label:'Distinct guides',value:String(guides.guideRows.length),current:guides.guideRows.length,previous:prevGuides ? prevGuides.guideRows.length : null}),
-    statTile({label:'Counted shifts',value:String(counted),current:counted,previous:prevGuides ? prevGuides.guideRows.reduce((t,r)=>t+r.counted,0) : null,hint:'AM / PM rule'}),
-    statTile({label:'Raw guide bookings',value:String(guides.guideRows.reduce((t,r)=>t+r.raw,0))}),
-    statTile({label:'Unscheduled',value:String(guides.guideRows.reduce((t,r)=>t+r.unscheduled,0)),hint:'No pickup time — counted individually',goodUp:false})
+    statTile({label:'Guide bookings',value:String(crew.guideTotal),current:crew.guideTotal,previous:prevCrew ? prevCrew.guideTotal : null,hint:plural(crew.guides.length,'guide')}),
+    statTile({label:'Skipper bookings',value:String(crew.skipperTotal),current:crew.skipperTotal,previous:prevCrew ? prevCrew.skipperTotal : null,hint:plural(crew.skippers.length,'skipper')}),
+    statTile({label:'Doubles & combos',value:String(crew.doubles),current:crew.doubles,previous:prevCrew ? prevCrew.doubles : null,hint:'A name entered twice on one booking'}),
+    statTile({label:'Bookings with names',value:`${crewed.length} / ${finance.length}`,hint:missing.length ? `${plural(missing.length,'past booking')} without a guide or skipper` : 'Every past booking has a guide or skipper'})
   ].join('')
-  const allGuideBookings=scoped(state.bookings).filter(b=>!isCancelledFinancial(b)&&guideNames(b).length)
-  const guidesEmpty=allGuideBookings.length ? `${allGuideBookings.length} guide-assigned booking${allGuideBookings.length===1?' falls':'s fall'} outside this range — widen the date range to see them.` : 'No guide-assigned bookings yet — add names in the Guide(s) field of a booking.'
-  const ref=b=>esc(String(b.reference||b.service_name||'—'))
+  const perPerson=rows=>rows.map(r=>({label:r.name,value:r.bookings,extra:[`${plural(r.days,'day')} worked`,plural(r.guests,'guest')].concat(r.doubles ? [`${r.doubles} double / combo`] : [])}))
+  const guideTime=crewOverTime(crew.entries.filter(e=>e.role==='guide'),range)
+  const skipperTime=crewOverTime(crew.entries.filter(e=>e.role==='skipper'),range)
+  const logRows=[...crewed].sort(byTourDate)
+  nodes.guidesReportBody.innerHTML=crew.entries.length ? `
+    <div class="rep-grid">
+      ${repCard('Bookings per guide',hbarChart(perPerson(crew.guides),{max:12}),{sub:'Each name on a booking counts once'})}
+      ${repCard('Bookings per skipper',hbarChart(perPerson(crew.skippers),{max:12}),{sub:'Each name on a booking counts once'})}
+    </div>
+    <div class="rep-grid">
+      ${repCard(`Guide bookings per ${guideTime.unit}`,columnChart(guideTime.points,{integer:true}))}
+      ${repCard(`Skipper bookings per ${skipperTime.unit}`,columnChart(skipperTime.points,{integer:true}))}
+    </div>
+    ${repCard('Guides',crewTable(crew.guides,'Guide'),{sub:'Select a name to see that person’s statement'})}
+    ${repCard('Skippers',crewTable(crew.skippers,'Skipper'),{sub:'Select a name to see that person’s statement'})}
+    ${missing.length ? repCard('No guide or skipper recorded',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th></tr></thead><tbody>${missing.slice(0,25).map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td></tr>`).join('')}</tbody></table>${missing.length>25 ? `<p class="field-hint">Showing 25 of ${missing.length}.</p>` : ''}</div>`,{sub:'Past bookings in this range with no names. Add them so the tour counts for the right person.'}) : ''}
+    ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their statement.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
+}
+const renderCrewStatement=({crew,prevCrew,range,key,name})=>{
+  const mine=crew.entries.filter(e=>e.key===key).sort((a,b)=>byTourDate(a.booking,b.booking)||a.role.localeCompare(b.role))
+  const prevMine=prevCrew ? prevCrew.entries.filter(e=>e.key===key) : null
+  const counted=list=>list.reduce((t,e)=>t+e.count,0)
+  const asGuide=counted(mine.filter(e=>e.role==='guide')), asSkipper=counted(mine.filter(e=>e.role==='skipper'))
+  const bookings=[...new Map(mine.map(e=>[e.booking.id,e.booking])).values()]
+  const days=new Set(bookings.map(b=>dateKey(b.preferred_date)).filter(Boolean)).size
+  const guests=bookings.reduce((t,b)=>t+paxOf(b),0)
+  const doubles=mine.filter(e=>e.count>1).length
+  nodes.guidesReportCards.innerHTML=[
+    statTile({label:`${name} — bookings`,value:String(counted(mine)),current:counted(mine),previous:prevMine ? counted(prevMine) : null,hint:'Each name on a booking counts once'}),
+    ...(asGuide&&asSkipper ? [statTile({label:'As guide',value:String(asGuide)}),statTile({label:'As skipper',value:String(asSkipper)})] : []),
+    statTile({label:'Doubles & combos',value:String(doubles),hint:'Name entered twice on one booking'}),
+    statTile({label:'Days worked',value:String(days)}),
+    statTile({label:'Guests',value:String(guests)})
+  ].join('')
+  if(!mine.length){ nodes.guidesReportBody.innerHTML=repCard(name,`<p class="viz-empty">${esc(`${name} has no bookings in this range.`)}</p>`); return }
+  const overTime=crewOverTime(mine,range)
+  const tours=new Map()
+  mine.forEach(e=>tours.set(tourOf(e.booking),(tours.get(tourOf(e.booking))||0)+e.count))
+  const roleLabel=role=>CREW_ROLES.find(r=>r.role===role)?.label||label(role)
   nodes.guidesReportBody.innerHTML=`
     <div class="rep-grid">
-      ${repCard('Shifts per guide',hbarChart(guides.guideRows.map(r=>({label:r.guide,value:r.counted,extra:[`${r.days} day${r.days===1?'':'s'} worked`,`${r.raw} booking${r.raw===1?'':'s'}`]})),{max:12}),{sub:'Counted shifts, AM / PM rule'})}
-      ${repCard('Per guide',`<div class="table-wrap"><table><thead><tr><th>Guide</th><th>Days</th><th>Shifts</th><th>Bookings</th><th>Unscheduled</th></tr></thead><tbody>${guides.guideRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.days}</td><td><strong>${r.counted}</strong></td><td>${r.raw}</td><td>${r.unscheduled ? `<span class="status-badge is-bad">${r.unscheduled}</span>` : '0'}</td></tr>`).join('')||emptyRow(5,guidesEmpty)}</tbody></table></div>`)}
+      ${repCard(`Bookings per ${overTime.unit}`,columnChart(overTime.points,{integer:true}))}
+      ${repCard('Bookings by tour',hbarChart([...tours].sort((a,b)=>b[1]-a[1]).map(([tour,n])=>({label:tour,value:n})),{max:10}))}
     </div>
-    ${repCard('Day by day',`<div class="table-wrap"><table><thead><tr><th>Guide</th><th>Date</th><th>Morning</th><th>Afternoon</th><th>Unscheduled</th><th>Counted</th></tr></thead><tbody>${guides.dayRows.map(r=>`<tr><td><strong>${esc(r.guide)}</strong></td><td>${r.dateKey ? esc(fmtDate(r.dateKey)) : '<em>No tour date</em>'}</td><td>${r.morning.length ? r.morning.map(ref).join(', ') : '—'}</td><td>${r.afternoon.length ? r.afternoon.map(ref).join(', ') : '—'}</td><td>${r.unscheduled.length ? r.unscheduled.map(ref).join(', ') : '—'}</td><td><strong>${r.countedUnits}</strong></td></tr>`).join('')||emptyRow(6,guidesEmpty)}</tbody></table></div>`)}`
+    ${repCard(`Statement — ${name}`,`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Role</th><th class="num">Counts</th></tr></thead>
+      <tbody>${mine.map(e=>`<tr><td>${esc(fmtDate(e.booking.preferred_date))}</td><td>${rowLink(e.booking)}</td><td>${esc(tourOf(e.booking))}</td><td>${esc(e.booking.customer_name||'Guest')}</td><td class="num">${paxOf(e.booking)}</td><td>${esc(roleLabel(e.role))}${e.count>1 ? ' <span class="table-subline">double / combo</span>' : ''}</td><td class="num"><strong>${e.count}</strong></td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="4">Total</td><td class="num">${guests}</td><td></td><td class="num">${counted(mine)}</td></tr></tfoot></table></div>`,{sub:'Every booking this person is named on, by tour date'})}`
 }
 
 /* PDF export: the on-screen report markup rendered through html2pdf in a hidden iframe. */
 const PDF_LIB_URL=(()=>{ try{ return new URL('assets/js/vendor/html2pdf.bundle.min.js',document.baseURI).href }catch{ return 'assets/js/vendor/html2pdf.bundle.min.js' } })()
 const PDF_LIB_FALLBACK='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js'
-const PDF_CSS='.stat-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.stat-tile{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.stat-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#516678}.stat-value{display:block;margin-top:5px;font-size:18px;font-weight:800;color:#0f2b52}.stat-delta{display:block;margin-top:4px;font-size:10px;color:#516678}.stat-hint{display:block;font-size:10px;color:#516678}.rep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;page-break-inside:avoid}.rep-grid+.rep-grid,.rep-grid+.rep-card,.rep-card+.rep-grid,.rep-card+.rep-card{margin-top:12px}.rep-card{border:1px solid #dde6ee;border-radius:10px;padding:12px 14px;background:#fff;min-width:0;page-break-inside:avoid}.rep-card.span-2{grid-column:1/-1}.rep-card h3{margin:0 0 6px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.rep-sub{font-size:10px;color:#516678;margin:0 0 8px}.viz{width:100%;height:auto;font-family:Arial,sans-serif}.viz text{font-size:11px;fill:#516678}.viz .viz-val{fill:#142438;font-weight:700}.hbar{display:flex;flex-direction:column;gap:6px}.hbar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.hbar-track{position:relative;height:12px;background:#eef3f7;border-radius:0 4px 4px 0}.hbar-fill{position:absolute;left:0;top:0;bottom:0;background:#145bc7;border-radius:0 4px 4px 0}.hbar-row>span:last-child{text-align:right;font-weight:700}.share-bar{display:flex;height:14px;gap:2px;border-radius:4px;overflow:hidden;background:#eef3f7}.share-bar span{display:block;height:100%}.share-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:10px}.share-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}.share-legend b{font-weight:700}.share-legend small{color:#516678;margin-left:3px}.viz-empty{color:#516678;font-size:11px;text-align:center;padding:12px}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;padding:24px 30px 16px;color:#142438;background:#fff;line-height:1.45}header{background:#092d52;color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:4px}header h1{color:#fff;font-size:22px;margin:0 0 4px}header small{color:#cfe1f0;display:block;font-size:12px}.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}section{margin-top:16px;padding-top:14px;border-top:1px solid #e1ecf6}.metric-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.metric-card{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.metric-card span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#516678}.metric-card strong{display:block;margin-top:6px;font-size:18px;font-weight:800;color:#0f2b52}.report-split-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;page-break-inside:avoid}.report-split-grid+.report-split-grid{margin-top:14px}.report-split-grid article{border:1px solid #dde6ee;border-radius:10px;padding:14px;background:#fff;min-width:0;page-break-inside:avoid}.report-split-grid h4{margin:0 0 10px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e1ecf6;padding-bottom:6px}.report-stat-list{display:grid;gap:6px}.report-stat-list div{padding:8px 10px;border:1px solid #dde6ee;border-radius:8px;background:#f8fbfd}.report-stat-list strong{display:block}.report-stat-list span{display:block;margin-top:2px;color:#516678;font-size:11px}.bar-chart{display:flex;flex-direction:column;gap:6px}.bar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.bar-track{background:#edf2f7;border-radius:999px;height:12px;overflow:hidden}.bar-fill{height:100%;background:#145bc7;border-radius:999px}.bar-row>span:last-child{text-align:right;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed}th{text-align:left;background:#092d52;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:7px 6px}td{padding:7px 8px;border-bottom:1px solid #e1ecf6;font-size:11px;vertical-align:top;overflow-wrap:break-word}tbody tr:nth-child(even){background:#f7fbff}.tag,.status-badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:10px;font-weight:700}.status-badge.is-bad{background:#fdecec;color:#a33a3a}.muted-copy,.field-hint,.table-subline{color:#5f6f80;font-size:11px}.adm-empty{text-align:center;color:#5f6f80}.foot{margin-top:16px;padding-top:10px;border-top:1px solid #e1ecf6;text-align:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8299ad}'
+const PDF_CSS='.stat-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.stat-tile{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.stat-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#516678}.stat-value{display:block;margin-top:5px;font-size:18px;font-weight:800;color:#0f2b52}.stat-delta{display:block;margin-top:4px;font-size:10px;color:#516678}.stat-hint{display:block;font-size:10px;color:#516678}.rep-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;page-break-inside:avoid}.rep-grid+.rep-grid,.rep-grid+.rep-card,.rep-card+.rep-grid,.rep-card+.rep-card{margin-top:12px}.rep-grid>.rep-card{margin-top:0}.rep-card{border:1px solid #dde6ee;border-radius:10px;padding:12px 14px;background:#fff;min-width:0;page-break-inside:avoid}.rep-card.span-2{grid-column:1/-1}.rep-card h3{margin:0 0 6px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em}.rep-sub{font-size:10px;color:#516678;margin:0 0 8px}.viz{width:100%;height:auto;font-family:Arial,sans-serif}.viz text{font-size:11px;fill:#516678}.viz .viz-val{fill:#142438;font-weight:700}.hbar{display:flex;flex-direction:column;gap:6px}.hbar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.hbar-track{position:relative;height:12px;background:#eef3f7;border-radius:0 4px 4px 0}.hbar-fill{position:absolute;left:0;top:0;bottom:0;background:#145bc7;border-radius:0 4px 4px 0}.hbar-row>span:last-child{text-align:right;font-weight:700}.share-bar{display:flex;height:14px;gap:2px;border-radius:4px;overflow:hidden;background:#eef3f7}.share-bar span{display:block;height:100%}.share-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:10px}.share-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}.share-legend b{font-weight:700}.share-legend small{color:#516678;margin-left:3px}.viz-empty{color:#516678;font-size:11px;text-align:center;padding:12px}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;padding:24px 30px 16px;color:#142438;background:#fff;line-height:1.45}header{background:#092d52;color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:4px}header h1{color:#fff;font-size:22px;margin:0 0 4px}header small{color:#cfe1f0;display:block;font-size:12px}.pill{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}section{margin-top:16px;padding-top:14px;border-top:1px solid #e1ecf6}.metric-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.metric-card{padding:12px 14px;border:1px solid #dde6ee;border-left:4px solid #145bc7;border-radius:10px;background:#f8fbfd;page-break-inside:avoid}.metric-card span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#516678}.metric-card strong{display:block;margin-top:6px;font-size:18px;font-weight:800;color:#0f2b52}.report-split-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;page-break-inside:avoid}.report-split-grid+.report-split-grid{margin-top:14px}.report-split-grid article{border:1px solid #dde6ee;border-radius:10px;padding:14px;background:#fff;min-width:0;page-break-inside:avoid}.report-split-grid h4{margin:0 0 10px;color:#145bc7;font-size:11px;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #e1ecf6;padding-bottom:6px}.report-stat-list{display:grid;gap:6px}.report-stat-list div{padding:8px 10px;border:1px solid #dde6ee;border-radius:8px;background:#f8fbfd}.report-stat-list strong{display:block}.report-stat-list span{display:block;margin-top:2px;color:#516678;font-size:11px}.bar-chart{display:flex;flex-direction:column;gap:6px}.bar-row{display:grid;grid-template-columns:120px 1fr 80px;align-items:center;gap:8px;font-size:11px}.bar-track{background:#edf2f7;border-radius:999px;height:12px;overflow:hidden}.bar-fill{height:100%;background:#145bc7;border-radius:999px}.bar-row>span:last-child{text-align:right;font-weight:700}table{width:100%;border-collapse:collapse;margin-top:10px;table-layout:fixed}th{text-align:left;background:#092d52;color:#fff;font-size:9px;text-transform:uppercase;letter-spacing:.04em;padding:7px 6px}td{padding:7px 8px;border-bottom:1px solid #e1ecf6;font-size:11px;vertical-align:top;overflow-wrap:break-word}tbody tr:nth-child(even){background:#f7fbff}.tag,.status-badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#e8f4ff;color:#1e5b93;font-size:10px;font-weight:700}.status-badge.is-bad{background:#fdecec;color:#a33a3a}.muted-copy,.field-hint,.table-subline{color:#5f6f80;font-size:11px}.adm-empty{text-align:center;color:#5f6f80}.foot{margin-top:16px;padding-top:10px;border-top:1px solid #e1ecf6;text-align:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#8299ad}.num{text-align:right;white-space:nowrap}tfoot td{font-weight:700;border-top:1px solid #c9d6e2;background:#f3f7fb}.adm-link-btn{border:0;background:none;padding:0;font:inherit;color:#145bc7;text-align:left}.table-subline{display:block}'
 const REPORT_EXPORTS={
   sales:{title:'Sales Report',cards:'salesReportCards',body:'salesReportBody'},payments:{title:'Payment Process Report',cards:'paymentReportCards',body:'paymentReportBody'},
   agents:{title:'Agent / Booked By Report',cards:'agentReportCards',body:'agentReportBody'},invoiced:{title:'Invoiced Report',cards:'invoicedReportCards',body:'invoicedReportBody'},
-  guides:{title:'Guides Report',cards:'guidesReportCards',body:'guidesReportBody'}
+  guides:{title:'Guides & Skippers Report',cards:'guidesReportCards',body:'guidesReportBody'}
 }
 const renderPdf=(title,bodyHtml,filename)=>{
   const fullHtml=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${PDF_CSS}</style></head><body>${bodyHtml}</body></html>`
@@ -1871,15 +1990,21 @@ const downloadReportPdf=key=>{
   renderReports()
   const range=reportRange()
   const brand=text(nodes.reportsBrand.value)
-  const title=`${config.title} — ${range.label}${brand ? ` — ${brandName(brand)}` : ''}`
-  renderPdf(title,`<header><span class="pill">SkyBook</span><h1>${esc(title)}</h1><small>${esc(brand ? brandName(brand) : 'All brands')} · generated ${esc(fmtDateTime(new Date().toISOString()))}</small></header><div class="stat-row">${nodes[config.cards].innerHTML}</div><section>${nodes[config.body].innerHTML}</section><div class="foot">SkyBook — Tour operations &amp; bookings</div>`,`skybook-${key}-report-${todayKey()}.pdf`)
+  // A guides report filtered to one person downloads as that person's statement.
+  const person=key==='guides'&&state.guidesPerson ? text(nodes.guidesReportPerson.selectedOptions[0]?.textContent) : ''
+  const title=`${person ? `Statement — ${person}` : config.title} — ${range.label}${brand ? ` — ${brandName(brand)}` : ''}`
+  const slug=person ? `-${lower(person).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}` : ''
+  // The full booking log stays on screen; the PDF keeps to the summary (each person's statement lists every booking).
+  const body=nodes[config.body].cloneNode(true)
+  body.querySelectorAll('.rep-log').forEach(el=>el.closest('.rep-card')?.remove())
+  renderPdf(title,`<header><span class="pill">SkyBook</span><h1>${esc(title)}</h1><small>${esc(brand ? brandName(brand) : 'All brands')} · generated ${esc(fmtDateTime(new Date().toISOString()))}</small></header><div class="stat-row">${nodes[config.cards].innerHTML}</div><section>${body.innerHTML}</section><div class="foot">SkyBook — Tour operations &amp; bookings</div>`,`skybook-${key}${slug}-report-${todayKey()}.pdf`)
 }
 const exportBookingsCsv=()=>{
   const rows=state.bookings.filter(b=>!isTrashed(b)).map(b=>({
     reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentText(b),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
     guest:b.customer_name,email:b.customer_email,phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
     infants:b.infant_quantity||meta(b).infant_quantity||0,total:Number(b.total_amount||0).toFixed(2),received:receivedOf(b).toFixed(2),outstanding:outstandingOf(b).toFixed(2),
-    guides:guideNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
+    guides:guideNames(b).join('; '),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
   }))
   const columns=Object.keys(rows[0]||{reference:''}).map(key=>({key,label:label(key)}))
   const blob=new Blob([shared.toCsv(rows,columns)],{type:'text/csv;charset=utf-8'})
@@ -1932,7 +2057,7 @@ const renderCalendar=()=>{
     calendarNodes.canvas.innerHTML=`<div class="calendar-day-stack">${rangeBookings.map(b=>`
       <article class="calendar-entry-card ${rowStatusClass(b)}" data-open-booking="${attr(b.id)}" title="${attr(`${calendarName(b)} · ${calendarTour(b)} · ${b.reference}`)}">
         <div><strong>${esc(calendarName(b))}</strong><p>${esc(calendarTour(b))} · ${esc(b.reference)}</p></div>
-        <div class="calendar-entry-meta"><span>${esc(pickupLabel(b))}</span><span>${esc(paxLabel(b))} pax</span><span>${esc(pickupModeLabel(meta(b).pickup_mode)||'Transport TBC')}</span>${guideNames(b).length ? `<span>Guide: ${esc(guideNames(b).join(', '))}</span>` : ''}</div>
+        <div class="calendar-entry-meta"><span>${esc(pickupLabel(b))}</span><span>${esc(paxLabel(b))} pax</span><span>${esc(pickupModeLabel(meta(b).pickup_mode)||'Transport TBC')}</span>${guideNames(b).length ? `<span>Guide: ${esc(crewList(guideNames(b)))}</span>` : ''}</div>
         <div>${statusTag(b)} ${paymentTag(b)}</div>
       </article>`).join('')||'<p class="adm-empty">No bookings are scheduled for this day.</p>'}</div>
       <p style="margin-top:14px"><button type="button" class="adm-btn ghost small" data-cal-day="${attr(focusDate)}">Add a booking on this day</button></p>`
@@ -2014,8 +2139,8 @@ const renderCalendarDayBookings=key=>{
           <dt>Booked by</dt><dd>${esc(m.booked_by||'—')}</dd>
           <dt>Contact</dt><dd>${esc(b.customer_phone||b.customer_email||'—')}</dd>
           <dt>Transport</dt><dd>${esc(pickupModeLabel(m.pickup_mode)||'—')}</dd>
-          ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(guideNames(b).join(', '))}</dd>` : ''}
-          ${m.skipper_name ? `<dt>Skipper</dt><dd>${esc(m.skipper_name)}</dd>` : ''}
+          ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(crewList(guideNames(b)))}</dd>` : ''}
+          ${skipperNames(b).length ? `<dt>Skipper(s)</dt><dd>${esc(crewList(skipperNames(b)))}</dd>` : ''}
           ${b.notes||b.customer_notes ? `<dt>Notes</dt><dd>${esc(b.notes||b.customer_notes)}</dd>` : ''}
           ${notes.length ? `<dt>Internal</dt><dd>${notes.map(n=>esc(n.note)).join('<br>')}</dd>` : ''}
         </dl>
@@ -2038,7 +2163,7 @@ const printArrivals=(key=todayKey())=>{
         <div class="card-meta"><div class="ref">${esc(b.reference)}</div>${isAdminEntered(b) ? '' : `<div class="status-pill">${esc(lower(b.status)==='provisional' ? 'Awaiting approval' : label(b.status))}</div>`}<div class="amount">${money(b.total_amount,b.currency)}</div></div>
       </div>
       <div class="card-body">
-        <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',guideNames(b).join(', '))}${field('Skipper(s)',m.skipper_name)}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
+        <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',crewList(guideNames(b)))}${field('Skipper(s)',crewList(skipperNames(b)))}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
         <div class="fields-col">${field('Dietary',m.dietary_requirements||m.dietary)}${field('Nationality',m.nationality)}${field('Booked by',m.booked_by)}${field('Agent',m.agent)}${field('Payment',paymentText(b))}${field('Notes',b.customer_notes||b.notes)}</div>
       </div>
     </div>`
@@ -2200,8 +2325,8 @@ nodes.bookingForm.addEventListener('change',event=>{
   }
 })
 nodes.bookingRevertPricing.addEventListener('click',()=>{ nodes.bookingPriceOverride.value=''; updatePricePreview(); toast('Reverted to calculated pax pricing — save the booking to apply.','info') })
-nodes.bookingAddGuide.addEventListener('click',()=>nodes.bookingGuideList.appendChild(personRow()))
-nodes.bookingAddSkipper.addEventListener('click',()=>nodes.bookingSkipperList.appendChild(personRow()))
+nodes.bookingAddGuide.addEventListener('click',()=>nodes.bookingGuideList.appendChild(personRow('',nodes.bookingGuideList.dataset.suggest)))
+nodes.bookingAddSkipper.addEventListener('click',()=>nodes.bookingSkipperList.appendChild(personRow('',nodes.bookingSkipperList.dataset.suggest)))
 nodes.bookingAddPaymentRow.addEventListener('click',()=>{
   const due=bookingFormDue()
   const allocated=sumRows(readPaymentRows(nodes.bookingPaymentRowsList))
@@ -2249,6 +2374,14 @@ nodes.reportsPresets.addEventListener('click',event=>{
 })
 ;[nodes.reportsRangeFrom,nodes.reportsRangeTo].forEach(el=>el.addEventListener('change',()=>{ state.reportPreset='custom'; renderReports() }))
 nodes.reportsBrand.addEventListener('change',renderReports)
+const showCrewPerson=(key,name='')=>{ state.guidesPerson=key; state.guidesPersonName=name; renderReports() }
+nodes.guidesReportPerson.addEventListener('change',()=>showCrewPerson(nodes.guidesReportPerson.value,text(nodes.guidesReportPerson.selectedOptions[0]?.textContent)))
+nodes.guidesReportBody.addEventListener('click',event=>{
+  const btn=event.target.closest('[data-crew-person]')
+  if(!btn)return
+  showCrewPerson(btn.dataset.crewPerson,text(btn.textContent))
+  nodes.guidesReportPerson.closest('.rep-panel')?.scrollIntoView({behavior:'smooth',block:'start'})
+})
 nodes.reportsTabs.addEventListener('click',event=>{
   const btn=event.target.closest('[data-report-tab]')
   if(!btn)return
