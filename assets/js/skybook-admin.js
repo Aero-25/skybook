@@ -1714,14 +1714,19 @@ const crewReport=bookings=>{
     return [...rows.values()].map(r=>({...r,bookings:r.bookings.size,days:r.days.size,tours:[...r.tours].sort((a,b)=>b[1]-a[1])})).sort((a,b)=>b.trips-a.trips||a.name.localeCompare(b.name))
   }
   const bookingsWith=role=>new Set(entries.filter(e=>e.role===role).map(e=>e.booking.id)).size
+  // A booking without a departure only matters when that person has another trip the same day: on
+  // its own it is one trip whether it was AM or PM.
+  const tripsThatDay=new Map()
+  trips.forEach(t=>{ const k=`${t.role}|${t.key}|${t.day}`; tripsThatDay.set(k,(tripsThatDay.get(k)||0)+1) })
   return {
     entries,trips,nameOf,guides:people('guide'),skippers:people('skipper'),
     guideTrips:trips.filter(t=>t.role==='guide').length,skipperTrips:trips.filter(t=>t.role==='skipper').length,
     guideBookings:bookingsWith('guide'),skipperBookings:bookingsWith('skipper'),
     sharedTrips:trips.filter(t=>t.bookings.length>1).length,
     combos:entries.filter(e=>e.count>1).length,
-    // Bookings whose trip cannot be told (no departure): each counts as a trip of its own.
-    unplaced:[...new Set(entries.filter(e=>e.count===1&&!e.slot).map(e=>e.booking))]
+    // Bookings whose trip cannot be told (no departure) while the person had another trip that day:
+    // each is counted as a trip of its own and may really have shared one.
+    unplaced:[...new Set(entries.filter(e=>e.count===1&&!e.slot&&(tripsThatDay.get(`${e.role}|${e.key}|${dateKey(e.booking.preferred_date)}`)||0)>1).map(e=>e.booking))]
   }
 }
 // Columns for a date range: days for up to a month, weeks up to four months, months beyond.
@@ -2010,7 +2015,7 @@ const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
     </div>
     ${repCard('Guides',crewTable(crew.guides,'Guide'),{sub:'Select a name to see that person’s trips'})}
     ${repCard('Skippers',crewTable(crew.skippers,'Skipper'),{sub:'Select a name to see that person’s trips'})}
-    ${unplaced.length ? repCard('No departure time',bookingsTable(unplaced),{sub:'These bookings have no AM or PM departure, so each counts as a trip of its own. Set the departure on the booking so it joins the right trip.'}) : ''}
+    ${unplaced.length ? repCard('No departure time',bookingsTable(unplaced),{sub:'The guide or skipper had another trip that day, but these bookings have no AM or PM departure, so each is counted as a trip of its own. Set the departure on the booking so it joins the right trip.'}) : ''}
     ${missing.length ? repCard('No guide or skipper recorded',bookingsTable(missing),{sub:'Past bookings in this range with no names. Add them so the trip counts for the right person.'}) : ''}
     ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Departure</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(text(meta(b).departure_label)||'—')}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their trips.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
 }
