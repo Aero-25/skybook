@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-invoice">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-carnames">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -479,7 +479,7 @@
         </label>
         <label class="booking-field">
           <span>Customer Email</span>
-          <input id="adminBookingCustomerEmail" type="email">
+          <input id="adminBookingCustomerEmail" type="email" placeholder="NA — leave blank if there is no email">
         </label>
         <label class="booking-field">
           <span>Customer Phone</span>
@@ -497,7 +497,7 @@
             <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
             <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
           </div>
-          <p class="field-hint">Bookings with the same guide on the same day and trip (AM or PM) count as one trip. Combo with an AM and a PM part? Choose the same guide twice. Hired cars with their own guides? Choose <strong>Car and Guides</strong> and enter how many cars — each car counts as a trip. Not in the list? Use <strong>+ New guide</strong>.</p>
+          <p class="field-hint">Bookings with the same guide on the same day and trip (AM or PM) count as one trip. Combo with an AM and a PM part? Choose the same guide twice. Hired cars with their own guides? Choose <strong>Car and Guides</strong> and enter how many cars — each car counts as a trip; their names go under <strong>Guide names</strong> as notes. Not in the list? Use <strong>+ New guide</strong>.</p>
         </div>
         <div class="booking-field-full" id="adminBookingSkipperWrap">
           <span>Skipper(s)</span>
@@ -752,8 +752,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-invoice"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-invoice"></script>
+  <script src="assets/js/shared.js?v=20261007-carnames"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-carnames"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -762,7 +762,7 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-invoice" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-carnames" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
   <script src="assets/js/skybook-support.js?v=20261007-support" defer></script>
 </body>
 </html>

@@ -260,6 +260,10 @@ const normalizeUsername=(value:unknown)=>normalizeText(value).toLowerCase().repl
 const fallbackUsernameFromEmail=(value:unknown)=>normalizeUsername(normalizeText(value).split('@')[0] || '')
 const resolveAuthUsername=(user:Json={})=>normalizeUsername(user.user_metadata?.username) || fallbackUsernameFromEmail(user.email)
 const createInternalAdminEmail=username=>`${normalizeUsername(username)}@skybook.local`
+// A booking taken without an email gets a generated address so its customer record is unique. It is
+// not a mailbox: it is shown as "NA" (or left out) and never emailed.
+const isPlaceholderEmail=(value:unknown)=>/@skybook\.placeholder$/i.test(normalizeText(value))
+const realEmail=(value:unknown)=>isPlaceholderEmail(value) ? '' : normalizeText(value)
 const displayLabel=(value:unknown)=>normalizeText(value).replace(/_/g,' ').trim()
 const nowIso=()=>new Date().toISOString()
 const parseDateValue=(value:string)=>{
@@ -1064,7 +1068,7 @@ const fetchBookingDocumentContext=async(bookingId:string)=>{
     booking,
     brand,
     customer_name:normalizeText(customerSnapshot.full_name) || normalizeText((booking.customers as Json | null)?.full_name),
-    customer_email:normalizeText(customerSnapshot.email) || normalizeText((booking.customers as Json | null)?.email),
+    customer_email:realEmail(normalizeText(customerSnapshot.email) || normalizeText((booking.customers as Json | null)?.email)),
     customer_phone:normalizeText(customerSnapshot.phone) || normalizeText((booking.customers as Json | null)?.phone),
     service_name:normalizeText((booking.services as Json | null)?.name)
   }
@@ -2321,7 +2325,7 @@ const buildConsultantSections=(
 
   sections.push({ title:'Client', rows:[
     ['Name',normalizeText(customer?.full_name)],
-    ['Email',normalizeText(customer?.email) || normalizeText(booking.lookup_email)],
+    ['Email',realEmail(customer?.email) || realEmail(booking.lookup_email) || 'NA'],
     ['Phone',normalizeText(customer?.phone)],
     ['WhatsApp',normalizeText(customer?.whatsapp)]
   ]})
@@ -2413,7 +2417,7 @@ const renderConsultantAlertHtml=(sections:DetailSection[],vars:Record<string,str
   const section=(item:DetailSection)=>`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;border-radius:8px;overflow:hidden;border:1px solid #e8e8e8">
 <tr style="background:${primary}"><td colspan="2" style="padding:11px 18px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.85);font-weight:600">${escapeHtml(item.title)}</td></tr>
 ${item.rows.map((r,i)=>row(r,i%2===1)).join('')}</table>`
-  const mailto=normalizeText(vars.customer_email)
+  const mailto=realEmail(vars.customer_email).includes('@') ? realEmail(vars.customer_email) : ''
   const tel=normalizeText(vars.customer_phone)
   const contactLinks=[
     mailto?`<a href="mailto:${escapeHtml(mailto)}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 18px;background:${accent};color:#fff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:600">Email guest</a>`:'',
@@ -2447,8 +2451,8 @@ const performQueuedEmailJob=async(job:Json)=>{
   if(!['booking_received','consultant_alert'].includes(templateKey))return
   const { booking, customer, service, brand }=await loadBookingEmailContext(bookingId)
   const isConsultantAlert=templateKey==='consultant_alert'
-  const recipientEmail=isConsultantAlert ? (BRAND_CONSULTANT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_CONSULTANT_EMAILS] || BRAND_CONSULTANT_EMAILS['true-travel']) : String(customer?.email || '')
-  if(!recipientEmail)throw new Error('Email recipient is missing for queued email delivery.')
+  const recipientEmail=isConsultantAlert ? (BRAND_CONSULTANT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_CONSULTANT_EMAILS] || BRAND_CONSULTANT_EMAILS['true-travel']) : realEmail(customer?.email)
+  if(!recipientEmail)throw new Error(isConsultantAlert ? 'Email recipient is missing for queued email delivery.' : 'This guest has no email address, so no guest email was sent.')
   let subject=normalizeText(job.payload?.subject)
   let body=normalizeText(job.payload?.body)
   let templateVariables:Record<string,unknown>={}
@@ -2466,7 +2470,7 @@ const performQueuedEmailJob=async(job:Json)=>{
     const totalAmount=`${normalizeText(booking.currency_code) || 'NAD'} ${Number(booking.total_amount || 0).toFixed(2)}`
     templateVariables={
       customer_name:customer?.full_name || 'Guest',
-      customer_email:customer?.email || '',
+      customer_email:realEmail(customer?.email) || 'NA',
       customer_phone:customer?.phone || '',
       booking_reference:booking.reference,
       service_name:service?.name || 'Service',
@@ -4394,7 +4398,9 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const nextSource=(Object.prototype.hasOwnProperty.call(payload,'source') ? normalizeText(payload.source) : '') || normalizeText(requestMetadata.source) || normalizeText(existing.source) || 'admin'
   const nextCustomerPayload={
     full_name:normalizeText(incomingCustomer.full_name ?? payload.customer_name ?? currentCustomer.data?.full_name),
-    email:normalizeText(incomingCustomer.email ?? payload.customer_email ?? currentCustomer.data?.email),
+    // The console shows no address for a guest without one; a blank keeps the booking's own customer.
+    email:normalizeText(incomingCustomer.email ?? payload.customer_email ?? currentCustomer.data?.email)
+      || (isPlaceholderEmail(currentCustomer.data?.email) ? normalizeText(currentCustomer.data?.email) : ''),
     phone:normalizeText(incomingCustomer.phone ?? payload.customer_phone ?? currentCustomer.data?.phone),
     whatsapp:normalizeText(incomingCustomer.whatsapp ?? payload.customer_phone ?? currentCustomer.data?.whatsapp)
   }
@@ -5043,7 +5049,7 @@ const fetchAdminBootstrap=async(user:Json,profile:Json)=>{
       cancellation_reason:row.cancellation_reason || '',
       metadata,
       customer_name:normalizeText(customerSnapshot.full_name)||row.customers?.full_name||'',
-      customer_email:normalizeText(customerSnapshot.email)||row.customers?.email||'',
+      customer_email:realEmail(normalizeText(customerSnapshot.email)||row.customers?.email||''),
       customer_phone:normalizeText(customerSnapshot.phone)||row.customers?.phone||'',
       service_name:row.services?.name||'',
       service_slug:row.services?.slug||'',

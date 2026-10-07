@@ -140,6 +140,16 @@ input:disabled,select:disabled{background:#f3f7fa;color:var(--muted-foreground);
 .car-count input:focus-visible{outline:none}
 .car-count:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #145bc722}
 .car-count span{font-size:.8125rem;font-weight:600}
+.adm-person-row{flex-wrap:wrap}
+.car-names{flex-basis:100%;border:1px solid #cfdbe6;border-radius:9px;background:#f7fafc}
+.car-names>summary{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;list-style:none;font-size:.8125rem;font-weight:600;color:var(--deep)}
+.car-names>summary::-webkit-details-marker{display:none}
+.car-names>summary::before{content:'';width:6px;height:6px;margin:0 3px 2px 1px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.car-names[open]>summary::before{transform:rotate(45deg);margin-bottom:4px}
+.car-names>summary small{font-weight:500;color:var(--muted-foreground)}
+.car-names>summary em{margin-left:auto;font-style:normal;font-size:.75rem;font-weight:700;color:var(--blue)}
+.car-names-body{padding:0 12px 12px}
+#adminBookingGuideWrap .car-names textarea{min-height:64px;font-size:.875rem}
 .crew-new{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid #cfdbe6;border-radius:9px;background:#f7fafc}
 .crew-new input{flex:1 1 200px;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
 .crew-manage{margin-top:16px}

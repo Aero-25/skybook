@@ -272,7 +272,8 @@ const loadData=async()=>{
   state.permissionCatalog=payload.permission_catalog||state.permissionCatalog
   state.roleDefaults=payload.role_defaults||state.roleDefaults
   state.brands=payload.brands||[]
-  state.bookings=payload.bookings||[]
+  // A guest without an email has a generated placeholder address on the server; it is never shown.
+  state.bookings=(payload.bookings||[]).map(b=>/@skybook\.placeholder$/i.test(text(b?.customer_email)) ? {...b,customer_email:''} : b)
   state.bookingFormFields=normalizeFieldDefinitions(payload.booking_form_fields||[])
   state.customers=payload.customers||[]
   state.payments=payload.payments||[]
@@ -408,6 +409,9 @@ const carAndGuidesOf=b=>{
   const cars=Math.floor(Number(meta(b).car_and_guides||0))
   return cars>0 ? Math.min(cars,MAX_CARS) : 1
 }
+// Names of the Car and Guides guides, typed on the booking as notes. Shown on the booking only —
+// the Guides report counts the cars, not these names.
+const carGuideNotes=b=>splitNames(String(meta(b).car_and_guides_names||'').replace(/\n+/g,',')).join(', ')
 // Guides for display, with the number of cars: "Len, Car and Guides ×16".
 const guideCrew=b=>{
   let counted=false
@@ -544,7 +548,7 @@ const renderReservations=()=>{
   nodes.reservationsSummary.textContent=`${open.length} awaiting approval · requests from True Travel and Iventure land here.`
   nodes.reservationsTable.innerHTML=open.map(b=>`<tr data-open-reservation="${attr(b.id)}" class="is-clickable">
     <td class="num">${esc(b.reference)}<span class="sub">${esc(fmtDateTime(b.created_at))}</span></td>
-    <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.customer_email||'')}${b.customer_phone ? ` · ${esc(b.customer_phone)}` : ''}</span><span class="sub">${brandTag(b.brand_code)}</span></td>
+    <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.customer_email||'NA')}${b.customer_phone ? ` · ${esc(b.customer_phone)}` : ''}</span><span class="sub">${brandTag(b.brand_code)}</span></td>
     <td>${esc(b.service_name||'Tour not selected')}<span class="sub">${esc(pickupLabel(b))}</span></td>
     <td class="num">${esc(fmtDate(b.preferred_date))}</td>
     <td class="num">${esc(paxLabel(b))}</td>
@@ -584,7 +588,7 @@ const submittedRows=b=>{
   add('Source',sourceLabel(b))
   add('Submitted from',m.source_page||m.capture_page)
   add('Guest name',b.customer_name)
-  add('Guest email',b.customer_email)
+  add('Guest email',b.customer_email||'NA')
   add('Guest phone',b.customer_phone)
   add('Tour',b.service_name)
   add('Preferred date',fmtDate(b.preferred_date))
@@ -651,7 +655,7 @@ const renderReservationDetail=()=>{
       <section class="adm-card">
         <h2>Guest</h2>
         ${detailGrid([
-          {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'—'},{label:'Phone',value:b.customer_phone||'—'},
+          {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'NA'},{label:'Phone',value:b.customer_phone||'—'},
           {label:'Brand',value:brandName(b.brand_code)},{label:'Source',value:sourceLabel(b)},{label:'Pickup',value:pickupLabel(b)}
         ])}
         <div class="detail-notes">${esc(b.customer_notes||b.notes||'No guest notes or pickup instructions were captured.')}</div>
@@ -765,9 +769,9 @@ const renderBookingDetail=()=>{
       <section class="adm-card">
         <h2>Guest &amp; trip</h2>
         ${detailGrid([
-          {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'—'},{label:'Phone',value:b.customer_phone||'—'},
+          {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'NA'},{label:'Phone',value:b.customer_phone||'—'},
           {label:'Tour',value:b.service_name||m.display_name||'—'},{label:'Date',value:fmtDate(b.preferred_date)},{label:'Pickup',value:pickupLabel(b)},
-          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideCrew(b))||'—'},{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
+          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideCrew(b))||'—'},...(carGuideNotes(b) ? [{label:'Car and Guides names',value:carGuideNotes(b)}] : []),{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
           {label:'Nationality',value:m.nationality||'—'},{label:'Booked by',value:m.booked_by||'—'},{label:'Agent / reseller',value:m.agent||'—'},{label:'Heard about us',value:heardAboutLabel(b)||'Not asked'},
           {label:'Dietary',value:m.dietary_requirements||m.dietary||'—'},{label:'Entered by',value:ownerName(b)},{label:'Created',value:fmtDateTime(b.created_at)}
         ])}
@@ -1041,24 +1045,39 @@ const crewOptions=(role,current='')=>{
   const unlisted=current&&!match&&!(cars&&isCarAndGuides(current))
   return `<option value="">Choose ${word}…</option>${carOption}${names.map(n=>`<option value="${attr(n)}"${n===match ? ' selected' : ''}>${esc(n)}</option>`).join('')}${unlisted ? `<option value="${attr(current)}" selected>${esc(current)} (not on the list)</option>` : ''}`
 }
-const personRow=(value='',role='',{cars=1}={})=>{
+const personRow=(value='',role='',{cars=1,notes=''}={})=>{
   const row=document.createElement('div')
   row.className='adm-person-row'
   const field=role
     ? `<select data-person-name aria-label="${role==='skipper' ? 'Skipper' : 'Guide'}">${crewOptions(role,value)}</select>`
     : `<input type="text" placeholder="Full name" value="${attr(value)}" data-person-name>`
   // Car and Guides takes a number of cars instead of one line per car.
+  const isCars=isCarAndGuides(value)
   const carCount=role==='guide'
-    ? `<label class="car-count"${isCarAndGuides(value) ? '' : ' hidden'}><input type="number" min="1" max="${MAX_CARS}" step="1" inputmode="numeric" value="${attr(cars)}" data-car-count aria-label="Number of cars with guides"><span>cars</span></label>`
+    ? `<label class="car-count"${isCars ? '' : ' hidden'}><input type="number" min="1" max="${MAX_CARS}" step="1" inputmode="numeric" value="${attr(cars)}" data-car-count aria-label="Number of cars with guides"><span>cars</span></label>`
     : ''
-  row.innerHTML=`${field}${carCount}<button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
+  // The guides' names for Car and Guides: notes on the booking, not counted in the Guides report.
+  const carNames=role==='guide'
+    ? `<details class="car-names"${isCars ? '' : ' hidden'}${isCars&&text(notes) ? ' open' : ''}>
+        <summary><span>Guide names</span><small>notes only — not in the Guides report</small><em data-car-names-count></em></summary>
+        <div class="car-names-body"><textarea rows="3" maxlength="1500" data-car-names placeholder="Type the guides' names, one per line or separated by commas" aria-label="Car and Guides guide names (notes)">${esc(notes)}</textarea></div>
+      </details>`
+    : ''
+  row.innerHTML=`${field}${carCount}<button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>${carNames}`
   row.querySelector('[data-person-remove]').addEventListener('click',()=>row.remove())
   const select=row.querySelector('select[data-person-name]')
   const count=row.querySelector('.car-count')
+  const names=row.querySelector('.car-names')
+  const namesInput=row.querySelector('[data-car-names]')
+  const namesCount=row.querySelector('[data-car-names-count]')
+  const showNamesCount=()=>{ if(!namesInput)return; const n=splitNames(namesInput.value.replace(/\n+/g,',')).length; namesCount.textContent=n ? `${n} name${n===1?'':'s'}` : '' }
+  if(namesInput){ namesInput.addEventListener('input',showNamesCount); showNamesCount() }
   if(select&&count)select.addEventListener('change',()=>{
     const on=isCarAndGuides(select.value)
     count.hidden=!on
+    if(names)names.hidden=!on
     if(!on)return
+    if(names)names.open=true
     const input=count.querySelector('input')
     if(!(Number(input.value)>0))input.value='1'
     input.focus()
@@ -1066,19 +1085,25 @@ const personRow=(value='',role='',{cars=1}={})=>{
   })
   return row
 }
-const renderPersonRows=(list,names=[],{cars=1}={})=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.crewRole,{cars}))) }
+const renderPersonRows=(list,names=[],{cars=1,notes=''}={})=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.crewRole,{cars,notes}))) }
 // The guides on the booking form: names, plus Car and Guides once with the total number of cars.
 const guideSelection=()=>{
   const names=[]
+  const notes=[]
   let cars=0
   nodes.bookingGuideList.querySelectorAll('.adm-person-row').forEach(row=>{
     const name=text(row.querySelector('[data-person-name]')?.value)
     if(!name)return
-    if(isCarAndGuides(name)){ cars+=Math.max(1,Math.floor(Number(row.querySelector('[data-car-count]')?.value||1))); return }
+    if(isCarAndGuides(name)){
+      cars+=Math.max(1,Math.floor(Number(row.querySelector('[data-car-count]')?.value||1)))
+      const typed=text(row.querySelector('[data-car-names]')?.value)
+      if(typed)notes.push(typed)
+      return
+    }
     names.push(name)
   })
   cars=Math.min(cars,MAX_CARS)
-  return {names:cars ? [...names,CAR_AND_GUIDES] : names,cars}
+  return {names:cars ? [...names,CAR_AND_GUIDES] : names,cars,notes:cars ? notes.join('\n') : ''}
 }
 // After the list changes, rebuild every dropdown in a booking form list, keeping what each row shows.
 const refreshCrewSelects=list=>list.querySelectorAll('select[data-person-name]').forEach(select=>{ select.innerHTML=crewOptions(list.dataset.crewRole,select.value) })
@@ -1294,7 +1319,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
-  renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''),{cars:carAndGuidesOf(booking)||1})
+  renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''),{cars:carAndGuidesOf(booking)||1,notes:text(m.car_and_guides_names)})
   renderPersonRows(nodes.bookingSkipperList,splitNames(m.skipper_name||''))
   closeCrewNew('guide'); closeCrewNew('skipper')
   const nationalities=(Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>text(v)).filter(Boolean)
@@ -1395,7 +1420,7 @@ const saveBooking=async()=>{
       nationality:checkedNationalities().join(', '),nationalities:checkedNationalities(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),heard_about:nodes.bookingHeardAbout.value,
       dietary_requirements:nodes.bookingDietary.value.trim(),skipper_name:personNames(nodes.bookingSkipperList).join(', '),pickup_mode:pickupMode(),
       infant_quantity:infants,price_override:override ?? 0,price_override_set:override!==null,
-      guide_name:guides.names.join(', '),car_and_guides:guides.cars,
+      guide_name:guides.names.join(', '),car_and_guides:guides.cars,car_and_guides_names:guides.notes,
       ...(wasReservation ? {} : {admin_created:true,created_via:'skybook_admin'})
     },
     customer:{full_name:nodes.bookingCustomerName.value.trim(),email:nodes.bookingCustomerEmail.value.trim(),phone:nodes.bookingCustomerPhone.value.trim(),whatsapp:nodes.bookingCustomerPhone.value.trim()}
@@ -2206,7 +2231,7 @@ const downloadReportPdf=key=>{
 const exportBookingsCsv=()=>{
   const rows=state.bookings.filter(b=>!isTrashed(b)).map(b=>({
     reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentText(b),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
-    guest:b.customer_name,email:b.customer_email,phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
+    guest:b.customer_name,email:b.customer_email||'NA',phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
     infants:b.infant_quantity||meta(b).infant_quantity||0,total:Number(b.total_amount||0).toFixed(2),received:receivedOf(b).toFixed(2),outstanding:outstandingOf(b).toFixed(2),
     guides:crewList(guideCrew(b)),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',heard_about:heardAboutLabel(b),source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
   }))
@@ -2344,6 +2369,7 @@ const renderCalendarDayBookings=key=>{
           <dt>Contact</dt><dd>${esc(b.customer_phone||b.customer_email||'—')}</dd>
           <dt>Transport</dt><dd>${esc(pickupModeLabel(m.pickup_mode)||'—')}</dd>
           ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(crewList(guideCrew(b)))}</dd>` : ''}
+          ${carGuideNotes(b) ? `<dt>Car guides</dt><dd>${esc(carGuideNotes(b))}</dd>` : ''}
           ${skipperNames(b).length ? `<dt>Skipper(s)</dt><dd>${esc(crewList(skipperNames(b)))}</dd>` : ''}
           ${b.notes||b.customer_notes ? `<dt>Notes</dt><dd>${esc(b.notes||b.customer_notes)}</dd>` : ''}
           ${notes.length ? `<dt>Internal</dt><dd>${notes.map(n=>esc(n.note)).join('<br>')}</dd>` : ''}
