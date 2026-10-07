@@ -63,7 +63,7 @@ Sent through Resend with the same `RESEND_API_KEY` as the booking emails.
 | Secret | Default |
 |---|---|
 | `SUPPORT_TICKET_EMAIL` | `info@aerodigital.space` (comma-separate for more than one) |
-| `RESEND_FROM_SUPPORT` | `SkyBook Support <address of RESEND_FROM_TRUE_TRAVEL / RESEND_FROM>`, else `SkyBook Support <bookings@truetravelnam.net>` |
+| `RESEND_FROM_SUPPORT` | `Iventure Support <bookings@iventuretours.net>` (the address of `RESEND_FROM_IVENTURE` when that is set) |
 
 The sending domain must be verified in Resend. If the email fails, the staff
 member sees the reason and can send again; the attempt stays in

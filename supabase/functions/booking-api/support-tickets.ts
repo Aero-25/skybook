@@ -11,7 +11,8 @@
 type Json=Record<string,unknown>
 
 const SUPPORT_TICKET_EMAIL_DEFAULT='info@aerodigital.space'
-const SUPPORT_SENDER_DEFAULT='bookings@truetravelnam.net'
+const SUPPORT_SENDER_DEFAULT='bookings@iventuretours.net'
+const SUPPORT_SENDER_NAME='Iventure Support'
 const SCREENSHOT_BUCKET='support-tickets'
 const SCREENSHOT_CID='skybook-ticket-screenshot'
 const MAX_MESSAGE_LENGTH=5000
@@ -142,11 +143,11 @@ const formatTicketTime=(iso:string)=>{
 const senderAddress=()=>{
   const explicit=text(Deno.env.get('RESEND_FROM_SUPPORT'))
   if(explicit)return explicit
-  // Reuse the address of a sender that is already verified in Resend for the
-  // booking emails, under a SkyBook Support display name.
-  const configured=text(Deno.env.get('RESEND_FROM_TRUE_TRAVEL')) || text(Deno.env.get('RESEND_FROM'))
+  // Tickets come from Iventure: the address the Iventure booking emails
+  // already send from (verified in Resend), under a support display name.
+  const configured=text(Deno.env.get('RESEND_FROM_IVENTURE'))
   const address=(configured.match(/<([^>]+)>/)?.[1] || (configured.includes('@') ? configured : '') || SUPPORT_SENDER_DEFAULT).trim()
-  return `SkyBook Support <${address}>`
+  return `${SUPPORT_SENDER_NAME} <${address}>`
 }
 
 const recipients=()=>{
