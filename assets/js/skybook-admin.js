@@ -398,6 +398,35 @@ const crewList=names=>{
   names.forEach(name=>{ const key=personKey(name); const c=counts.get(key)||{name,count:0}; c.count+=1; counts.set(key,c) })
   return [...counts.values()].map(c=>c.count>1 ? `${c.name} ×${c.count}` : c.name).join(', ')
 }
+// "Car and Guides": hired cars, each with its own guide, for big groups. Not a person — the booking
+// keeps how many (metadata.car_and_guides) and every car counts as a trip of its own in the reports.
+const CAR_AND_GUIDES='Car and Guides'
+const MAX_CARS=99
+const isCarAndGuides=name=>personKey(name)===personKey(CAR_AND_GUIDES)
+const carAndGuidesOf=b=>{
+  if(!guideNames(b).some(isCarAndGuides))return 0
+  const cars=Math.floor(Number(meta(b).car_and_guides||0))
+  return cars>0 ? Math.min(cars,MAX_CARS) : 1
+}
+// Guides for display, with the number of cars: "Len, Car and Guides ×16".
+const guideCrew=b=>{
+  let counted=false
+  return guideNames(b).flatMap(name=>{
+    if(!isCarAndGuides(name))return [name]
+    if(counted)return []
+    counted=true
+    return Array(carAndGuidesOf(b)).fill(CAR_AND_GUIDES)
+  })
+}
+// FOC and Invoice carry no rate: the booking total is 0 and nothing is owed in SkyBook.
+const ZERO_RATE_PROCESSES=['foc','invoiced']
+// A typed price on the booking form. Blank is no override; a typed 0 is a real price (flagged, since
+// older bookings store 0 to mean "no override").
+const hasPriceOverride=b=>{
+  const m=meta(b)
+  const value=b?.price_override ?? m.price_override
+  return m.price_override_set===true ? text(value)!=='' : Number(value)>0
+}
 // Where the guest heard about the business, asked by staff on the booking form.
 const HEARD_ABOUT_LABELS={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook',google:'Google search',website:'Our website',word_of_mouth:'Friend / word of mouth',returning:'Returning guest',hotel:'Hotel / lodge / guesthouse',agent:'Tour agent / reseller',travel_site:'TripAdvisor / travel site',walk_in:'Walk-in / saw us in town',other:'Other'}
 const heardAboutLabel=b=>HEARD_ABOUT_LABELS[meta(b).heard_about]||''
@@ -480,7 +509,7 @@ const renderDashboard=()=>{
   ].join('')
   nodes.dashboardToday.innerHTML=todays.map(b=>`<tr class="is-clickable" data-open-booking="${attr(b.id)}">
     <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.reference)} · ${esc(b.customer_phone||b.customer_email||'')}</span></td>
-    <td>${esc(b.service_name||meta(b).display_name||'—')}${guideNames(b).length ? `<span class="sub">Guide: ${esc(crewList(guideNames(b)))}</span>` : ''}</td>
+    <td>${esc(b.service_name||meta(b).display_name||'—')}${guideNames(b).length ? `<span class="sub">Guide: ${esc(crewList(guideCrew(b)))}</span>` : ''}</td>
     <td class="num">${esc(pickupLabel(b))}</td>
     <td class="num">${esc(paxLabel(b))}</td>
     <td>${paymentTag(b)}</td>
@@ -567,7 +596,7 @@ const submittedRows=b=>{
   add('Agent / reseller',m.agent||b.agent)
   add('Heard about us',heardAboutLabel(b))
   add('Dietary requirements',m.dietary_requirements||m.dietary)
-  add('Guide(s)',crewList(guideNames(b)))
+  add('Guide(s)',crewList(guideCrew(b)))
   add('Skipper(s)',crewList(skipperNames(b)))
   add('Guests',paxLabel(b))
   add('Total',money(b.total_amount,b.currency))
@@ -685,7 +714,7 @@ const renderBookings=()=>{
   nodes.bookingsTable.innerHTML=rows.map(b=>`<tr class="is-clickable${b.id===state.selectedBookingId ? ' is-selected' : ''}" data-open-booking="${attr(b.id)}">
     <td class="num">${esc(b.reference)}<span class="sub">${brandTag(b.brand_code)}</span></td>
     <td><strong>${esc(b.customer_name||'Guest')}</strong><span class="sub">${esc(b.customer_phone||b.customer_email||'')}</span></td>
-    <td>${esc(b.service_name||meta(b).display_name||'—')}<span class="sub">${esc(pickupLabel(b))}${guideNames(b).length ? ` · ${esc(crewList(guideNames(b)))}` : ''}</span></td>
+    <td>${esc(b.service_name||meta(b).display_name||'—')}<span class="sub">${esc(pickupLabel(b))}${guideNames(b).length ? ` · ${esc(crewList(guideCrew(b)))}` : ''}</span></td>
     <td class="num">${esc(fmtDate(b.preferred_date))}</td>
     <td class="num">${esc(paxLabel(b))}</td>
     <td class="num">${money(b.total_amount,b.currency)}${outstandingOf(b)>0 ? `<span class="sub">${money(outstandingOf(b),b.currency)} due</span>` : ''}</td>
@@ -727,7 +756,7 @@ const renderBookingDetail=()=>{
     </div>
     ${isCancelled&&m.cancellation_reason ? `<p class="adm-note err" style="margin-bottom:18px"><strong>Cancelled:</strong> ${esc(m.cancellation_reason)}</p>` : ''}
     <div class="adm-grid cols-4">
-      <div class="adm-card adm-stat"><strong style="font-size:1.8rem">${money(b.total_amount,b.currency)}</strong><span>Total${m.price_override>0||b.price_override>0 ? ' (custom price)' : ''}</span></div>
+      <div class="adm-card adm-stat"><strong style="font-size:1.8rem">${money(b.total_amount,b.currency)}</strong><span>Total${ZERO_RATE_PROCESSES.includes(lower(b.payment_status)) ? ` (no rate · ${esc(paymentLabel(b.payment_status))})` : hasPriceOverride(b) ? ' (custom price)' : ''}</span></div>
       <div class="adm-card adm-stat"><strong style="font-size:1.8rem">${money(received,b.currency)}</strong><span>Received</span></div>
       <div class="adm-card adm-stat ${outstanding>0 ? 'is-bad' : ''}"><strong style="font-size:1.8rem">${money(outstanding,b.currency)}</strong><span>Outstanding</span></div>
       <div class="adm-card adm-stat"><strong>${esc(String(paxOf(b)))}</strong><span>Guests (${esc(paxLabel(b))})</span></div>
@@ -738,7 +767,7 @@ const renderBookingDetail=()=>{
         ${detailGrid([
           {label:'Name',value:b.customer_name||'—'},{label:'Email',value:b.customer_email||'—'},{label:'Phone',value:b.customer_phone||'—'},
           {label:'Tour',value:b.service_name||m.display_name||'—'},{label:'Date',value:fmtDate(b.preferred_date)},{label:'Pickup',value:pickupLabel(b)},
-          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideNames(b))||'—'},{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
+          {label:'Transport',value:pickupModeLabel(m.pickup_mode)||'—'},{label:'Guide(s)',value:crewList(guideCrew(b))||'—'},{label:'Skipper(s)',value:crewList(skipperNames(b))||'—'},
           {label:'Nationality',value:m.nationality||'—'},{label:'Booked by',value:m.booked_by||'—'},{label:'Agent / reseller',value:m.agent||'—'},{label:'Heard about us',value:heardAboutLabel(b)||'Not asked'},
           {label:'Dietary',value:m.dietary_requirements||m.dietary||'—'},{label:'Entered by',value:ownerName(b)},{label:'Created',value:fmtDateTime(b.created_at)}
         ])}
@@ -925,7 +954,7 @@ const printDaySheet=(key=todayKey())=>{
   const rows=liveBookings().filter(b=>dateKey(b.preferred_date)===key&&!['cancelled','refunded'].includes(lower(b.status))).sort((a,b)=>pickupLabel(a).localeCompare(pickupLabel(b)))
   openPrintWindow(`Day sheet ${fmtDate(key)}`,`<h1>Day sheet — ${esc(fmtDate(key))}</h1><p>${rows.length} booking${rows.length===1?'':'s'} · ${rows.reduce((s,b)=>s+paxOf(b),0)} guests</p>
     <table><thead><tr><th>Pickup</th><th>Guest</th><th>Tour</th><th>Pax</th><th>Transport</th><th>Guide</th><th>Payment</th><th>Notes</th></tr></thead><tbody>
-    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(paymentText(b))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
+    ${rows.map(b=>`<tr><td>${esc(pickupLabel(b))}</td><td><strong>${esc(b.customer_name||'Guest')}</strong><br>${esc(b.customer_phone||'')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${esc(paxLabel(b))}</td><td>${esc(pickupModeLabel(meta(b).pickup_mode)||'—')}</td><td>${esc(crewList(guideCrew(b))||'—')}</td><td>${esc(paymentText(b))}${outstandingOf(b)>0 ? `<br>${money(outstandingOf(b),b.currency)} due` : ''}</td><td>${esc(b.notes||b.customer_notes||'')}</td></tr>`).join('')||'<tr><td colspan="8">Nothing scheduled.</td></tr>'}
     </tbody></table>`)
 }
 
@@ -1004,22 +1033,53 @@ const syncReference=({booking=null,brandCode='',forceNew=false}={})=>{
 // list (or belongs to someone retired) stays selected, so editing the booking never drops it.
 const crewNamesFor=role=>state.crewMembers.filter(c=>c.role===role&&c.is_active!==false).map(c=>text(c.name)).sort((a,b)=>a.localeCompare(b))
 const crewOptions=(role,current='')=>{
-  const names=crewNamesFor(role)
+  const cars=role==='guide'
+  const names=crewNamesFor(role).filter(n=>!(cars&&isCarAndGuides(n)))
   const match=names.find(n=>personKey(n)===personKey(current))
   const word=role==='skipper' ? 'skipper' : 'guide'
-  return `<option value="">Choose ${word}…</option>${names.map(n=>`<option value="${attr(n)}"${n===match ? ' selected' : ''}>${esc(n)}</option>`).join('')}${current&&!match ? `<option value="${attr(current)}" selected>${esc(current)} (not on the list)</option>` : ''}`
+  const carOption=cars ? `<option value="${attr(CAR_AND_GUIDES)}"${isCarAndGuides(current) ? ' selected' : ''}>${CAR_AND_GUIDES} — enter how many</option>` : ''
+  const unlisted=current&&!match&&!(cars&&isCarAndGuides(current))
+  return `<option value="">Choose ${word}…</option>${carOption}${names.map(n=>`<option value="${attr(n)}"${n===match ? ' selected' : ''}>${esc(n)}</option>`).join('')}${unlisted ? `<option value="${attr(current)}" selected>${esc(current)} (not on the list)</option>` : ''}`
 }
-const personRow=(value='',role='')=>{
+const personRow=(value='',role='',{cars=1}={})=>{
   const row=document.createElement('div')
   row.className='adm-person-row'
   const field=role
     ? `<select data-person-name aria-label="${role==='skipper' ? 'Skipper' : 'Guide'}">${crewOptions(role,value)}</select>`
     : `<input type="text" placeholder="Full name" value="${attr(value)}" data-person-name>`
-  row.innerHTML=`${field}<button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
+  // Car and Guides takes a number of cars instead of one line per car.
+  const carCount=role==='guide'
+    ? `<label class="car-count"${isCarAndGuides(value) ? '' : ' hidden'}><input type="number" min="1" max="${MAX_CARS}" step="1" inputmode="numeric" value="${attr(cars)}" data-car-count aria-label="Number of cars with guides"><span>cars</span></label>`
+    : ''
+  row.innerHTML=`${field}${carCount}<button type="button" class="adm-remove" data-person-remove aria-label="Remove">×</button>`
   row.querySelector('[data-person-remove]').addEventListener('click',()=>row.remove())
+  const select=row.querySelector('select[data-person-name]')
+  const count=row.querySelector('.car-count')
+  if(select&&count)select.addEventListener('change',()=>{
+    const on=isCarAndGuides(select.value)
+    count.hidden=!on
+    if(!on)return
+    const input=count.querySelector('input')
+    if(!(Number(input.value)>0))input.value='1'
+    input.focus()
+    input.select()
+  })
   return row
 }
-const renderPersonRows=(list,names=[])=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.crewRole))) }
+const renderPersonRows=(list,names=[],{cars=1}={})=>{ list.innerHTML=''; (names.length ? names : ['']).forEach(n=>list.appendChild(personRow(n,list.dataset.crewRole,{cars}))) }
+// The guides on the booking form: names, plus Car and Guides once with the total number of cars.
+const guideSelection=()=>{
+  const names=[]
+  let cars=0
+  nodes.bookingGuideList.querySelectorAll('.adm-person-row').forEach(row=>{
+    const name=text(row.querySelector('[data-person-name]')?.value)
+    if(!name)return
+    if(isCarAndGuides(name)){ cars+=Math.max(1,Math.floor(Number(row.querySelector('[data-car-count]')?.value||1))); return }
+    names.push(name)
+  })
+  cars=Math.min(cars,MAX_CARS)
+  return {names:cars ? [...names,CAR_AND_GUIDES] : names,cars}
+}
 // After the list changes, rebuild every dropdown in a booking form list, keeping what each row shows.
 const refreshCrewSelects=list=>list.querySelectorAll('select[data-person-name]').forEach(select=>{ select.innerHTML=crewOptions(list.dataset.crewRole,select.value) })
 const addCrewMember=async(role,name)=>{
@@ -1135,9 +1195,13 @@ const syncDepartureFields=(serviceSlug='',selectedLabel='',selectedPickup='')=>{
 }
 // What the split rows on the booking form must cover: the price (override or calculated) less
 // anything already received on the booking.
+const formOverride=()=>{
+  const raw=text(nodes.bookingPriceOverride.value)
+  return raw==='' ? null : Math.max(0,Number(raw)||0)
+}
+const formIsZeroRate=()=>ZERO_RATE_PROCESSES.includes(nodes.bookingPaymentStatus.value)
 const bookingFormDue=()=>{
-  const override=Number(nodes.bookingPriceOverride.value||0)
-  let total=override>0 ? override : null
+  let total=formIsZeroRate() ? 0 : formOverride()
   if(total==null){
     const service=state.services.find(x=>x.slug===nodes.bookingService.value)
     const adults=Math.max(0,Number(nodes.bookingAdultQuantity.value||0)),children=Math.max(0,Number(nodes.bookingChildQuantity.value||0)),infants=Math.max(0,Number(nodes.bookingInfantQuantity.value||0))
@@ -1156,8 +1220,15 @@ const syncSplitPayments=()=>{
   nodes.bookingPaymentStatus.title=hasRows ? 'Split payment rows record how this booking is paid.' : ''
   renderSplitSummary($('adminBookingSplitSummary'),rows,hasRows ? bookingFormDue() : null,{currency:state.settings.currency,onFill:diff=>fillLastRow(nodes.bookingPaymentRowsList,diff)})
 }
-const updateOverrideTag=()=>{ nodes.bookingOverrideTagRow.hidden=!(Number(nodes.bookingPriceOverride.value||0)>0) }
+const updateOverrideTag=()=>{ nodes.bookingOverrideTagRow.hidden=formOverride()===null||formIsZeroRate() }
+// FOC and Invoice carry no rate, so the price override does not apply while one is chosen.
+const syncZeroRate=()=>{
+  const zero=formIsZeroRate()
+  nodes.bookingPriceOverride.disabled=zero
+  nodes.bookingPriceOverride.title=zero ? `${paymentLabel(nodes.bookingPaymentStatus.value)} bookings have no rate — the total is 0.` : ''
+}
 const updatePricePreview=()=>{
+  syncZeroRate()
   updateOverrideTag()
   const service=state.services.find(s=>s.slug===nodes.bookingService.value)
   if(!service){ nodes.bookingPriceBreakdown.textContent='Select a tour to see the calculated price'; nodes.bookingPriceTotal.textContent=''; return }
@@ -1172,8 +1243,12 @@ const updatePricePreview=()=>{
     if(children>0)lines.push(`${children} child${children!==1?'ren':''} (4–12) × ${money(service.child_price||0,currency)}`)
   }else lines.push(`${total} guest${total!==1?'s':''} × ${money(service.base_price||0,currency)}`)
   if(infants>0)lines.push(`${infants} under 4 — complimentary`)
+  if(formIsZeroRate()){
+    const process=nodes.bookingPaymentStatus.value==='invoiced' ? 'Invoice — billed outside SkyBook' : 'FOC — free of charge'
+    lines.push(`${process}, so no rate`)
+  }
   nodes.bookingPriceBreakdown.textContent=lines.join(' · ')
-  nodes.bookingPriceTotal.textContent=money(pricing.total_amount,currency)
+  nodes.bookingPriceTotal.textContent=money(formIsZeroRate() ? 0 : pricing.total_amount,currency)
   syncSplitPayments()
 }
 const renderFormOptions=()=>{
@@ -1219,7 +1294,7 @@ const fillBookingForm=(booking=null)=>{
   nodes.bookingCustomerName.value=booking?.customer_name||''
   nodes.bookingCustomerEmail.value=booking?.customer_email||''
   nodes.bookingCustomerPhone.value=booking?.customer_phone||''
-  renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''))
+  renderPersonRows(nodes.bookingGuideList,splitNames(m.guide_name||booking?.guide_name||''),{cars:carAndGuidesOf(booking)||1})
   renderPersonRows(nodes.bookingSkipperList,splitNames(m.skipper_name||''))
   closeCrewNew('guide'); closeCrewNew('skipper')
   const nationalities=(Array.isArray(m.nationalities) ? m.nationalities : String(m.nationality||booking?.nationality||'').split(/[,;/]+/)).map(v=>text(v)).filter(Boolean)
@@ -1240,7 +1315,7 @@ const fillBookingForm=(booking=null)=>{
   renderBookingCustomFields(booking)
   nodes.bookingNotes.value=booking?.notes||booking?.customer_notes||''
   const override=booking?.price_override ?? m.price_override ?? ''
-  nodes.bookingPriceOverride.value=Number(override)>0 ? String(override) : ''
+  nodes.bookingPriceOverride.value=booking&&hasPriceOverride(booking) ? String(Number(override)||0) : ''
   nodes.bookingSaveButton.textContent=booking ? 'Save changes' : 'Create booking'
   updatePricePreview()
 }
@@ -1297,6 +1372,8 @@ const saveBooking=async()=>{
     }
   }
   const wasReservation=existing ? isReservation(existing) : false
+  const guides=guideSelection()
+  const override=formOverride()
   const payload={
     reference:nodes.bookingReference.value.trim(),
     brand_code:nodes.bookingBrand.value||shared.readConfig().brandCode||'true-travel',
@@ -1309,15 +1386,16 @@ const saveBooking=async()=>{
     preferred_date:nodes.bookingDate.value,
     adult_quantity:adults,child_quantity:children,infant_quantity:infants,
     quantity:(adults+children+infants)>0 ? adults+children+infants : Number(nodes.bookingQuantity.value||1),
-    price_override:Number(nodes.bookingPriceOverride.value||0)||0,
-    guide_name:personNames(nodes.bookingGuideList).join(', '),
+    price_override:override,price_override_set:override!==null,
+    guide_name:guides.names.join(', '),
     notes:nodes.bookingNotes.value.trim(),
     metadata:{
       ...meta(existing),
       custom_fields:collectCustomFields(),departure_label:nodes.bookingDeparture.value||'',pickup_time:nodes.bookingPickup.value||'',
       nationality:checkedNationalities().join(', '),nationalities:checkedNationalities(),booked_by:nodes.bookingBookedBy.value.trim(),agent:nodes.bookingAgent.value.trim(),heard_about:nodes.bookingHeardAbout.value,
       dietary_requirements:nodes.bookingDietary.value.trim(),skipper_name:personNames(nodes.bookingSkipperList).join(', '),pickup_mode:pickupMode(),
-      infant_quantity:infants,price_override:Number(nodes.bookingPriceOverride.value||0)||0,
+      infant_quantity:infants,price_override:override ?? 0,price_override_set:override!==null,
+      guide_name:guides.names.join(', '),car_and_guides:guides.cars,
       ...(wasReservation ? {} : {admin_created:true,created_via:'skybook_admin'})
     },
     customer:{full_name:nodes.bookingCustomerName.value.trim(),email:nodes.bookingCustomerEmail.value.trim(),phone:nodes.bookingCustomerPhone.value.trim(),whatsapp:nodes.bookingCustomerPhone.value.trim()}
@@ -1672,15 +1750,18 @@ const tripSlot=(b,role)=>{
   return ''
 }
 const SLOT_ORDER={am:0,pm:1}
-const slotLabel=slot=>slot==='am' ? 'AM' : slot==='pm' ? 'PM' : slot.startsWith('extra') ? 'Extra trip' : 'Own trip'
+const slotLabel=slot=>slot==='am' ? 'AM' : slot==='pm' ? 'PM' : slot.startsWith('extra') ? 'Extra trip' : slot.startsWith('cars') ? CAR_AND_GUIDES : 'Own trip'
+// Trips in a list: a Car and Guides line counts each of its cars.
+const tripCount=trips=>trips.reduce((n,t)=>n+(t.units||1),0)
 const crewReport=bookings=>{
   const entries=[]
   bookings.forEach(b=>CREW_ROLES.forEach(({role,names})=>{
     const byPerson=new Map()
     names(b).forEach(name=>{
       const key=personKey(name)
-      const entry=byPerson.get(key)||{booking:b,role,key,name,count:0,slot:tripSlot(b,role)}
-      entry.count+=1
+      const units=role==='guide'&&isCarAndGuides(name)
+      const entry=byPerson.get(key)||{booking:b,role,key,name,count:0,slot:tripSlot(b,role),units}
+      entry.count=units ? carAndGuidesOf(b) : entry.count+1
       byPerson.set(key,entry)
     })
     entries.push(...byPerson.values())
@@ -1690,16 +1771,19 @@ const crewReport=bookings=>{
   entries.forEach(e=>{ const s=spellings.get(e.key)||new Map(); s.set(e.name,(s.get(e.name)||0)+e.count); spellings.set(e.key,s) })
   const nameOf=key=>[...(spellings.get(key)||[])].sort((a,b)=>b[1]-a[1])[0]?.[0]||key
   // One trip per person, role, day and AM / PM. A name entered twice fills both; a booking whose trip
-  // cannot be told is a trip of its own.
+  // cannot be told is a trip of its own. Car and Guides is one line per booking that counts every car
+  // (units), never shared with another booking.
   const tripMap=new Map()
   entries.forEach(e=>{
     const day=dateKey(e.booking.preferred_date)
-    const slots=e.count>1
-      ? ['am','pm',...Array.from({length:e.count-2},(_,i)=>`extra${i+1}:${e.booking.id}`)]
-      : [e.slot||`own:${e.booking.id}`]
+    const slots=e.units
+      ? [`cars:${e.booking.id}`]
+      : e.count>1
+        ? ['am','pm',...Array.from({length:e.count-2},(_,i)=>`extra${i+1}:${e.booking.id}`)]
+        : [e.slot||`own:${e.booking.id}`]
     slots.forEach(slot=>{
       const id=`${e.role}|${e.key}|${day}|${slot}`
-      const trip=tripMap.get(id)||{id,role:e.role,key:e.key,day,slot,bookings:[]}
+      const trip=tripMap.get(id)||{id,role:e.role,key:e.key,day,slot,bookings:[],units:e.units ? e.count : 1}
       if(!trip.bookings.includes(e.booking))trip.bookings.push(e.booking)
       tripMap.set(id,trip)
     })
@@ -1708,10 +1792,10 @@ const crewReport=bookings=>{
   const people=role=>{
     const rows=new Map()
     const row=key=>{ if(!rows.has(key))rows.set(key,{key,name:nameOf(key),role,trips:0,shared:0,bookings:new Set(),combos:0,days:new Set(),guests:0,tours:new Map(),last:''}); return rows.get(key) }
-    trips.filter(t=>t.role===role).forEach(t=>{ const r=row(t.key); r.trips+=1; if(t.bookings.length>1)r.shared+=1; if(t.day){ r.days.add(t.day); if(t.day>r.last)r.last=t.day } })
+    trips.filter(t=>t.role===role).forEach(t=>{ const r=row(t.key); r.trips+=t.units; if(t.bookings.length>1)r.shared+=1; if(t.day){ r.days.add(t.day); if(t.day>r.last)r.last=t.day } })
     entries.filter(e=>e.role===role).forEach(e=>{
       const r=row(e.key)
-      if(e.count>1)r.combos+=1
+      if(e.count>1&&!e.units)r.combos+=1
       if(r.bookings.has(e.booking.id))return
       r.bookings.add(e.booking.id); r.guests+=paxOf(e.booking)
       r.tours.set(tourOf(e.booking),(r.tours.get(tourOf(e.booking))||0)+1)
@@ -1725,13 +1809,13 @@ const crewReport=bookings=>{
   trips.forEach(t=>{ const k=`${t.role}|${t.key}|${t.day}`; tripsThatDay.set(k,(tripsThatDay.get(k)||0)+1) })
   return {
     entries,trips,nameOf,guides:people('guide'),skippers:people('skipper'),
-    guideTrips:trips.filter(t=>t.role==='guide').length,skipperTrips:trips.filter(t=>t.role==='skipper').length,
+    guideTrips:tripCount(trips.filter(t=>t.role==='guide')),skipperTrips:tripCount(trips.filter(t=>t.role==='skipper')),
     guideBookings:bookingsWith('guide'),skipperBookings:bookingsWith('skipper'),
     sharedTrips:trips.filter(t=>t.bookings.length>1).length,
-    combos:entries.filter(e=>e.count>1).length,
+    combos:entries.filter(e=>e.count>1&&!e.units).length,
     // Bookings whose trip cannot be told (no departure) while the person had another trip that day:
     // each is counted as a trip of its own and may really have shared one.
-    unplaced:[...new Set(entries.filter(e=>e.count===1&&!e.slot&&(tripsThatDay.get(`${e.role}|${e.key}|${dateKey(e.booking.preferred_date)}`)||0)>1).map(e=>e.booking))]
+    unplaced:[...new Set(entries.filter(e=>!e.units&&e.count===1&&!e.slot&&(tripsThatDay.get(`${e.role}|${e.key}|${dateKey(e.booking.preferred_date)}`)||0)>1).map(e=>e.booking))]
   }
 }
 // Columns for a date range: days for up to a month, weeks up to four months, months beyond.
@@ -1758,7 +1842,7 @@ const timeBuckets=range=>{
 }
 const crewOverTime=(trips,range)=>{
   const {unit,buckets}=timeBuckets(range)
-  trips.forEach(t=>{ const bucket=t.day&&buckets.find(x=>x.from<=t.day&&t.day<=x.to); if(bucket)bucket.value+=1 })
+  trips.forEach(t=>{ const bucket=t.day&&buckets.find(x=>x.from<=t.day&&t.day<=x.to); if(bucket)bucket.value+=t.units||1 })
   return {unit,points:buckets.map(x=>({label:x.label,value:x.value,tip:[`${x.value} trip${x.value===1?'':'s'}`].concat(unit==='week' ? [`${fmtDate(x.from)} – ${fmtDate(x.to)}`] : [])}))}
 }
 /* ── Chart primitives (plain SVG/HTML, one hue, hairline grid, hover tooltip) ── */
@@ -1952,16 +2036,18 @@ const renderReports=()=>{
   const invoiced=reportBookings.filter(b=>lower(b.payment_status)==='invoiced')
   const invoicedSorted=[...invoiced].sort((a,b)=>dateKey(b.preferred_date).localeCompare(dateKey(a.preferred_date)))
   const oldest=[...invoiced].sort((a,b)=>dateKey(a.preferred_date).localeCompare(dateKey(b.preferred_date)))[0]
-  const byCompany=invoiced.reduce((acc,b)=>{ const k=meta(b).cruise_company_label||b.customer_name||'Group'; acc[k]=acc[k]||{count:0,pax:0}; acc[k].count+=1; acc[k].pax+=paxOf(b); return acc },{})
+  // Invoice bookings carry no rate in SkyBook; the invoice goes to the cruise company, or whoever booked.
+  const billTo=b=>text(meta(b).cruise_company_label)||text(meta(b).booked_by)||text(meta(b).agent)||b.customer_name||'Group'
+  const byCompany=invoiced.reduce((acc,b)=>{ const k=billTo(b); acc[k]=acc[k]||{count:0,pax:0}; acc[k].count+=1; acc[k].pax+=paxOf(b); return acc },{})
   nodes.invoicedReportCards.innerHTML=[
     statTile({label:'Invoiced bookings',value:String(invoiced.length),current:invoiced.length,previous:prevBookings ? prevBookings.filter(b=>lower(b.payment_status)==='invoiced').length : null}),
     statTile({label:'Total pax',value:String(guestsOf(invoiced)),current:guestsOf(invoiced),previous:prevBookings ? guestsOf(prevBookings.filter(b=>lower(b.payment_status)==='invoiced')) : null}),
-    statTile({label:'Invoiced value',value:m(sum(invoiced,'total_amount')),hint:'Cruise liner groups are settled outside SkyBook'}),
+    statTile({label:'Billed to',value:String(Object.keys(byCompany).length),hint:'Invoiced outside SkyBook — no rate in SkyBook'}),
     statTile({label:'Oldest',value:oldest ? fmtDate(oldest.preferred_date) : '—'})
   ].join('')
   nodes.invoicedReportBody.innerHTML=`
-    ${Object.keys(byCompany).length ? `<div class="rep-grid">${repCard('Groups by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].count-a[1].count).map(([l,v])=>({label:l,value:v.count,extra:[`${v.pax} pax`]}))))}${repCard('Pax by company',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].pax-a[1].pax).map(([l,v])=>({label:l,value:v.pax,extra:[`${v.count} group${v.count===1?'':'s'}`]}))))}</div>` : ''}
-    ${repCard('Invoiced bookings',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Company / guest</th><th>Tour</th><th>Pax</th><th>Buses</th><th>Amount</th></tr></thead><tbody>${invoicedSorted.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(b.reference||'')}</td><td><strong>${esc(b.customer_name||'Guest')}</strong></td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${paxOf(b)}</td><td>${esc(String(meta(b).buses ?? '—'))}</td><td>${m(b.total_amount||0)}</td></tr>`).join('')||emptyRow(7,'No invoiced bookings in this range.')}</tbody></table></div>`)}`
+    ${Object.keys(byCompany).length ? `<div class="rep-grid">${repCard('Bookings by bill-to',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].count-a[1].count).map(([l,v])=>({label:l,value:v.count,extra:[`${v.pax} pax`]}))))}${repCard('Pax by bill-to',hbarChart(Object.entries(byCompany).sort((a,b)=>b[1].pax-a[1].pax).map(([l,v])=>({label:l,value:v.pax,extra:[`${v.count} group${v.count===1?'':'s'}`]}))))}</div>` : ''}
+    ${repCard('Invoiced bookings',`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Bill to</th><th>Guest / group</th><th>Tour</th><th>Pax</th><th>Buses</th></tr></thead><tbody>${invoicedSorted.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(b.reference||'')}</td><td><strong>${esc(billTo(b))}</strong>${text(meta(b).agent)&&text(meta(b).agent)!==billTo(b) ? `<span class="table-subline">Agent: ${esc(meta(b).agent)}</span>` : ''}</td><td>${esc(b.customer_name||'Guest')}</td><td>${esc(b.service_name||meta(b).display_name||'—')}</td><td>${paxOf(b)}</td><td>${esc(String(meta(b).buses ?? '—'))}</td></tr>`).join('')||emptyRow(7,'No invoiced bookings in this range.')}</tbody></table></div>`)}`
 
   // ── 5. Guides & skippers ──
   renderCrewReport({finance,prevFinance,range,allBookings:scoped(state.bookings)})
@@ -1978,7 +2064,7 @@ const crewTable=(rows,roleLabel)=>{
     <tbody>${rows.map(r=>`<tr><td><button type="button" class="adm-link-btn" data-crew-person="${attr(r.key)}" title="Show the statement for ${attr(r.name)}">${esc(r.name)}</button></td><td class="num"><strong>${r.trips}</strong></td><td class="num">${r.bookings}</td><td class="num">${r.combos||'—'}</td><td class="num">${r.days}</td><td class="num">${r.guests}</td><td>${esc(topTours(r.tours))}</td><td>${r.last ? esc(fmtDate(r.last)) : '—'}</td></tr>`).join('')}</tbody>
     <tfoot><tr><td>Total</td><td class="num">${total('trips')}</td><td class="num">${total('bookings')}</td><td class="num">${total('combos')}</td><td colspan="4"></td></tr></tfoot></table></div>`
 }
-const bookingsTable=rows=>`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${rows.slice(0,25).map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table>${rows.length>25 ? `<p class="field-hint">Showing 25 of ${rows.length}.</p>` : ''}</div>`
+const bookingsTable=rows=>`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Reference</th><th>Tour</th><th>Guest</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${rows.slice(0,25).map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td>${esc(crewList(guideCrew(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table>${rows.length>25 ? `<p class="field-hint">Showing 25 of ${rows.length}.</p>` : ''}</div>`
 const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
   const crew=crewReport(finance)
   const prevCrew=prevFinance ? crewReport(prevFinance) : null
@@ -2011,7 +2097,7 @@ const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
   const logRows=[...crewed].sort(byTourDate)
   nodes.guidesReportBody.innerHTML=crew.entries.length ? `
     <div class="rep-grid">
-      ${repCard('Trips per guide',hbarChart(perPerson(crew.guides),{max:12}),{sub:'Bookings on the same day and trip share a car and count once'})}
+      ${repCard('Trips per guide',hbarChart(perPerson(crew.guides),{max:12}),{sub:'Bookings on the same day and trip share a car and count once. Car and Guides counts every car.'})}
       ${repCard('Trips per skipper',hbarChart(perPerson(crew.skippers),{max:12}),{sub:'Bookings on the same day and trip share a boat and count once'})}
     </div>
     <div class="rep-grid">
@@ -2022,19 +2108,20 @@ const renderCrewReport=({finance,prevFinance,range,allBookings})=>{
     ${repCard('Skippers',crewTable(crew.skippers,'Skipper'),{sub:'Select a name to see that person’s trips'})}
     ${unplaced.length ? repCard('No departure time',bookingsTable(unplaced),{sub:'The guide or skipper had another trip that day, but these bookings have no AM or PM departure, so each is counted as a trip of its own. Set the departure on the booking so it joins the right trip.'}) : ''}
     ${missing.length ? repCard('No guide or skipper recorded',bookingsTable(missing),{sub:'Past bookings in this range with no names. Add them so the trip counts for the right person.'}) : ''}
-    ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Departure</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(text(meta(b).departure_label)||'—')}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideNames(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their trips.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
+    ${repCard('Booking log',`<details class="rep-log"><summary>Show all ${plural(logRows.length,'booking')}</summary><div class="table-wrap"><table><thead><tr><th>Date</th><th>Departure</th><th>Reference</th><th>Tour</th><th>Guest</th><th class="num">Pax</th><th>Guide(s)</th><th>Skipper(s)</th></tr></thead><tbody>${logRows.map(b=>`<tr><td>${esc(fmtDate(b.preferred_date))}</td><td>${esc(text(meta(b).departure_label)||'—')}</td><td>${rowLink(b)}</td><td>${esc(tourOf(b))}</td><td>${esc(b.customer_name||'Guest')}</td><td class="num">${paxOf(b)}</td><td>${esc(crewList(guideCrew(b))||'—')}</td><td>${esc(crewList(skipperNames(b))||'—')}</td></tr>`).join('')}</tbody></table></div></details>`,{sub:'Every booking in this range with a guide or skipper, by tour date. Choose a person above for their trips.'})}` : repCard('Guides & skippers',`<p class="viz-empty">${esc(empty)}</p>`)
 }
 const renderCrewStatement=({crew,prevCrew,range,key,name})=>{
   const mine=crew.trips.filter(t=>t.key===key)
   const prevMine=prevCrew ? prevCrew.trips.filter(t=>t.key===key) : null
   const entries=crew.entries.filter(e=>e.key===key)
-  const asGuide=mine.filter(t=>t.role==='guide').length, asSkipper=mine.filter(t=>t.role==='skipper').length
+  const asGuide=tripCount(mine.filter(t=>t.role==='guide')), asSkipper=tripCount(mine.filter(t=>t.role==='skipper'))
+  const total=tripCount(mine)
   const bookings=[...new Map(entries.map(e=>[e.booking.id,e.booking])).values()]
   const days=new Set(mine.map(t=>t.day).filter(Boolean)).size
   const guests=bookings.reduce((t,b)=>t+paxOf(b),0)
-  const combos=entries.filter(e=>e.count>1).length
+  const combos=entries.filter(e=>e.count>1&&!e.units).length
   nodes.guidesReportCards.innerHTML=[
-    statTile({label:`${name} — trips`,value:String(mine.length),current:mine.length,previous:prevMine ? prevMine.length : null,hint:`${plural(bookings.length,'booking')} · ${plural(mine.filter(t=>t.bookings.length>1).length,'shared trip')}`}),
+    statTile({label:`${name} — trips`,value:String(total),current:total,previous:prevMine ? tripCount(prevMine) : null,hint:`${plural(bookings.length,'booking')} · ${plural(mine.filter(t=>t.bookings.length>1).length,'shared trip')}`}),
     ...(asGuide&&asSkipper ? [statTile({label:'As guide',value:String(asGuide)}),statTile({label:'As skipper',value:String(asSkipper)})] : []),
     statTile({label:'Combos',value:String(combos),hint:'Name entered twice — AM and PM trips'}),
     statTile({label:'Days worked',value:String(days)}),
@@ -2045,10 +2132,10 @@ const renderCrewStatement=({crew,prevCrew,range,key,name})=>{
   const tours=new Map()
   bookings.forEach(b=>tours.set(tourOf(b),(tours.get(tourOf(b))||0)+1))
   const roleLabel=role=>CREW_ROLES.find(r=>r.role===role)?.label||label(role)
-  const combo=new Set(entries.filter(e=>e.count>1).map(e=>`${e.role}|${e.booking.id}`))
-  const tripRow=t=>`<tr><td>${t.day ? esc(fmtDate(t.day)) : '<em>No date</em>'}</td><td><strong>${esc(slotLabel(t.slot))}</strong>${t.slot.startsWith('own') ? '<span class="table-subline">no departure time</span>' : ''}</td><td>${esc(roleLabel(t.role))}</td>
+  const combo=new Set(entries.filter(e=>e.count>1&&!e.units).map(e=>`${e.role}|${e.booking.id}`))
+  const tripRow=t=>`<tr><td>${t.day ? esc(fmtDate(t.day)) : '<em>No date</em>'}</td><td><strong>${esc(slotLabel(t.slot))}</strong>${t.slot.startsWith('own') ? '<span class="table-subline">no departure time</span>' : t.slot.startsWith('cars') ? `<span class="table-subline">${plural(t.units,'car')}, each with a guide</span>` : ''}</td><td>${esc(roleLabel(t.role))}</td>
     <td>${t.bookings.map(b=>`<div>${rowLink(b)} · ${esc(tourOf(b))} · ${esc(b.customer_name||'Guest')} (${paxOf(b)})${combo.has(`${t.role}|${b.id}`) ? ' <span class="table-subline">combo — AM and PM</span>' : ''}</div>`).join('')}</td>
-    <td class="num">${t.bookings.reduce((n,b)=>n+paxOf(b),0)}</td><td class="num"><strong>1</strong></td></tr>`
+    <td class="num">${t.bookings.reduce((n,b)=>n+paxOf(b),0)}</td><td class="num"><strong>${t.units||1}</strong></td></tr>`
   nodes.guidesReportBody.innerHTML=`
     <div class="rep-grid">
       ${repCard(`Trips per ${overTime.unit}`,columnChart(overTime.points,{integer:true}))}
@@ -2056,7 +2143,7 @@ const renderCrewStatement=({crew,prevCrew,range,key,name})=>{
     </div>
     ${repCard(`Trips — ${name}`,`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Trip</th><th>Role</th><th>Bookings on this trip</th><th class="num">Guests</th><th class="num">Counts</th></tr></thead>
       <tbody>${mine.map(tripRow).join('')}</tbody>
-      <tfoot><tr><td colspan="5">Total trips</td><td class="num">${mine.length}</td></tr></tfoot></table></div>`,{sub:'Each row is one trip. Bookings that shared the car or boat are listed together.'})}`
+      <tfoot><tr><td colspan="5">Total trips</td><td class="num">${total}</td></tr></tfoot></table></div>`,{sub:'Each row is one trip. Bookings that shared the car or boat are listed together.'})}`
 }
 
 /* PDF export: the on-screen report markup rendered through html2pdf in a hidden iframe. */
@@ -2121,7 +2208,7 @@ const exportBookingsCsv=()=>{
     reference:b.reference,brand:brandName(b.brand_code),status:label(b.status),payment:paymentText(b),date:dateKey(b.preferred_date),pickup:pickupLabel(b),
     guest:b.customer_name,email:b.customer_email,phone:b.customer_phone,tour:b.service_name||meta(b).display_name,adults:b.adult_quantity||0,children:b.child_quantity||0,
     infants:b.infant_quantity||meta(b).infant_quantity||0,total:Number(b.total_amount||0).toFixed(2),received:receivedOf(b).toFixed(2),outstanding:outstandingOf(b).toFixed(2),
-    guides:guideNames(b).join('; '),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',heard_about:heardAboutLabel(b),source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
+    guides:crewList(guideCrew(b)),skippers:skipperNames(b).join('; '),booked_by:meta(b).booked_by||'',agent:meta(b).agent||'',heard_about:heardAboutLabel(b),source:sourceLabel(b),created:b.created_at,notes:b.notes||b.customer_notes||''
   }))
   const columns=Object.keys(rows[0]||{reference:''}).map(key=>({key,label:label(key)}))
   const blob=new Blob([shared.toCsv(rows,columns)],{type:'text/csv;charset=utf-8'})
@@ -2174,7 +2261,7 @@ const renderCalendar=()=>{
     calendarNodes.canvas.innerHTML=`<div class="calendar-day-stack">${rangeBookings.map(b=>`
       <article class="calendar-entry-card ${rowStatusClass(b)}" data-open-booking="${attr(b.id)}" title="${attr(`${calendarName(b)} · ${calendarTour(b)} · ${b.reference}`)}">
         <div><strong>${esc(calendarName(b))}</strong><p>${esc(calendarTour(b))} · ${esc(b.reference)}</p></div>
-        <div class="calendar-entry-meta"><span>${esc(pickupLabel(b))}</span><span>${esc(paxLabel(b))} pax</span><span>${esc(pickupModeLabel(meta(b).pickup_mode)||'Transport TBC')}</span>${guideNames(b).length ? `<span>Guide: ${esc(crewList(guideNames(b)))}</span>` : ''}</div>
+        <div class="calendar-entry-meta"><span>${esc(pickupLabel(b))}</span><span>${esc(paxLabel(b))} pax</span><span>${esc(pickupModeLabel(meta(b).pickup_mode)||'Transport TBC')}</span>${guideNames(b).length ? `<span>Guide: ${esc(crewList(guideCrew(b)))}</span>` : ''}</div>
         <div>${statusTag(b)} ${paymentTag(b)}</div>
       </article>`).join('')||'<p class="adm-empty">No bookings are scheduled for this day.</p>'}</div>
       <p style="margin-top:14px"><button type="button" class="adm-btn ghost small" data-cal-day="${attr(focusDate)}">Add a booking on this day</button></p>`
@@ -2256,7 +2343,7 @@ const renderCalendarDayBookings=key=>{
           <dt>Booked by</dt><dd>${esc(m.booked_by||'—')}</dd>
           <dt>Contact</dt><dd>${esc(b.customer_phone||b.customer_email||'—')}</dd>
           <dt>Transport</dt><dd>${esc(pickupModeLabel(m.pickup_mode)||'—')}</dd>
-          ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(crewList(guideNames(b)))}</dd>` : ''}
+          ${guideNames(b).length ? `<dt>Guide(s)</dt><dd>${esc(crewList(guideCrew(b)))}</dd>` : ''}
           ${skipperNames(b).length ? `<dt>Skipper(s)</dt><dd>${esc(crewList(skipperNames(b)))}</dd>` : ''}
           ${b.notes||b.customer_notes ? `<dt>Notes</dt><dd>${esc(b.notes||b.customer_notes)}</dd>` : ''}
           ${notes.length ? `<dt>Internal</dt><dd>${notes.map(n=>esc(n.note)).join('<br>')}</dd>` : ''}
@@ -2280,7 +2367,7 @@ const printArrivals=(key=todayKey())=>{
         <div class="card-meta"><div class="ref">${esc(b.reference)}</div>${isAdminEntered(b) ? '' : `<div class="status-pill">${esc(lower(b.status)==='provisional' ? 'Awaiting approval' : label(b.status))}</div>`}<div class="amount">${money(b.total_amount,b.currency)}</div></div>
       </div>
       <div class="card-body">
-        <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',crewList(guideNames(b)))}${field('Skipper(s)',crewList(skipperNames(b)))}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
+        <div class="fields-col">${field('Pax',parts.join(', ')||`${paxOf(b)} guests`)}${field('Transport',pickupModeLabel(m.pickup_mode))}${field('Guide(s)',crewList(guideCrew(b)))}${field('Skipper(s)',crewList(skipperNames(b)))}${field('Contact',b.customer_phone)}${field('Email',b.customer_email)}</div>
         <div class="fields-col">${field('Dietary',m.dietary_requirements||m.dietary)}${field('Nationality',m.nationality)}${field('Booked by',m.booked_by)}${field('Agent',m.agent)}${field('Payment',paymentText(b))}${field('Notes',b.customer_notes||b.notes)}</div>
       </div>
     </div>`
@@ -2435,6 +2522,7 @@ nodes.bookingForm.addEventListener('change',event=>{
     if(!state.editingBookingId)syncReference({brandCode:nodes.bookingBrand.value,forceNew:true})
   }
   if(event.target===nodes.bookingService){ syncDepartureFields(nodes.bookingService.value); updatePricePreview() }
+  if(event.target===nodes.bookingPaymentStatus)updatePricePreview()
   if(event.target===nodes.bookingDeparture){
     const pickup=nodes.bookingDeparture.selectedOptions[0]?.dataset.pickup||''
     nodes.bookingPickup.value=pickup

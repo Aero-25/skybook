@@ -2618,6 +2618,12 @@ const insertStatusHistory=async(bookingId:string,fromStatus:string|null,toStatus
 // paid — the payment row is settled for the whole booking total, no matter how the money came in.
 const SETTLED_PAYMENT_PROCESSES=new Set(['paid','fully_paid','cash','card','eft','voucher','foc','invoiced'])
 const isSettledPaymentProcess=(value:unknown)=>SETTLED_PAYMENT_PROCESSES.has(normalizeText(value).toLowerCase())
+// The Payment Processes staff pick on the booking form.
+const FORM_PAYMENT_PROCESSES=['cash','card','eft','voucher','foc','invoiced']
+// Payment Processes that carry no rate: the booking total is 0 and nothing is owed in SkyBook.
+// Invoice is billed outside SkyBook (agents and cruise groups); FOC is free of charge.
+const ZERO_RATE_PAYMENT_PROCESSES=new Set(['foc','invoiced'])
+const isZeroRatePaymentProcess=(value:unknown)=>ZERO_RATE_PAYMENT_PROCESSES.has(normalizeText(value).toLowerCase())
 const paymentRowStatusFor=(paymentStatus:string)=>{
   const normalized=normalizeText(paymentStatus).toLowerCase()
   if(isSettledPaymentProcess(normalized))return 'paid'
@@ -2632,7 +2638,7 @@ const createOrUpdatePayment=async(bookingId:string,paymentStatus:string,amount:n
   const previousReceived=Number(existing?.amount_received||0)
   // Settled: the whole booking total counts as received. Otherwise keep whatever was already received.
   const nextReceived=settled ? Math.max(previousReceived,Number(amount||0)) : previousReceived
-  const paymentType=['cash','card','eft','voucher','foc'].includes(process) ? process : ''
+  const paymentType=FORM_PAYMENT_PROCESSES.includes(process) ? process : ''
   const rowProvider=process==='eft' ? 'manual_eft' : (paymentType ? 'custom' : provider)
   let paymentId=String(existing?.id||'')
   if(existing){
@@ -2774,7 +2780,7 @@ const validateBookingPayments=(rows:BookingPaymentRow[],outstanding:number,{mode
   const total=Number(rows.reduce((sum,row)=>sum+row.amount,0).toFixed(2))
   const due=Number(Math.max(0,outstanding).toFixed(2))
   if(allowOverpayment)return total
-  if(isFoc)throw new Error('This booking is Free of Charge — there is nothing to pay.')
+  if(isFoc)throw new Error('This booking has no rate (FOC or Invoice) — there is nothing to pay in SkyBook.')
   if(due<=0.01)throw new Error('This booking is already fully paid — there is nothing outstanding.')
   if(total>due+0.01){
     throw new Error(`The payments add up to ${formatAmount(total)}, which is more than the ${formatAmount(due)} outstanding. Reduce an amount, or confirm the overpayment.`)
@@ -2797,7 +2803,7 @@ const recordBookingPayments=async(bookingId:string,rows:BookingPaymentRow[],user
   const currencyCode=normalizeText(booking.currency_code) || 'NAD'
   const previousReceived=Number(existingPayment?.amount_received || 0)
   const totalAmount=Number(booking.total_amount || existingPayment?.amount || 0)
-  const isFoc=normalizeText(booking.payment_status)==='foc' || totalAmount<=0
+  const isFoc=isZeroRatePaymentProcess(booking.payment_status) || totalAmount<=0
   const paidNow=validateBookingPayments(rows,totalAmount-previousReceived,{mode,allowOverpayment,isFoc})
   const nextReceived=Number((previousReceived+paidNow).toFixed(2))
   const settled=nextReceived+0.01>=totalAmount && totalAmount>0
@@ -4121,6 +4127,26 @@ const sendNewBookingPush=async(info:{guestName:string, brandLabel:string, servic
   }
 }
 
+// A manual price typed on the booking form. Blank means "price from the pax". A typed 0 is a real
+// price and arrives with price_override_set:true — older consoles send 0 for a blank field, so a bare
+// 0 is never taken as an override.
+const readPriceOverride=(source:Json)=>{
+  const raw=source.price_override
+  if(raw===null||raw===undefined||normalizeText(raw)==='')return null
+  const amount=Number(raw)
+  if(!Number.isFinite(amount)||amount<0)return null
+  if(amount>0)return amount
+  return source.price_override_set===true ? 0 : null
+}
+// The request's override when it sends one; otherwise the booking's own, so an action that does not
+// resend the price (approve, cancel, reinstate, confirm) keeps a custom price instead of repricing.
+const resolvePriceOverride=(payload:Json,requestMetadata:Json,existingMetadata:Json={})=>{
+  const has=(source:Json)=>Object.prototype.hasOwnProperty.call(source,'price_override')
+  if(has(payload))return readPriceOverride(payload)
+  if(has(requestMetadata))return readPriceOverride(requestMetadata)
+  return readPriceOverride(existingMetadata)
+}
+
 const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-travel'}={})=>{
   const settings=await getSettingValue('config',{
     currency:'NAD',
@@ -4158,9 +4184,11 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   const desiredStatus=normalizeText(payload.status)
   const desiredPaymentStatus=normalizeText(payload.payment_status)
   const selectedPaymentProvider=normalizeText(payload.payment_provider || payload.provider) || 'manual_eft'
-  const priceOverrideCreate=Number(payload.price_override||requestMetadata.price_override||0)
-  const finalPricingCreate=priceOverrideCreate>0
-    ? {...pricing,totalAmount:priceOverrideCreate,subtotalAmount:priceOverrideCreate,amountDueNow:priceOverrideCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
+  const priceOverrideCreate=resolvePriceOverride(payload,requestMetadata)
+  // FOC and Invoice carry no rate, whatever the pax price or an override says.
+  const rateCreate=isZeroRatePaymentProcess(desiredPaymentStatus) ? 0 : priceOverrideCreate
+  const finalPricingCreate=rateCreate!==null
+    ? {...pricing,totalAmount:rateCreate,subtotalAmount:rateCreate,amountDueNow:rateCreate,amountDueLater:0,taxAmount:0,serviceFeeAmount:0,discountAmount:0}
     : pricing
   const bookingStatus=(['provisional','finalised','cancelled'].includes(desiredStatus) ? desiredStatus : null) || (isAdmin ? 'finalised' : 'provisional')
   // Payment Process: payment_status now directly holds the settlement method (cash/card/eft/voucher/foc)
@@ -4206,7 +4234,9 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
       brand_code:String(brand.code || brandCode),
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page),
       created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || (isAdmin ? 'skybook_admin' : 'website'),
-      customer_snapshot:customerSnapshot
+      customer_snapshot:customerSnapshot,
+      price_override:priceOverrideCreate ?? 0,
+      price_override_set:priceOverrideCreate!==null
     }
   })
 
@@ -4238,7 +4268,7 @@ const createBooking=async(payload:Json,{isAdmin=false,userId='',brandCode='true-
   await createOrUpdatePayment(
     bookingId,
     paymentStatus,
-    isSettledPaymentProcess(paymentStatus) ? (paymentStatus==='foc' ? 0 : Number(finalPricingCreate.totalAmount || 0)) : outstandingAmounts.amountDueNow,
+    isSettledPaymentProcess(paymentStatus) ? (isZeroRatePaymentProcess(paymentStatus) ? 0 : Number(finalPricingCreate.totalAmount || 0)) : outstandingAmounts.amountDueNow,
     service.currency,
     selectedPaymentProvider
   )
@@ -4420,7 +4450,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   const isUpdatePaymentStatusWorkflow=workflowAction==='update_payment_status'
     && normalizeText(existing.status)==='finalised'
     && nextStatus===normalizeText(existing.status)
-    && ['','cash','card','eft','voucher','foc'].includes(nextPaymentStatus)
+    && ['',...FORM_PAYMENT_PROCESSES].includes(nextPaymentStatus)
   const isAdminEditWorkflow=workflowAction==='admin_edit'
   if((statusChangeRequested||paymentStatusChangeRequested)&&!isSystemActor&&!isAdminEditWorkflow&&!isCancellationWorkflow&&!isNoShowWorkflow&&!isReservationAcceptanceWorkflow&&!isReinstateWorkflow&&!isConfirmBookingWorkflow&&!isUpdatePaymentStatusWorkflow){
     throw new Error('Booking status is controlled by SkyBook workflows. Use payment, cancellation, reservation acceptance, reinstate, or automation actions.')
@@ -4447,23 +4477,24 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   // calculated price"). Honour it whenever set; a booking with no override reprices from pax.
   // (Do NOT treat override==total as "stale" — ~69 prod bookings are intentionally custom-priced
   // and that heuristic would wipe their price on the next edit.)
-  const priceOverride=Number(payload.price_override||requestMetadata.price_override||0)
-  const finalTotalAmount=priceOverride>0 ? priceOverride : pricing.totalAmount
+  const priceOverride=resolvePriceOverride(payload,requestMetadata,normalizeJsonRecord(existing.metadata))
+  const finalTotalAmount=priceOverride!==null ? priceOverride : pricing.totalAmount
   const receivedAmount=Number(existingPayment?.amount_received || 0)
-  if(receivedAmount>0 && !['cancelled','refunded','cash','card','eft','voucher','foc'].includes(normalizeText(nextPaymentStatus))){
+  if(receivedAmount>0 && !['cancelled','refunded',...FORM_PAYMENT_PROCESSES].includes(normalizeText(nextPaymentStatus))){
     nextPaymentStatus=receivedAmount+0.01>=Number(finalTotalAmount || 0) ? 'paid' : 'partially_paid'
   }
-  const calculatedOutstandingAmounts=priceOverride>0
+  const calculatedOutstandingAmounts=priceOverride!==null
     ? resolveOutstandingAmounts({...pricing,totalAmount:priceOverride,subtotalAmount:priceOverride,amountDueNow:priceOverride,amountDueLater:0},nextPaymentStatus)
     : resolveOutstandingAmounts(pricing,nextPaymentStatus)
-  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid','cash','card','eft','voucher','foc'].includes(normalizeText(nextPaymentStatus))
+  const outstandingAmounts=receivedAmount>0 && !['cancelled','refunded','paid',...FORM_PAYMENT_PROCESSES].includes(normalizeText(nextPaymentStatus))
     ? { amountDueNow:Math.max(0,Number((Number(finalTotalAmount || 0)-receivedAmount).toFixed(2))), amountDueLater:0 }
     : calculatedOutstandingAmounts
-  const isFoc=normalizeText(nextPaymentStatus)==='foc'
+  // FOC and Invoice carry no rate: the booking total is 0 whatever the pax price or override.
+  const isFoc=isZeroRatePaymentProcess(nextPaymentStatus)
   const focTotal=isFoc ? 0 : finalTotalAmount
-  const focSubtotal=isFoc ? 0 : (priceOverride>0 ? priceOverride : pricing.subtotalAmount)
-  const focTax=isFoc ? 0 : (priceOverride>0 ? 0 : pricing.taxAmount)
-  const focServiceFee=isFoc ? 0 : (priceOverride>0 ? 0 : pricing.serviceFeeAmount)
+  const focSubtotal=isFoc ? 0 : (priceOverride!==null ? priceOverride : pricing.subtotalAmount)
+  const focTax=isFoc ? 0 : (priceOverride!==null ? 0 : pricing.taxAmount)
+  const focServiceFee=isFoc ? 0 : (priceOverride!==null ? 0 : pricing.serviceFeeAmount)
   const focDueNow=isFoc ? 0 : outstandingAmounts.amountDueNow
   const focDueLater=isFoc ? 0 : outstandingAmounts.amountDueLater
   const splitRowsUpdate=normalizeSplitPayments(payload.split_payments)
@@ -4512,7 +4543,8 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
       source_page:normalizeText(payload.source_page) || normalizeText(requestMetadata.source_page) || normalizeText(existingMetadata.source_page),
       created_via:normalizeText(payload.created_via) || normalizeText(requestMetadata.created_via) || normalizeText(existingMetadata.created_via) || 'skybook_admin',
       customer_snapshot:customerSnapshot,
-      price_override:priceOverride,
+      price_override:priceOverride ?? 0,
+      price_override_set:priceOverride!==null,
       ...(nextStatus==='cancelled' ? {
         cancellation:{
           reason_type:cancellationCategory,
@@ -4538,7 +4570,7 @@ const updateBooking=async(id:string,payload:Json,userId:string)=>{
   await createOrUpdatePayment(
     id,
     String(updatePayload.payment_status),
-    Number(updatePayload.total_amount || finalTotalAmount || 0),
+    Number(updatePayload.total_amount ?? finalTotalAmount ?? 0),
     String(updatePayload.currency_code || existing.currency_code || 'NAD'),
     selectedPaymentProvider
   )

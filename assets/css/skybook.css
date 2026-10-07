@@ -134,6 +134,12 @@ input:disabled,select:disabled{background:#f3f7fa;color:var(--muted-foreground);
 .adm-person-row input{flex:1;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
 .adm-person-row select{flex:1;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem;background:#fff}
 .crew-actions{display:flex;flex-wrap:wrap;gap:8px}
+/* Car and Guides: the number of hired cars (each with a guide) in place of one line per car */
+.car-count{display:inline-flex;align-items:center;gap:6px;flex:none;padding:0 10px 0 2px;border:1px solid #9ec0ea;border-radius:7px;background:#eef5fd;color:var(--deep)}
+.car-count input{width:64px;padding:7px 6px;border:0;background:transparent;font-size:.9375rem;font-weight:700;text-align:right;color:var(--deep)}
+.car-count input:focus-visible{outline:none}
+.car-count:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #145bc722}
+.car-count span{font-size:.8125rem;font-weight:600}
 .crew-new{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;padding:10px;border:1px solid #cfdbe6;border-radius:9px;background:#f7fafc}
 .crew-new input{flex:1 1 200px;min-width:0;padding:8px 10px;border:1px solid #cfdbe6;border-radius:7px;font-size:.875rem}
 .crew-manage{margin-top:16px}

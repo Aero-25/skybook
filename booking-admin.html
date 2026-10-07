@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-social">
+<link rel="stylesheet" href="assets/css/skybook.css?v=20261007-invoice">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#092d52">
 <meta name="mobile-web-app-capable" content="yes">
@@ -326,7 +326,7 @@
       </section>
       <section class="rep-panel" data-report-panel="invoiced" hidden>
         <div class="rep-panel-head">
-          <div><h2>Invoiced report</h2><p>Every active booking whose Payment Process is Invoiced — cruise liner group bookings.</p></div>
+          <div><h2>Invoiced report</h2><p>Every active booking on the Invoice payment process — agent and cruise liner groups billed outside SkyBook. They carry no rate in SkyBook.</p></div>
           <button type="button" class="adm-btn ghost small" data-report-pdf="invoiced">Download PDF</button>
         </div>
         <div class="stat-row" id="invoicedReportCards"></div>
@@ -497,7 +497,7 @@
             <button type="button" class="adm-btn small" data-crew-new-save>Add to list</button>
             <button type="button" class="adm-btn ghost small" data-crew-new-cancel>Cancel</button>
           </div>
-          <p class="field-hint">Bookings with the same guide on the same day and trip (AM or PM) count as one trip. Combo with an AM and a PM part? Choose the same guide twice. Not in the list? Use <strong>+ New guide</strong>.</p>
+          <p class="field-hint">Bookings with the same guide on the same day and trip (AM or PM) count as one trip. Combo with an AM and a PM part? Choose the same guide twice. Hired cars with their own guides? Choose <strong>Car and Guides</strong> and enter how many cars — each car counts as a trip. Not in the list? Use <strong>+ New guide</strong>.</p>
         </div>
         <div class="booking-field-full" id="adminBookingSkipperWrap">
           <span>Skipper(s)</span>
@@ -577,7 +577,7 @@
         <label class="booking-field">
           <span>Total Price Override (NAD)</span>
           <input id="adminBookingPriceOverride" type="number" min="0" step="0.01" placeholder="Leave blank to use calculated price">
-          <p class="field-hint">Only fill this to override the calculated price above.</p>
+          <p class="field-hint">Only fill this to override the calculated price above. Enter 0 for no charge.</p>
           <div id="adminBookingOverrideTagRow" class="booking-override-tag-row" hidden>
             <span class="status-badge is-custom-price">Custom price</span>
             <button class="adm-btn ghost small" type="button" id="adminBookingRevertPricing">Revert to pax pricing</button>
@@ -592,10 +592,11 @@
             <option value="eft">EFT</option>
             <option value="voucher">Voucher</option>
             <option value="foc">FOC (Free of Charge)</option>
+            <option value="invoiced">Invoice (billed outside SkyBook)</option>
             <option value="paid" disabled>Paid (method not recorded)</option>
             <option value="partially_paid" disabled>Partially Paid</option>
           </select>
-          <p class="field-hint">For a single, full-amount tender only. For more than one payment method, use Split Payment below.</p>
+          <p class="field-hint">For a single, full-amount tender only. For more than one payment method, use Split Payment below. FOC and Invoice have no rate: the booking total is 0.</p>
         </label>
         <div class="booking-field-full" id="adminBookingPaymentRowsWrap">
           <span>Split Payment</span>
@@ -751,8 +752,8 @@
     </article>
   </div>
 
-  <script src="assets/js/shared.js?v=20261007-social"></script>
-  <script src="assets/js/booking-shared.js?v=20261007-social"></script>
+  <script src="assets/js/shared.js?v=20261007-invoice"></script>
+  <script src="assets/js/booking-shared.js?v=20261007-invoice"></script>
   <script>
     window.SkyBookAdminScriptLoadError=()=>{
       const status=document.getElementById('adminLoadingStatus')
@@ -761,7 +762,7 @@
       status.classList.add('is-error')
     }
   </script>
-  <script src="assets/js/skybook-admin.js?v=20261007-social" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
+  <script src="assets/js/skybook-admin.js?v=20261007-invoice" onerror="window.SkyBookAdminScriptLoadError&&window.SkyBookAdminScriptLoadError()"></script>
   <script src="assets/js/skybook-support.js?v=20261007-support" defer></script>
 </body>
 </html>
