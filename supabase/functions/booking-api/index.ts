@@ -167,7 +167,7 @@ const BOOKING_FORM_FIELD_TYPES=new Set(['text','textarea','select','checkbox','n
 const MANUAL_PAYMENT_TYPES=new Set(['cash','eft','bank_transfer','card','voucher','other'])
 const BRAND_SUPPORT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
-  iventure:'info@iventuretours.net'
+  iventure:'bookings@iventuretours.net'
 }
 const BRAND_CONSULTANT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
@@ -201,13 +201,13 @@ const DEFAULT_BRAND_DIRECTORY:Record<string,Json>={
     invoice_prefix:'IVT',
     logo_url:'https://asagrwkixsaltkkrqdsz.supabase.co/storage/v1/object/public/Iventure/IV%20Logo.png',
     support_email:BRAND_SUPPORT_EMAILS.iventure,
-    support_phone:'+264813224270',
-    support_whatsapp:'+264813224270',
+    support_phone:'+264812934155',
+    support_whatsapp:'+264812934155',
     website_url:'https://iventuretours.net',
     document_company_line:'Iventure desert-coast expedition desk',
     document_footer:'Walvis Bay, Namibia',
     document_banking_line:'Iventure invoices show the latest SkyBook balance. Use the invoice number or booking reference as payment reference.',
-    document_support_line:'info@iventuretours.net · +264 81 322 4270'
+    document_support_line:'bookings@iventuretours.net · +264 81 293 4155'
   }
 }
 
@@ -1926,11 +1926,10 @@ const getConfiguredBrandSupportEmail=async(brandCode:string)=>{
     supportEmailsByBrand:BRAND_SUPPORT_EMAILS
   }))
   const supportEmailsByBrand=normalizeJsonRecord(config.supportEmailsByBrand)
-  return normalizeText(
-    supportEmailsByBrand[brandCode]
-    || config.supportEmail
-    || BRAND_SUPPORT_EMAILS[brandCode as keyof typeof BRAND_SUPPORT_EMAILS]
-  )
+  // Only a per-brand entry counts: config.supportEmail is True Travel's
+  // address, so falling back to it would put True Travel's inbox on another
+  // brand's guest email. Without an entry the caller uses the brand record.
+  return normalizeText(supportEmailsByBrand[brandCode])
 }
 
 const markEmailLogSent=async(emailLog:Json,provider:string,responseStatus:number,extraMetadata:Json={},providerMessageId='')=>{
