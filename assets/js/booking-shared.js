@@ -17,7 +17,7 @@ window.TrueTravelBooking=(()=>{
     supportWhatsApp:'+264813224270',
     supportEmailsByBrand:{
       'true-travel':'bookings@truetravelnam.net',
-      iventure:'info@aerodigital.space'
+      iventure:'bookings@iventuretours.net'
     },
     lookupWindowDays:365,
     apiBase:'https://asagrwkixsaltkkrqdsz.supabase.co/functions/v1/booking-api',
@@ -45,7 +45,7 @@ window.TrueTravelBooking=(()=>{
     iventure:{
       code:'iventure',
       projectName:'Iventure',
-      supportEmail:'info@aerodigital.space',
+      supportEmail:'bookings@iventuretours.net',
       supportPhone:'+264813224270',
       supportWhatsApp:'+264813224270',
       bookingPrefix:'IV'

@@ -167,7 +167,7 @@ const BOOKING_FORM_FIELD_TYPES=new Set(['text','textarea','select','checkbox','n
 const MANUAL_PAYMENT_TYPES=new Set(['cash','eft','bank_transfer','card','voucher','other'])
 const BRAND_SUPPORT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
-  iventure:'info@iventuretours.net'
+  iventure:'bookings@iventuretours.net'
 }
 const BRAND_CONSULTANT_EMAILS={
   'true-travel':'bookings@truetravelnam.net',
@@ -2486,7 +2486,10 @@ const performQueuedEmailJob=async(job:Json)=>{
       payment_status:booking.payment_status,
       refund_amount:normalizeText(job.payload?.refund_amount),
       brand_name:normalizeText(brand?.name) || BRAND_EMAIL_NAMES[normalizeText(booking.brand_code) as keyof typeof BRAND_EMAIL_NAMES] || 'SkyBook',
-      brand_support_email:configuredSupportEmail || normalizeText(brand?.support_email) || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
+      // The brand record wins (brands table, kept right by migrations). The saved
+      // settings blob is only a fallback: an old console default once stored the
+      // wrong Iventure address there, which put it in every guest email.
+      brand_support_email:normalizeText(brand?.support_email) || configuredSupportEmail || BRAND_SUPPORT_EMAILS[normalizeText(booking.brand_code) as keyof typeof BRAND_SUPPORT_EMAILS] || '',
       brand_support_phone:normalizeText(brand?.support_phone),
       brand_website:normalizeText(brand?.website_url),
       // Resolved brand logo (admin setting → brand metadata → built-in default),
