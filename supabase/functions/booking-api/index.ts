@@ -5495,10 +5495,26 @@ const pctChange=(now:number,before:number)=>{
   return Number((((now-before)/before)*100).toFixed(1))
 }
 
+// PostgREST returns at most the project's "max rows" (1,000 by default) per request, whatever
+// .limit() asks for — so a busy window read in one go silently stops at 1,000 rows. Read it a page
+// at a time instead. `build` must return a fresh query with a stable order (ending on a unique
+// column), or pages can overlap or skip rows.
+const ANALYTICS_PAGE_ROWS=1000
+const selectAllRows=async<T>(build:()=>any,max:number)=>{
+  const out:T[]=[]
+  while(out.length<max){
+    const page=await safeTableSelect<T>(build().range(out.length,Math.min(out.length+ANALYTICS_PAGE_ROWS,max)-1),[])
+    if(!page.length)break
+    out.push(...page)
+  }
+  return out
+}
+
 // One pass over a window of visits, reduced to the numbers the dashboard shows.
 const summariseVisits=(rows:Json[])=>{
   const visitors=new Set<string>()
-  const sessions=new Set<string>()
+  const newVisitors=new Set<string>()
+  const sessionViews=new Map<string,number>()
   const engaged=new Set<string>()
   const durations:number[]=[]
   let engagedTotal=0
@@ -5506,12 +5522,15 @@ const summariseVisits=(rows:Json[])=>{
     const visitorId=normalizeText(row.visitor_id)
     const sessionId=normalizeText(row.session_id)
     if(visitorId)visitors.add(visitorId)
-    if(sessionId)sessions.add(sessionId)
+    if(visitorId&&row.is_new_visitor===true)newVisitors.add(visitorId)
+    if(sessionId)sessionViews.set(sessionId,(sessionViews.get(sessionId)||0)+1)
     const engagedMs=Number(row.engaged_ms||0) || Number(row.duration_ms||0)
     if(engagedMs>0){ durations.push(engagedMs); engagedTotal+=engagedMs }
     if(sessionId&&engagedMs>=10000)engaged.add(sessionId)
   }
-  const sessionCount=sessions.size
+  // A bounce is one quick page: going on to a second page is engagement however fast it was.
+  for(const [sessionId,views] of sessionViews)if(views>1)engaged.add(sessionId)
+  const sessionCount=sessionViews.size
   return {
     page_views:rows.length,
     visitors:visitors.size,
@@ -5522,7 +5541,7 @@ const summariseVisits=(rows:Json[])=>{
     avg_duration_seconds:durations.length ? Math.round(avgOf(durations)/1000) : 0,
     median_duration_seconds:durations.length ? Math.round(medianOf(durations)/1000) : 0,
     total_engaged_minutes:Math.round(engagedTotal/60000),
-    new_visitors:rows.filter((row:Json)=>row.is_new_visitor===true).length
+    new_visitors:newVisitors.size
   }
 }
 
@@ -5541,17 +5560,22 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   const probeCode=String(normalizeJsonRecord((probe as Json)?.error).code || '')
   const visitsTableMissing=['42P01','PGRST205','PGRST106'].includes(probeCode)
 
+  // Oldest first: the per-session passes below take a session's last row as its exit page and
+  // read its paths in order as the journey. It also keeps paging stable while new visits arrive.
   const [rows,prevRows,events,bookings]=await Promise.all([
-    safeTableSelect<Json>(adminClient.from('site_visits').select('*')
+    selectAllRows<Json>(()=>adminClient.from('site_visits').select('*')
       .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
-      .order('created_at',{ascending:false}).limit(50000),[]),
-    safeTableSelect<Json>(adminClient.from('site_visits').select('session_id,visitor_id,duration_ms,engaged_ms,is_new_visitor,is_entry,created_at,referrer_host,utm_source,utm_medium,utm_campaign,query_string,in_app')
-      .eq('brand_code',brandCode).gte('created_at',prevFrom).lte('created_at',prevTo).limit(50000),[]),
-    safeTableSelect<Json>(adminClient.from('site_events').select('*')
-      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate).limit(50000),[]),
-    safeTableSelect<Json>(adminClient.from('bookings')
+      .order('created_at',{ascending:true}).order('id',{ascending:true}),50000),
+    selectAllRows<Json>(()=>adminClient.from('site_visits').select('session_id,visitor_id,duration_ms,engaged_ms,is_new_visitor,is_entry,created_at,referrer_host,utm_source,utm_medium,utm_campaign,query_string,in_app')
+      .eq('brand_code',brandCode).gte('created_at',prevFrom).lte('created_at',prevTo)
+      .order('created_at',{ascending:true}).order('id',{ascending:true}),50000),
+    selectAllRows<Json>(()=>adminClient.from('site_events').select('*')
+      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
+      .order('created_at',{ascending:true}).order('id',{ascending:true}),50000),
+    selectAllRows<Json>(()=>adminClient.from('bookings')
       .select('id,reference,total_amount,currency_code,status,created_at,metadata,brand_code')
-      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate).limit(5000),[])
+      .eq('brand_code',brandCode).gte('created_at',fromDate).lte('created_at',toDate)
+      .order('created_at',{ascending:true}).order('id',{ascending:true}),5000)
   ])
 
   const totals=summariseVisits(rows)
@@ -5665,10 +5689,10 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   // so a TikTok click followed by a direct return still counts for TikTok — else their first visit.
   const bookingVisitorIds=[...new Set(webBookings.map((booking:Json)=>normalizeText(normalizeJsonRecord(metaOf(booking).analytics).visitor_id)).filter(Boolean))]
   const visitorEntries=bookingVisitorIds.length
-    ? await safeTableSelect<Json>(adminClient.from('site_visits')
+    ? await selectAllRows<Json>(()=>adminClient.from('site_visits')
         .select('visitor_id,created_at,referrer_host,utm_source,utm_medium,utm_campaign,query_string,in_app')
         .eq('brand_code',brandCode).eq('is_entry',true).in('visitor_id',bookingVisitorIds)
-        .order('created_at',{ascending:true}).limit(20000),[])
+        .order('created_at',{ascending:true}).order('id',{ascending:true}),20000)
     : []
   const touchSource=(touch:Json)=>visitSource({ referrer_host:touch.referrer_host, utm_source:touch.utm_source, utm_medium:touch.utm_medium, utm_campaign:touch.utm_campaign, in_app:touch.in_app, click_id:touch.click_id },brandCode)
   const bookingSource=(booking:Json):VisitSource=>{
@@ -5796,9 +5820,13 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
   }
 
   const pageViews=totals.page_views
-  const timeline=[...byDay.entries()]
-    .map(([date,bucket])=>({ date, views:bucket.views, visitors:bucket.visitors.size, sessions:bucket.sessions.size, new_visitors:bucket.newVisitors }))
-    .sort((a,b)=>a.date<b.date ? -1 : 1)
+  // Every day of the window, so a quiet day shows as zero instead of the line skipping over it.
+  const timeline:{ date:string, views:number, visitors:number, sessions:number, new_visitors:number }[]=[]
+  for(let day=new Date(fromDate.slice(0,10)+'T00:00:00Z');day.getTime()<=toMs&&timeline.length<400;day=new Date(day.getTime()+86400000)){
+    const date=day.toISOString().slice(0,10)
+    const bucket=byDay.get(date)
+    timeline.push({ date, views:bucket?.views||0, visitors:bucket?.visitors.size||0, sessions:bucket?.sessions.size||0, new_visitors:bucket?.newVisitors||0 })
+  }
 
   const pageTable=[...perPage.entries()].map(([path,p])=>({
     label:path,
@@ -5817,7 +5845,6 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
     journeys.set(trail,(journeys.get(trail)||0)+1)
   }
 
-  const returningViews=rows.filter((row:Json)=>row.is_new_visitor!==true).length
   const bucketRows=(obj:Record<string,number>)=>Object.entries(obj).map(([label,count])=>({ label, count }))
 
   return {
@@ -5846,7 +5873,7 @@ const buildSiteAnalytics=async(brandCode:string,fromDate:string,toDate:string)=>
     by_local_hour:byLocalHour.map((count,hour)=>({ label:String(hour).padStart(2,'0')+':00', count })),
     by_weekday:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((label,index)=>({ label, count:byWeekday[index] })),
     heatmap:{ days:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], matrix:heat },
-    visitor_split:[{ label:'New visitors', count:totals.new_visitors },{ label:'Returning', count:returningViews }],
+    visitor_split:[{ label:'New visitors', count:totals.new_visitors },{ label:'Returning visitors', count:Math.max(0,totals.visitors-totals.new_visitors) }],
     page_table:pageTable,
     top_pages:tallyBy(rows,'path',20),
     top_titles:tallyBy(rows,'page_title',15),

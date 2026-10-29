@@ -180,7 +180,7 @@
       ['Unique visitors', fmt(t.visitors), 'distinct browsers', delta(dl.visitors)],
       ['Sessions', fmt(t.sessions), 'separate visits', delta(dl.sessions)],
       ['Pages per session', (t.views_per_session || 0).toFixed(2), 'depth of visit', ''],
-      ['Bounce rate', (t.bounce_rate || 0) + '%', 'under 10s engaged', delta(dl.bounce_rate, true)],
+      ['Bounce rate', (t.bounce_rate || 0) + '%', 'one page, under 10s', delta(dl.bounce_rate, true)],
       ['Avg time on page', dur(t.avg_duration_seconds), 'engaged time', delta(dl.avg_duration_seconds)],
       ['Median time', dur(t.median_duration_seconds), 'typical visit', ''],
       ['Total engaged', (t.total_engaged_minutes || 0) + 'm', 'attention across all visits', ''],
@@ -336,7 +336,7 @@
         P('Most viewed pages', 'By page views', d.top_pages, 'Path'),
         P('Countries', 'From the visitor’s timezone', d.countries, 'Country'),
         P('Devices', 'Phone, tablet or desktop', d.devices, 'Device'),
-        P('New vs returning', 'Page views by visitor type', d.visitor_split, 'Type')
+        P('New vs returning', 'Visitors by type', d.visitor_split, 'Type')
       ].join(''), wide: ''
     };
 
@@ -382,7 +382,7 @@
         P('Countries', 'From the visitor’s timezone', d.countries, 'Country'),
         P('Timezones', 'Raw browser timezone', d.timezones, 'Timezone'),
         P('Languages', 'Browser language', d.languages, 'Language'),
-        P('New vs returning', 'Page views by visitor type', d.visitor_split, 'Type'),
+        P('New vs returning', 'Visitors by type', d.visitor_split, 'Type'),
         P('Local time of day', 'The visitor’s own clock', d.by_local_hour, 'Hour'),
         P('Preferences', 'What their device asks for', d.preferences, 'Preference')
       ].join(''), wide: ''
